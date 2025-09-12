@@ -1,0 +1,6 @@
+# Local env / credentials
+.env
+.env.local
+.pgpass
+# Keys and certs
+*.pem
