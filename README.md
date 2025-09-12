@@ -117,7 +117,13 @@ The RugbyCodex roadmap is iterative, focusing first on data and media infrastruc
 ---
 
 ## References
-
-- [Project Requirements v1.0](./docs/rugbycodex-project-requirements.md)  
 - [Controlled Vocabulary](./docs/controlled-vocabulary.md)  
-- [Roadmap](./docs/roadmap.md)  
+
+## Documentation
+
+Quick links to files in the `docs/` folder:
+
+- [API Specification](./docs/api-spec.md)
+- [Controlled Vocabulary](./docs/controlled-vocabulary.md)
+- [Database Schema Notes](./docs/db-schema-info.md)
+

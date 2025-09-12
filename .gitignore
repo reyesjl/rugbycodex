@@ -2,5 +2,21 @@
 .env
 .env.local
 .pgpass
+
 # Keys and certs
 *.pem
+
+# Python
+.venv
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Distribution / packaging
+build/
+dist/
+.eggs/
+*.egg-info/ 
