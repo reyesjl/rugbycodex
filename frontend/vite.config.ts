@@ -13,3 +13,13 @@ export default defineConfig({
   },
   assetsInclude: ['**/*.pdf']
 })
+
+// vite.config.js (v3 way)
+// export default defineConfig({
+//   plugins: [vue()], // No tailwindcss() plugin
+//   css: {
+//     postcss: {
+//       plugins: [tailwindcss(), autoprefixer()],
+//     },
+//   },
+// })

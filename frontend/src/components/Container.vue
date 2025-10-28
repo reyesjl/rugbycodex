@@ -13,7 +13,7 @@ const props = withDefaults(
 <template>
   <component
     :is="props.as"
-    :class="['container mx-auto px-4 md:px-6 lg:px-8', props.class]"
+    :class="['container', props.class]"
   >
     <slot />
   </component>

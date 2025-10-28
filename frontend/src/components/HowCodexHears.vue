@@ -24,7 +24,7 @@ import Section from '@/components/Section.vue'
           body="A shared rugby language maps plays, skills, and outcomes to stable terms. That keeps clips comparable across teams and seasons."
           href="/glossary"
           linkLabel="See Glossary"
-          icon="carbon:dictionary"
+          icon="carbon:concept"
         />
         <PrincipleCard
           number="02"
@@ -40,7 +40,7 @@ import Section from '@/components/Section.vue'
           body="Moments stack into patterns. Tags align to the vocabulary; sequences reveal trends and training links."
           href="/annotation-examples"
           linkLabel="Annotation Examples"
-          icon="carbon:stacked-scrolling-1"
+          icon="carbon:layers"
         />
       </div>
     </Container>

@@ -11,12 +11,18 @@ export default {
   darkMode: 'class',
 
   theme: {
+    screens: {
+      sm: '640px',
+      md: '768px',
+      lg: '900px',    // lg breakpoint at 900px
+      xl: '1024px',   // xl breakpoint at 1024px  
+      '2xl': '1200px', // 2xl breakpoint at 1200px
+    },
     extend: {
       // Example placeholders you can fill in later:
       // spacing: {},
       fontFamily: {
-        body: ['Inter', 'sans-serif'],
-        heading: ['Montserrat', 'sans-serif'],
+        sans: ['Inter', 'ui-sans-serif', 'system-ui'],
       },
       // fontSize: {},
       // borderRadius: {},
