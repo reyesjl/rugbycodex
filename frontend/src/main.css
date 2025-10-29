@@ -1,9 +1,118 @@
+/* -----------------------------------------------------------------------------
+   Tailwind v4 Container Notes
+   -----------------------------------------------------------------------------
+
+   Tailwind v4 removed the old “container” component and replaced it with a
+   simplified CSS-layer system. The old @screen / @utility syntax only works
+   inside Tailwind’s experimental parser (used in their own Vite playground).
+   In normal projects, those directives are ignored because they’re *not* real CSS.
+
+   This section defines a `.container` class manually inside @layer utilities,
+   using plain CSS and standard @media queries. This works reliably across all
+   build setups (Vite, PostCSS, etc.) and recreates the Tailwind v3 container
+   behavior:
+     • Centers content horizontally with auto margins
+     • Adds consistent side padding so text never touches screen edges
+     • Applies responsive max-widths at each breakpoint (sm–2xl)
+
+   Why this approach:
+     - Pure CSS → always compiled and respected by browsers
+     - Matches Tailwind’s default breakpoints
+     - Doesn’t depend on deprecated @screen or @utility features
+     - Easier to tweak or override locally
+
+   TL;DR: This is the Tailwind v3 container, rewritten for v4 stability.
+   If Tailwind reintroduces @utility/@screen in your build, you can migrate
+   later — but this version is the safe, production-proof setup.
+----------------------------------------------------------------------------- */
+
 @import "tailwindcss";
 
 /* Custom dark mode variant */
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  font-family: 'Inter', sans-serif;
+  font-family: "Inter", sans-serif;
 }
 
+@layer utilities {
+  .container {
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: 1rem; /* 16px */
+    padding-right: 1rem;
+  }
+
+  @media (min-width: 640px) {
+    .container {
+      max-width: 640px;
+    }
+  }
+
+  @media (min-width: 768px) {
+    .container {
+      max-width: 768px;
+    }
+  }
+
+  /* I want 900 on all screen sizes that are large */
+  @media (min-width: 1024px) {
+    .container {
+      max-width: 900px;
+    }
+  }
+
+  /* I want 900 on all screen sizes that are large */
+  @media (min-width: 1280px) {
+    .container {
+      max-width: 900px;
+    }
+  }
+
+  /* I want 900 on all screen sizes that are large */
+  @media (min-width: 1536px) {
+    .container {
+      max-width: 900px;
+    }
+  }
+
+  /* New container-lg with standard Tailwind max-widths */
+  .container-lg {
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  @media (min-width: 640px) {
+    .container-lg {
+      max-width: 640px;
+    }
+  }
+
+  @media (min-width: 768px) {
+    .container-lg {
+      max-width: 768px;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .container-lg {
+      max-width: 1024px;
+    }
+  }
+
+  @media (min-width: 1280px) {
+    .container-lg {
+      max-width: 1280px;
+    }
+  }
+
+  @media (min-width: 1536px) {
+    .container-lg {
+      max-width: 1536px;
+    }
+  }
+}
