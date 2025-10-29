@@ -4,7 +4,6 @@ import { Icon } from '@iconify/vue';
 import heroImg from '@/assets/logos/Rugbyball.svg';
 import heroWordbox from '@/assets/logos/Rugbycodex.svg';
 import videoDemo from '@/assets/videos/HeroDemo.webm';
-import rugbyWhitepaper from '@/assets/RugbyCodex_Whitepaper.pdf';
 
 // Dark mode reactive state
 const isDarkMode = ref(true);
@@ -33,14 +32,6 @@ watch(isDarkMode, (newValue) => {
 // Toggle function
 const toggleDarkMode = () => {
   isDarkMode.value = !isDarkMode.value;
-};
-
-// Add download function
-const downloadWhitepaper = () => {
-  const link = document.createElement('a');
-  link.href = rugbyWhitepaper;
-  link.download = 'RugbyCodex_Whitepaper_2025.pdf';
-  link.click();
 };
 
 </script>
