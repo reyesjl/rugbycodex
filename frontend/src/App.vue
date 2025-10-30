@@ -145,7 +145,7 @@ const toggleDarkMode = () => {
       capturing different angles and insights from each clip. Multiple narrations on a single play create a layered
       understanding of the game. Rugbycodex then analyzes and surfaces the most relevant perspectives for your specific
       purpose.</p>
-    <p class="text-sm mt-5 text-neutral-400">Narrations follow principles developed by our rugby experts. Staying
+    <p class="text-sm mt-5 text-neutral-400">*Narrations follow principles developed by our rugby experts. Staying
       aligned with these principles strengthens your reputation
       and influence within Rugbycodex.</p>
   </section>
@@ -166,11 +166,16 @@ const toggleDarkMode = () => {
   <section class="container text-neutral-800 dark:text-neutral-200 mb-32">
     <div class="h-1 bg-neutral-300 dark:bg-neutral-800"></div>
     <div class="text-5xl font-semibold mt-5">Vaults</div>
-    <p class="text-lg mt-5">Team Vaults are the shared environments where narrations and threads come together.
+    <p class="text-lg mt-5">Team vaults are the shared environments where narrations and threads come together.
       Each vault represents a team, academy, or organization within Rugbycodex, forming a private library of clips,
       insights, and evolving knowledge.
       As players and coaches contribute, their vault grows into a living codex that captures the team’s unique identity
       and learning culture.</p>
+
+    <div class="flex justify-center items-center">
+      <a class="md:text-2xl block px-10 py-5 rounded-full !bg-neutral-100 text-neutral-800 dark:!bg-neutral-800 dark:text-neutral-100 mt-20"
+        href="">Make your own team Vault</a>
+    </div>
   </section>
 
   <!-- Horizontal rule -->
@@ -184,11 +189,10 @@ const toggleDarkMode = () => {
         A shared intelligence emerging from teams, regions, and unions around the world.
       </div>
       <div class="text-xl md:text-3xl mt-10 text-center text-neutral-900 dark:text-neutral-200">As Vaults expand,
-        Rugbycodex will learn from every contribution, finding patterns in play and preparation that have gone unnoticed
-        until now.</div>
+        Rugbycodex will learn from every contribution, finding patterns in play and prep across teams and regions.</div>
 
       <div
-        class="grid sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-10 text-left text-sm text-neutral-400 w-full max-w-5xl">
+        class="grid sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-10 text-left text-sm text-neutral-600 dark:text-neutral-400 w-full max-w-5xl">
         <div class="p-4 bg-neutral-100 dark:bg-neutral-800 rounded-2xl">
           <h3 class="text-neutral-800 dark:text-neutral-100 font-medium mb-2">United States</h3>
           <p>Regional vaults connect data across New England, Pacific Northwest, and Mid-Atlantic rugby.</p>
@@ -231,7 +235,7 @@ const toggleDarkMode = () => {
           Rugbycodex imagines a shared language for the sport; where video, narration, and context meet.
           We’re building a platform that lets clubs and coaches preserve ideas, experiment with tactics,
           and keep institutional knowledge alive for the next season and beyond. Questions? Reach us at
-          <a class="underline hover:text-white" href="mailto:contact@biasware.com">contact@biasware.com</a>.
+          <a class="underline hover:text-white" href="mailto:contact@biasware.com">contact@biasware.com</a>
         </p>
       </div>
 
