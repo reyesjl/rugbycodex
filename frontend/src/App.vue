@@ -77,9 +77,8 @@ const toggleDarkMode = () => {
   <!-- Hero statement -->
   <section class="container flex items-center justify-center text-center pb-32">
     <div class="text-neutral-400 text-xl sm:text-2xl md:text-3xl lg:text-4xl xl:text-5xl max-w-4xl leading-relaxed">
-      Rugbycodex is an evolving system for understanding rugby.
-      A platform where knowledge, footage, and context
-      merge into one fluid language of the game.
+      Rugbycodex turns video and footage into searchable knowledge, helping coaches and players see
+      patterns, learn faster, and evolve together.
     </div>
   </section>
 
@@ -96,21 +95,21 @@ const toggleDarkMode = () => {
       <div class="micro">
         <div class="micro-line h-1 bg-neutral-300 dark:bg-neutral-800"></div>
         <div class="micro-title text-3xl font-semibold mt-5">Dynamic.</div>
-        <div class="micro-description text-lg mt-10">Rugbycodex is designed to capture the full context of rugby events.
+        <div class="micro-description text-xl mt-10">Rugbycodex is designed to capture the full context of rugby events.
           The system adapts to how each club, coach, or player learns. It flows naturally between footage, narrations,
           and annotations. We use the vocabulary players and coaches already know.</div>
       </div>
       <div class="micro">
         <div class="micro-line h-1 bg-neutral-300 dark:bg-neutral-800"></div>
         <div class="micro-title text-3xl font-semibold mt-5">Intentional.</div>
-        <div class="micro-description text-lg mt-10">The modern rugby ecosystem is noisy. Rugbycodex reduces the clutter
+        <div class="micro-description text-xl mt-10">The modern rugby ecosystem is noisy. Rugbycodex reduces the clutter
           to the essentials: play, learn,
           reflect. Every feature is designed to minimize friction and maximize insight.</div>
       </div>
       <div class="micro">
         <div class="micro-line h-1 bg-neutral-300 dark:bg-neutral-800"></div>
         <div class="micro-title text-3xl font-semibold mt-5">Collective.</div>
-        <div class="micro-description text-lg mt-10">Rugby isn’t built alone. Codex is an archive of intelligence,
+        <div class="micro-description text-xl mt-10">Rugby isn’t built alone. Codex is an archive of intelligence,
           shaped by many voices like yours. Unions, coaches, analysts, and players. It evolves with you and the sport
           itself.
           Each contribution strengthens the shared knowledge of the game.</div>
@@ -214,7 +213,7 @@ const toggleDarkMode = () => {
     </div>
   </section>
 
-  <footer class="bg-neutral-700 text-neutral-200 pt-16 pb-60 mt-24 text-xs">
+  <footer class="bg-neutral-700 dark:bg-neutral-800 text-neutral-200 pt-16 pb-60 mt-24 text-xs">
     <div class="container mx-auto grid gap-12 md:grid-cols-6 items-start">
       <div class="space-y-4">
         <h2 class="tracking-wide text-neutral-100">Explore</h2>
