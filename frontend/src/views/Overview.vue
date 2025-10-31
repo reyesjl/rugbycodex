@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue';
+import { RouterLink } from 'vue-router';
 import heroImg from '@/assets/logos/Rugbyball.svg';
 import heroWordbox from '@/assets/logos/Rugbycodex.svg';
 import videoDemo from '@/assets/videos/HeroDemo.webm';
@@ -12,7 +13,12 @@ import videoDemo from '@/assets/videos/HeroDemo.webm';
       <img :src="heroImg" alt="Rugbycodex"
         class="lg:mt-20 w-80 md:w-100 lg:w-105 max-w-120 h-auto mx-auto animate-pulse" />
       <img :src="heroWordbox" alt="Rugbycodex" class="w-80 md:w-100 lg:w-105 max-w-120 h-auto mx-auto" />
-      <div class="text-center">Public Beta - Version 1.0</div>
+      <div class="text-center">
+        <RouterLink to="/releases" class="inline-flex items-center gap-2 text-xs hover:underline">
+          Closed Beta Prep - Version 1.1.0
+          <span class="font-semibold text-indigo-500">Click me!</span>
+        </RouterLink>
+      </div>
     </div>
     <div class="mt-auto mb-20 md:mb-8 flex flex-col justify-end items-center">
       <Icon icon="carbon:arrow-down" class="w-16 h-16 animate-bounce text-neutral-400" />

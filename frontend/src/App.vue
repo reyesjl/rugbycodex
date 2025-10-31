@@ -39,6 +39,7 @@ const toggleDarkMode = () => {
       <!-- nav items -->
       <RouterLink class="text-neutral-500 hover:text-black dark:hover:text-white" to="/">Overview</RouterLink>
       <RouterLink class="text-neutral-500 hover:text-black dark:hover:text-white" to="/narrations">Narrations</RouterLink>
+      <RouterLink class="text-neutral-500 hover:text-black dark:hover:text-white" to="/releases">Releases</RouterLink>
       <RouterLink class="text-neutral-500 hover:text-black dark:hover:text-white" to="/vaults">Vaults</RouterLink>
       <RouterLink class="text-neutral-500 hover:text-black dark:hover:text-white" to="/about">About</RouterLink>
     </nav>
@@ -61,6 +62,7 @@ const toggleDarkMode = () => {
         <nav class="flex flex-col gap-2 text-neutral-300">
           <RouterLink class="hover:text-white transition-colors" to="/">Overview</RouterLink>
           <RouterLink class="hover:text-white transition-colors" to="/narrations">Narrations</RouterLink>
+          <RouterLink class="hover:text-white transition-colors" to="/releases">Releases</RouterLink>
           <RouterLink class="hover:text-white transition-colors" to="/vaults">Vaults</RouterLink>
           <RouterLink class="hover:text-white transition-colors" to="/about">About</RouterLink>
         </nav>
