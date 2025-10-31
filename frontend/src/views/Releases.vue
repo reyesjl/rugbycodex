@@ -253,50 +253,33 @@ onBeforeUnmount(() => {
   </section>
 
   <section class="relative w-full pb-32">
-    <div class="flex justify-end gap-3 px-6 md:px-12 pb-4">
-      <button
-        type="button"
-        class="flex h-10 w-10 items-center justify-center rounded-full border border-neutral-200 dark:border-neutral-700 bg-white/80 dark:bg-neutral-900/80 text-neutral-600 dark:text-neutral-200 shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed"
-        aria-label="View previous release"
-        aria-controls="release-slider"
-        @click="handleArrowClick('prev')"
-        :disabled="activeReleaseIndex === 0"
-      >
-        <Icon icon="carbon:chevron-left" class="h-5 w-5" />
-      </button>
-      <button
-        type="button"
-        class="flex h-10 w-10 items-center justify-center rounded-full border border-neutral-200 dark:border-neutral-700 bg-white/80 dark:bg-neutral-900/80 text-neutral-600 dark:text-neutral-200 shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed"
-        aria-label="View next release"
-        aria-controls="release-slider"
-        @click="handleArrowClick('next')"
-        :disabled="activeReleaseIndex === releases.length - 1"
-      >
-        <Icon icon="carbon:chevron-right" class="h-5 w-5" />
-      </button>
+
+    <div class="container">
+      <div class="flex justify-end gap-3 px-6 md:px-12 pb-4">
+        <button type="button"
+          class="flex h-10 w-10 items-center justify-center rounded-full border border-neutral-200 dark:border-neutral-700 bg-white/80 dark:bg-neutral-900/80 text-neutral-600 dark:text-neutral-200 shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed"
+          aria-label="View previous release" aria-controls="release-slider" @click="handleArrowClick('prev')"
+          :disabled="activeReleaseIndex === 0">
+          <Icon icon="carbon:chevron-left" class="h-5 w-5" />
+        </button>
+        <button type="button"
+          class="flex h-10 w-10 items-center justify-center rounded-full border border-neutral-200 dark:border-neutral-700 bg-white/80 dark:bg-neutral-900/80 text-neutral-600 dark:text-neutral-200 shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed"
+          aria-label="View next release" aria-controls="release-slider" @click="handleArrowClick('next')"
+          :disabled="activeReleaseIndex === releases.length - 1">
+          <Icon icon="carbon:chevron-right" class="h-5 w-5" />
+        </button>
+      </div>
     </div>
 
-    <div
-      id="release-slider"
-      ref="sliderRef"
-      class="no-scrollbar scroll-smooth snap-x snap-mandatory flex gap-6 overflow-x-auto"
-    >
-      <div
-        aria-hidden="true"
-        class="shrink-0"
-        :style="{ width: `${edgePadding}px`, flexBasis: `${edgePadding}px` }"
-      ></div>
-      <div
-        v-for="(release, index) in releases"
-        :key="release.version"
-        data-release-card="true"
-        class="release-card flex flex-col shrink-0 snap-center snap-always w-[min(90vw,38rem)] md:w-[min(75vw,48rem)] lg:w-[min(60vw,54rem)] border border-neutral-200 dark:border-neutral-800 rounded-3xl bg-neutral-100 dark:bg-neutral-900"
-      >
-        <button
-          type="button"
+    <div id="release-slider" ref="sliderRef"
+      class="no-scrollbar scroll-smooth snap-x snap-mandatory flex gap-6 overflow-x-auto">
+      <div aria-hidden="true" class="shrink-0" :style="{ width: `${edgePadding}px`, flexBasis: `${edgePadding}px` }">
+      </div>
+      <div v-for="(release, index) in releases" :key="release.version" data-release-card="true"
+        class="release-card flex flex-col shrink-0 snap-center snap-always w-[min(90vw,38rem)] md:w-[min(75vw,48rem)] lg:w-[min(60vw,54rem)] border border-neutral-200 dark:border-neutral-800 rounded-3xl bg-neutral-100 dark:bg-neutral-900">
+        <button type="button"
           class="w-full text-left p-8 md:p-12 flex flex-col gap-4 text-neutral-700 dark:text-neutral-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded-3xl"
-          @click="scrollToIndex(index)"
-        >
+          @click="scrollToIndex(index)">
           <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
               <div class="text-3xl md:text-4xl text-neutral-900 dark:text-neutral-100">
@@ -324,11 +307,8 @@ onBeforeUnmount(() => {
           </ul>
         </div>
       </div>
-      <div
-        aria-hidden="true"
-        class="shrink-0"
-        :style="{ width: `${edgePadding}px`, flexBasis: `${edgePadding}px` }"
-      ></div>
+      <div aria-hidden="true" class="shrink-0" :style="{ width: `${edgePadding}px`, flexBasis: `${edgePadding}px` }">
+      </div>
     </div>
   </section>
 
@@ -342,11 +322,8 @@ onBeforeUnmount(() => {
     </div>
 
     <div class="grid gap-8 md:grid-cols-3 text-neutral-700 dark:text-neutral-200">
-      <div
-        v-for="milestone in milestones"
-        :key="milestone.title"
-        class="rounded-3xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/50 p-6"
-      >
+      <div v-for="milestone in milestones" :key="milestone.title"
+        class="rounded-3xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/50 p-6">
         <h3 class="text-xl font-semibold text-neutral-900 dark:text-neutral-100">{{ milestone.title }}</h3>
         <p class="mt-4 text-neutral-600 dark:text-neutral-400">{{ milestone.description }}</p>
       </div>
@@ -363,11 +340,8 @@ onBeforeUnmount(() => {
     </div>
 
     <div class="grid gap-8 md:grid-cols-3 text-neutral-800 dark:text-neutral-200">
-      <div
-        v-for="focus in focusAreas"
-        :key="focus.title"
-        class="rounded-3xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/50 p-6"
-      >
+      <div v-for="focus in focusAreas" :key="focus.title"
+        class="rounded-3xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/50 p-6">
         <h3 class="text-xl font-semibold text-neutral-900 dark:text-neutral-100">{{ focus.title }}</h3>
         <p class="mt-4 text-neutral-600 dark:text-neutral-400">{{ focus.description }}</p>
       </div>
