@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue';
+import { Icon } from '@iconify/vue';
+
 type Release = {
   version: string;
   codename: string;
@@ -89,6 +92,154 @@ const focusAreas: RoadmapItem[] = [
       'Personalized weekly briefs that package vault activity, key narrations, and program-level learnings for coaching staff.'
   }
 ];
+
+const sliderRef = ref<HTMLElement | null>(null);
+const activeReleaseIndex = ref(0);
+const edgePadding = ref(24);
+let scrollAnimationFrame: number | null = null;
+
+const releaseCardSelector = '[data-release-card="true"]';
+
+const getReleaseCards = (): HTMLElement[] => {
+  const container = sliderRef.value;
+  if (!container) {
+    return [];
+  }
+
+  return Array.from(container.querySelectorAll<HTMLElement>(releaseCardSelector));
+};
+
+const updateActiveIndexFromScroll = () => {
+  const container = sliderRef.value;
+  if (!container) {
+    return;
+  }
+
+  const cards = getReleaseCards();
+  if (!cards.length) {
+    return;
+  }
+
+  const containerCenter = container.scrollLeft + container.clientWidth / 2;
+
+  let closestIndex = activeReleaseIndex.value;
+  let smallestDistance = Number.POSITIVE_INFINITY;
+
+  cards.forEach((card, index) => {
+    const cardCenter = card.offsetLeft + card.offsetWidth / 2;
+    const distance = Math.abs(cardCenter - containerCenter);
+    if (distance < smallestDistance) {
+      smallestDistance = distance;
+      closestIndex = index;
+    }
+  });
+
+  activeReleaseIndex.value = closestIndex;
+};
+
+const handleScroll = () => {
+  if (scrollAnimationFrame !== null) {
+    cancelAnimationFrame(scrollAnimationFrame);
+  }
+
+  scrollAnimationFrame = requestAnimationFrame(() => {
+    updateActiveIndexFromScroll();
+    scrollAnimationFrame = null;
+  });
+};
+
+const scrollToIndex = (index: number, options: { smooth?: boolean } = { smooth: true }) => {
+  const clampedIndex = Math.max(0, Math.min(releases.length - 1, index));
+  const container = sliderRef.value;
+
+  if (!container) {
+    activeReleaseIndex.value = clampedIndex;
+    return clampedIndex;
+  }
+
+  const cards = getReleaseCards();
+  if (!cards.length) {
+    activeReleaseIndex.value = clampedIndex;
+    return clampedIndex;
+  }
+
+  const target = cards[Math.min(clampedIndex, cards.length - 1)];
+
+  if (target) {
+    const preferredOffset =
+      target.offsetLeft - (container.clientWidth - target.offsetWidth) / 2;
+    const maxScroll = container.scrollWidth - container.clientWidth;
+    const nextScrollLeft = Math.max(0, Math.min(maxScroll, preferredOffset));
+
+    container.scrollTo({
+      left: nextScrollLeft,
+      behavior: options.smooth === false ? 'auto' : 'smooth'
+    });
+  }
+
+  activeReleaseIndex.value = clampedIndex;
+  return clampedIndex;
+};
+
+const updateEdgePadding = async () => {
+  const container = sliderRef.value;
+  if (!container) {
+    return;
+  }
+
+  const cards = getReleaseCards();
+  const firstCard = cards[0];
+  if (!firstCard) {
+    return;
+  }
+
+  const viewportWidth = container.clientWidth;
+  const cardWidth = firstCard.offsetWidth;
+  const baseSpacing =
+    typeof window === 'undefined'
+      ? 24
+      : window.innerWidth >= 1280
+        ? 64
+        : window.innerWidth >= 768
+          ? 48
+          : 24;
+  const computedPadding = Math.max((viewportWidth - cardWidth) / 2, baseSpacing);
+
+  edgePadding.value = Number.isFinite(computedPadding) ? computedPadding : baseSpacing;
+
+  await nextTick();
+  scrollToIndex(activeReleaseIndex.value, { smooth: false });
+};
+
+const handleResize = () => {
+  void updateEdgePadding();
+};
+
+const handleArrowClick = (direction: 'prev' | 'next') => {
+  const delta = direction === 'prev' ? -1 : 1;
+  scrollToIndex(activeReleaseIndex.value + delta);
+};
+
+onMounted(() => {
+  const container = sliderRef.value;
+  if (container) {
+    container.addEventListener('scroll', handleScroll, { passive: true });
+  }
+  window.addEventListener('resize', handleResize);
+  void updateEdgePadding();
+});
+
+onBeforeUnmount(() => {
+  const container = sliderRef.value;
+  if (container) {
+    container.removeEventListener('scroll', handleScroll);
+  }
+  window.removeEventListener('resize', handleResize);
+
+  if (scrollAnimationFrame !== null) {
+    cancelAnimationFrame(scrollAnimationFrame);
+  }
+});
 </script>
 
 <template>
@@ -101,34 +252,85 @@ const focusAreas: RoadmapItem[] = [
     </p>
   </section>
 
-  <section class="container space-y-16 pb-32">
+  <section class="relative w-full pb-32">
+    <div class="flex justify-end gap-3 px-6 md:px-12 pb-4">
+      <button
+        type="button"
+        class="flex h-10 w-10 items-center justify-center rounded-full border border-neutral-200 dark:border-neutral-700 bg-white/80 dark:bg-neutral-900/80 text-neutral-600 dark:text-neutral-200 shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed"
+        aria-label="View previous release"
+        aria-controls="release-slider"
+        @click="handleArrowClick('prev')"
+        :disabled="activeReleaseIndex === 0"
+      >
+        <Icon icon="carbon:chevron-left" class="h-5 w-5" />
+      </button>
+      <button
+        type="button"
+        class="flex h-10 w-10 items-center justify-center rounded-full border border-neutral-200 dark:border-neutral-700 bg-white/80 dark:bg-neutral-900/80 text-neutral-600 dark:text-neutral-200 shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed"
+        aria-label="View next release"
+        aria-controls="release-slider"
+        @click="handleArrowClick('next')"
+        :disabled="activeReleaseIndex === releases.length - 1"
+      >
+        <Icon icon="carbon:chevron-right" class="h-5 w-5" />
+      </button>
+    </div>
+
     <div
-      v-for="release in releases"
-      :key="release.version"
-      class="release-card p-8 md:p-12 rounded-3xl bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800"
+      id="release-slider"
+      ref="sliderRef"
+      class="no-scrollbar scroll-smooth snap-x snap-mandatory flex gap-6 overflow-x-auto"
     >
-      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 text-neutral-700 dark:text-neutral-300">
-        <div>
-          <div class="text-3xl md:text-4xl text-neutral-900 dark:text-neutral-100">
-            {{ release.version }} - {{ release.codename }}
+      <div
+        aria-hidden="true"
+        class="shrink-0"
+        :style="{ width: `${edgePadding}px`, flexBasis: `${edgePadding}px` }"
+      ></div>
+      <div
+        v-for="(release, index) in releases"
+        :key="release.version"
+        data-release-card="true"
+        class="release-card flex flex-col shrink-0 snap-center snap-always w-[min(90vw,38rem)] md:w-[min(75vw,48rem)] lg:w-[min(60vw,54rem)] border border-neutral-200 dark:border-neutral-800 rounded-3xl bg-neutral-100 dark:bg-neutral-900"
+      >
+        <button
+          type="button"
+          class="w-full text-left p-8 md:p-12 flex flex-col gap-4 text-neutral-700 dark:text-neutral-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded-3xl"
+          @click="scrollToIndex(index)"
+        >
+          <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <div class="text-3xl md:text-4xl text-neutral-900 dark:text-neutral-100">
+                {{ release.version }} - {{ release.codename }}
+              </div>
+              <div class="text-neutral-500 dark:text-neutral-500 text-sm md:text-base mt-1 uppercase tracking-wide">
+                {{ release.date }}
+              </div>
+            </div>
+            <div class="text-sm uppercase tracking-wide text-neutral-400 dark:text-neutral-500">
+              Slide {{ index + 1 }} / {{ releases.length }}
+            </div>
           </div>
-          <div class="text-neutral-500 dark:text-neutral-500 text-sm md:text-base mt-1 uppercase tracking-wide">
-            {{ release.date }}
-          </div>
-        </div>
-        <div class="text-neutral-600 dark:text-neutral-400 md:max-w-lg">
-          {{ release.summary }}
+        </button>
+
+        <div class="px-8 pb-8 md:px-12 md:pb-12 space-y-8 text-neutral-700 dark:text-neutral-200">
+          <p class="text-neutral-600 dark:text-neutral-400 md:max-w-3xl">
+            {{ release.summary }}
+          </p>
+          <ul class="space-y-4">
+            <li v-for="highlight in release.highlights" :key="highlight" class="flex items-start gap-3">
+              <span class="mt-2 inline-block shrink-0 h-2 w-2 rounded-full bg-amber-500"></span>
+              <span>{{ highlight }}</span>
+            </li>
+          </ul>
         </div>
       </div>
-
-      <ul class="mt-8 space-y-4 text-neutral-700 dark:text-neutral-200">
-        <li v-for="highlight in release.highlights" :key="highlight" class="flex items-start gap-3">
-          <span class="mt-2 inline-block h-2 w-2 rounded-full bg-amber-500"></span>
-          <span>{{ highlight }}</span>
-        </li>
-      </ul>
+      <div
+        aria-hidden="true"
+        class="shrink-0"
+        :style="{ width: `${edgePadding}px`, flexBasis: `${edgePadding}px` }"
+      ></div>
     </div>
-  </section>  
+  </section>
 
   <section class="container space-y-12 pb-32">
     <div class="space-y-4 text-neutral-700 dark:text-neutral-100">
@@ -173,4 +375,13 @@ const focusAreas: RoadmapItem[] = [
   </section>
 </template>
 
-<style scoped></style>
+<style scoped>
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+</style>
