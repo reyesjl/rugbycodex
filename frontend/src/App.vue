@@ -72,7 +72,8 @@ watch(
 </script>
 
 <template>
-  <header class="fixed top-0 z-10 block w-full">
+  <header
+    class="fixed top-0 z-20 block w-full border-b border-neutral-200/40 bg-white/60 backdrop-blur-sm transition-colors dark:border-neutral-800/60 dark:bg-neutral-950/70">
     <nav
       ref="navRef"
       class="nav-scroll container flex flex-nowrap items-center gap-6 overflow-x-auto px-6 py-8 md:justify-around md:overflow-visible md:px-0"
