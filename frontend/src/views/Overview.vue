@@ -55,8 +55,8 @@ import videoDemo from '@/assets/videos/HeroDemo.webm';
         <div class="micro-line h-1 bg-neutral-300 dark:bg-neutral-800"></div>
         <div class="micro-title text-3xl font-semibold mt-5">Dynamic.</div>
         <div class="micro-description text-xl mt-10">Rugbycodex is designed to capture the full context of rugby events.
-          The system adapts to how each club, coach, or player learns. It flows naturally between footage, narrations,
-          and annotations. We use the vocabulary players and coaches already know.</div>
+          The system adapts to how each club, coach, or player learns. It flows naturally between footage and
+          narrations. We use the vocabulary players and coaches already know.</div>
       </div>
       <div class="micro">
         <div class="micro-line h-1 bg-neutral-300 dark:bg-neutral-800"></div>

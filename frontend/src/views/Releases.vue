@@ -280,11 +280,12 @@ onBeforeUnmount(() => {
         <button type="button"
           class="w-full text-left p-8 md:p-12 flex flex-col gap-4 text-neutral-700 dark:text-neutral-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded-3xl"
           @click="scrollToIndex(index)">
-          <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div class="text-3xl md:text-4xl text-neutral-900 dark:text-neutral-100">
+            {{ release.version }} - {{ release.codename }}
+          </div>
+          <div class="flex flex-row justify-between items-center gap-4">
             <div>
-              <div class="text-3xl md:text-4xl text-neutral-900 dark:text-neutral-100">
-                {{ release.version }} - {{ release.codename }}
-              </div>
+              
               <div class="text-neutral-500 dark:text-neutral-500 text-sm md:text-base mt-1 uppercase tracking-wide">
                 {{ release.date }}
               </div>
@@ -295,7 +296,7 @@ onBeforeUnmount(() => {
           </div>
         </button>
 
-        <div class="px-8 pb-8 md:px-12 md:pb-12 space-y-8 text-neutral-700 dark:text-neutral-200">
+        <div class="text-sm px-8 pb-8 md:px-12 md:pb-12 space-y-8 text-neutral-700 dark:text-neutral-200">
           <p class="text-neutral-600 dark:text-neutral-400 md:max-w-3xl">
             {{ release.summary }}
           </p>

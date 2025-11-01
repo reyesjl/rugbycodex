@@ -116,3 +116,49 @@
     }
   }
 }
+
+@layer components {
+  .hero {
+    opacity: 0;
+    transform: translateY(24px);
+    animation: hero-fade-in 0.5s ease-out forwards;
+  }
+
+  .hero > * {
+    opacity: 0;
+    transform: translateY(16px);
+    animation: hero-content-fade 0.6s ease-out forwards;
+    animation-delay: 0.05s;
+  }
+}
+
+@keyframes hero-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes hero-content-fade {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero,
+  .hero > * {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}

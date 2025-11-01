@@ -1,10 +1,35 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue';
+import { ref, onMounted, watch, nextTick } from 'vue';
 import { Icon } from '@iconify/vue';
-import { RouterLink, RouterView } from 'vue-router';
+import { RouterLink, RouterView, useRoute } from 'vue-router';
 
 // Dark mode reactive state
 const isDarkMode = ref(true);
+const route = useRoute();
+const navRef = ref<HTMLElement | null>(null);
+
+const navLinks = [
+  { to: '/', label: 'Overview' },
+  { to: '/narrations', label: 'Narrations' },
+  { to: '/vaults', label: 'Vaults' },
+  { to: '/releases', label: 'Releases' },
+  { to: '/about', label: 'About' },
+];
+
+const scrollActiveIntoView = () => {
+  const navEl = navRef.value;
+  if (!navEl) return;
+
+  const activeEl = navEl.querySelector<HTMLAnchorElement>('.nav-link--active');
+  if (!activeEl) return;
+
+  const target =
+    activeEl.offsetLeft - navEl.clientWidth / 2 + activeEl.offsetWidth / 2;
+  const maxScroll = Math.max(navEl.scrollWidth - navEl.clientWidth, 0);
+  const clamped = Math.min(Math.max(target, 0), maxScroll);
+
+  navEl.scrollTo({ left: clamped, behavior: 'smooth' });
+};
 
 // Load saved preference on mount
 onMounted(() => {
@@ -15,6 +40,10 @@ onMounted(() => {
     // Default to system preference
     isDarkMode.value = window.matchMedia('(prefers-color-scheme: dark)').matches;
   }
+
+  nextTick(() => {
+    scrollActiveIntoView();
+  });
 });
 
 // Watch for changes and update DOM + localStorage
@@ -31,17 +60,43 @@ watch(isDarkMode, (newValue) => {
 const toggleDarkMode = () => {
   isDarkMode.value = !isDarkMode.value;
 };
+
+watch(
+  () => route.path,
+  () => {
+    nextTick(() => {
+      scrollActiveIntoView();
+    });
+  }
+);
 </script>
 
 <template>
   <header class="fixed top-0 z-10 block w-full">
-    <nav class="container flex justify-around items-center py-8">
-      <!-- nav items -->
-      <RouterLink class="text-neutral-500 hover:text-black dark:hover:text-white" to="/">Overview</RouterLink>
-      <RouterLink class="text-neutral-500 hover:text-black dark:hover:text-white" to="/narrations">Narrations</RouterLink>
-      <RouterLink class="text-neutral-500 hover:text-black dark:hover:text-white" to="/releases">Releases</RouterLink>
-      <RouterLink class="text-neutral-500 hover:text-black dark:hover:text-white" to="/vaults">Vaults</RouterLink>
-      <RouterLink class="text-neutral-500 hover:text-black dark:hover:text-white" to="/about">About</RouterLink>
+    <nav
+      ref="navRef"
+      class="nav-scroll container flex flex-nowrap items-center gap-6 overflow-x-auto px-6 py-8 md:justify-around md:overflow-visible md:px-0"
+    >
+      <RouterLink
+        v-for="link in navLinks"
+        :key="link.to"
+        :to="link.to"
+        custom
+        v-slot="{ href, navigate, isExactActive }"
+      >
+        <a
+          :href="href"
+          @click="navigate"
+          class="nav-link shrink-0 transition-colors"
+          :class="[
+            isExactActive
+              ? 'nav-link--active text-black dark:text-white font-semibold'
+              : 'nav-link--inactive text-neutral-500 hover:text-black dark:hover:text-white'
+          ]"
+        >
+          {{ link.label }}
+        </a>
+      </RouterLink>
     </nav>
   </header>
 
@@ -62,8 +117,8 @@ const toggleDarkMode = () => {
         <nav class="flex flex-col gap-2 text-neutral-300">
           <RouterLink class="hover:text-white transition-colors" to="/">Overview</RouterLink>
           <RouterLink class="hover:text-white transition-colors" to="/narrations">Narrations</RouterLink>
-          <RouterLink class="hover:text-white transition-colors" to="/releases">Releases</RouterLink>
           <RouterLink class="hover:text-white transition-colors" to="/vaults">Vaults</RouterLink>
+          <RouterLink class="hover:text-white transition-colors" to="/releases">Releases</RouterLink>
           <RouterLink class="hover:text-white transition-colors" to="/about">About</RouterLink>
         </nav>
       </div>
@@ -88,15 +143,56 @@ const toggleDarkMode = () => {
           Development <br />
           Jose Reyes <a class="text-neutral-400" href="https://biasware.com">@reyesjl</a>
         </p>
-
-        <p class="leading-relaxed">
-          Design heavily inspired by <br />
-
-          Jason Yuan <a class="text-neutral-400" href="https://x.com/jasonyuandesign">@jasonyuandesign</a>
-        </p>
       </div>
     </div>
   </footer>
 </template>
 
-<style scoped></style>
+<style scoped>
+.nav-scroll {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.nav-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .nav-scroll {
+    -webkit-mask-image: linear-gradient(
+      to right,
+      transparent 0%,
+      rgba(0, 0, 0, 0.7) 8%,
+      rgba(0, 0, 0, 1) 25%,
+      rgba(0, 0, 0, 1) 75%,
+      rgba(0, 0, 0, 0.7) 92%,
+      transparent 100%
+    );
+    mask-image: linear-gradient(
+      to right,
+      transparent 0%,
+      rgba(0, 0, 0, 0.7) 8%,
+      rgba(0, 0, 0, 1) 25%,
+      rgba(0, 0, 0, 1) 75%,
+      rgba(0, 0, 0, 0.7) 92%,
+      transparent 100%
+    );
+    scroll-padding-inline: 40px;
+  }
+
+  .nav-scroll::before,
+  .nav-scroll::after {
+    content: '';
+    flex: 0 0 40px;
+    pointer-events: none;
+  }
+}
+
+@media (min-width: 768px) {
+  .nav-scroll {
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+}
+</style>
