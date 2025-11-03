@@ -1,7 +1,54 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue';
+import { reactive, ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { RouterLink } from 'vue-router';
 import { Icon } from '@iconify/vue';
+
+declare global {
+  interface Window {
+    __turnstileRequestInviteSuccess?: (token: string) => void;
+  }
+}
+
+const turnstileTestKey = '1x00000000000000000000AA';
+
+const turnstileSiteKey = import.meta.env.PROD
+  ? import.meta.env.VITE_TURNSTILE_SITE_KEY ?? ''
+  : import.meta.env.VITE_TURNSTILE_SITE_KEY_DEV ?? import.meta.env.VITE_TURNSTILE_SITE_KEY ?? turnstileTestKey;
+
+const shouldRenderTurnstile = computed(() => Boolean(turnstileSiteKey));
+const turnstileToken = ref('');
+const turnstileCallbackName = '__turnstileRequestInviteSuccess';
+const turnstileScriptId = 'cloudflare-turnstile-script';
+
+const registerTurnstileCallback = () => {
+  if (typeof window === 'undefined') return;
+  window[turnstileCallbackName] = (token: string) => {
+    turnstileToken.value = token;
+  };
+};
+
+const appendTurnstileScript = () => {
+  if (typeof document === 'undefined') return;
+  if (document.getElementById(turnstileScriptId)) return;
+
+  const script = document.createElement('script');
+  script.id = turnstileScriptId;
+  script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js';
+  script.async = true;
+  script.defer = true;
+  document.head.appendChild(script);
+};
+
+onMounted(() => {
+  if (!shouldRenderTurnstile.value) return;
+  appendTurnstileScript();
+  registerTurnstileCallback();
+});
+
+onBeforeUnmount(() => {
+  if (typeof window === 'undefined') return;
+  delete window[turnstileCallbackName];
+});
 
 const form = reactive({
   name: '',
@@ -11,13 +58,24 @@ const form = reactive({
   role: '',
   usage: '',
   referral: '',
+  honeypot: '',
 });
 
 const submissionLogged = ref(false);
 const storageKey = 'betaRequests.csv';
 
 const handleSubmit = () => {
+  if (shouldRenderTurnstile.value && !turnstileToken.value) {
+    console.warn('turnstile verification is required before submitting');
+    return;
+  }
+
   // Naive CSV log written to localStorage for the current browser session.
+  if (form.honeypot?.trim()) {
+    console.warn('beta access request flagged as spam', { ...form });
+    return;
+  }
+
   if (typeof window !== 'undefined') {
     const quote = (value: string) => {
       const trimmed = value?.trim() ?? '';
@@ -52,10 +110,8 @@ const handleSubmit = () => {
 <template>
   <section class="container flex min-h-screen items-center justify-center pt-24 pb-24">
     <div class="w-full max-w-lg space-y-10">
-      <RouterLink
-        to="/"
-        class="mx-auto inline-flex items-center gap-2 text-sm font-medium text-neutral-500 transition hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100"
-      >
+      <RouterLink to="/"
+        class="mx-auto inline-flex items-center gap-2 text-sm font-medium text-neutral-500 transition hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100">
         Home
       </RouterLink>
       <header class="space-y-3 text-center">
@@ -68,69 +124,45 @@ const handleSubmit = () => {
         </p>
       </header>
 
-      <form
-        v-if="!submissionLogged"
-        @submit.prevent="handleSubmit"
-        class="rounded-3xl border border-neutral-200/60 bg-white/80 p-8 shadow-[0_24px_60px_rgba(15,23,42,0.08)] backdrop-blur-md transition-colors dark:border-neutral-800/70 dark:bg-neutral-950/70 dark:shadow-[0_24px_60px_rgba(15,23,42,0.35)]"
-      >
+      <form v-if="!submissionLogged" @submit.prevent="handleSubmit"
+        class="rounded-3xl border border-neutral-200/60 bg-white/80 p-8 shadow-[0_24px_60px_rgba(15,23,42,0.08)] backdrop-blur-md transition-colors dark:border-neutral-800/70 dark:bg-neutral-950/70 dark:shadow-[0_24px_60px_rgba(15,23,42,0.35)]">
         <div class="space-y-6">
+          <div class="sr-only" aria-hidden="true">
+            <label for="company" class="text-sm font-medium">Company</label>
+            <input id="company" name="company" v-model="form.honeypot" type="text" tabindex="-1" autocomplete="off" />
+          </div>
+
           <div class="space-y-2">
             <label for="name" class="text-sm font-medium text-neutral-700 dark:text-neutral-200">Name</label>
-            <input
-              id="name"
-              v-model="form.name"
-              type="text"
-              autocomplete="name"
-              required
-              class="block w-full rounded-2xl border border-neutral-200/70 bg-white/80 px-4 py-3 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/30 dark:border-neutral-700/70 dark:bg-neutral-900/60 dark:text-neutral-50 dark:placeholder:text-neutral-500 dark:focus:ring-neutral-100/30"
-            />
+            <input id="name" v-model="form.name" type="text" autocomplete="name" required
+              class="block w-full rounded-2xl border border-neutral-200/70 bg-white/80 px-4 py-3 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/30 dark:border-neutral-700/70 dark:bg-neutral-900/60 dark:text-neutral-50 dark:placeholder:text-neutral-500 dark:focus:ring-neutral-100/30" />
           </div>
 
           <div class="space-y-2">
             <label for="email" class="text-sm font-medium text-neutral-700 dark:text-neutral-200">Email</label>
-            <input
-              id="email"
-              v-model="form.email"
-              type="email"
-              inputmode="email"
-              autocomplete="email"
-              required
-              class="block w-full rounded-2xl border border-neutral-200/70 bg-white/80 px-4 py-3 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/30 dark:border-neutral-700/70 dark:bg-neutral-900/60 dark:text-neutral-50 dark:placeholder:text-neutral-500 dark:focus:ring-neutral-100/30"
-            />
+            <input id="email" v-model="form.email" type="email" inputmode="email" autocomplete="email" required
+              class="block w-full rounded-2xl border border-neutral-200/70 bg-white/80 px-4 py-3 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/30 dark:border-neutral-700/70 dark:bg-neutral-900/60 dark:text-neutral-50 dark:placeholder:text-neutral-500 dark:focus:ring-neutral-100/30" />
           </div>
 
           <div class="space-y-2">
-            <label for="phone" class="text-sm font-medium text-neutral-700 dark:text-neutral-200">Phone number (optional)</label>
-            <input
-              id="phone"
-              v-model="form.phone"
-              type="tel"
-              inputmode="tel"
-              autocomplete="tel"
+            <label for="phone" class="text-sm font-medium text-neutral-700 dark:text-neutral-200">Phone number
+              (optional)</label>
+            <input id="phone" v-model="form.phone" type="tel" inputmode="tel" autocomplete="tel"
               placeholder="e.g. +1 555 123 4567"
-              class="block w-full rounded-2xl border border-neutral-200/70 bg-white/80 px-4 py-3 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/30 dark:border-neutral-700/70 dark:bg-neutral-900/60 dark:text-neutral-50 dark:placeholder:text-neutral-500 dark:focus:ring-neutral-100/30"
-            />
+              class="block w-full rounded-2xl border border-neutral-200/70 bg-white/80 px-4 py-3 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/30 dark:border-neutral-700/70 dark:bg-neutral-900/60 dark:text-neutral-50 dark:placeholder:text-neutral-500 dark:focus:ring-neutral-100/30" />
           </div>
 
           <div class="space-y-2">
-            <label for="organization" class="text-sm font-medium text-neutral-700 dark:text-neutral-200">Club or organization</label>
-            <input
-              id="organization"
-              v-model="form.organization"
-              type="text"
-              placeholder="None"
-              class="block w-full rounded-2xl border border-neutral-200/70 bg-white/80 px-4 py-3 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/30 dark:border-neutral-700/70 dark:bg-neutral-900/60 dark:text-neutral-50 dark:placeholder:text-neutral-500 dark:focus:ring-neutral-100/30"
-            />
+            <label for="organization" class="text-sm font-medium text-neutral-700 dark:text-neutral-200">Club or
+              organization</label>
+            <input id="organization" v-model="form.organization" type="text" placeholder="None"
+              class="block w-full rounded-2xl border border-neutral-200/70 bg-white/80 px-4 py-3 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/30 dark:border-neutral-700/70 dark:bg-neutral-900/60 dark:text-neutral-50 dark:placeholder:text-neutral-500 dark:focus:ring-neutral-100/30" />
           </div>
 
           <div class="space-y-2">
             <label for="role" class="text-sm font-medium text-neutral-700 dark:text-neutral-200">Role</label>
-            <select
-              id="role"
-              v-model="form.role"
-              required
-              class="block w-full appearance-none rounded-2xl border border-neutral-200/70 bg-white/80 px-4 py-3 text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900/30 dark:border-neutral-700/70 dark:bg-neutral-900/60 dark:text-neutral-50 dark:focus:ring-neutral-100/30"
-            >
+            <select id="role" v-model="form.role" required
+              class="block w-full appearance-none rounded-2xl border border-neutral-200/70 bg-white/80 px-4 py-3 text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900/30 dark:border-neutral-700/70 dark:bg-neutral-900/60 dark:text-neutral-50 dark:focus:ring-neutral-100/30">
               <option disabled value="">Select a role</option>
               <option value="player">Player</option>
               <option value="coach">Coach</option>
@@ -142,24 +174,17 @@ const handleSubmit = () => {
           </div>
 
           <div class="space-y-2">
-            <label for="usage" class="text-sm font-medium text-neutral-700 dark:text-neutral-200">How do you plan to use Rugbycodex?</label>
-            <textarea
-              id="usage"
-              v-model="form.usage"
-              rows="3"
-              placeholder="Share a short overview"
-              required
-              class="block w-full rounded-2xl border border-neutral-200/70 bg-white/80 px-4 py-3 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/30 dark:border-neutral-700/70 dark:bg-neutral-900/60 dark:text-neutral-50 dark:placeholder:text-neutral-500 dark:focus:ring-neutral-100/30"
-            />
+            <label for="usage" class="text-sm font-medium text-neutral-700 dark:text-neutral-200">How do you plan to use
+              Rugbycodex?</label>
+            <textarea id="usage" v-model="form.usage" rows="3" placeholder="Share a short overview" required
+              class="block w-full rounded-2xl border border-neutral-200/70 bg-white/80 px-4 py-3 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/30 dark:border-neutral-700/70 dark:bg-neutral-900/60 dark:text-neutral-50 dark:placeholder:text-neutral-500 dark:focus:ring-neutral-100/30" />
           </div>
 
           <div class="space-y-2">
-            <label for="referral" class="text-sm font-medium text-neutral-700 dark:text-neutral-200">How did you hear about us?</label>
-            <select
-              id="referral"
-              v-model="form.referral"
-              class="block w-full appearance-none rounded-2xl border border-neutral-200/70 bg-white/80 px-4 py-3 text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900/30 dark:border-neutral-700/70 dark:bg-neutral-900/60 dark:text-neutral-50 dark:focus:ring-neutral-100/30"
-            >
+            <label for="referral" class="text-sm font-medium text-neutral-700 dark:text-neutral-200">How did you hear
+              about us?</label>
+            <select id="referral" v-model="form.referral"
+              class="block w-full appearance-none rounded-2xl border border-neutral-200/70 bg-white/80 px-4 py-3 text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900/30 dark:border-neutral-700/70 dark:bg-neutral-900/60 dark:text-neutral-50 dark:focus:ring-neutral-100/30">
               <option value="">Select an option</option>
               <option value="referral">Friend or teammate</option>
               <option value="social">Social media</option>
@@ -171,25 +196,28 @@ const handleSubmit = () => {
           </div>
         </div>
 
-        <button
-          type="submit"
-          class="mt-10 inline-flex w-full items-center justify-center rounded-2xl bg-neutral-900 px-4 py-3 text-sm font-semibold uppercase tracking-[0.2em] text-neutral-100 transition hover:bg-neutral-800 dark:bg-neutral-50 dark:text-neutral-900 dark:hover:bg-neutral-200"
-        >
+        <!-- Cloudflare Turnstile -->
+        <div class="flex justify-around">
+          <div v-if="shouldRenderTurnstile" class="mt-6">
+            <div class="cf-turnstile" :data-sitekey="turnstileSiteKey" data-theme="dark" data-size="normal"
+              :data-callback="turnstileCallbackName"></div>
+          </div>
+        </div>
+
+        <button type="submit"
+          class="mt-10 inline-flex w-full items-center justify-center rounded-2xl bg-neutral-900 px-4 py-3 text-sm font-semibold uppercase tracking-[0.2em] text-neutral-100 transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-neutral-50 dark:text-neutral-900 dark:hover:bg-neutral-200"
+          :disabled="shouldRenderTurnstile && !turnstileToken">
           Request Invite
         </button>
       </form>
 
-      <div
-        v-else
-        class="rounded-3xl border border-emerald-300/60 bg-emerald-50/80 p-8 text-center shadow-[0_24px_60px_rgba(15,23,42,0.08)] backdrop-blur-md dark:border-emerald-800/60 dark:bg-emerald-900/40 dark:shadow-[0_24px_60px_rgba(15,23,42,0.35)]"
-      >
+      <div v-else
+        class="rounded-3xl border border-emerald-300/60 bg-emerald-50/80 p-8 text-center shadow-[0_24px_60px_rgba(15,23,42,0.08)] backdrop-blur-md dark:border-emerald-800/60 dark:bg-emerald-900/40 dark:shadow-[0_24px_60px_rgba(15,23,42,0.35)]">
         <div class="flex flex-col items-center gap-4">
           <Icon icon="solar:check-circle-bold-duotone" class="h-10 w-10 text-emerald-500" />
           <p class="text-lg font-medium text-emerald-800 dark:text-emerald-100">Access requested.</p>
-          <RouterLink
-            to="/"
-            class="text-sm font-medium text-emerald-700 underline-offset-4 transition hover:text-emerald-800 dark:text-emerald-200 dark:hover:text-emerald-100"
-          >
+          <RouterLink to="/"
+            class="text-sm font-medium text-emerald-700 underline-offset-4 transition hover:text-emerald-800 dark:text-emerald-200 dark:hover:text-emerald-100">
             Return home
           </RouterLink>
         </div>
@@ -197,10 +225,8 @@ const handleSubmit = () => {
 
       <footer class="text-center text-sm text-neutral-500 dark:text-neutral-400">
         Already have access?
-        <RouterLink
-          to="/login"
-          class="font-medium text-neutral-700 underline-offset-4 transition hover:text-neutral-900 dark:text-neutral-200 dark:hover:text-neutral-100"
-        >
+        <RouterLink to="/login"
+          class="font-medium text-neutral-700 underline-offset-4 transition hover:text-neutral-900 dark:text-neutral-200 dark:hover:text-neutral-100">
           Log in instead
         </RouterLink>
       </footer>
