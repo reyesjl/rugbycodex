@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import narrationDemo from '@/assets/videos/narrationDemo.webm';
+import NarrationDemo from '@/components/NarrationDemo.vue';
 </script>
 <template>
   <!-- Narrations hero section -->
@@ -9,13 +9,10 @@ import narrationDemo from '@/assets/videos/narrationDemo.webm';
     <p class="mb-auto text-center text-xl md:text-2xl mt-20 text-neutral-600 dark:text-neutral-300">No rigid coding. Your voice gives meaning to the footage by explaining or reflecting on what you see. Each narration becomes part of rugby’s shared language.</p>
   </section>
 
-  <!-- Overview video -->
-  <section class="container-lg py-30 flex items-center justify-center">
-    <video class="w-100 md:w-[850px] h-auto border-10 md:border-12 border-neutral-700 rounded-xl" :src="narrationDemo"
-      playsinline autoplay muted loop preload="metadata">
-      Your browser does not support the video tag.
-    </video>
-  </section>
+  <!-- Narration Demo -->
+  <div class="container mb-10">
+    <NarrationDemo class="container mt-8" />
+  </div>
 
   <p class="container text-center text-sm text-neutral-500 dark:text-neutral-400">
     Stay updated—visit the

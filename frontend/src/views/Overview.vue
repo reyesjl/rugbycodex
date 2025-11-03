@@ -5,6 +5,7 @@ import heroImg from '@/assets/logos/Rugbyball.svg';
 import heroWordbox from '@/assets/logos/Rugbycodex.svg';
 // import videoDemo from '@/assets/videos/HeroDemo.webm';
 import narrationDemo from '@/assets/videos/narrationDemo.webm';
+import NarrationDemo from '@/components/NarrationDemo.vue';
 </script>
 
 <template>
@@ -112,6 +113,8 @@ import narrationDemo from '@/assets/videos/narrationDemo.webm';
     <p class="text-sm mt-5 text-neutral-400">*Narrations follow principles developed by our rugby experts. Staying
       aligned with these principles strengthens your reputation
       and influence within Rugbycodex.</p>
+    
+    <NarrationDemo class="container mt-8" />
   </section>
 
   <!-- Threads -->

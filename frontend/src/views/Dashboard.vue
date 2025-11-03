@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
-// import NarrationDemo from '@/components/NarrationDemo.vue';
+import NarrationDemo from '@/components/NarrationDemo.vue';
 
 const authStore = useAuthStore();
 const router = useRouter();
@@ -128,9 +128,10 @@ const handleSignOut = async () => {
       </article>
     </section>
 
-    
-    <!-- Narration demo coming soon... -->
-    <p class="mb-auto text-center text-xl md:text-2xl mt-20 text-neutral-600 dark:text-neutral-300">Live narration demo coming soon for you to test!</p>
+    <!-- Narration Demo -->
+    <NarrationDemo class="mt-8" />
+
+    <!-- Release page link -->
     <p class="container text-center text-sm text-neutral-500 dark:text-neutral-400">
       Stay updated—visit the
       <RouterLink
@@ -141,7 +142,5 @@ const handleSignOut = async () => {
       </RouterLink>
       often to read about the latest updates.
     </p>
-
-    <!-- <NarrationDemo class="mt-8" /> -->
   </section>
 </template>
