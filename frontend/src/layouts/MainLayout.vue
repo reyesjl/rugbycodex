@@ -1,20 +1,29 @@
 <script setup lang="ts">
-import { ref, onMounted, watch, nextTick } from 'vue';
+import { ref, onMounted, watch, nextTick, computed } from 'vue';
 import { Icon } from '@iconify/vue';
 import { RouterLink, useRoute } from 'vue-router';
+import { useAuthStore } from '@/stores/auth';
 
 const props = defineProps<{
   toggleDarkMode: () => void;
 }>();
 
-const navLinks = [
+const authStore = useAuthStore();
+
+if (!authStore.hydrated) {
+  void authStore.initialize();
+}
+
+const navLinks = computed(() => [
   { to: '/', label: 'Overview' },
   { to: '/narrations', label: 'Narrations' },
   { to: '/vaults', label: 'Vaults' },
   { to: '/releases', label: 'Releases' },
   { to: '/about', label: 'About' },
-  { to: '/signup', label: 'Account' },
-];
+  authStore.isAuthenticated
+    ? { to: '/dashboard', label: 'Dashboard' }
+    : { to: '/signup', label: 'Account' },
+]);
 
 const navRef = ref<HTMLElement | null>(null);
 const route = useRoute();

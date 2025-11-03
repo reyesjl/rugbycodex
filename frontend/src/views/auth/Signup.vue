@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { reactive, ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
-import { RouterLink } from 'vue-router';
+import { RouterLink, useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
+import { useAuthStore } from '@/stores/auth';
 
 declare global {
   interface Window {
@@ -36,6 +37,15 @@ const turnstileContainer = ref<HTMLElement | null>(null);
 const turnstileWidgetId = ref<string | null>(null);
 const isDarkMode = ref(false);
 const turnstileTheme = computed(() => (isDarkMode.value ? 'dark' : 'light'));
+const authStore = useAuthStore();
+const router = useRouter();
+const signingUp = ref(false);
+const supabaseError = ref<string | null>(null);
+const supabaseMessage = ref<string | null>(null);
+
+if (!authStore.hydrated) {
+  void authStore.initialize();
+}
 
 let turnstileScriptPromise: Promise<void> | null = null;
 let darkModeObserver: MutationObserver | null = null;
@@ -162,6 +172,7 @@ onBeforeUnmount(() => {
 const form = reactive({
   name: '',
   email: '',
+  password: '',
   phone: '',
   organization: '',
   role: '',
@@ -173,11 +184,38 @@ const form = reactive({
 const submissionLogged = ref(false);
 const storageKey = 'betaRequests.csv';
 
+const logSubmissionToLocalStorage = () => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  const quote = (value: string) => {
+    const trimmed = value?.trim() ?? '';
+    return `"${trimmed.replace(/"/g, '""')}"`;
+  };
+
+  const row = [
+    quote(form.name),
+    quote(form.email),
+    quote(form.phone),
+    quote(form.organization),
+    quote(form.role),
+    quote(form.usage),
+    quote(form.referral),
+    quote(new Date().toISOString()),
+  ].join(',');
+
+  const csvHeader = 'name,email,phone,organization,role,usage,referral,submitted_at';
+  const existingLog = window.localStorage.getItem(storageKey);
+  const nextLog = existingLog ? `${existingLog}\n${row}` : `${csvHeader}\n${row}`;
+  window.localStorage.setItem(storageKey, nextLog);
+};
+
 watch(turnstileTheme, () => {
   void mountTurnstile();
 });
 
-const handleSubmit = () => {
+const handleSubmit = async () => {
   if (shouldRenderTurnstile.value && !turnstileToken.value) {
     console.warn('turnstile verification is required before submitting');
     return;
@@ -189,34 +227,43 @@ const handleSubmit = () => {
     return;
   }
 
-  if (typeof window !== 'undefined') {
-    const quote = (value: string) => {
-      const trimmed = value?.trim() ?? '';
-      return `"${trimmed.replace(/"/g, '""')}"`;
-    };
+  signingUp.value = true;
+  supabaseError.value = null;
+  supabaseMessage.value = null;
 
-    const row = [
-      quote(form.name),
-      quote(form.email),
-      quote(form.phone),
-      quote(form.organization),
-      quote(form.role),
-      quote(form.usage),
-      quote(form.referral),
-      quote(new Date().toISOString()),
-    ].join(',');
+  const metadata = {
+    name: form.name,
+    phone: form.phone,
+    organization: form.organization,
+    role: form.role,
+    usage: form.usage,
+    referral: form.referral,
+  };
 
-    const csvHeader =
-      'name,email,phone,organization,role,usage,referral,submitted_at';
-    const existingLog = window.localStorage.getItem(storageKey);
-    const nextLog = existingLog
-      ? `${existingLog}\n${row}`
-      : `${csvHeader}\n${row}`;
-    window.localStorage.setItem(storageKey, nextLog);
+  const { data, error } = await authStore.signUp(form.email, form.password, metadata);
+
+  if (error) {
+    supabaseError.value = error.message ?? 'Something went wrong while creating your account.';
+    signingUp.value = false;
+    return;
   }
 
+  logSubmissionToLocalStorage();
+
+  if (data?.session) {
+    supabaseMessage.value = 'Your account is ready. We will redirect you to the dashboard.';
+    submissionLogged.value = true;
+    await nextTick();
+    await router.push({ name: 'Dashboard' });
+    signingUp.value = false;
+    return;
+  }
+
+  supabaseMessage.value =
+    'Check your inbox to confirm your email. Once verified, you can sign in to your dashboard.';
   submissionLogged.value = true;
   console.info('beta access request logged', { ...form });
+  signingUp.value = false;
 };
 </script>
 
@@ -255,6 +302,24 @@ const handleSubmit = () => {
             <label for="email" class="text-sm font-medium text-neutral-700 dark:text-neutral-200">Email</label>
             <input id="email" v-model="form.email" type="email" inputmode="email" autocomplete="email" required
               class="block w-full rounded-2xl border border-neutral-200/70 bg-white/80 px-4 py-3 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/30 dark:border-neutral-700/70 dark:bg-neutral-900/60 dark:text-neutral-50 dark:placeholder:text-neutral-500 dark:focus:ring-neutral-100/30" />
+          </div>
+
+          <div class="space-y-2">
+            <label for="password" class="text-sm font-medium text-neutral-700 dark:text-neutral-200">
+              Password
+            </label>
+            <input
+              id="password"
+              v-model="form.password"
+              type="password"
+              autocomplete="new-password"
+              minlength="6"
+              required
+              class="block w-full rounded-2xl border border-neutral-200/70 bg-white/80 px-4 py-3 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/30 dark:border-neutral-700/70 dark:bg-neutral-900/60 dark:text-neutral-50 dark:placeholder:text-neutral-500 dark:focus:ring-neutral-100/30"
+            />
+            <p class="text-xs text-neutral-500 dark:text-neutral-400">
+              Use at least 6 characters. You can reset it later from your dashboard.
+            </p>
           </div>
 
           <div class="space-y-2">
@@ -314,10 +379,14 @@ const handleSubmit = () => {
           <div ref="turnstileContainer" class="w-full max-w-sm"></div>
         </div>
 
+        <p v-if="supabaseError" class="mt-6 text-sm text-rose-500 dark:text-rose-400">
+          {{ supabaseError }}
+        </p>
+
         <button type="submit"
           class="mt-10 inline-flex w-full items-center justify-center rounded-2xl bg-neutral-900 px-4 py-3 text-sm font-semibold uppercase tracking-[0.2em] text-neutral-100 transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-neutral-50 dark:text-neutral-900 dark:hover:bg-neutral-200"
-          :disabled="shouldRenderTurnstile && !turnstileToken">
-          Request Invite
+          :disabled="signingUp || (shouldRenderTurnstile && !turnstileToken)">
+          {{ signingUp ? 'Submitting…' : 'Request Invite' }}
         </button>
       </form>
 
@@ -326,6 +395,10 @@ const handleSubmit = () => {
         <div class="flex flex-col items-center gap-4">
           <Icon icon="solar:check-circle-bold-duotone" class="h-10 w-10 text-emerald-500" />
           <p class="text-lg font-medium text-emerald-800 dark:text-emerald-100">Access requested.</p>
+          <p v-if="supabaseMessage" class="text-sm text-emerald-700 dark:text-emerald-200">
+            {{ supabaseMessage }}
+          </p>
+          <p class="text-xs font-semibold text-red-500">*Be sure to check junk and spam folders!</p>
           <RouterLink to="/"
             class="text-sm font-medium text-emerald-700 underline-offset-4 transition hover:text-emerald-800 dark:text-emerald-200 dark:hover:text-emerald-100">
             Return home
