@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
+// import NarrationDemo from '@/components/NarrationDemo.vue';
 
 const authStore = useAuthStore();
 const router = useRouter();
@@ -25,6 +26,13 @@ const accountRole = computed(() => {
   if (metadataRole?.trim()) return metadataRole;
   return 'User';
 });
+
+const organization = computed(() => {
+  const metadataOrganization = authStore.user?.user_metadata?.organization as string | undefined;
+  if (metadataOrganization?.trim()) return metadataOrganization;
+  return '—';
+});
+
 
 const lastSignInAt = computed(() => authStore.user?.last_sign_in_at);
 const userEmail = computed(() => authStore.user?.email ?? '—');
@@ -90,6 +98,12 @@ const handleSignOut = async () => {
           </div>
           <div>
             <dt class="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-400 dark:text-neutral-500">
+              Organization
+            </dt>
+            <dd class="mt-1 break-all text-sm">{{ organization }}</dd>
+          </div>
+          <div>
+            <dt class="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-400 dark:text-neutral-500">
               Last Sign-In
             </dt>
             <dd class="mt-1 text-sm">
@@ -113,5 +127,21 @@ const handleSignOut = async () => {
         </p>
       </article>
     </section>
+
+    
+    <!-- Narration demo coming soon... -->
+    <p class="mb-auto text-center text-xl md:text-2xl mt-20 text-neutral-600 dark:text-neutral-300">Live narration demo coming soon for you to test!</p>
+    <p class="container text-center text-sm text-neutral-500 dark:text-neutral-400">
+      Stay updated—visit the
+      <RouterLink
+        to="/releases"
+        class="underline decoration-dotted underline-offset-4 transition hover:text-neutral-900 dark:hover:text-neutral-100"
+      >
+        Releases page
+      </RouterLink>
+      often to read about the latest updates.
+    </p>
+
+    <!-- <NarrationDemo class="mt-8" /> -->
   </section>
 </template>

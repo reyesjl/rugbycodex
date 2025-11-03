@@ -3,7 +3,8 @@ import { Icon } from '@iconify/vue';
 import { RouterLink } from 'vue-router';
 import heroImg from '@/assets/logos/Rugbyball.svg';
 import heroWordbox from '@/assets/logos/Rugbycodex.svg';
-import videoDemo from '@/assets/videos/HeroDemo.webm';
+// import videoDemo from '@/assets/videos/HeroDemo.webm';
+import narrationDemo from '@/assets/videos/narrationDemo.webm';
 </script>
 
 <template>
@@ -27,7 +28,7 @@ import videoDemo from '@/assets/videos/HeroDemo.webm';
 
   <!-- Overview video -->
   <section class="container-lg py-30 flex items-center justify-center">
-    <video class="w-80 md:w-3/4 h-auto border-10 md:border-12 border-neutral-700 rounded-xl" :src="videoDemo"
+    <video class="w-100 md:w-[850px] h-auto border-10 md:border-12 border-neutral-700 rounded-xl" :src="narrationDemo"
       playsinline autoplay muted loop preload="metadata">
       Your browser does not support the video tag.
     </video>
@@ -88,8 +89,12 @@ import videoDemo from '@/assets/videos/HeroDemo.webm';
         philosophy, player context, and tactical evolution for the next generation. A permanent digital record of how
         rugby is understood and the nuances of how it's played.</div>
 
-      <a class="md:text-2xl block px-10 py-5 rounded-full !bg-neutral-100 text-neutral-800 dark:!bg-neutral-800 dark:text-neutral-100 mt-20"
-        href="">Learn more about Rugbycodex</a>
+      <RouterLink
+        to="/about"
+        class="md:text-2xl block px-10 py-5 rounded-full !bg-neutral-100 text-neutral-800 dark:!bg-neutral-800 dark:text-neutral-100 mt-20"
+      >
+        Learn more about Rugbycodex
+      </RouterLink>
     </div>
   </section>
 
@@ -132,8 +137,12 @@ import videoDemo from '@/assets/videos/HeroDemo.webm';
       and learning culture.</p>
 
     <div class="flex justify-center items-center">
-      <a class="md:text-2xl block px-10 py-5 rounded-full !bg-neutral-100 text-neutral-800 dark:!bg-neutral-800 dark:text-neutral-100 mt-20"
-        href="">Make your own team Vault</a>
+      <RouterLink
+        to="/signup"
+        class="md:text-2xl block px-10 py-5 rounded-full !bg-neutral-100 text-neutral-800 dark:!bg-neutral-800 dark:text-neutral-100 mt-20"
+      >
+        Make your own team Vault
+      </RouterLink>
     </div>
   </section>
 
@@ -171,8 +180,12 @@ import videoDemo from '@/assets/videos/HeroDemo.webm';
         </div>
       </div>
 
-      <a class="md:text-2xl block px-10 py-5 rounded-full !bg-neutral-100 text-neutral-800 dark:!bg-neutral-800 dark:text-neutral-100 mt-20"
-        href="">Be part of the Pattern</a>
+      <RouterLink
+        to="/signup"
+        class="md:text-2xl block px-10 py-5 rounded-full !bg-neutral-100 text-neutral-800 dark:!bg-neutral-800 dark:text-neutral-100 mt-20"
+      >
+        Be part of the Pattern
+      </RouterLink>
     </div>
   </section>
 </template>

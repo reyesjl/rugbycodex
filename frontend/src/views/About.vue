@@ -8,6 +8,14 @@
       A special group of the game’s best thinkers and most grounded people are building Rugbycodex. Coaches, union leaders, and people who believe rugby knowledge should be shared.
     </p>
   </section>
+  <p class="text-center text-sm text-neutral-500 dark:text-neutral-400">
+    Stay updated—visit the
+    <RouterLink to="/releases"
+      class="underline decoration-dotted underline-offset-4 transition hover:text-neutral-900 dark:hover:text-neutral-100">
+      Releases page
+    </RouterLink>
+    often to read about the latest updates.
+  </p>
 </template>
 <style lang="css" scoped>
 </style>
