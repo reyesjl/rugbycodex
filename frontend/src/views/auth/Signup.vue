@@ -1,11 +1,25 @@
 <script setup lang="ts">
-import { reactive, ref, computed, onMounted, onBeforeUnmount } from 'vue';
+import { reactive, ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import { RouterLink } from 'vue-router';
 import { Icon } from '@iconify/vue';
 
 declare global {
   interface Window {
-    __turnstileRequestInviteSuccess?: (token: string) => void;
+    turnstile?: {
+      render: (
+        container: string | HTMLElement,
+        options: {
+          sitekey: string;
+          theme?: 'light' | 'dark' | 'auto';
+          size?: 'normal' | 'compact' | 'invisible';
+          callback?: (token: string) => void;
+          'error-callback'?: () => void;
+          'expired-callback'?: () => void;
+        }
+      ) => string;
+      reset?: (widgetId?: string) => void;
+      remove?: (widgetId: string) => void;
+    };
   }
 }
 
@@ -17,19 +31,22 @@ const turnstileSiteKey = import.meta.env.PROD
 
 const shouldRenderTurnstile = computed(() => Boolean(turnstileSiteKey));
 const turnstileToken = ref('');
-const turnstileCallbackName = '__turnstileRequestInviteSuccess';
 const turnstileScriptId = 'cloudflare-turnstile-script';
+const turnstileContainer = ref<HTMLElement | null>(null);
+const turnstileWidgetId = ref<string | null>(null);
+const isDarkMode = ref(false);
+const turnstileTheme = computed(() => (isDarkMode.value ? 'dark' : 'light'));
 
-const registerTurnstileCallback = () => {
-  if (typeof window === 'undefined') return;
-  window[turnstileCallbackName] = (token: string) => {
-    turnstileToken.value = token;
-  };
-};
+let turnstileScriptPromise: Promise<void> | null = null;
+let darkModeObserver: MutationObserver | null = null;
 
 const appendTurnstileScript = () => {
-  if (typeof document === 'undefined') return;
-  if (document.getElementById(turnstileScriptId)) return;
+  if (typeof document === 'undefined') return null;
+
+  const existing = document.getElementById(turnstileScriptId) as HTMLScriptElement | null;
+  if (existing) {
+    return existing;
+  }
 
   const script = document.createElement('script');
   script.id = turnstileScriptId;
@@ -37,17 +54,109 @@ const appendTurnstileScript = () => {
   script.async = true;
   script.defer = true;
   document.head.appendChild(script);
+  return script;
 };
 
-onMounted(() => {
+const ensureTurnstileScript = () => {
+  if (typeof window === 'undefined' || !shouldRenderTurnstile.value) {
+    return Promise.resolve();
+  }
+
+  if (window.turnstile) {
+    return Promise.resolve();
+  }
+
+  if (turnstileScriptPromise) {
+    return turnstileScriptPromise;
+  }
+
+  turnstileScriptPromise = new Promise<void>((resolve) => {
+    const script = appendTurnstileScript();
+    if (!script) {
+      resolve();
+      return;
+    }
+
+    if (script.dataset.loaded === 'true') {
+      resolve();
+      return;
+    }
+
+    const onLoad = () => {
+      script.dataset.loaded = 'true';
+      resolve();
+    };
+
+    const onError = () => {
+      turnstileScriptPromise = null;
+      resolve();
+    };
+
+    script.addEventListener('load', onLoad, { once: true });
+    script.addEventListener('error', onError, { once: true });
+  });
+
+  return turnstileScriptPromise;
+};
+
+const syncDarkMode = () => {
+  if (typeof document === 'undefined') return;
+  isDarkMode.value = document.documentElement.classList.contains('dark');
+};
+
+const removeTurnstile = () => {
+  if (typeof window === 'undefined') return;
+  if (!turnstileWidgetId.value) return;
+  window.turnstile?.remove?.(turnstileWidgetId.value);
+  turnstileWidgetId.value = null;
+  turnstileToken.value = '';
+  if (turnstileContainer.value) {
+    turnstileContainer.value.innerHTML = '';
+  }
+};
+
+const mountTurnstile = async () => {
+  if (!shouldRenderTurnstile.value) return;
+  if (typeof window === 'undefined') return;
+  await ensureTurnstileScript();
+  if (!window.turnstile || !turnstileContainer.value) return;
+
+  removeTurnstile();
+  turnstileToken.value = '';
+  turnstileContainer.value.innerHTML = '';
+
+  turnstileWidgetId.value = window.turnstile.render(turnstileContainer.value, {
+    sitekey: turnstileSiteKey,
+    theme: turnstileTheme.value,
+    size: 'normal',
+    callback: (token: string) => {
+      turnstileToken.value = token;
+    },
+  });
+};
+
+onMounted(async () => {
   if (!shouldRenderTurnstile.value) return;
   appendTurnstileScript();
-  registerTurnstileCallback();
+  syncDarkMode();
+  await nextTick();
+  await mountTurnstile();
+
+  if (typeof document !== 'undefined' && typeof MutationObserver !== 'undefined') {
+    darkModeObserver = new MutationObserver(() => {
+      syncDarkMode();
+    });
+    darkModeObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class'],
+    });
+  }
 });
 
 onBeforeUnmount(() => {
-  if (typeof window === 'undefined') return;
-  delete window[turnstileCallbackName];
+  removeTurnstile();
+  darkModeObserver?.disconnect();
+  darkModeObserver = null;
 });
 
 const form = reactive({
@@ -63,6 +172,10 @@ const form = reactive({
 
 const submissionLogged = ref(false);
 const storageKey = 'betaRequests.csv';
+
+watch(turnstileTheme, () => {
+  void mountTurnstile();
+});
 
 const handleSubmit = () => {
   if (shouldRenderTurnstile.value && !turnstileToken.value) {
@@ -197,11 +310,8 @@ const handleSubmit = () => {
         </div>
 
         <!-- Cloudflare Turnstile -->
-        <div class="flex justify-around">
-          <div v-if="shouldRenderTurnstile" class="mt-6">
-            <div class="cf-turnstile" :data-sitekey="turnstileSiteKey" data-theme="dark" data-size="normal"
-              :data-callback="turnstileCallbackName"></div>
-          </div>
+        <div v-if="shouldRenderTurnstile" class="mt-6 flex justify-around">
+          <div ref="turnstileContainer" class="w-full max-w-sm"></div>
         </div>
 
         <button type="submit"

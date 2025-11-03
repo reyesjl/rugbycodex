@@ -3,6 +3,8 @@
 .env
 venv/
 
+deploy.sh
+
 *.pyc
 __pycache__/
 *.pyo
