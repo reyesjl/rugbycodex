@@ -342,13 +342,6 @@ const handleSubmit = async () => {
           </div>
 
           <div class="space-y-2">
-            <label for="phone" class="text-sm font-medium text-neutral-700 dark:text-neutral-200">Phone number
-              (optional)</label>
-            <input id="phone" v-model="form.phone" type="tel" inputmode="tel" autocomplete="tel"
-              placeholder="e.g. +1 555 123 4567"
-              class="block w-full rounded-2xl border border-neutral-200/70 bg-white/80 px-4 py-3 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/30 dark:border-neutral-700/70 dark:bg-neutral-900/60 dark:text-neutral-50 dark:placeholder:text-neutral-500 dark:focus:ring-neutral-100/30" />
-          </div>
-          <div class="space-y-2">
             <label for="confirm-password" class="text-sm font-medium text-neutral-700 dark:text-neutral-200">
               Confirm password
             </label>
@@ -361,6 +354,14 @@ const handleSubmit = async () => {
               required
               class="block w-full rounded-2xl border border-neutral-200/70 bg-white/80 px-4 py-3 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/30 dark:border-neutral-700/70 dark:bg-neutral-900/60 dark:text-neutral-50 dark:placeholder:text-neutral-500 dark:focus:ring-neutral-100/30" />
             <p v-if="showPasswordMismatch" class="text-sm text-rose-500 dark:text-rose-400">Passwords do not match.</p>
+          </div>
+
+          <div class="space-y-2">
+            <label for="phone" class="text-sm font-medium text-neutral-700 dark:text-neutral-200">Phone number
+              (optional)</label>
+            <input id="phone" v-model="form.phone" type="tel" inputmode="tel" autocomplete="tel"
+              placeholder="e.g. +1 555 123 4567"
+              class="block w-full rounded-2xl border border-neutral-200/70 bg-white/80 px-4 py-3 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/30 dark:border-neutral-700/70 dark:bg-neutral-900/60 dark:text-neutral-50 dark:placeholder:text-neutral-500 dark:focus:ring-neutral-100/30" />
           </div>
 
           <div class="space-y-2">
