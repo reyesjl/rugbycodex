@@ -17,6 +17,19 @@ type RoadmapItem = {
 
 const releases: Release[] = [
   {
+    version: '1.2.0',
+    codename: 'Narrations Spotlight',
+    date: 'November 03, 2025',
+    summary:
+      'Narrations move to the front of the experience. This release introduces curated voice examples across the platform, showcasing how commentary, player reflection, and coach previews can bring match footage to life before users begin submitting their own takes.',
+    highlights: [
+      'Added a dedicated narration demo that lets visitors play real match examples and reveal aligned transcripts without recording their own audio.',
+      'Surfaced the same preset narration selector inside user dashboards so coaching staff can explore broadcast, player, and coach perspectives in context.',
+      'Curated authentic clips from recent fixtures to ground each preset in believable match moments and set quality expectations for future submissions.',
+      'Prepared the workflow that will soon allow teams to layer their own narrations onto vault clips once collaboration opens.'
+    ]
+  },
+  {
     version: '1.1.0',
     codename: 'Closed Beta Prep',
     date: 'October 31, 2025',

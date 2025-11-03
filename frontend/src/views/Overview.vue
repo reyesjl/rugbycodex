@@ -17,7 +17,7 @@ import NarrationDemo from '@/components/NarrationDemo.vue';
       <img :src="heroWordbox" alt="Rugbycodex" class="w-80 md:w-100 lg:w-105 max-w-120 h-auto mx-auto" />
       <div class="text-center">
         <RouterLink to="/releases" class="inline-flex items-center gap-2 text-xs hover:underline">
-          Closed Beta Prep - Version 1.1.0
+          Closed Beta Prep - Version 1.2.0
           <span class="font-semibold text-indigo-500">Click me!</span>
         </RouterLink>
       </div>
