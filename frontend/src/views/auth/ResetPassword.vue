@@ -1,10 +1,8 @@
 <script setup lang="ts">
-import { reactive, ref, watch } from 'vue';
-import { RouterLink, useRoute, useRouter } from 'vue-router';
+import { reactive, ref } from 'vue';
+import { RouterLink } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 
-const router = useRouter();
-const route = useRoute();
 const authStore = useAuthStore();
 
 if (!authStore.hydrated) {
@@ -13,44 +11,37 @@ if (!authStore.hydrated) {
 
 const form = reactive({
   email: '',
-  password: '',
 });
 
-const loading = ref(false);
+const sending = ref(false);
+const successMessage = ref<string | null>(null);
 const errorMessage = ref<string | null>(null);
 
-const redirectPath = () => {
-  const redirect = route.query.redirect;
-  if (typeof redirect === 'string' && redirect.startsWith('/')) {
-    return redirect;
-  }
-  return '/dashboard';
-};
-
-watch(
-  () => authStore.isAuthenticated,
-  (isAuthed) => {
-    if (isAuthed) {
-      router.replace(redirectPath());
-    }
-  },
-  { immediate: true },
-);
-
 const handleSubmit = async () => {
-  if (loading.value) return;
-  loading.value = true;
+  if (sending.value) return;
+  sending.value = true;
+  successMessage.value = null;
   errorMessage.value = null;
 
-  const { error } = await authStore.signIn(form.email, form.password);
-  loading.value = false;
+  const email = form.email.trim();
 
-  if (error) {
-    errorMessage.value = error.message ?? 'Unable to sign in. Please try again.';
+  if (!email) {
+    errorMessage.value = 'Please enter the email associated with your account.';
+    sending.value = false;
     return;
   }
 
-  router.push(redirectPath());
+  const { error } = await authStore.resetPassword(email);
+
+  sending.value = false;
+
+  if (error) {
+    errorMessage.value = error.message ?? 'Unable to send reset instructions. Please try again.';
+    return;
+  }
+
+  successMessage.value =
+    'Check your email for a password reset link. Follow the instructions to choose a new password.';
 };
 </script>
 
@@ -67,9 +58,9 @@ const handleSubmit = async () => {
         <p class="text-xs font-semibold uppercase tracking-[0.3em] text-neutral-500 dark:text-neutral-500">
           Rugbycodex
         </p>
-        <h1 class="text-3xl font-semibold text-neutral-900 dark:text-neutral-100">Welcome back</h1>
+        <h1 class="text-3xl font-semibold text-neutral-900 dark:text-neutral-100">Reset your password</h1>
         <p class="text-neutral-600 dark:text-neutral-400">
-          Sign in to continue shaping the knowledge base for your club and community.
+          Enter the email associated with your Rugbycodex account and we will send you reset instructions.
         </p>
       </header>
 
@@ -90,49 +81,31 @@ const handleSubmit = async () => {
               class="block w-full rounded-2xl border border-neutral-200/70 bg-white/80 px-4 py-3 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/30 dark:border-neutral-700/70 dark:bg-neutral-900/60 dark:text-neutral-50 dark:placeholder:text-neutral-500 dark:focus:ring-neutral-100/30"
             />
           </div>
-
-          <div class="space-y-2">
-            <label for="password" class="text-sm font-medium text-neutral-700 dark:text-neutral-200">Password</label>
-            <input
-              id="password"
-              v-model="form.password"
-              type="password"
-              autocomplete="current-password"
-              required
-              class="block w-full rounded-2xl border border-neutral-200/70 bg-white/80 px-4 py-3 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/30 dark:border-neutral-700/70 dark:bg-neutral-900/60 dark:text-neutral-50 dark:placeholder:text-neutral-500 dark:focus:ring-neutral-100/30"
-            />
-          </div>
-        </div>
-
-        <div class="mt-2 text-right text-sm">
-          <RouterLink
-            to="/reset-password"
-            class="font-medium text-neutral-600 underline-offset-4 transition hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-neutral-100"
-          >
-            Forgot your password?
-          </RouterLink>
         </div>
 
         <p v-if="errorMessage" class="mt-6 text-sm text-rose-500 dark:text-rose-400">
           {{ errorMessage }}
         </p>
+        <p v-else-if="successMessage" class="mt-6 text-sm text-emerald-600 dark:text-emerald-300">
+          {{ successMessage }}
+        </p>
 
         <button
           type="submit"
           class="mt-10 inline-flex w-full items-center justify-center rounded-2xl bg-neutral-900 px-4 py-3 text-sm font-semibold uppercase tracking-[0.2em] text-neutral-100 transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-neutral-50 dark:text-neutral-900 dark:hover:bg-neutral-200"
-          :disabled="loading"
+          :disabled="sending"
         >
-          {{ loading ? 'Signing in…' : 'Log In' }}
+          {{ sending ? 'Sending instructions…' : 'Send reset link' }}
         </button>
       </form>
 
       <footer class="text-center text-sm text-neutral-500 dark:text-neutral-400">
-        Need a Rugbycodex account? <br />
+        Remembered your password?
         <RouterLink
-          to="/signup"
+          to="/login"
           class="font-medium text-neutral-700 underline-offset-4 transition hover:text-neutral-900 dark:text-neutral-200 dark:hover:text-neutral-100"
         >
-          Request beta access
+          Back to login
         </RouterLink>
       </footer>
     </div>

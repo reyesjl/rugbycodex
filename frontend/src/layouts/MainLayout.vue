@@ -112,7 +112,7 @@ watch(
             <RouterLink class="transition-colors hover:text-white" to="/vaults">Vaults</RouterLink>
             <RouterLink class="transition-colors hover:text-white" to="/releases">Releases</RouterLink>
             <RouterLink class="transition-colors hover:text-white" to="/about">About</RouterLink>
-            <RouterLink class="transition-colors hover:text-white" to="/signup">Account</RouterLink>
+            <RouterLink class="transition-colors hover:text-white" to="/login">Account</RouterLink>
           </nav>
         </div>
 

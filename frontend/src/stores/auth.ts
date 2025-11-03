@@ -103,6 +103,42 @@ export const useAuthStore = defineStore('auth', () => {
     return { error: null };
   };
 
+  const resetPassword = async (email: string, redirectTo?: string) => {
+    lastError.value = null;
+    const url =
+      redirectTo ??
+      (typeof window !== 'undefined' ? `${window.location.origin}/reset-password/update` : undefined);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: url,
+    });
+
+    if (error) {
+      lastError.value = error.message;
+      return { error };
+    }
+
+    return { error: null };
+  };
+
+  const updatePassword = async (password: string) => {
+    lastError.value = null;
+    const { data, error } = await supabase.auth.updateUser({
+      password,
+    });
+
+    if (error) {
+      lastError.value = error.message;
+      return { data: null, error };
+    }
+
+    const { data: sessionResult, error: sessionError } = await supabase.auth.getSession();
+    if (!sessionError) {
+      setAuthState(sessionResult.session ?? null);
+    }
+
+    return { data, error: null };
+  };
+
   const isAuthenticated = computed(() => Boolean(user.value));
 
   return {
@@ -116,5 +152,7 @@ export const useAuthStore = defineStore('auth', () => {
     signIn,
     signUp,
     signOut,
+    resetPassword,
+    updatePassword,
   };
 });

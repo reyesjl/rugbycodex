@@ -173,6 +173,7 @@ const form = reactive({
   name: '',
   email: '',
   password: '',
+  confirmPassword: '',
   phone: '',
   organization: '',
   role: '',
@@ -183,6 +184,10 @@ const form = reactive({
 
 const submissionLogged = ref(false);
 const storageKey = 'betaRequests.csv';
+const passwordMismatch = computed(
+  () => Boolean(form.password) && Boolean(form.confirmPassword) && form.password !== form.confirmPassword,
+);
+const showPasswordMismatch = computed(() => Boolean(form.confirmPassword?.trim()) && passwordMismatch.value);
 
 const logSubmissionToLocalStorage = () => {
   if (typeof window === 'undefined') {
@@ -215,6 +220,15 @@ watch(turnstileTheme, () => {
   void mountTurnstile();
 });
 
+watch(
+  () => [form.password, form.confirmPassword],
+  () => {
+    if (supabaseError.value === 'Passwords do not match.' && !passwordMismatch.value) {
+      supabaseError.value = null;
+    }
+  },
+);
+
 const handleSubmit = async () => {
   if (shouldRenderTurnstile.value && !turnstileToken.value) {
     console.warn('turnstile verification is required before submitting');
@@ -224,6 +238,11 @@ const handleSubmit = async () => {
   // Naive CSV log written to localStorage for the current browser session.
   if (form.honeypot?.trim()) {
     console.warn('beta access request flagged as spam', { ...form });
+    return;
+  }
+
+  if (passwordMismatch.value) {
+    supabaseError.value = 'Passwords do not match.';
     return;
   }
 
@@ -329,6 +348,20 @@ const handleSubmit = async () => {
               placeholder="e.g. +1 555 123 4567"
               class="block w-full rounded-2xl border border-neutral-200/70 bg-white/80 px-4 py-3 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/30 dark:border-neutral-700/70 dark:bg-neutral-900/60 dark:text-neutral-50 dark:placeholder:text-neutral-500 dark:focus:ring-neutral-100/30" />
           </div>
+          <div class="space-y-2">
+            <label for="confirm-password" class="text-sm font-medium text-neutral-700 dark:text-neutral-200">
+              Confirm password
+            </label>
+            <input
+              id="confirm-password"
+              v-model="form.confirmPassword"
+              type="password"
+              autocomplete="new-password"
+              minlength="6"
+              required
+              class="block w-full rounded-2xl border border-neutral-200/70 bg-white/80 px-4 py-3 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/30 dark:border-neutral-700/70 dark:bg-neutral-900/60 dark:text-neutral-50 dark:placeholder:text-neutral-500 dark:focus:ring-neutral-100/30" />
+            <p v-if="showPasswordMismatch" class="text-sm text-rose-500 dark:text-rose-400">Passwords do not match.</p>
+          </div>
 
           <div class="space-y-2">
             <label for="organization" class="text-sm font-medium text-neutral-700 dark:text-neutral-200">Club or
@@ -385,7 +418,7 @@ const handleSubmit = async () => {
 
         <button type="submit"
           class="mt-10 inline-flex w-full items-center justify-center rounded-2xl bg-neutral-900 px-4 py-3 text-sm font-semibold uppercase tracking-[0.2em] text-neutral-100 transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-neutral-50 dark:text-neutral-900 dark:hover:bg-neutral-200"
-          :disabled="signingUp || (shouldRenderTurnstile && !turnstileToken)">
+          :disabled="signingUp || passwordMismatch || (shouldRenderTurnstile && !turnstileToken)">
           {{ signingUp ? 'Submitting…' : 'Request Invite' }}
         </button>
       </form>
