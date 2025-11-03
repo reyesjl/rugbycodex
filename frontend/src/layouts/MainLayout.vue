@@ -22,7 +22,7 @@ const navLinks = computed(() => [
   { to: '/about', label: 'About' },
   authStore.isAuthenticated
     ? { to: '/dashboard', label: 'Dashboard' }
-    : { to: '/signup', label: 'Account' },
+    : { to: '/login', label: 'Account' },
 ]);
 
 const navRef = ref<HTMLElement | null>(null);
