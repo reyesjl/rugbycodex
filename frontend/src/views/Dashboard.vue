@@ -64,15 +64,23 @@ const handleSignOut = async () => {
         This space gives you a snapshot of your Rugbycodex account. We’ll expand it with vault activity,
         narration drafts, and shared insights as the platform grows.
       </p>
-      <button
-        type="button"
-        class="mt-8 inline-flex items-center gap-2 rounded-2xl bg-neutral-900 px-6 py-3 text-sm font-semibold uppercase tracking-[0.2em] text-neutral-100 transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-neutral-50 dark:text-neutral-900 dark:hover:bg-neutral-200"
-        @click="handleSignOut"
-        :disabled="signingOut"
-      >
-        <span v-if="signingOut" class="h-4 w-4 animate-spin rounded-full border-2 border-neutral-200 border-t-transparent dark:border-neutral-700"></span>
-        <span>{{ signingOut ? 'Signing out…' : 'Sign out' }}</span>
-      </button>
+      <div class="mt-8 flex flex-wrap gap-3">
+        <RouterLink
+          to="/settings"
+          class="inline-flex items-center gap-2 rounded-2xl border border-neutral-900 px-6 py-3 text-sm font-semibold uppercase tracking-[0.2em] text-neutral-900 transition hover:bg-neutral-900 hover:text-neutral-100 dark:border-neutral-100 dark:text-neutral-100 dark:hover:bg-neutral-100 dark:hover:text-neutral-900"
+        >
+          Account settings
+        </RouterLink>
+        <button
+          type="button"
+          class="inline-flex items-center gap-2 rounded-2xl bg-neutral-900 px-6 py-3 text-sm font-semibold uppercase tracking-[0.2em] text-neutral-100 transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-neutral-50 dark:text-neutral-900 dark:hover:bg-neutral-200"
+          @click="handleSignOut"
+          :disabled="signingOut"
+        >
+          <span v-if="signingOut" class="h-4 w-4 animate-spin rounded-full border-2 border-neutral-200 border-t-transparent dark:border-neutral-700"></span>
+          <span>{{ signingOut ? 'Signing out…' : 'Sign out' }}</span>
+        </button>
+      </div>
       <p v-if="signOutError" class="mt-4 text-sm text-rose-500 dark:text-rose-400">
         {{ signOutError }}
       </p>

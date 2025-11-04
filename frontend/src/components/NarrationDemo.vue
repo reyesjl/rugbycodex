@@ -15,7 +15,7 @@ interface NarrationExample {
 const waveformSegments = 84;
 
 const commentarySrc = new URL('../assets/audio/ngwenya-demo.mp3', import.meta.url).href;
-const coachSrc = new URL('../assets/audio/coach-demo.mp3', import.meta.url).href;
+const coachSrc = new URL('../assets/audio/coach-demo2.mp3', import.meta.url).href;
 const playerSrc = new URL('../assets/audio/player-demo.mp3', import.meta.url).href;
 
 const narrationExamples: NarrationExample[] = [

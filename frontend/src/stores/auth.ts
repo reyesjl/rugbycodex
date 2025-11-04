@@ -1,7 +1,11 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
-import type { Session, Subscription, User } from '@supabase/supabase-js';
+import type { AuthError, Session, Subscription, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabaseClient';
+
+export const DISPLAY_NAME_MIN_LENGTH = 2;
+export const DISPLAY_NAME_MAX_LENGTH = 60;
+const SESSION_EXPIRED_MESSAGE = 'Your session has expired. Please sign in again.';
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<User | null>(null);
@@ -18,6 +22,47 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = nextSession?.user ?? null;
   };
 
+  const clearAuthState = () => {
+    setAuthState(null);
+  };
+
+  const looksLikeSessionExpiry = (error: AuthError | null) => {
+    if (!error) return false;
+    const status = (error as AuthError & { status?: number }).status;
+    const normalizedMessage = error.message?.toLowerCase() ?? '';
+
+    if (typeof status === 'number') {
+      if (status === 401) {
+        return true;
+      }
+      if (status === 400 && normalizedMessage.includes('session')) {
+        return true;
+      }
+    }
+
+    return normalizedMessage.includes('session missing');
+  };
+
+  const handleSessionExpiry = async (error: AuthError | null, options?: { skipServerSignOut?: boolean }) => {
+    if (!looksLikeSessionExpiry(error)) {
+      return false;
+    }
+
+    clearAuthState();
+
+    if (!options?.skipServerSignOut) {
+      try {
+        await supabase.auth.signOut();
+      } catch {
+        // best effort; ignore follow-up errors
+      }
+    }
+
+    return true;
+  };
+
+  const createSessionExpiredError = () => new Error(SESSION_EXPIRED_MESSAGE);
+
   const initialize = async () => {
     if (hydrated.value) return;
     if (initPromise) {
@@ -31,7 +76,10 @@ export const useAuthStore = defineStore('auth', () => {
 
       const { data, error } = await supabase.auth.getSession();
       if (error) {
-        lastError.value = error.message;
+        const handled = await handleSessionExpiry(error);
+        if (!handled) {
+          lastError.value = error.message;
+        }
       }
 
       setAuthState(data?.session ?? null);
@@ -96,10 +144,15 @@ export const useAuthStore = defineStore('auth', () => {
     lastError.value = null;
     const { error } = await supabase.auth.signOut();
     if (error) {
-      lastError.value = error.message;
-      return { error };
+      const handled = await handleSessionExpiry(error, { skipServerSignOut: true });
+      if (!handled) {
+        lastError.value = error.message;
+        return { error };
+      }
+      lastError.value = null;
+      return { error: null };
     }
-    setAuthState(null);
+    clearAuthState();
     return { error: null };
   };
 
@@ -127,6 +180,11 @@ export const useAuthStore = defineStore('auth', () => {
     });
 
     if (error) {
+      if (await handleSessionExpiry(error)) {
+        const sessionError = createSessionExpiredError();
+        lastError.value = sessionError.message;
+        return { data: null, error: sessionError };
+      }
       lastError.value = error.message;
       return { data: null, error };
     }
@@ -141,6 +199,56 @@ export const useAuthStore = defineStore('auth', () => {
 
   const isAuthenticated = computed(() => Boolean(user.value));
 
+  const updateDisplayName = async (name: string) => {
+    lastError.value = null;
+    const trimmedName = name?.trim() ?? '';
+
+    if (!trimmedName) {
+      const validationError = new Error('Display name is required.');
+      lastError.value = validationError.message;
+      return { data: null, error: validationError };
+    }
+
+    if (
+      trimmedName.length < DISPLAY_NAME_MIN_LENGTH ||
+      trimmedName.length > DISPLAY_NAME_MAX_LENGTH
+    ) {
+      const validationError = new Error(
+        `Display name must be between ${DISPLAY_NAME_MIN_LENGTH} and ${DISPLAY_NAME_MAX_LENGTH} characters.`,
+      );
+      lastError.value = validationError.message;
+      return { data: null, error: validationError };
+    }
+
+    const { data, error } = await supabase.auth.updateUser({
+      data: {
+        name: trimmedName,
+      },
+    });
+
+    if (error) {
+      if (await handleSessionExpiry(error)) {
+        const sessionError = createSessionExpiredError();
+        lastError.value = sessionError.message;
+        return { data: null, error: sessionError };
+      }
+      lastError.value = error.message;
+      return { data: null, error };
+    }
+
+    if (data.user) {
+      user.value = data.user;
+      if (session.value) {
+        session.value = {
+          ...session.value,
+          user: data.user,
+        };
+      }
+    }
+
+    return { data, error: null };
+  };
+
   return {
     user,
     session,
@@ -154,5 +262,6 @@ export const useAuthStore = defineStore('auth', () => {
     signOut,
     resetPassword,
     updatePassword,
+    updateDisplayName,
   };
 });
