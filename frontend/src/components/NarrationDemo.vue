@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 
-type NarrationCategory = 'commentary' | 'playerReflection' | 'coachNotes' | 'analystReview';
+type NarrationCategory = string;
 
 interface NarrationExample {
   id: NarrationCategory;
@@ -14,16 +14,17 @@ interface NarrationExample {
 
 const waveformSegments = 84;
 
-const commentarySrc = new URL('../assets/audio/ngwenya-demo.mp3', import.meta.url).href;
-const coachSrc = new URL('../assets/audio/coach-demo2.mp3', import.meta.url).href;
-const playerSrc = new URL('../assets/audio/player-demo.mp3', import.meta.url).href;
+const commentaryBroadcastAudioSrc = new URL('../assets/audio/ngwenya-demo.mp3', import.meta.url).href;
+const coachPreviewAudioSrc = new URL('../assets/audio/coach-demo2.mp3', import.meta.url).href;
+const coachDrillAudioSrc = new URL('../assets/audio/coach-demo3.mp3', import.meta.url).href;
+const playerReflectionAudioSrc = new URL('../assets/audio/player-demo.mp3', import.meta.url).href;
 
 const narrationExamples: NarrationExample[] = [
   {
     id: 'commentary',
     label: 'Commentary',
     summary: 'Broadcast-style recap of the attacking move from the booth perspective.',
-    audioSrc: commentarySrc,
+    audioSrc: commentaryBroadcastAudioSrc,
     transcript: `The Springboks sensing a chance to record the bonus-point victory. Clever intercepts! I don’t think he’s got the legs to go the whole way—looking for support—finds it from another forward, Alec Parker. They’re looking for the gasman outside—Ngwenya’s got it now! Over the ten-metre line—inside, then outside Habana! Wave bye-bye, boys—he’s over for the score! What a sensational try from the Zimbabwe-born number 14, Takudzwa Ngwenya, playing for the USA Eagles. We mentioned the threat before—he’s taken Habana on the outside; foot to the floor, pedal to the metal—and the Eagles have their first try!`,
     durationLabel: '0:30',
   },
@@ -31,17 +32,25 @@ const narrationExamples: NarrationExample[] = [
     id: 'playerReflection',
     label: 'Player reflection',
     summary: 'First-person debrief focused on decision making after the match.',
-    audioSrc: playerSrc,
+    audioSrc: playerReflectionAudioSrc,
     transcript: `We’d been on their line for a few phases and Hope went low first but got stopped just short. When the ball came back I saw space by the ruck so I kept low, drove hard, and got over. It was all about patience and clean work from the pack. Nothing fancy—just good control and finishing what we started against a strong Black Ferns defense.`,
     durationLabel: '0:30',
   },
   {
+    id: 'coachDrill',
+    label: 'Coach drill',
+    summary: 'Practice-field reminders to keep scanning, stay square, and finish through the line.',
+    audioSrc: coachDrillAudioSrc,
+    transcript: `Alright, Eric, good—steal a look early, see what’s coming at you. Don’t wait for the ball, meet it. Yes, that’s better. James, keep your hands up, stay square as you pass. Adam, lead leg forward—get your weight on it before you move, nice. Keep the hips facing upfield, not drifting. Eric, good catch, now scan again—what’s ahead of you? There you go, we’re connecting now. Let’s do it again, cleaner this time. Early catch, front foot ready, finish square through the line. That’s the shape we want.`,
+    durationLabel: '0:30',
+  },
+  {
     id: 'coachNotes',
-    label: 'Coach notes',
+    label: 'Coach preview',
     summary: 'Training feedback emphasising shape and scanning habits.',
-    audioSrc: coachSrc,
+    audioSrc: coachPreviewAudioSrc,
     transcript: `Boys, selection this week’s been about combinations, form, and finish. You’ve earned your spots now. Ireland’s got history with us, and we’ve talked about those lessons. This time, we stay a step ahead. They’ll be clear in how they play—organized, physical, disciplined—and they’ll finish strong off the bench. So it’s about us: how we connect, how we execute, and how we finish. It’ll be tight, it’ll be physical, and the margins will be small—maybe a call, maybe a bounce. But if we’re our best on the day, that’s enough.`,
-    durationLabel: '0:34',
+    durationLabel: '0:30',
   },
 ];
 
