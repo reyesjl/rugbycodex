@@ -117,18 +117,56 @@ export const useAuthStore = defineStore('auth', () => {
     return { data: result.data, error: null };
   };
 
+  const resendConfirmationEmail = async (email: string, redirectTo?: string) => {
+    lastError.value = null;
+    const emailRedirectTo =
+      redirectTo ?? (typeof window !== 'undefined' ? `${window.location.origin}/confirm-email` : undefined);
+
+    const { data, error } = await supabase.auth.resend({
+      type: 'signup',
+      email,
+      options: emailRedirectTo
+        ? {
+            emailRedirectTo,
+          }
+        : undefined,
+    });
+
+    if (error) {
+      lastError.value = error.message;
+      return { data: null, error };
+    }
+
+    return { data, error: null };
+  };
+
   const signUp = async (
     email: string,
     password: string,
     metadata?: Record<string, unknown>,
+    redirectTo?: string,
   ) => {
     lastError.value = null;
+    const emailRedirectTo =
+      redirectTo ?? (typeof window !== 'undefined' ? `${window.location.origin}/confirm-email` : undefined);
+
+    const options: {
+      data?: Record<string, unknown>;
+      emailRedirectTo?: string;
+    } = {};
+
+    if (metadata) {
+      options.data = metadata;
+    }
+
+    if (emailRedirectTo) {
+      options.emailRedirectTo = emailRedirectTo;
+    }
+
     const result = await supabase.auth.signUp({
       email,
       password,
-      options: {
-        data: metadata,
-      },
+      options,
     });
 
     if (result.error) {
@@ -258,6 +296,7 @@ export const useAuthStore = defineStore('auth', () => {
     lastError,
     initialize,
     signIn,
+    resendConfirmationEmail,
     signUp,
     signOut,
     resetPassword,

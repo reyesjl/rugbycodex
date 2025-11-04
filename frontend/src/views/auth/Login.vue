@@ -18,6 +18,12 @@ const form = reactive({
 
 const loading = ref(false);
 const errorMessage = ref<string | null>(null);
+const needsConfirmation = ref(false);
+const resendingConfirmation = ref(false);
+const resendSuccessMessage = ref<string | null>(null);
+const resendErrorMessage = ref<string | null>(null);
+const confirmationRedirectUrl =
+  typeof window !== 'undefined' ? `${window.location.origin}/confirm-email` : undefined;
 
 const redirectPath = () => {
   const redirect = route.query.redirect;
@@ -41,17 +47,54 @@ const handleSubmit = async () => {
   if (loading.value) return;
   loading.value = true;
   errorMessage.value = null;
+  needsConfirmation.value = false;
+  resendSuccessMessage.value = null;
+  resendErrorMessage.value = null;
 
   const { error } = await authStore.signIn(form.email, form.password);
   loading.value = false;
 
   if (error) {
-    errorMessage.value = error.message ?? 'Unable to sign in. Please try again.';
+    const message = error.message ?? 'Unable to sign in. Please try again.';
+    const requiresConfirmation = message.toLowerCase().includes('confirm');
+    needsConfirmation.value = requiresConfirmation;
+    errorMessage.value = requiresConfirmation
+      ? 'Please confirm your email before signing in.'
+      : message;
     return;
   }
 
   router.push(redirectPath());
 };
+
+const handleResendConfirmation = async () => {
+  if (!form.email || resendingConfirmation.value) return;
+  resendingConfirmation.value = true;
+  resendSuccessMessage.value = null;
+  resendErrorMessage.value = null;
+
+  try {
+    const { error } = await authStore.resendConfirmationEmail(form.email, confirmationRedirectUrl);
+
+    if (error) {
+      resendErrorMessage.value = error.message ?? 'Unable to resend confirmation email.';
+    } else {
+      resendSuccessMessage.value =
+        'We just sent a new confirmation email. Check your inbox and spam folder.';
+    }
+  } finally {
+    resendingConfirmation.value = false;
+  }
+};
+
+watch(
+  () => form.email,
+  () => {
+    needsConfirmation.value = false;
+    resendSuccessMessage.value = null;
+    resendErrorMessage.value = null;
+  },
+);
 </script>
 
 <template>
@@ -116,6 +159,24 @@ const handleSubmit = async () => {
         <p v-if="errorMessage" class="mt-6 text-sm text-rose-500 dark:text-rose-400">
           {{ errorMessage }}
         </p>
+
+        <div v-if="needsConfirmation" class="mt-4 space-y-2 rounded-2xl bg-neutral-100/80 p-4 text-sm text-neutral-700 dark:bg-neutral-900/60 dark:text-neutral-200">
+          <p>Didn't receive the confirmation email?</p>
+          <button
+            type="button"
+            class="font-semibold text-neutral-900 underline underline-offset-4 transition hover:text-neutral-700 disabled:cursor-not-allowed disabled:opacity-60 dark:text-neutral-100 dark:hover:text-neutral-200"
+            :disabled="resendingConfirmation"
+            @click="handleResendConfirmation"
+          >
+            {{ resendingConfirmation ? 'Sending…' : 'Resend confirmation email' }}
+          </button>
+          <p v-if="resendSuccessMessage" class="text-emerald-600 dark:text-emerald-400">
+            {{ resendSuccessMessage }}
+          </p>
+          <p v-if="resendErrorMessage" class="text-rose-500 dark:text-rose-400">
+            {{ resendErrorMessage }}
+          </p>
+        </div>
 
         <button
           type="submit"

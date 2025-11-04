@@ -58,6 +58,12 @@ const router = createRouter({
       meta: { layout: 'minimal', guestOnly: true },
     },
     {
+      path: '/confirm-email',
+      name: 'ConfirmEmail',
+      component: () => import('@/views/auth/ConfirmEmail.vue'),
+      meta: { layout: 'minimal' },
+    },
+    {
       path: '/dashboard',
       name: 'Dashboard',
       component: () => import('@/views/Dashboard.vue'),

@@ -42,6 +42,8 @@ const router = useRouter();
 const signingUp = ref(false);
 const supabaseError = ref<string | null>(null);
 const supabaseMessage = ref<string | null>(null);
+const confirmationRedirectUrl =
+  typeof window !== 'undefined' ? `${window.location.origin}/confirm-email` : undefined;
 
 if (!authStore.hydrated) {
   void authStore.initialize();
@@ -259,7 +261,12 @@ const handleSubmit = async () => {
     referral: form.referral,
   };
 
-  const { data, error } = await authStore.signUp(form.email, form.password, metadata);
+  const { data, error } = await authStore.signUp(
+    form.email,
+    form.password,
+    metadata,
+    confirmationRedirectUrl,
+  );
 
   if (error) {
     supabaseError.value = error.message ?? 'Something went wrong while creating your account.';
