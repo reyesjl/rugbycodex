@@ -29,6 +29,11 @@ const isSidebarOpen = ref(false);
 const route = useRoute();
 const headerRef = ref<HTMLElement | null>(null);
 const headerHeight = ref(0);
+const scrollPosition = ref(0);
+const lastScrollY = ref(0);
+const footerExpansion = ref(1); // 1 = fully expanded, 0 = fully collapsed
+const prevTimestamp = ref<number | null>(null);
+const isMobile = ref(false);
 
 const toggleSidebar = () => {
   isSidebarOpen.value = !isSidebarOpen.value;
@@ -56,13 +61,57 @@ const updateHeaderHeight = () => {
   headerHeight.value = headerRef.value?.offsetHeight ?? 0;
 };
 
+const updateIsMobile = () => {
+  const mobile = window.matchMedia('(max-width: 767px)').matches;
+  if (mobile && !isMobile.value) {
+    footerExpansion.value = 1;
+  }
+  if (!mobile) {
+    footerExpansion.value = 0;
+  }
+  isMobile.value = mobile;
+};
+
+const updateScrollPosition = (event?: Event) => {
+  const currentY = window.scrollY || 0;
+  scrollPosition.value = currentY;
+
+  const delta = currentY - lastScrollY.value;
+  lastScrollY.value = currentY;
+
+  if (!isMobile.value) {
+    return;
+  }
+
+  const now = event instanceof Event ? performance.now() : Date.now();
+  const last = prevTimestamp.value ?? now;
+  const elapsed = Math.min((now - last) / 1000, 0.25); // cap impact from big gaps
+  prevTimestamp.value = now;
+
+  const change = delta / window.innerHeight;
+  const target = footerExpansion.value - change * (1 + elapsed * 2);
+
+  footerExpansion.value = Math.min(Math.max(target, 0), 1);
+};
+
+const handleResize = () => {
+  updateHeaderHeight();
+  updateIsMobile();
+};
+
 onMounted(() => {
-  nextTick(updateHeaderHeight);
-  window.addEventListener('resize', updateHeaderHeight);
+  nextTick(() => {
+    updateHeaderHeight();
+    updateIsMobile();
+    updateScrollPosition();
+  });
+  window.addEventListener('resize', handleResize);
+  window.addEventListener('scroll', updateScrollPosition, { passive: true });
 });
 
 onBeforeUnmount(() => {
-  window.removeEventListener('resize', updateHeaderHeight);
+  window.removeEventListener('resize', handleResize);
+  window.removeEventListener('scroll', updateScrollPosition);
 });
 
 watch(isSidebarOpen, (open) => {
@@ -75,6 +124,16 @@ const sidebarStyles = computed(() => ({
   top: `${headerHeight.value}px`,
   height: `calc(100vh - ${headerHeight.value}px)`,
 }));
+
+const sidebarFooterPadding = computed(() => {
+  const minOffset = 24;
+  const maxOffset = 120;
+  if (!isMobile.value) {
+    return `calc(env(safe-area-inset-bottom, 0px) + ${minOffset}px)`;
+  }
+  const offset = minOffset + footerExpansion.value * (maxOffset - minOffset);
+  return `calc(env(safe-area-inset-bottom, 0px) + ${offset}px)`;
+});
 
 watch(
   () => route.path,
@@ -185,7 +244,10 @@ watch(
           </RouterLink>
         </nav>
 
-        <div class="flex items-end justify-between px-6 pb-[calc(env(safe-area-inset-bottom,0px)+1.5rem)] pt-4">
+        <div
+          class="flex items-end justify-between px-6 pt-4"
+          :style="{ paddingBottom: sidebarFooterPadding }"
+        >
           <button
             type="button"
             class="rounded-full border border-neutral-300 bg-neutral-200/70 p-2 text-sm text-neutral-600 transition hover:bg-neutral-200 dark:border-neutral-800 dark:bg-neutral-900/60 dark:text-neutral-400 dark:hover:bg-neutral-800"
