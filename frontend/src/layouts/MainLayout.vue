@@ -29,10 +29,10 @@ const isSidebarOpen = ref(false);
 const route = useRoute();
 const headerRef = ref<HTMLElement | null>(null);
 const headerHeight = ref(0);
-const scrollPosition = ref(0);
 const lastScrollY = ref(0);
 const footerExpansion = ref(1); // 1 = fully expanded, 0 = fully collapsed
-const prevTimestamp = ref<number | null>(null);
+const footerTarget = ref(1);
+const scrollAccumulator = ref(0);
 const isMobile = ref(false);
 
 const toggleSidebar = () => {
@@ -65,17 +65,17 @@ const updateIsMobile = () => {
   const mobile = window.matchMedia('(max-width: 767px)').matches;
   if (mobile && !isMobile.value) {
     footerExpansion.value = 1;
+    footerTarget.value = 1;
   }
   if (!mobile) {
     footerExpansion.value = 0;
+    footerTarget.value = 0;
   }
   isMobile.value = mobile;
 };
 
-const updateScrollPosition = (event?: Event) => {
+const updateScrollPosition = () => {
   const currentY = window.scrollY || 0;
-  scrollPosition.value = currentY;
-
   const delta = currentY - lastScrollY.value;
   lastScrollY.value = currentY;
 
@@ -83,15 +83,29 @@ const updateScrollPosition = (event?: Event) => {
     return;
   }
 
-  const now = event instanceof Event ? performance.now() : Date.now();
-  const last = prevTimestamp.value ?? now;
-  const elapsed = Math.min((now - last) / 1000, 0.25); // cap impact from big gaps
-  prevTimestamp.value = now;
+  const threshold = Math.min(window.innerHeight * 0.25, 140);
 
-  const change = delta / window.innerHeight;
-  const target = footerExpansion.value - change * (1 + elapsed * 2);
-
-  footerExpansion.value = Math.min(Math.max(target, 0), 1);
+  if (delta > 0) {
+    if (scrollAccumulator.value < 0) {
+      scrollAccumulator.value = 0;
+    }
+    scrollAccumulator.value += delta;
+    if (scrollAccumulator.value >= threshold && footerTarget.value !== 0) {
+      footerTarget.value = 0;
+      footerExpansion.value = 0;
+      scrollAccumulator.value = 0;
+    }
+  } else if (delta < 0) {
+    if (scrollAccumulator.value > 0) {
+      scrollAccumulator.value = 0;
+    }
+    scrollAccumulator.value += delta;
+    if (scrollAccumulator.value <= -threshold && footerTarget.value !== 1) {
+      footerTarget.value = 1;
+      footerExpansion.value = 1;
+      scrollAccumulator.value = 0;
+    }
+  }
 };
 
 const handleResize = () => {
@@ -147,7 +161,7 @@ watch(
   <div>
     <header
       ref="headerRef"
-      class="fixed top-0 z-50 w-full bg-transparent backdrop-blur-xl transition-colors dark:bg-neutral-950/70"
+      class="fixed top-0 z-50 w-full bg-transparent backdrop-blur transition-colors dark:bg-neutral-950/70"
     >
       <div
         class="container flex items-center justify-between gap-6 px-6 py-5 md:px-8"
@@ -207,18 +221,10 @@ watch(
       </div>
     </header>
 
-    <transition name="fade">
-      <div
-        v-if="isSidebarOpen"
-        class="fixed inset-0 z-30 bg-black/40 backdrop-blur-sm md:hidden"
-        @click="closeSidebar"
-      />
-    </transition>
-
     <transition name="sidebar">
       <aside
         v-if="isSidebarOpen"
-        class="fixed left-0 right-auto z-40 flex w-72 max-w-full flex-col bg-transparent text-neutral-900 shadow-2xl backdrop-blur-xl dark:bg-neutral-950/70 dark:text-white md:w-80 md:rounded-none"
+        class="fixed left-0 right-auto z-40 flex w-72 max-w-full flex-col bg-transparent text-neutral-900 shadow-2xl backdrop-blur dark:bg-neutral-950/70 dark:text-white md:w-80 md:rounded-none"
         :style="sidebarStyles"
       >
         <nav class="flex-1 space-y-1 px-4 pt-6">
@@ -235,8 +241,8 @@ watch(
               class="block rounded-2xl px-4 py-3 text-sm transition"
               :class="[
                 isExactActive
-                  ? 'bg-neutral-200 text-neutral-900 dark:bg-neutral-800 dark:text-white'
-                  : 'text-neutral-700 hover:bg-neutral-200 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-900 dark:hover:text-white'
+                  ? 'bg-neutral-900/10 text-neutral-900 ring-1 ring-neutral-900/10 dark:bg-neutral-800 dark:text-white dark:ring-neutral-700/60'
+                  : 'text-neutral-700 hover:bg-neutral-900/5 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-900/60 dark:hover:text-white'
               ]"
             >
               {{ link.label }}
@@ -245,7 +251,7 @@ watch(
         </nav>
 
         <div
-          class="flex items-end justify-between px-6 pt-4"
+          class="flex items-end justify-between px-6 pt-4 transition-all duration-300 ease-out"
           :style="{ paddingBottom: sidebarFooterPadding }"
         >
           <button
