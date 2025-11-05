@@ -185,7 +185,7 @@ watch(
           </RouterLink>
         </nav>
 
-        <div class="flex items-end justify-between px-6 pb-6 pt-4">
+        <div class="flex items-end justify-between px-6 pb-[calc(env(safe-area-inset-bottom,0px)+1.5rem)] pt-4">
           <button
             type="button"
             class="rounded-full border border-neutral-300 bg-neutral-200/70 p-2 text-sm text-neutral-600 transition hover:bg-neutral-200 dark:border-neutral-800 dark:bg-neutral-900/60 dark:text-neutral-400 dark:hover:bg-neutral-800"
