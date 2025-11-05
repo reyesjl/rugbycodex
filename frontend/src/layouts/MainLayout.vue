@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, watch, nextTick, computed } from 'vue';
+import { ref, watch, computed, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import { Icon } from '@iconify/vue';
 import { RouterLink, useRoute } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
@@ -25,36 +25,61 @@ const navLinks = computed(() => [
     : { to: '/login', label: 'Account' },
 ]);
 
-const navRef = ref<HTMLElement | null>(null);
+const isSidebarOpen = ref(false);
 const route = useRoute();
+const headerRef = ref<HTMLElement | null>(null);
+const headerHeight = ref(0);
 
-const scrollActiveIntoView = () => {
-  const navEl = navRef.value;
-  if (!navEl) return;
+const toggleSidebar = () => {
+  isSidebarOpen.value = !isSidebarOpen.value;
+};
 
-  const activeEl = navEl.querySelector<HTMLAnchorElement>('.nav-link--active');
-  if (!activeEl) return;
+const closeSidebar = () => {
+  isSidebarOpen.value = false;
+};
 
-  const target =
-    activeEl.offsetLeft - navEl.clientWidth / 2 + activeEl.offsetWidth / 2;
-  const maxScroll = Math.max(navEl.scrollWidth - navEl.clientWidth, 0);
-  const clamped = Math.min(Math.max(target, 0), maxScroll);
+const sidebarToggleIcon = computed(() =>
+  isSidebarOpen.value ? 'carbon:side-panel-close-filled' : 'carbon:side-panel-open-filled'
+);
 
-  navEl.scrollTo({ left: clamped, behavior: 'smooth' });
+const userDisplayName = computed(() => {
+  const metadataName = (authStore.user?.user_metadata?.name as string | undefined)?.trim();
+  const fallback = authStore.user?.email ?? 'Member';
+  const base = metadataName?.length ? metadataName : fallback;
+  if (base.length > 24) {
+    return `${base.slice(0, 21).trimEnd()}…`;
+  }
+  return base;
+});
+
+const updateHeaderHeight = () => {
+  headerHeight.value = headerRef.value?.offsetHeight ?? 0;
 };
 
 onMounted(() => {
-  nextTick(() => {
-    scrollActiveIntoView();
-  });
+  nextTick(updateHeaderHeight);
+  window.addEventListener('resize', updateHeaderHeight);
 });
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', updateHeaderHeight);
+});
+
+watch(isSidebarOpen, (open) => {
+  if (open) {
+    nextTick(updateHeaderHeight);
+  }
+});
+
+const sidebarStyles = computed(() => ({
+  top: `${headerHeight.value}px`,
+  height: `calc(100vh - ${headerHeight.value}px)`,
+}));
 
 watch(
   () => route.path,
   () => {
-    nextTick(() => {
-      scrollActiveIntoView();
-    });
+    closeSidebar();
   }
 );
 </script>
@@ -62,37 +87,138 @@ watch(
 <template>
   <div>
     <header
-      class="fixed top-0 z-20 block w-full border-b border-neutral-200/40 bg-white/60 backdrop-blur-sm transition-colors dark:border-neutral-800/60 dark:bg-neutral-950/70">
-      <nav
-        ref="navRef"
-        class="nav-scroll container flex flex-nowrap items-center gap-6 overflow-x-auto px-6 py-8 md:justify-around md:overflow-visible md:px-0"
+      ref="headerRef"
+      class="fixed top-0 z-50 w-full bg-transparent backdrop-blur-xl transition-colors dark:bg-neutral-950/70"
+    >
+      <div
+        class="container flex items-center justify-between gap-6 px-6 py-5 md:px-8"
       >
-        <RouterLink
-          v-for="link in navLinks"
-          :key="link.to"
-          :to="link.to"
-          custom
-          v-slot="{ href, navigate, isExactActive }"
-        >
-          <a
-            :href="href"
-            @click="navigate"
-            class="nav-link shrink-0 transition-colors"
-            :class="[
-              isExactActive
-                ? 'nav-link--active text-black dark:text-white font-semibold'
-                : 'nav-link--inactive text-neutral-500 hover:text-black dark:hover:text-white'
-            ]"
+        <div class="flex items-center gap-3 md:gap-4">
+          <RouterLink
+            to="/"
+            class="text-xl tracking-medium text-neutral-900 transition-colors hover:text-black dark:text-neutral-100 dark:hover:text-white md:text-xl"
           >
-            {{ link.label }}
-          </a>
-        </RouterLink>
-      </nav>
+            Rugby<span class="font-semibold">codex</span>
+          </RouterLink>
+
+          <button
+            type="button"
+            class="hidden p-2 text-neutral-600 transition hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-white md:inline-flex"
+            aria-label="Toggle navigation"
+            @click="toggleSidebar"
+          >
+            <Icon :icon="sidebarToggleIcon" class="h-5 w-5" />
+          </button>
+        </div>
+
+        <div class="flex items-center gap-3 md:gap-4">
+          <button
+            type="button"
+            class="rounded-full bg-transparent p-2 text-neutral-600 transition hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-white"
+            aria-label="Search"
+          >
+            <Icon icon="carbon:search" class="h-4 w-4" />
+          </button>
+
+          <button
+            type="button"
+            class="flex p-2 text-neutral-600 transition hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-white md:hidden"
+            aria-label="Toggle navigation"
+            @click="toggleSidebar"
+          >
+            <Icon :icon="sidebarToggleIcon" class="h-5 w-5" />
+          </button>
+
+          <RouterLink
+            v-if="!authStore.isAuthenticated"
+            to="/login"
+            class="hidden rounded-full bg-neutral-900 px-4 py-2 text-sm font-medium text-neutral-100 transition hover:bg-neutral-800 dark:hover:bg-neutral-800 md:inline-flex md:items-center"
+          >
+            Log in
+          </RouterLink>
+          <RouterLink
+            v-else
+            to="/dashboard"
+            class="hidden max-w-[14rem] truncate rounded-full bg-neutral-900/80 px-4 py-2 text-sm font-medium text-neutral-100 backdrop-blur transition hover:bg-neutral-900 md:inline-flex"
+            :title="authStore.user?.user_metadata?.name ?? authStore.user?.email ?? undefined"
+          >
+            {{ userDisplayName }}
+          </RouterLink>
+        </div>
+      </div>
     </header>
+
+    <transition name="fade">
+      <div
+        v-if="isSidebarOpen"
+        class="fixed inset-0 z-30 bg-black/40 backdrop-blur-sm md:hidden"
+        @click="closeSidebar"
+      />
+    </transition>
+
+    <transition name="sidebar">
+      <aside
+        v-if="isSidebarOpen"
+        class="fixed left-0 right-auto z-40 flex w-72 max-w-full flex-col bg-transparent text-neutral-900 shadow-2xl backdrop-blur-xl dark:bg-neutral-950/70 dark:text-white md:w-80 md:rounded-none"
+        :style="sidebarStyles"
+      >
+        <nav class="flex-1 space-y-1 px-4 pt-6">
+          <RouterLink
+            v-for="link in navLinks"
+            :key="link.to"
+            :to="link.to"
+            custom
+            v-slot="{ href, navigate, isExactActive }"
+          >
+            <a
+              :href="href"
+              @click="navigate"
+              class="block rounded-2xl px-4 py-3 text-sm transition"
+              :class="[
+                isExactActive
+                  ? 'bg-neutral-200 text-neutral-900 dark:bg-neutral-800 dark:text-white'
+                  : 'text-neutral-700 hover:bg-neutral-200 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-900 dark:hover:text-white'
+              ]"
+            >
+              {{ link.label }}
+            </a>
+          </RouterLink>
+        </nav>
+
+        <div class="flex items-end justify-between px-6 pb-6 pt-4">
+          <button
+            type="button"
+            class="rounded-full border border-neutral-300 bg-neutral-200/70 p-2 text-sm text-neutral-600 transition hover:bg-neutral-200 dark:border-neutral-800 dark:bg-neutral-900/60 dark:text-neutral-400 dark:hover:bg-neutral-800"
+            aria-label="Toggle dark mode"
+            @click="props.toggleDarkMode"
+          >
+            <Icon icon="carbon:brightness-contrast" class="h-4 w-4" />
+          </button>
+
+          <RouterLink
+            v-if="!authStore.isAuthenticated"
+            to="/login"
+            class="rounded-full bg-neutral-100 px-4 py-2 text-sm font-semibold text-neutral-900 transition hover:bg-white/90 md:hidden"
+            @click="closeSidebar"
+          >
+            Log in
+          </RouterLink>
+          <RouterLink
+            v-else
+            to="/dashboard"
+            class="max-w-[14rem] truncate rounded-full bg-neutral-100/80 px-4 py-2 text-sm font-semibold text-neutral-900 transition hover:bg-white/90 md:hidden"
+            :title="authStore.user?.user_metadata?.name ?? authStore.user?.email ?? undefined"
+            @click="closeSidebar"
+          >
+            {{ userDisplayName }}
+          </RouterLink>
+        </div>
+      </aside>
+    </transition>
 
     <button
       @click="props.toggleDarkMode"
-      class="fixed bottom-5 right-5 z-50 rounded-full bg-neutral-400 p-2 text-xs text-neutral-200 transition-colors dark:bg-neutral-800"
+      class="fixed bottom-5 right-5 z-50 hidden rounded-full bg-neutral-400 p-2 text-xs text-neutral-200 transition-colors dark:bg-neutral-800 md:inline-flex"
       aria-label="Toggle dark mode"
     >
       <Icon icon="carbon:brightness-contrast" class="h-4 w-4" />
@@ -102,7 +228,7 @@ watch(
       <slot />
     </main>
 
-    <footer class="bg-neutral-700 pt-16 pb-60 mt-24 text-xs text-neutral-200 dark:bg-neutral-800">
+    <footer class="mt-24 bg-neutral-700 pt-16 pb-60 text-xs text-neutral-200 dark:bg-neutral-800">
       <div class="container mx-auto grid items-start gap-12 md:grid-cols-6">
         <div class="space-y-4">
           <h2 class="tracking-wide text-neutral-100">Explore</h2>
@@ -116,9 +242,9 @@ watch(
           </nav>
         </div>
 
-        <div class="md:col-span-3 space-y-4 leading-relaxed text-neutral-300">
+        <div class="space-y-4 text-neutral-300 md:col-span-3">
           <h2 class="tracking-wide text-neutral-100">About</h2>
-          <p>
+          <p class="leading-relaxed">
             Rugbycodex imagines a shared language for the sport; where video, narration, and context meet.
             We’re building a platform that lets clubs and coaches preserve ideas, experiment with tactics,
             and keep institutional knowledge alive for the next season and beyond. Questions? Reach us at
@@ -126,7 +252,7 @@ watch(
           </p>
         </div>
 
-        <div class="md:col-span-2 space-y-4">
+        <div class="space-y-4 md:col-span-2">
           <h2 class="tracking-wide text-neautral-100">Credits</h2>
           <p class="leading-relaxed">
             Built by<br />
@@ -143,50 +269,24 @@ watch(
 </template>
 
 <style scoped>
-.nav-scroll {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
 }
 
-.nav-scroll::-webkit-scrollbar {
-  display: none;
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 
-@media (max-width: 767px) {
-  .nav-scroll {
-    -webkit-mask-image: linear-gradient(
-      to right,
-      transparent 0%,
-      rgba(0, 0, 0, 0.7) 8%,
-      rgba(0, 0, 0, 1) 25%,
-      rgba(0, 0, 0, 1) 75%,
-      rgba(0, 0, 0, 0.7) 92%,
-      transparent 100%
-    );
-    mask-image: linear-gradient(
-      to right,
-      transparent 0%,
-      rgba(0, 0, 0, 0.7) 8%,
-      rgba(0, 0, 0, 1) 25%,
-      rgba(0, 0, 0, 1) 75%,
-      rgba(0, 0, 0, 0.7) 92%,
-      transparent 100%
-    );
-    scroll-padding-inline: 40px;
-  }
-
-  .nav-scroll::before,
-  .nav-scroll::after {
-    content: '';
-    flex: 0 0 40px;
-    pointer-events: none;
-  }
+.sidebar-enter-active,
+.sidebar-leave-active {
+  transition: transform 0.25s ease, opacity 0.2s ease;
 }
 
-@media (min-width: 768px) {
-  .nav-scroll {
-    -webkit-mask-image: none;
-    mask-image: none;
-  }
+.sidebar-enter-from,
+.sidebar-leave-to {
+  transform: translateX(-100%);
+  opacity: 0;
 }
 </style>
