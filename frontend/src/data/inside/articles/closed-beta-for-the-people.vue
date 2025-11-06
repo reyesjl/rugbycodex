@@ -25,7 +25,7 @@ const { entry } = defineProps<{
         <section class="space-y-8 antialiased text-lg">
 
             <p>
-                The closed beta marks the next chapter in the evolution of Rugbycodex. We are moving very fast to bring it
+                The semi-open beta marks the next chapter in the evolution of Rugbycodex. We are moving very fast to bring it
                 into the hands of the rugby community. For the first time, users can register for beta accounts and join
                 us in shaping the platform as it comes to life.
             </p>
