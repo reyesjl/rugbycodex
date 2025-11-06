@@ -24,6 +24,16 @@ const router = createRouter({
       component: () => import('@/views/Releases.vue'),
     },
     {
+      path: '/inside',
+      name: 'InsideTheCodex',
+      component: () => import('@/views/Inside.vue'),
+    },
+    {
+      path: '/inside/:slug',
+      name: 'InsideArticle',
+      component: () => import('@/views/InsideArticle.vue'),
+    },
+    {
       path: '/vaults',
       name: 'Vaults',
       component: () => import('@/views/Vaults.vue'),

@@ -43,10 +43,11 @@
         <p class="text-neutral-700 dark:text-neutral-300">
         Describe the session you want, and Rugbycodex pulls the right instruction, walkthroughs, and live examples from the vaults.
         </p>
-        <div
-          class="inline-flex items-center justify-center rounded-full bg-green-500 px-6 py-3 text-base font-medium text-white whitespace-nowrap">
-          Public Vaults (Coming Soon)
-        </div>
+        <RouterLink
+          to="/inside"
+          class="inline-flex items-center justify-center rounded-full bg-green-500 px-6 py-3 text-base font-medium text-white whitespace-nowrap transition hover:bg-green-600">
+          Learn more
+        </RouterLink>
       </div>
     </div>
   </section>

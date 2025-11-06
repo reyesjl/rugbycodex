@@ -15,11 +15,12 @@ if (!authStore.hydrated) {
 }
 
 const navLinks = computed(() => [
+  { to: '/inside', label: 'Inside the Codex' },
   { to: '/', label: 'Overview' },
   { to: '/narrations', label: 'Narrations' },
   { to: '/vaults', label: 'Vaults' },
-  { to: '/releases', label: 'Releases' },
-  { to: '/about', label: 'About' },
+  // { to: '/releases', label: 'Releases' },
+  // { to: '/about', label: 'About' },
   authStore.isAuthenticated
     ? { to: '/dashboard', label: 'Dashboard' }
     : { to: '/login', label: 'Account' },
@@ -284,14 +285,6 @@ watch(
       </aside>
     </transition>
 
-    <button
-      @click="props.toggleDarkMode"
-      class="fixed bottom-5 right-5 z-50 hidden rounded-full bg-neutral-400 p-2 text-xs text-neutral-200 transition-colors dark:bg-neutral-800 md:inline-flex"
-      aria-label="Toggle dark mode"
-    >
-      <Icon icon="carbon:brightness-contrast" class="h-4 w-4" />
-    </button>
-
     <main>
       <slot />
     </main>
@@ -305,6 +298,7 @@ watch(
             <RouterLink class="transition-colors hover:text-white" to="/narrations">Narrations</RouterLink>
             <RouterLink class="transition-colors hover:text-white" to="/vaults">Vaults</RouterLink>
             <RouterLink class="transition-colors hover:text-white" to="/releases">Releases</RouterLink>
+            <RouterLink class="transition-colors hover:text-white" to="/inside">Inside the Codex</RouterLink>
             <RouterLink class="transition-colors hover:text-white" to="/about">About</RouterLink>
             <RouterLink class="transition-colors hover:text-white" to="/login">Account</RouterLink>
           </nav>

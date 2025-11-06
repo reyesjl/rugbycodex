@@ -16,9 +16,9 @@ import NarrationDemo from '@/components/NarrationDemo.vue';
         class="lg:mt-20 w-80 md:w-100 lg:w-105 max-w-120 h-auto mx-auto animate-pulse" />
       <img :src="heroWordbox" alt="Rugbycodex" class="w-80 md:w-100 lg:w-105 max-w-120 h-auto mx-auto" />
       <div class="text-center">
-        <RouterLink to="/releases" class="inline-flex items-center gap-2 text-xs hover:underline">
-          Narrations spotlight - Version 1.2.0
-          <span class="font-semibold text-indigo-500">Click me!</span>
+        <RouterLink to="/inside" class="inline-flex items-center gap-2 text-xs hover:underline">
+          Inside the Codex
+          <span class="font-semibold text-fuchsia-500">Click Here to Learn More</span>
         </RouterLink>
       </div>
     </div>
@@ -91,7 +91,7 @@ import NarrationDemo from '@/components/NarrationDemo.vue';
         rugby is understood and the nuances of how it's played.</div>
 
       <RouterLink
-        to="/about"
+        to="/inside"
         class="md:text-2xl block px-10 py-5 rounded-full !bg-neutral-100 text-neutral-800 dark:!bg-neutral-800 dark:text-neutral-100 mt-20"
       >
         Learn more about Rugbycodex
