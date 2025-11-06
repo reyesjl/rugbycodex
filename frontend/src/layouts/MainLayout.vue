@@ -294,11 +294,11 @@ watch(
         <div class="space-y-4">
           <h2 class="tracking-wide text-neutral-100">Explore</h2>
           <nav class="flex flex-col gap-2 text-neutral-300">
+            <RouterLink class="transition-colors hover:text-white" to="/inside">Inside the Codex</RouterLink>
             <RouterLink class="transition-colors hover:text-white" to="/">Overview</RouterLink>
             <RouterLink class="transition-colors hover:text-white" to="/narrations">Narrations</RouterLink>
             <RouterLink class="transition-colors hover:text-white" to="/vaults">Vaults</RouterLink>
             <RouterLink class="transition-colors hover:text-white" to="/releases">Releases</RouterLink>
-            <RouterLink class="transition-colors hover:text-white" to="/inside">Inside the Codex</RouterLink>
             <RouterLink class="transition-colors hover:text-white" to="/about">About</RouterLink>
             <RouterLink class="transition-colors hover:text-white" to="/login">Account</RouterLink>
           </nav>

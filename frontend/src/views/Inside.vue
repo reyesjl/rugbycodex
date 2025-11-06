@@ -12,11 +12,6 @@ const inactiveClasses = 'text-neutral-500 hover:text-neutral-800 dark:text-neutr
 
 const activeFilter = ref<Filter>('All');
 
-const layoutOptions = [
-  { icon: 'carbon:list-boxes', label: 'Grid' },
-  { icon: 'carbon:list', label: 'List' },
-] as const;
-
 const entries = ref<InsideEntry[]>([]);
 const router = useRouter();
 
@@ -86,33 +81,11 @@ const handleEntryClick = (entry: InsideEntry) => {
           {{ filter }}
         </button>
       </nav>
-      <!-- <div class="flex flex-wrap items-center gap-6 text-xs uppercase tracking-tight text-neutral-500">
-        <span class="inline-flex items-center gap-2">
-          <Icon icon="carbon:filter" class="h-4 w-4" />
-          Filter
-        </span>
-        <span class="inline-flex items-center gap-2">
-          <Icon icon="carbon:sort-descending" class="h-4 w-4" />
-          Sort
-        </span>
-        <div class="ml-auto flex items-center gap-2 text-neutral-400">
-          <button
-            v-for="option in layoutOptions"
-            :key="option.icon"
-            type="button"
-            class="rounded-full border border-transparent p-2 transition hover:text-neutral-900 dark:hover:text-neutral-100"
-            :class="option.icon === layoutOptions[1].icon ? 'text-neutral-900 dark:text-neutral-100' : ''"
-            :title="option.label"
-          >
-            <Icon :icon="option.icon" class="h-4 w-4" />
-          </button>
-        </div>
-      </div> -->
     </div>
 
     <div class="mt-6 py-4">
       <article
-        v-for="(entry, index) in filteredEntries"
+        v-for="entry in filteredEntries"
         :key="entry.title"
         class="flex cursor-pointer flex-col gap-6 border-b border-b-neutral-200/80 py-8 transition-[border-color] hover:border-b-neutral-900 focus-visible:border-b-neutral-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-900 first:border-t first:border-t-neutral-200/80 dark:border-b-neutral-800 dark:hover:border-b-white dark:focus-visible:border-b-white dark:focus-visible:ring-white dark:first:border-t-neutral-800 md:flex-row md:items-start md:gap-12"
         role="button"

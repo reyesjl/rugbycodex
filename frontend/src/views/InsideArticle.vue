@@ -5,7 +5,9 @@ import { insideEntries } from '@/data/inside';
 
 const route = useRoute();
 
-const articleModules = import.meta.glob('../data/inside/articles/*.vue');
+const articleModules = import.meta.glob<{ default: Component }>(
+  '../data/inside/articles/*.vue'
+);
 
 const slug = computed(() => route.params.slug as string | undefined);
 
@@ -29,7 +31,7 @@ const articleComponent = computed<Component | null>(() => {
     return null;
   }
 
-  return defineAsyncComponent(loader);
+  return defineAsyncComponent(() => loader().then((module) => module.default));
 });
 </script>
 
