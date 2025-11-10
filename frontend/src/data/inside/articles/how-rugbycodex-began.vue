@@ -40,7 +40,8 @@ const { entry } = defineProps<{
                 I wanted him to teach them what he once taught me: the best amateurs make the best pros. Stealing a
                 look,
                 front foot loading, catching early, and staying square off the line. We call them first touch
-                principles.
+                principles, and they're among the most fundamental skills that top teams and players still obsess
+                over. They are evident in every aspect of the game and separate the best from the rest.
             </p>
 
             <p>
