@@ -185,38 +185,10 @@ const form = reactive({
 });
 
 const submissionLogged = ref(false);
-const storageKey = 'betaRequests.csv';
 const passwordMismatch = computed(
   () => Boolean(form.password) && Boolean(form.confirmPassword) && form.password !== form.confirmPassword,
 );
 const showPasswordMismatch = computed(() => Boolean(form.confirmPassword?.trim()) && passwordMismatch.value);
-
-const logSubmissionToLocalStorage = () => {
-  if (typeof window === 'undefined') {
-    return;
-  }
-
-  const quote = (value: string) => {
-    const trimmed = value?.trim() ?? '';
-    return `"${trimmed.replace(/"/g, '""')}"`;
-  };
-
-  const row = [
-    quote(form.name),
-    quote(form.email),
-    quote(form.phone),
-    quote(form.organization),
-    quote(form.role),
-    quote(form.usage),
-    quote(form.referral),
-    quote(new Date().toISOString()),
-  ].join(',');
-
-  const csvHeader = 'name,email,phone,organization,role,usage,referral,submitted_at';
-  const existingLog = window.localStorage.getItem(storageKey);
-  const nextLog = existingLog ? `${existingLog}\n${row}` : `${csvHeader}\n${row}`;
-  window.localStorage.setItem(storageKey, nextLog);
-};
 
 watch(turnstileTheme, () => {
   void mountTurnstile();
@@ -274,8 +246,6 @@ const handleSubmit = async () => {
     return;
   }
 
-  logSubmissionToLocalStorage();
-
   if (data?.session) {
     supabaseMessage.value = 'Your account is ready. We will redirect you to the dashboard.';
     submissionLogged.value = true;
@@ -288,7 +258,6 @@ const handleSubmit = async () => {
   supabaseMessage.value =
     'Check your inbox to confirm your email. Once verified, you can sign in to your dashboard.';
   submissionLogged.value = true;
-  console.info('beta access request logged', { ...form });
   signingUp.value = false;
 };
 </script>
