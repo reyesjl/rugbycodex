@@ -26,12 +26,12 @@ const { entry } = defineProps<{
             <p>
                 Every coach knows the feeling. You are out on the field, the sun is low, and the boys are running
                 through drills that look simple on the surface but demand real attention to detail. The session is
-                flowing, the voices are sharp, and every little cue matters. That is where Rugbycodex began.
+                flowing, the voices are sharp, and every little cue matters. <span class="text-amber-600 dark:text-amber-300">That is where Rugbycodex began.</span>
             </p>
 
             <p>
-                One day I reached out to an old coach out of the blue. He was connected to the Crusaders International
-                Academy, and I knew he would bring the experience and precision I wanted. He had always taught me about
+                One day I reached out to an old coach out of the blue. He was connected to the <span class="text-red-700 dark:text-red-400">Crusaders International
+                Academy</span>, and I knew he would bring the experience and precision I wanted. He had always taught me about
                 the finer points of rugby, the details that separate good players from great ones. I asked him to come
                 out to Washington DC, where I was running preseason with some of the boys from my club.
             </p>
@@ -39,8 +39,8 @@ const { entry } = defineProps<{
             <p>
                 I wanted him to teach them what he once taught me: the best amateurs make the best pros. Stealing a
                 look,
-                front foot loading, catching early, and staying square off the line. We call them first touch
-                principles, and they're among the most fundamental skills that top teams and players still obsess
+                front foot loading, catching early, and staying square off the line. We call them <span class="text-amber-600 dark:text-amber-300">first touch
+                principles</span>, and they're among the most fundamental skills that top teams and players still obsess
                 over. They are evident in every aspect of the game and separate the best from the rest.
             </p>
 
@@ -52,17 +52,17 @@ const { entry } = defineProps<{
 
             <p>
                 That night, watching the footage back, I realized something simple but powerful. Every great session,
-                every lesson, every voice from the sideline disappears once the cones are packed away. But it doesn’t
-                have to.
+                every lesson, every voice from the sideline disappears once the cones are packed away. <span class="text-amber-600 dark:text-amber-300">But it doesn’t
+                have to.</span>
             </p>
 
             <p>
-                Rugbycodex began with that idea, that rugby knowledge could live on.
+                <span class="text-amber-600 dark:text-amber-300">Rugbycodex began with that idea, that rugby knowledge could live on.</span>
             </p>
 
             <p>
                 With his permission, I started experimenting with the footage. I ran the clips through transcription and
-                summarization tools I had been building, then created a simple search interface that could find and
+                summarization tools I had been building, then created a <span class="text-amber-600 dark:text-amber-300">simple search interface</span> that could find and
                 assemble insights automatically. If I wanted to see the top three drills we ran and his cues for each, I
                 could just type the question, and the system would generate a sequence of clips, perfectly timed and
                 stitched together from the original footage.
@@ -79,12 +79,12 @@ const { entry } = defineProps<{
 
             <p>
                 I started reaching out to old friends and coaches who I thought might see the value in it. That is when
-                Rugbycodex truly began, with a belief that the knowledge shared on the pitch should never fade once the
+                <span class="text-amber-600 dark:text-amber-300">Rugbycodex truly began</span>, with a belief that the knowledge shared on the pitch should never fade once the
                 session ends.
             </p>
 
             <p>
-                Today that same idea drives everything we build. Rugbycodex is for every coach and player who knows the
+                Today that same idea drives everything we build. <span class="text-amber-600 dark:text-amber-300">Rugbycodex is for every coach and player</span> who knows the
                 beauty of this game lives in its details and believes those details deserve to be remembered.
             </p>
         </section>

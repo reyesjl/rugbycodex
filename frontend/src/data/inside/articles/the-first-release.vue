@@ -23,24 +23,24 @@ const { entry } = defineProps<{
         <ShareLinkButton />
 
         <section class="space-y-8 antialiased text-lg">
-            <p>The first major release of Rugbycodex marked the moment it transformed from a technical demo into a
-                living, breathing platform. Version 1.0.0 introduced a foundation for how
+            <p>The <span class="text-amber-600 dark:text-amber-300">first major release of Rugbycodex</span> marked the moment it transformed from a technical demo into a
+                living, breathing platform. <span class="text-amber-600 dark:text-amber-300">Version 1.0.0 introduced a foundation</span> for how
                 Rugbycodex feels, moves, and communicates its purpose to the rugby world.</p>
 
             <p>The public site launched with a clear visual rhythm and storytelling flow, designed to help players and
-                coaches immediately understand the ideas behind Narrations, Threads, and Vaults. The new hero visuals
+                coaches immediately understand the ideas behind <span class="text-amber-600 dark:text-amber-300">Narrations, Threads, and Vaults</span>. The new hero visuals
                 and navigation gave the platform a distinct identity, turning complex technology into something human
                 and approachable.
             </p>
 
             <p>
-                Under the surface, this release established a consistent typography and layout system to unify every
+                Under the surface, this release established a <span class="text-amber-600 dark:text-amber-300">consistent typography and layout system</span> to unify every
                 future page. It also brought full support for light and dark themes, ensuring Rugbycodex feels at home
                 whether on a laptop in the clubhouse or a phone on the sideline.
             </p>
 
             <p>While mostly just a design oriented update, it set the stage for everything that follows. It
-                prepared the interface for live data, user interactions, and the evolving stories that will define
+                prepared the interface for <span class="text-amber-600 dark:text-amber-300">live data, user interactions, and evolving stories</span> that will define
                 Rugbycodex as it grows.
             </p>
         </section>

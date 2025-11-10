@@ -11,6 +11,7 @@ const activeClasses = 'border-b-2 border-neutral-900 text-neutral-900 dark:borde
 const inactiveClasses = 'text-neutral-500 hover:text-neutral-800 dark:text-neutral-500 dark:hover:text-neutral-300';
 
 const activeFilter = ref<Filter>('All');
+const showLegend = ref(true);
 
 const entries = ref<InsideEntry[]>([]);
 const router = useRouter();
@@ -48,6 +49,10 @@ const handleEntryClick = (entry: InsideEntry) => {
     params: { slug: entry.slug },
   });
 };
+
+const dismissLegend = () => {
+  showLegend.value = false;
+};
 </script>
 
 <template>
@@ -56,11 +61,29 @@ const handleEntryClick = (entry: InsideEntry) => {
       <div class="space-y-3">
         <h1 class="text-4xl tracking-tight md:text-6xl">Inside the Codex</h1>
         <p class="max-w-2xl text-base text-neutral-500 dark:text-neutral-400">
-          Essays, release notes, and internal studies from the Rugbycodex team. These posts trace how we are building a
-          shared intelligence layer for modern rugby clubs.
+          Updates, ideas, and progress from the Rugbycodex team.
         </p>
       </div>
     </header>
+
+    <Transition name="fade">
+      <div
+        v-if="showLegend"
+        class="relative mt-8 rounded-lg border border-neutral-200/80 bg-white/40 p-4 text-sm text-neutral-600 dark:border-neutral-800 dark:bg-neutral-900/40 dark:text-neutral-300"
+      >
+        <button
+          type="button"
+          class="absolute right-3 top-3 rounded-full p-1 text-xs text-neutral-400 transition hover:text-neutral-700 dark:text-neutral-500 dark:hover:text-white"
+          aria-label="Dismiss color guide"
+          @click="dismissLegend"
+        >
+          &#10005;
+        </button>
+        <p>We use <span class="text-amber-600 dark:text-amber-300">amber</span> to highlight important segments of a story.</p>
+        <p>We use <span class="text-sky-600 dark:text-sky-300">sky blue</span> to highlight the people shaping Rugbycodex.</p>
+        <p>Team names appear in their own primary colors, like <span class="text-red-600 dark:text-red-300">Old Glory DC</span>, <span class="text-orange-500 dark:text-orange-300">Edinburgh</span>, or <span class="text-blue-900 dark:text-blue-400">Scotland</span>.</p>
+      </div>
+    </Transition>
 
     <div
       class="mt-10 flex flex-col gap-6 pb-10 text-base text-neutral-500 dark:border-neutral-800"
@@ -117,3 +140,15 @@ const handleEntryClick = (entry: InsideEntry) => {
     </div>
   </section>
 </template>
+
+<style scoped>
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.25s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+</style>

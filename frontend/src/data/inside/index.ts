@@ -1,3 +1,4 @@
+// Highlight palette: people (text-sky-600 dark:text-sky-300), key concepts (text-amber-600 dark:text-amber-300), teams use their primary club/nation colors.
 export type EntryTag = 'Publication' | 'Milestone' | 'Release';
 
 export type InsideEntry = {
