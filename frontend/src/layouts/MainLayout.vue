@@ -313,12 +313,12 @@ watch(
         <div class="space-y-4 md:col-span-2">
           <h2 class="tracking-wide text-neautral-100">Credits</h2>
           <p class="leading-relaxed">
-            Built by<br />
-            Biasware <a class="text-neutral-400" href="https://biasware.com">Biasware.com</a>
-          </p>
-          <p class="leading-relaxed">
             Development <br />
             Jose Reyes <a class="text-neutral-400" href="https://www.youtube.com/watch?v=mbOP11df6QY">@reyesjl</a>
+          </p>
+          <p class="leading-relaxed">
+            Built by<br />
+            Biasware <a class="text-neutral-400" href="https://biasware.com">Biasware.com</a>
           </p>
         </div>
       </div>
