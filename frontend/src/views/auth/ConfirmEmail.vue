@@ -13,10 +13,6 @@ const resendErrorMessage = ref<string | null>(null);
 const confirmationRedirectUrl =
   typeof window !== 'undefined' ? `${window.location.origin}/confirm-email` : undefined;
 
-if (!authStore.hydrated) {
-  void authStore.initialize();
-}
-
 if (typeof window !== 'undefined') {
   const fragment = window.location.hash.startsWith('#') ? window.location.hash.slice(1) : window.location.hash;
   const params = new URLSearchParams(fragment);

@@ -5,10 +5,6 @@ import { useAuthStore } from '@/stores/auth';
 
 const authStore = useAuthStore();
 
-if (!authStore.hydrated) {
-  void authStore.initialize();
-}
-
 const form = reactive({
   email: '',
 });

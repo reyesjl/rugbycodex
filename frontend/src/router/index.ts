@@ -91,10 +91,6 @@ const router = createRouter({
 router.beforeEach(async (to) => {
   const authStore = useAuthStore(pinia);
 
-  if (!authStore.hydrated && !authStore.initializing) {
-    await authStore.initialize();
-  }
-
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
     return {
       name: 'Login',

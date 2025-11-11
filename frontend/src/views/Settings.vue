@@ -14,10 +14,7 @@ const syncFromStore = () => {
   displayName.value = metadataName ?? '';
 };
 
-onMounted(async () => {
-  if (!authStore.hydrated && !authStore.initializing) {
-    await authStore.initialize();
-  }
+onMounted(() => {
   syncFromStore();
 });
 

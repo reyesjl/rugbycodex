@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import NarrationDemo from '@/components/NarrationDemo.vue';
@@ -8,12 +8,6 @@ const authStore = useAuthStore();
 const router = useRouter();
 const signOutError = ref<string | null>(null);
 const signingOut = ref(false);
-
-onMounted(() => {
-  if (!authStore.hydrated) {
-    void authStore.initialize();
-  }
-});
 
 const displayName = computed(() => {
   const metadataName = authStore.user?.user_metadata?.name as string | undefined;

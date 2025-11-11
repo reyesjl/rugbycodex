@@ -7,10 +7,6 @@ const router = useRouter();
 const route = useRoute();
 const authStore = useAuthStore();
 
-if (!authStore.hydrated) {
-  void authStore.initialize();
-}
-
 const form = reactive({
   email: '',
   password: '',

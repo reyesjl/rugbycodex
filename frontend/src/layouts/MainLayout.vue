@@ -10,10 +10,6 @@ const props = defineProps<{
 
 const authStore = useAuthStore();
 
-if (!authStore.hydrated) {
-  void authStore.initialize();
-}
-
 const navLinks = computed(() => [
   { to: '/inside', label: 'Inside the Codex' },
   { to: '/', label: 'Overview' },

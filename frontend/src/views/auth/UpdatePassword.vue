@@ -8,10 +8,6 @@ const authStore = useAuthStore();
 const route = useRoute();
 const router = useRouter();
 
-if (!authStore.hydrated) {
-  void authStore.initialize();
-}
-
 const form = reactive({
   password: '',
   confirmPassword: '',
@@ -66,10 +62,6 @@ onMounted(async () => {
   supabaseError.value = null;
 
   try {
-    if (!authStore.hydrated) {
-      await authStore.initialize();
-    }
-
     const errorDescription =
       typeof route.query.error_description === 'string' ? route.query.error_description : null;
     if (errorDescription) {

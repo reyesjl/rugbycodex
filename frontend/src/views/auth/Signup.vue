@@ -45,10 +45,6 @@ const supabaseMessage = ref<string | null>(null);
 const confirmationRedirectUrl =
   typeof window !== 'undefined' ? `${window.location.origin}/confirm-email` : undefined;
 
-if (!authStore.hydrated) {
-  void authStore.initialize();
-}
-
 let turnstileScriptPromise: Promise<void> | null = null;
 let darkModeObserver: MutationObserver | null = null;
 
@@ -209,7 +205,6 @@ const handleSubmit = async () => {
     return;
   }
 
-  // Naive CSV log written to localStorage for the current browser session.
   if (form.honeypot?.trim()) {
     console.warn('beta access request flagged as spam', { ...form });
     return;

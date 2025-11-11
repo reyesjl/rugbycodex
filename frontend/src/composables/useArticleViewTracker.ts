@@ -48,16 +48,6 @@ export function useArticleViewTracker(slug: MaybeRefOrGetter<string | undefined>
     error.value = null;
 
     try {
-      if (!authStore.hydrated) {
-        try {
-          await authStore.initialize();
-        } catch (initError) {
-          if (import.meta.env.DEV) {
-            console.warn('[article-tracker] Auth init failed. Proceeding without user id.', initError);
-          }
-        }
-      }
-
       const userId = authStore.user?.id ?? null;
 
       const { data, error: fnError } =
