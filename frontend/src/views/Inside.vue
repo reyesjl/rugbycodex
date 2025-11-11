@@ -69,7 +69,7 @@ const dismissLegend = () => {
     <Transition name="fade">
       <div
         v-if="showLegend"
-        class="relative mt-8 rounded-lg border border-neutral-200/80 bg-white/40 p-4 text-sm text-neutral-600 dark:border-neutral-800 dark:bg-neutral-900/40 dark:text-neutral-300"
+        class="text-xs relative mt-8 rounded-lg border border-neutral-200/80 bg-white/40 p-4 pr-7 text-neutral-600 dark:border-neutral-800 dark:bg-neutral-900/40 dark:text-neutral-300"
       >
         <button
           type="button"
