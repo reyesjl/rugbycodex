@@ -318,7 +318,7 @@ watch(
           </p>
           <p class="leading-relaxed">
             Development <br />
-            Jose Reyes <a class="text-neutral-400" href="https://biasware.com">@reyesjl</a>
+            Jose Reyes <a class="text-neutral-400" href="https://www.youtube.com/watch?v=mbOP11df6QY">@reyesjl</a>
           </p>
         </div>
       </div>
