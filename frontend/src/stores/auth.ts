@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import type { AuthError, Session, Subscription, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabaseClient';
+import { decodeSupabaseAccessToken } from '@/utils/jwt';
 
 export const DISPLAY_NAME_MIN_LENGTH = 2;
 export const DISPLAY_NAME_MAX_LENGTH = 60;
@@ -20,6 +21,13 @@ export const useAuthStore = defineStore('auth', () => {
   const setAuthState = (nextSession: Session | null) => {
     session.value = nextSession;
     user.value = nextSession?.user ?? null;
+
+    if (import.meta.env.DEV && nextSession?.access_token) {
+      const claims = decodeSupabaseAccessToken(nextSession.access_token);
+      if (claims) {
+        console.info('[auth] Supabase JWT claims', claims);
+      }
+    }
   };
 
   const clearAuthState = () => {
