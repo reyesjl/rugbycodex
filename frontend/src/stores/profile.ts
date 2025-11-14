@@ -1,8 +1,17 @@
 import { defineStore } from 'pinia';
 import { computed, ref, watch } from 'vue';
 import { supabase } from '@/lib/supabaseClient';
-import type { UserProfile } from '@/data/inside/profile_data';
 import { useAuthStore } from '@/stores/auth';
+
+export type ProfileRole = 'admin' | 'moderator' | 'user';
+
+export interface UserProfile {
+  id: string;
+  xp: number | null;
+  creation_time: string | null;
+  name: string;
+  role: ProfileRole;
+}
 
 export interface OrgMembership {
   org_id: string;
