@@ -31,7 +31,7 @@ const cancelEditingBio = () => {
 
 const saveBio = async () => {
   if (!org.value?.id) return;
-  if (bioEditText.value === null || bioEditText.value.trim() === org.value.bio) {
+  if (bioEditText.value.trim() === (org.value.bio || '')) {
     isEditingBio.value = false;
     return;
   }
