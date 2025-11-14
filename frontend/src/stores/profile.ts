@@ -60,7 +60,6 @@ export const useProfileStore = defineStore('profile', () => {
         role: item.role,
       })) ?? [];
 
-      console.log('Organizations fetched:', organizations.value);
       loadingOrganizations.value = false;
 
     } catch (err) {
