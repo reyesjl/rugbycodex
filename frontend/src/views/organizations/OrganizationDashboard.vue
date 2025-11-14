@@ -58,7 +58,6 @@ const saveBio = async () => {
 
 onMounted(async () => {
   try {
-    loading.value = true;
     org.value = await getOrganizationBySlug(props.orgSlug);
   } catch (e: any) {
     error.value = e?.message ?? 'Failed to load organization';
@@ -97,7 +96,7 @@ const displayedMembers = computed(() =>
 <template>
   <!-- Loading State -->
   <section v-if="loading" class="container flex min-h-screen items-center justify-center">
-    <LoadingIcon />
+    <LoadingIcon text="Loading Organization ..."/>
   </section>
 
   <!-- Error State -->

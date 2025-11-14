@@ -104,8 +104,9 @@ const router = createRouter({
 
 router.beforeEach(async (to) => {
   const authStore = useAuthStore(pinia);
-  const profileStore = useProfileStore();
+  const profileStore = useProfileStore(pinia);
 
+  // TODO: Do we need to await for auth and profile?
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
     return {
       name: 'Login',

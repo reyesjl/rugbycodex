@@ -57,7 +57,7 @@ const userDisplayName = computed(() => {
   if (base.length > 24) {
     return `${base.slice(0, 21).trimEnd()}…`;
   }
-  return base + (profileStore.isAdmin ? ' 👑' : '');
+  return base;
 });
 
 const updateHeaderHeight = () => {
@@ -232,6 +232,7 @@ watch(
           >
             {{ userDisplayName }}
           </RouterLink>
+          <span v-if="profileStore.isAdmin">👑</span>
         </div>
       </div>
     </header>

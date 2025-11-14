@@ -29,11 +29,8 @@ const accountRole = computed(() => {
 const userOrganizations = computed(() => {
   const list = [...profileStore.organizations];
   return list.sort((a, b) => {
-    const aRole = String(a.role).toLowerCase();
-    const bRole = String(b.role).toLowerCase();
-    
-    const aOwner = aRole === 'owner';
-    const bOwner = bRole === 'owner';
+    const aOwner = a.role.toLowerCase() === 'owner';
+    const bOwner = b.role.toLowerCase() === 'owner';
     // Owner first
     if (aOwner !== bOwner) return aOwner ? -1 : 1;
     // Then by newest join date
@@ -69,7 +66,7 @@ const handleSignOut = async () => {
         Rugbycodex
       </p>
       <h1 class="mt-3 text-2xl font-semibold text-neutral-900 dark:text-neutral-100">
-        Welcome back, {{ displayName }} {{ profileStore.isAdmin ? '[Admin]' : '' }}!
+        Welcome back, {{ displayName }} {{ profileStore.isAdmin ? '[Admin] ' : '' }}!
       </h1>
       <p class="mt-4 max-w-xl text-neutral-600 dark:text-neutral-400">
         You’re all set up and ready to go. As new features roll out, you’ll find them right in your dashboard.</p>
