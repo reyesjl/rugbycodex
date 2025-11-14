@@ -50,6 +50,10 @@ jobs:
         working-directory: ./frontend
         run: pnpm install --frozen-lockfile
 
+      - name: Lint code
+        working-directory: ./frontend
+        run: pnpm run lint
+
       - name: Type check and build
         working-directory: ./frontend
         run: pnpm run build
