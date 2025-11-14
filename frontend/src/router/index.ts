@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import pinia from '@/stores';
 import { useAuthStore } from '@/stores/auth';
+import { useProfileStore } from '@/stores/profile';
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -85,11 +86,25 @@ const router = createRouter({
       component: () => import('@/views/Settings.vue'),
       meta: { requiresAuth: true },
     },
+    {
+      path: '/admin-dashboard',
+      name: 'AdminDashboard',
+      component: () => import('@/views/admin/AdminDashboard.vue'),
+      meta: { requiresAuth: true, requiresAdmin: true },
+    },
+    {
+      path: '/organizations/:orgSlug',
+      name: 'OrganizationDetail',
+      component: () => import('@/views/organizations/OrganizationDashboard.vue'),
+      meta: { requiresAuth: true },
+      props: true,
+    },
   ],
 });
 
 router.beforeEach(async (to) => {
   const authStore = useAuthStore(pinia);
+  const profileStore = useProfileStore();
 
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
     return {
@@ -101,6 +116,12 @@ router.beforeEach(async (to) => {
   }
 
   if (to.meta.guestOnly && authStore.isAuthenticated) {
+    return {
+      name: 'Dashboard',
+    };
+  }
+
+  if (to.meta.requiresAdmin && !profileStore.isAdmin) {
     return {
       name: 'Dashboard',
     };

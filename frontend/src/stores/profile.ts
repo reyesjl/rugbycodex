@@ -1,0 +1,184 @@
+import { defineStore } from 'pinia';
+import { computed, ref, watch } from 'vue';
+import { supabase } from '@/lib/supabaseClient';
+import type { UserProfile } from '@/data/inside/profile_data';
+import { useAuthStore } from '@/stores/auth';
+
+export interface OrgMembership {
+  org_id: string;
+  role: string;
+  org_name: string;
+  slug: string;
+  join_date: Date;
+}
+
+export const useProfileStore = defineStore('profile', () => {
+  const profile = ref<UserProfile | null>(null);
+  const loadingProfile = ref(false);
+  const lastError = ref<string | null>(null);
+
+  //TODO: Use JWT
+  const isAdmin = computed(() => profile.value?.role === 'admin');
+
+  const authStore = useAuthStore();
+
+  const organizations = ref<OrgMembership[]>([]);
+  const loadingOrganizations = ref(false);
+
+  //TODO: Realtime org update
+  // const loading = ref(false);
+  // const error = ref<string | null>(null);
+  // let organizationSubscription: RealtimeChannel | null = null;
+
+  const fetchOrganizations = async () => {
+    if (!authStore.user?.id) return;
+    loadingOrganizations.value = true;
+
+    try {
+      const { data, error: fetchError } = await supabase
+        .from('org_members')
+        .select(`
+          org_id,
+          role,
+          organizations (
+            id,
+            name,
+            slug
+          ),
+          joined_at
+        `)
+        .eq('user_id', authStore.user.id);
+
+      if (fetchError) throw fetchError;
+
+      // Transform the data to your Organization interface
+      organizations.value = data?.map(item => ({
+        org_id: item.org_id,
+        org_name: (item.organizations as any)?.name || 'Unknown',
+        join_date: new Date(item.joined_at),
+        slug: (item.organizations as any)?.slug || 'unknown',
+        role: item.role,
+      })) ?? [];
+
+      console.log('Organizations fetched:', organizations.value);
+      loadingOrganizations.value = false;
+
+    } catch (err) {
+      console.error('Failed to fetch organizations:', err);
+      loadingOrganizations.value = false;
+    }
+  };
+
+  const fetchProfile = async (userId: string) => {
+    // TODO: Interrupt ongoing fetch?
+    if (profile.value?.id === userId) {
+      return;
+    }
+    loadingProfile.value = true;
+    lastError.value = null;
+
+    try {
+      const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', userId)
+          .single();
+
+      if (error) {
+          console.error('Error fetching profile:', error);
+          throw error;
+      }
+      
+      
+      profile.value = data as UserProfile;
+      console.log('Profile fetched:', profile.value);
+      fetchOrganizations();
+
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to fetch profile';
+      lastError.value = message;
+    } finally {
+      loadingProfile.value = false;
+    }
+  };
+
+  watch(() => authStore.user, (newUser) => {
+    if (newUser !== null) {
+      if (loadingProfile.value === false) fetchProfile(newUser.id);
+    } else {
+      profile.value = null;
+      lastError.value = null;
+      loadingProfile.value = false;
+      organizations.value = [];
+      loadingOrganizations.value = false;
+    }
+  }, { immediate: true });
+
+
+  // const subscribeToOrganizations = () => {
+  //   if (!authStore.user?.id) return;
+
+  //   // Clean up existing subscription
+  //   if (organizationSubscription) {
+  //     supabase.removeChannel(organizationSubscription);
+  //   }
+
+  //   // Subscribe to changes in organization_members table
+  //   organizationSubscription = supabase
+  //     .channel('organization-changes')
+  //     .on(
+  //       'postgres_changes',
+  //       {
+  //         event: '*', // Listen to INSERT, UPDATE, DELETE
+  //         schema: 'public',
+  //         table: 'organization_members',
+  //         filter: `user_id=eq.${authStore.user.id}`,
+  //       },
+  //       (payload) => {
+  //         console.log('Organization membership changed:', payload);
+  //         // Refetch organizations when membership changes
+  //         fetchOrganizations();
+  //       }
+  //     )
+  //     .subscribe();
+  // };
+
+  // const unsubscribeFromOrganizations = () => {
+  //   if (organizationSubscription) {
+  //     supabase.removeChannel(organizationSubscription);
+  //     organizationSubscription = null;
+  //   }
+  // };
+
+  // // Watch for auth changes
+  // watch(
+  //   () => authStore.user,
+  //   async (newUser, oldUser) => {
+  //     if (newUser?.id && newUser.id !== oldUser?.id) {
+  //       await fetchProfile(newUser.id);
+  //       await fetchOrganizations();
+  //       subscribeToOrganizations();
+  //     } else if (!newUser && oldUser) {
+  //       profile.value = null;
+  //       organizations.value = [];
+  //       error.value = null;
+  //       unsubscribeFromOrganizations();
+  //     }
+  //   },
+  //   { immediate: true }
+  // );
+
+  // Cleanup on store disposal (when app unmounts)
+  // onUnmounted(() => {
+  //   unsubscribeFromOrganizations();
+  // });
+
+  return {
+    profile,
+    loadingProfile,
+    lastError,
+    isAdmin,
+    loadingOrganizations,
+    organizations,
+  };
+});

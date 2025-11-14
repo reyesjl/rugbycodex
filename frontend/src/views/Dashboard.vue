@@ -3,8 +3,11 @@ import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import NarrationDemo from '@/components/NarrationDemo.vue';
+import { useProfileStore } from '@/stores/profile';
 
 const authStore = useAuthStore();
+const profileStore = useProfileStore();
+
 const router = useRouter();
 const signOutError = ref<string | null>(null);
 const signingOut = ref(false);
@@ -21,11 +24,24 @@ const accountRole = computed(() => {
   return 'User';
 });
 
-const organization = computed(() => {
-  const metadataOrganization = authStore.user?.user_metadata?.organization as string | undefined;
-  if (metadataOrganization?.trim()) return metadataOrganization;
-  return '—';
+// Access organizations from the profile store
+// Sort: owner first, then by join date descending
+const userOrganizations = computed(() => {
+  const list = [...profileStore.organizations];
+  return list.sort((a, b) => {
+    const aRole = String(a.role).toLowerCase();
+    const bRole = String(b.role).toLowerCase();
+    
+    const aOwner = aRole === 'owner';
+    const bOwner = bRole === 'owner';
+    // Owner first
+    if (aOwner !== bOwner) return aOwner ? -1 : 1;
+    // Then by newest join date
+    return b.join_date.getTime() - a.join_date.getTime();
+  });
 });
+
+const hasOrganizations = computed(() => userOrganizations.value.length > 0);
 
 
 const lastSignInAt = computed(() => authStore.user?.last_sign_in_at);
@@ -53,7 +69,7 @@ const handleSignOut = async () => {
         Rugbycodex
       </p>
       <h1 class="mt-3 text-2xl font-semibold text-neutral-900 dark:text-neutral-100">
-        Welcome back, {{ displayName }}
+        Welcome back, {{ displayName }} {{ profileStore.isAdmin ? '[Admin]' : '' }}!
       </h1>
       <p class="mt-4 max-w-xl text-neutral-600 dark:text-neutral-400">
         You’re all set up and ready to go. As new features roll out, you’ll find them right in your dashboard.</p>
@@ -96,12 +112,6 @@ const handleSignOut = async () => {
           </div>
           <div>
             <dt class="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-400 dark:text-neutral-500">
-              Organization
-            </dt>
-            <dd class="mt-1 break-all text-sm">{{ organization }}</dd>
-          </div>
-          <div>
-            <dt class="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-400 dark:text-neutral-500">
               Last Sign-In
             </dt>
             <dd class="mt-1 text-sm">
@@ -122,7 +132,41 @@ const handleSignOut = async () => {
           <li>Organize clips into threads to map season-long progress.</li>
         </ul>
         <p class="mt-6 text-sm text-neutral-500 dark:text-neutral-400">
-          We’ll notify you by email as soon as new features unlock for your account.
+          We'll notify you by email as soon as new features unlock for your account.
+        </p>
+      </article>
+
+      <article
+        class="rounded-3xl border border-neutral-200/60 bg-white/80 p-6 shadow-[0_24px_60px_rgba(15,23,42,0.08)] transition-colors md:col-span-2 dark:border-neutral-800/70 dark:bg-neutral-950/70 dark:shadow-[0_24px_60px_rgba(15,23,42,0.35)]">
+        <h2 class="text-sm font-semibold uppercase tracking-[0.3em] text-neutral-500 dark:text-neutral-500">
+          Organizations
+        </h2>
+        
+        <div v-if="profileStore.loadingOrganizations" class="mt-6">
+          <div class="flex items-center gap-2 text-sm text-neutral-500 dark:text-neutral-400">
+            <span class="h-4 w-4 animate-spin rounded-full border-2 border-neutral-300 border-t-transparent dark:border-neutral-700"></span>
+            <span>Loading organizations...</span>
+          </div>
+        </div>
+        
+        <ul v-else-if="hasOrganizations" class="mt-6 space-y-2 text-neutral-700 dark:text-neutral-200">
+          <li v-for="org in userOrganizations" :key="org.slug" class="text-sm flex items-baseline justify-between">
+            <span class="text-lg">
+              <RouterLink
+                :to="`/organizations/${org.slug}`"
+                class="relative font-medium text-neutral-800 dark:text-neutral-200 transition-colors hover:text-neutral-900 dark:hover:text-neutral-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400/60 dark:focus-visible:ring-neutral-600/60 after:absolute after:left-0 after:-bottom-0.5 after:h-0.5 after:w-full after:scale-x-0 after:origin-left after:rounded-full after:bg-current after:transition-transform after:duration-200 hover:after:scale-x-100">
+                {{ org.org_name }}
+              </RouterLink>
+              <span class="text-sm text-neutral-500 dark:text-neutral-400">   [{{ org.role.toUpperCase() }}]</span>
+            </span>
+            <span class="text-xs text-neutral-500 dark:text-neutral-400">
+              Joined {{ org.join_date.toLocaleDateString() }}
+            </span>
+          </li>
+        </ul>
+        
+        <p v-else class="mt-6 text-sm text-neutral-500 dark:text-neutral-400">
+          You are not part of any organizations yet.
         </p>
       </article>
     </section>
