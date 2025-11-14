@@ -7,7 +7,7 @@ export type Organization = {
   name: string;
   created_at: Date;
   storage_limit_mb: number;
-  bio: string | null
+  bio: string | null;
 };
 
 export async function getOrganizationBySlug(slug: string): Promise<Organization | null> {
@@ -18,12 +18,11 @@ export async function getOrganizationBySlug(slug: string): Promise<Organization 
     .single();
 
   if (error) {
-    console.error('Error fetching organization:', error);
-    return null;
+    throw error;
   }
 
   if (!data) {
-    return null;
+    throw new Error('Organization not found by slug: ' + slug);
   }
 
   return {
