@@ -106,8 +106,7 @@ router.beforeEach(async (to) => {
   const authStore = useAuthStore(pinia);
   const profileStore = useProfileStore(pinia);
 
-  // TODO: Do we need to await for auth and profile?
-  if (to.meta.requiresAuth && !authStore.isAuthenticated) {
+  if ((to.meta.requiresAuth || to.meta.requiresAdmin) && !authStore.isAuthenticated) {
     return {
       name: 'Login',
       query: {
@@ -122,10 +121,25 @@ router.beforeEach(async (to) => {
     };
   }
 
-  if (to.meta.requiresAdmin && !profileStore.isAdmin) {
-    return {
-      name: 'Dashboard',
-    };
+  // Verification for Admin Guard
+  if (to.meta.requiresAdmin) {
+    // Await profile load just in case, very likely that it is already
+    // loaded
+    const profileLoaded = await profileStore.waitForProfileLoad(500);
+    if (!profileLoaded) {
+      console.warn('[router] Profile not loaded yet, redirecting to Login.');
+      return {
+        name: 'Login',
+        query: {
+          redirect: to.fullPath !== '/' ? to.fullPath : undefined,
+        },
+      };
+    }
+    if (profileStore.isAdmin === false) {
+      return {
+        name: 'Dashboard',
+      };
+    }
   }
 
   return true;

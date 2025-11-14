@@ -42,6 +42,7 @@ export const useProfileStore = defineStore('profile', () => {
   const fetchOrganizations = async () => {
     if (!authStore.user?.id) return;
     loadingOrganizations.value = true;
+    organizations.value = [];
 
     try {
       const { data, error: fetchError } = await supabase
@@ -58,7 +59,10 @@ export const useProfileStore = defineStore('profile', () => {
         `)
         .eq('user_id', authStore.user.id);
 
-      if (fetchError) throw fetchError;
+      if (fetchError) {
+        loadingOrganizations.value = false;
+        throw fetchError;
+      }
 
       // Transform the data to your Organization interface
       organizations.value = data?.map(item => ({
@@ -87,19 +91,20 @@ export const useProfileStore = defineStore('profile', () => {
 
     try {
       const { data, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', userId)
-          .single();
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
 
       if (error) {
-          console.error('Error fetching profile:', error);
-          throw error;
+        console.error('Error fetching profile:', error);
+        throw error;
       }
-      
-      
+
       profile.value = data as UserProfile;
-      fetchOrganizations();
+      if (loadingOrganizations.value === false) {
+        fetchOrganizations();
+      }
 
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to fetch profile';
@@ -180,6 +185,28 @@ export const useProfileStore = defineStore('profile', () => {
   //   unsubscribeFromOrganizations();
   // });
 
+  const waitForProfileLoad = async (timeout = 5000): Promise<boolean> => {
+    console.log("[profile] Waiting for profile to load with timeout:", timeout);
+    // If not authenticated, no profile to load
+    if (!authStore.user?.id) return false;
+
+    // If profile already loaded, return immediately
+    if (profile.value?.id === authStore.user.id) return true;
+
+    // Wait for loading to complete
+    const startTime = Date.now();
+    while (loadingProfile.value) {
+      if (Date.now() - startTime > timeout) {
+        console.error('[profile] Timeout waiting for profile to load');
+        return false;
+      }
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+
+    // Check if we have a profile after loading
+    return profile.value !== null && lastError.value === null;
+  };
+
   return {
     profile,
     loadingProfile,
@@ -187,5 +214,6 @@ export const useProfileStore = defineStore('profile', () => {
     isAdmin,
     loadingOrganizations,
     organizations,
+    waitForProfileLoad,
   };
 });
