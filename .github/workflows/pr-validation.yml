@@ -9,10 +9,15 @@ on:
       - 'frontend/**'
       - '.github/workflows/**'
 
+permissions:
+  contents: read
+
 jobs:
   validate:
     name: Validate Frontend
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     
     steps:
       - name: Checkout code
@@ -54,6 +59,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: [validate]
     if: always()
+    permissions:
+      contents: read
     steps:
       - name: Check validation status
         run: |
