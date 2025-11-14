@@ -9,7 +9,6 @@ const props = defineProps<{ orgSlug: string }>();
 
 const authStore = useAuthStore();
 
-
 const loading = ref(true);
 const error = ref<string | null>(null);
 const org = ref<Organization | null>(null);
@@ -257,22 +256,6 @@ const displayedMembers = computed(() =>
         >
           Show less
         </button>
-      </article>
-    </section>
-
-    <section v-else class="grid gap-8">
-      <article
-        class="rounded-3xl border border-neutral-200/60 bg-white/80 p-6 shadow-[0_24px_60px_rgba(15,23,42,0.08)] transition-colors dark:border-neutral-800/70 dark:bg-neutral-950/70 dark:shadow-[0_24px_60px_rgba(15,23,42,0.35)]">
-        <div class="flex items-center justify-between">
-          <h2 class="text-sm font-semibold uppercase tracking-[0.3em] text-neutral-500 dark:text-neutral-500">
-            Members
-          </h2>
-        </div>
-        <div class="flex items-center justify-between">
-          <span class="text-lg text-neutral-300 dark:text-neutral-300">
-            You don't have permission to view member details.
-          </span>
-        </div>
       </article>
     </section>
   </section>

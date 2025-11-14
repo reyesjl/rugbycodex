@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { Icon } from '@iconify/vue';
+
 defineProps<{
   text?: string
 }>()
@@ -6,7 +8,7 @@ defineProps<{
 
 <template>
     <div class="flex flex-col items-center gap-4">
-      <div class="h-8 w-8 animate-spin rounded-full border-4 border-neutral-300 border-t-neutral-900 dark:border-neutral-700 dark:border-t-neutral-100"></div>
+      <Icon icon="svg-spinners:ring-resize" class="h-8 w-8 text-neutral-900 dark:text-neutral-100" />
       <p class="text-sm text-neutral-500 dark:text-neutral-400">{{ text || 'Loading...' }}</p>
     </div>
 </template>
