@@ -91,7 +91,6 @@ export const useProfileStore = defineStore('profile', () => {
       
       
       profile.value = data as UserProfile;
-      console.log('Profile fetched:', profile.value);
       fetchOrganizations();
 
     } catch (error) {

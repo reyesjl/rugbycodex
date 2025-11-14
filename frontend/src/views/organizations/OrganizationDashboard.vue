@@ -42,7 +42,6 @@ const saveBio = async () => {
   
   try {
     await updateBioById(org.value.id, bioEditText.value.trim());
-    console.log("Updated!");
     // Update local state
     if (org.value) {
       org.value.bio = bioEditText.value.trim() || null;
