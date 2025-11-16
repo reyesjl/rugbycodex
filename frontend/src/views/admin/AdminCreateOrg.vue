@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref, watch, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { stringToSlugCase } from '@/utils';
 import { createOrganization } from '@/services/org_service';
@@ -20,9 +20,33 @@ watch(orgName, (newName) => {
   orgSlug.value = stringToSlugCase(newName);
 });
 
+// Validate slug format
+const slugError = computed(() => {
+  if (!orgSlug.value) return null;
+
+  if (/\s/.test(orgSlug.value)) {
+    return 'Slug cannot contain spaces';
+  }
+
+  if (orgSlug.value !== orgSlug.value.toLowerCase()) {
+    return 'Slug must be lowercase';
+  }
+
+  if (!/^[a-z0-9-]*$/.test(orgSlug.value)) {
+    return 'Slug can only contain lowercase letters, numbers, and hyphens';
+  }
+
+  return null;
+});
+
 const handleCreateOrg = async () => {
   if (!orgName.value.trim() || !orgSlug.value.trim()) {
     createError.value = 'Name and Slug are required.';
+    return;
+  }
+
+  if (slugError.value) {
+    createError.value = slugError.value;
     return;
   }
 
@@ -57,7 +81,7 @@ const handleCreateOrg = async () => {
 };
 
 const storageSizeOptions = [
-  { value:  5, label: '5 GB'  },
+  { value: 5, label: '5 GB' },
   { value: 10, label: '10 GB' },
   { value: 20, label: '20 GB' }
 ];
@@ -95,9 +119,13 @@ const storageSizeOptions = [
           <label for="orgSlug" class="block text-sm font-semibold text-neutral-900 dark:text-neutral-100">
             Organization Slug
           </label>
-          <input id="orgSlug" v-model="orgSlug" type="text"
-            class="mt-2 w-full rounded-xl border border-neutral-300 bg-white px-4 py-3 text-neutral-900 transition focus:border-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900/20 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100 dark:focus:border-neutral-100 dark:focus:ring-neutral-100/20"
-            placeholder="Enter organization slug (e.g., my-org)" />
+          <input id="orgSlug" v-model="orgSlug" type="text" :class="[
+            'mt-2 w-full rounded-xl border px-4 py-3 transition focus:outline-none focus:ring-2',
+            slugError
+              ? 'border-rose-500 bg-rose-50 text-rose-900 focus:border-rose-500 focus:ring-rose-500/20 dark:border-rose-500 dark:bg-rose-950/30 dark:text-rose-100 dark:focus:border-rose-500 dark:focus:ring-rose-500/20'
+              : 'border-neutral-300 bg-white text-neutral-900 focus:border-neutral-900 focus:ring-neutral-900/20 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100 dark:focus:border-neutral-100 dark:focus:ring-neutral-100/20'
+          ]" placeholder="Enter organization slug (e.g., my-org)" />
+          <p v-if="slugError" class="mt-2 text-sm text-rose-600 dark:text-rose-400">{{ slugError }}</p>
         </div>
 
         <div>
