@@ -25,6 +25,12 @@ const toggleExpand = (orgId: string) => {
 
 const isExpanded = (orgId: string) => expandedOrgs.value.has(orgId);
 
+const hasExpandedOrgs = () => expandedOrgs.value.size > 0;
+
+const collapseAll = () => {
+  expandedOrgs.value.clear();
+};
+
 const loadOrganizations = async () => {
   orgsLoading.value = true;
   orgLoadError.value = null;
@@ -86,6 +92,11 @@ onMounted(async () => {
       <div class="flex items-center justify-between">
         <h2 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Current Organizations</h2>
         <div class="flex items-center gap-2">
+          <button v-if="hasExpandedOrgs()" type="button" @click="collapseAll"
+            class="rounded-lg p-2 text-neutral-900 transition hover:bg-neutral-200 dark:text-neutral-100 dark:hover:bg-neutral-800"
+            title="Collapse all">
+            <Icon icon="mdi:unfold-less-horizontal" class="h-5 w-5" />
+          </button>
           <button type="button" @click="handleCreateOrg"
             class="rounded-lg p-2 text-neutral-900 transition hover:bg-neutral-200 dark:text-neutral-100 dark:hover:bg-neutral-800"
             title="Create organization">
