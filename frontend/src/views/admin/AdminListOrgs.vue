@@ -4,7 +4,7 @@ import { onMounted, ref, computed } from 'vue';
 import AnimatedLink from '@/components/AnimatedLink.vue';
 import { Icon } from '@iconify/vue';
 import { useRouter } from 'vue-router';
-import ErrorNotification from '@/components/ErrorNotification.vue';
+import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
 
 const router = useRouter();
 const orgs = ref<Organization[]>([]);
@@ -15,6 +15,10 @@ const orgDeleteError = ref<string | null>(null);
 const expandedOrgs = ref<Set<string>>(new Set());
 const refreshSuccess = ref(false);
 const searchQuery = ref('');
+
+const showDeleteModal = ref(false);
+const orgToDelete = ref<Organization | null>(null);
+const isDeleting = ref(false);
 
 const toggleExpand = (orgId: string) => {
   if (expandedOrgs.value.has(orgId)) {
@@ -67,15 +71,39 @@ const filteredOrgs = computed(() => {
   ).sort(sorter);
 });
 
-const handleDelete = (orgId: string) => {
-  deleteOrganizationById(orgId)
-    .then(() => {
-      orgDeleteError.value = null;
-      loadOrganizations();
-    })
-    .catch((error: any) => {
-      orgDeleteError.value = error.message || 'Failed to delete organization.';
-    });
+const openDeleteModal = (org: Organization) => {
+  orgToDelete.value = org;
+  showDeleteModal.value = true;
+};
+
+const closeDeleteModal = () => {
+  if (!isDeleting.value) {
+    showDeleteModal.value = false;
+    orgToDelete.value = null;
+    orgDeleteError.value = null;
+  }
+};
+
+const confirmDelete = async () => {
+  if (!orgToDelete.value) return;
+
+  isDeleting.value = true;
+  orgDeleteError.value = null;
+
+  try {
+    await deleteOrganizationById(orgToDelete.value.id);
+    await loadOrganizations();
+    showDeleteModal.value = false;
+    orgToDelete.value = null;
+  } catch (error: any) {
+    orgDeleteError.value = error.message || 'Failed to delete organization.';
+  } finally {
+    isDeleting.value = false;
+  }
+};
+
+const handleDelete = (org: Organization) => {
+  openDeleteModal(org);
 };
 
 onMounted(async () => {
@@ -132,8 +160,6 @@ onMounted(async () => {
         </div>
       </div>
 
-      <ErrorNotification :errorMessage="orgDeleteError" :errorTitle="'Delete Failed'" @clearError="orgDeleteError = null" />
-
       <div v-if="filteredOrgs.length === 0 && !orgsLoading && !orgLoadError" class="mt-4">
         <p class="text-neutral-600 dark:text-neutral-400">
           {{ searchQuery ? 'No organizations match your search.' : 'No organizations found.' }}
@@ -152,7 +178,7 @@ onMounted(async () => {
                 <AnimatedLink :to="`/organizations/${org.slug}`" :text="org.name" @click.stop />
               </div>
               <div class="flex items-center gap-2">
-                <button type="button" @click.stop="handleDelete(org.id)"
+                <button type="button" @click.stop="handleDelete(org)"
                   class="rounded-lg p-2 text-rose-600 transition hover:bg-rose-100 dark:text-rose-400 dark:hover:bg-rose-900/30"
                   title="Delete organization">
                   <Icon icon="mdi:trash-can-outline" class="h-5 w-5" />
@@ -181,6 +207,10 @@ onMounted(async () => {
         </TransitionGroup>
       </div>
     </section>
+
+    <!-- Delete Confirmation Modal -->
+    <ConfirmDeleteModal :show="showDeleteModal" :item-name="orgToDelete?.name || ''" :is-deleting="isDeleting"
+      :error="orgDeleteError" @confirm="confirmDelete" @cancel="closeDeleteModal" @close="closeDeleteModal" />
 
   </section>
 </template>
