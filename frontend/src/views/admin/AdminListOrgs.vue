@@ -132,7 +132,7 @@ onMounted(async () => {
         </div>
       </div>
 
-      <ErrorNotification :errorMessage="orgDeleteError" @clearError="orgDeleteError = null" />
+      <ErrorNotification :errorMessage="orgDeleteError" :errorTitle="'Delete Failed'" @clearError="orgDeleteError = null" />
 
       <div v-if="filteredOrgs.length === 0 && !orgsLoading && !orgLoadError" class="mt-4">
         <p class="text-neutral-600 dark:text-neutral-400">

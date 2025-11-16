@@ -4,6 +4,7 @@ import { Icon } from '@iconify/vue';
 
 defineProps<{
   errorMessage: string | null;
+  errorTitle?: string;
 }>();
 
 const emit = defineEmits<{
@@ -18,7 +19,7 @@ const emit = defineEmits<{
     <div class="flex items-start gap-3">
       <Icon icon="mdi:alert-circle-outline" class="h-5 w-5 text-rose-600 dark:text-rose-400 flex-shrink-0 mt-0.5" />
       <div>
-        <p class="text-sm font-semibold text-rose-800 dark:text-rose-300">Delete Failed</p>
+        <p class="text-sm font-semibold text-rose-800 dark:text-rose-300">{{ errorTitle ?? 'Error' }}</p>
         <p class="text-sm text-rose-700 dark:text-rose-400 mt-1">{{ errorMessage }}</p>
       </div>
       <button @click="emit('clearError')"
