@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import pinia from '@/stores';
 import { useAuthStore } from '@/stores/auth';
+import { useProfileStore } from '@/stores/profile';
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -85,13 +86,27 @@ const router = createRouter({
       component: () => import('@/views/Settings.vue'),
       meta: { requiresAuth: true },
     },
+    {
+      path: '/admin-dashboard',
+      name: 'AdminDashboard',
+      component: () => import('@/views/admin/AdminDashboard.vue'),
+      meta: { requiresAuth: true, requiresAdmin: true },
+    },
+    {
+      path: '/organizations/:orgSlug',
+      name: 'OrganizationDetail',
+      component: () => import('@/views/organizations/OrganizationDashboard.vue'),
+      meta: { requiresAuth: true },
+      props: true,
+    },
   ],
 });
 
 router.beforeEach(async (to) => {
   const authStore = useAuthStore(pinia);
+  const profileStore = useProfileStore(pinia);
 
-  if (to.meta.requiresAuth && !authStore.isAuthenticated) {
+  if ((to.meta.requiresAuth || to.meta.requiresAdmin) && !authStore.isAuthenticated) {
     return {
       name: 'Login',
       query: {
@@ -104,6 +119,21 @@ router.beforeEach(async (to) => {
     return {
       name: 'Dashboard',
     };
+  }
+
+  // Verification for Admin Guard
+  if (to.meta.requiresAdmin) {
+    if (profileStore.profile?.id != authStore.user?.id) {
+      console.warn('[router] Profile not loaded yet, redirecting to Dashboard.');
+      return {
+        name: 'Dashboard',
+      };
+    }
+    if (!profileStore.isAdmin) {
+      return {
+        name: 'Dashboard',
+      };
+    }
   }
 
   return true;

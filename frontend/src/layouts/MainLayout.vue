@@ -3,26 +3,32 @@ import { ref, watch, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { Icon } from '@iconify/vue';
 import { RouterLink, useRoute } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
+import { useProfileStore } from '@/stores/profile';
 
 const props = defineProps<{
   toggleDarkMode: () => void;
 }>();
 
 const authStore = useAuthStore();
+const profileStore = useProfileStore();
 
-const navLinks = computed(() => [
-  { to: '/inside', label: 'Inside the Codex' },
-  { to: '/', label: 'Overview' },
-  { to: '/narrations', label: 'Narrations' },
-  { to: '/vaults', label: 'Vaults' },
-  // { to: '/releases', label: 'Releases' },
-  // { to: '/about', label: 'About' },
-  authStore.isAuthenticated
-    ? { to: '/dashboard', label: 'Dashboard' }
-    : { to: '/login', label: 'Account' },
-]);
+type NavLink = { to: string; label: string };
+const navLinks = computed<NavLink[]>(() => {
+  const links: (NavLink | null)[] = [
+    { to: '/inside', label: 'Inside the Codex' },
+    { to: '/', label: 'Overview' },
+    { to: '/narrations', label: 'Narrations' },
+    { to: '/vaults', label: 'Vaults' },
+    authStore.isAuthenticated
+      ? { to: '/dashboard', label: 'Dashboard' }
+      : { to: '/login', label: 'Account' },
+    profileStore.isAdmin ? { to: '/admin-dashboard', label: 'Admin' } : null,
+  ];
+  return links.filter((l): l is NavLink => l !== null);
+});
 
 const isSidebarOpen = ref(false);
+const sidebarRef = ref<HTMLElement | null>(null);
 const route = useRoute();
 const headerRef = ref<HTMLElement | null>(null);
 const headerHeight = ref(0);
@@ -110,6 +116,16 @@ const handleResize = () => {
   updateIsMobile();
 };
 
+// Close sidebar when clicking anywhere outside of it
+const onOutsidePointerDown = (e: PointerEvent) => {
+  if (!isSidebarOpen.value) return;
+  const target = e.target as Node | null;
+  const el = sidebarRef.value;
+  if (el && target && !el.contains(target)) {
+    closeSidebar();
+  }
+};
+
 onMounted(() => {
   nextTick(() => {
     updateHeaderHeight();
@@ -118,11 +134,13 @@ onMounted(() => {
   });
   window.addEventListener('resize', handleResize);
   window.addEventListener('scroll', updateScrollPosition, { passive: true });
+  document.addEventListener('pointerdown', onOutsidePointerDown, { passive: true });
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', handleResize);
   window.removeEventListener('scroll', updateScrollPosition);
+  document.removeEventListener('pointerdown', onOutsidePointerDown);
 });
 
 watch(isSidebarOpen, (open) => {
@@ -214,6 +232,7 @@ watch(
           >
             {{ userDisplayName }}
           </RouterLink>
+          <span v-if="profileStore.isAdmin">👑</span>
         </div>
       </div>
     </header>
@@ -221,6 +240,7 @@ watch(
     <transition name="sidebar">
       <aside
         v-if="isSidebarOpen"
+        ref="sidebarRef"
         class="fixed left-0 right-auto z-40 flex w-72 max-w-full flex-col bg-transparent text-neutral-900 shadow-2xl backdrop-blur dark:bg-neutral-950/70 dark:text-white md:w-80 md:rounded-none"
         :style="sidebarStyles"
       >
