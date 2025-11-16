@@ -1,7 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import pinia from '@/stores';
 import { useAuthStore } from '@/stores/auth';
-import { useProfileStore } from '@/stores/profile';
+import { adminRoutes } from '@/router/admin';
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -87,11 +87,12 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
-      path: '/admin-dashboard',
+      path: '/dashboard',
       name: 'AdminDashboard',
       component: () => import('@/views/admin/AdminDashboard.vue'),
       meta: { requiresAuth: true, requiresAdmin: true },
     },
+    ...adminRoutes,
     {
       path: '/organizations/:orgSlug',
       name: 'OrganizationDetail',
@@ -104,7 +105,6 @@ const router = createRouter({
 
 router.beforeEach(async (to) => {
   const authStore = useAuthStore(pinia);
-  const profileStore = useProfileStore(pinia);
 
   if ((to.meta.requiresAuth || to.meta.requiresAdmin) && !authStore.isAuthenticated) {
     return {
@@ -121,18 +121,10 @@ router.beforeEach(async (to) => {
     };
   }
 
-  // Verification for Admin Guard
-  if (to.meta.requiresAdmin) {
-    if (profileStore.profile?.id != authStore.user?.id) {
-      console.warn('[router] Profile not loaded yet, redirecting to Dashboard.');
-      return {
-        name: 'Dashboard',
-      };
-    }
-    if (!profileStore.isAdmin) {
-      return {
-        name: 'Dashboard',
-      };
+  // If an admin navigates to the standard dashboard, redirect them to the admin dashboard
+  if (to.name === 'Dashboard' && authStore.isAuthenticated) {
+    if (authStore.isAdmin) {
+      return { name: 'AdminDashboard' };
     }
   }
 

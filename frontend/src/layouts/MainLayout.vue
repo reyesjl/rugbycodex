@@ -3,14 +3,12 @@ import { ref, watch, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { Icon } from '@iconify/vue';
 import { RouterLink, useRoute } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
-import { useProfileStore } from '@/stores/profile';
 
 const props = defineProps<{
   toggleDarkMode: () => void;
 }>();
 
 const authStore = useAuthStore();
-const profileStore = useProfileStore();
 
 type NavLink = { to: string; label: string };
 const navLinks = computed<NavLink[]>(() => {
@@ -22,7 +20,6 @@ const navLinks = computed<NavLink[]>(() => {
     authStore.isAuthenticated
       ? { to: '/dashboard', label: 'Dashboard' }
       : { to: '/login', label: 'Account' },
-    profileStore.isAdmin ? { to: '/admin-dashboard', label: 'Admin' } : null,
   ];
   return links.filter((l): l is NavLink => l !== null);
 });
@@ -232,7 +229,7 @@ watch(
           >
             {{ userDisplayName }}
           </RouterLink>
-          <span v-if="profileStore.isAdmin">👑</span>
+          <span v-if="authStore.isAdmin">👑</span>
         </div>
       </div>
     </header>

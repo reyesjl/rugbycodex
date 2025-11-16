@@ -26,9 +26,6 @@ export const useProfileStore = defineStore('profile', () => {
   const loadingProfile = ref(false);
   const lastError = ref<string | null>(null);
 
-  //TODO: Use JWT
-  const isAdmin = computed(() => profile.value?.role === 'admin');
-
   const authStore = useAuthStore();
 
   const organizations = ref<OrgMembership[]>([]);
@@ -125,7 +122,6 @@ export const useProfileStore = defineStore('profile', () => {
     profile,
     loadingProfile,
     lastError,
-    isAdmin,
     loadingOrganizations,
     organizations,
   };

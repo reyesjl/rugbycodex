@@ -15,6 +15,8 @@ export const useAuthStore = defineStore('auth', () => {
   const hydrated = ref(false);
   const lastError = ref<string | null>(null);
 
+  const isAdmin = ref(false);
+
   let initPromise: Promise<void> | null = null;
   let subscription: Subscription | null = null;
 
@@ -22,10 +24,13 @@ export const useAuthStore = defineStore('auth', () => {
     session.value = nextSession;
     user.value = nextSession?.user ?? null;
 
-    if (import.meta.env.DEV && nextSession?.access_token) {
+    if (nextSession?.access_token) {
       const claims = decodeSupabaseAccessToken(nextSession.access_token);
       if (claims) {
-        console.info('[auth] Supabase JWT claims', claims);
+        isAdmin.value = claims?.user_role === 'admin';
+        if (import.meta.env.DEV) {
+          console.info('[auth] Supabase JWT claims', claims);
+        }
       }
     }
   };
@@ -302,6 +307,7 @@ export const useAuthStore = defineStore('auth', () => {
     initializing,
     hydrated,
     lastError,
+    isAdmin,
     initialize,
     signIn,
     resendConfirmationEmail,
