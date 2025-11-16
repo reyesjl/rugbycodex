@@ -35,17 +35,17 @@ const saveBio = async () => {
     isEditingBio.value = false;
     return;
   }
-  
+
   savingBio.value = true;
   bioError.value = null;
-  
+
   try {
     await updateBioById(org.value.id, bioEditText.value.trim());
     // Update local state
     if (org.value) {
       org.value.bio = bioEditText.value.trim() || null;
     }
-    
+
     isEditingBio.value = false;
   } catch (e: any) {
     console.error(e);
@@ -87,7 +87,7 @@ const fakeMembers = fakeMemberNames.map((name, idx) => ({
 }));
 
 const showAllMembers = ref(false);
-const displayedMembers = computed(() => 
+const displayedMembers = computed(() =>
   showAllMembers.value ? fakeMembers : fakeMembers.slice(0, 10)
 );
 </script>
@@ -95,7 +95,7 @@ const displayedMembers = computed(() =>
 <template>
   <!-- Loading State -->
   <section v-if="loading" class="container flex min-h-screen items-center justify-center">
-    <LoadingIcon text="Loading Organization ..."/>
+    <LoadingIcon text="Loading Organization ..." />
   </section>
 
   <section v-else-if="error" class="container flex min-h-screen items-center justify-center">
@@ -105,10 +105,8 @@ const displayedMembers = computed(() =>
   <!-- Error State -->
   <section v-else-if="!org" class="container flex min-h-screen flex-col items-center justify-center gap-4">
     <p class="text-sm text-red-600 dark:text-red-400">Failed to load: {{ orgSlug }}</p>
-    <button
-      @click="$router.push('/dashboard')"
-      class="rounded-lg border text-neutral-900 dark:text-neutral-100 border-neutral-300 px-4 py-2 text-sm transition hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800"
-    >
+    <button @click="$router.push('/dashboard')"
+      class="rounded-lg border text-neutral-900 dark:text-neutral-100 border-neutral-300 px-4 py-2 text-sm transition hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800">
       Back to Dashboard
     </button>
   </section>
@@ -158,18 +156,16 @@ const displayedMembers = computed(() =>
           <h2 class="text-sm font-semibold uppercase tracking-[0.3em] text-neutral-500 dark:text-neutral-500">
             About
           </h2>
-          <button
-            v-if="canEdit && !isEditingBio"
-            @click="startEditingBio"
+          <button v-if="canEdit && !isEditingBio" @click="startEditingBio"
             class="rounded-lg p-2 text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-100"
-            aria-label="Edit bio"
-          >
+            aria-label="Edit bio">
             <Icon icon="carbon:edit" class="h-4 w-4" />
           </button>
         </div>
 
         <!-- View Mode -->
-        <div v-if="!isEditingBio" class="mt-6 min-h-[15vh] max-h-[30vh] overflow-y-auto text-neutral-700 dark:text-neutral-200">
+        <div v-if="!isEditingBio"
+          class="mt-6 pr-2 min-h-[15vh] max-h-[30vh] overflow-y-auto text-neutral-700 dark:text-neutral-200">
           <p v-if="org?.bio" class="text-sm leading-relaxed whitespace-pre-wrap">
             {{ org.bio }}
           </p>
@@ -179,32 +175,23 @@ const displayedMembers = computed(() =>
         </div>
 
         <!-- Edit Mode -->
-        <div v-else class="mt-6 min-h-[15vh] max-h-[30vh] overflow-y-auto">
-          <textarea
-            v-model="bioEditText"
-            rows="10"
+        <div v-else class="mt-6">
+          <textarea v-model="bioEditText" rows="10"
             class="w-full resize-none rounded-lg border border-neutral-300 bg-white px-4 py-3 text-sm leading-relaxed text-neutral-900 shadow-sm transition placeholder:text-neutral-400 focus:border-neutral-500 focus:outline-none focus:ring-2 focus:ring-neutral-500/20 dark:border-neutral-700 dark:bg-neutral-900/50 dark:text-neutral-100 dark:placeholder:text-neutral-500 dark:focus:border-neutral-500 dark:focus:ring-neutral-500/20"
-            placeholder="Enter organization bio..."
-          ></textarea>
-          
+            placeholder="Enter organization bio..."></textarea>
+
           <div v-if="bioError" class="mt-2 text-sm text-red-600 dark:text-red-400">
             {{ bioError }}
           </div>
-          
+
           <div class="mt-3 flex gap-2">
-            <button
-              @click="saveBio"
-              :disabled="savingBio"
-              class="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-neutral-100 transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200"
-            >
+            <button @click="saveBio" :disabled="savingBio"
+              class="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-neutral-100 transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200">
               <span v-if="savingBio">Saving...</span>
               <span v-else>Save</span>
             </button>
-            <button
-              @click="cancelEditingBio"
-              :disabled="savingBio"
-              class="rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 transition hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
-            >
+            <button @click="cancelEditingBio" :disabled="savingBio"
+              class="rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 transition hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800">
               Cancel
             </button>
           </div>
@@ -227,11 +214,8 @@ const displayedMembers = computed(() =>
 
         <div class="mt-6 max-h-96 overflow-y-auto">
           <ul class="space-y-2 text-neutral-700 dark:text-neutral-200">
-            <li
-              v-for="member in displayedMembers"
-              :key="member.id"
-              class="flex items-center justify-between rounded-lg px-3 py-2 text-sm transition hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50"
-            >
+            <li v-for="member in displayedMembers" :key="member.id"
+              class="flex items-center justify-between rounded-lg px-3 py-2 text-sm transition hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50">
               <span class="font-medium">{{ member.name }}</span>
               <div class="flex items-center gap-3">
                 <span class="text-xs uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
@@ -245,19 +229,13 @@ const displayedMembers = computed(() =>
           </ul>
         </div>
 
-        <button
-          v-if="!showAllMembers && fakeMembers.length > 10"
-          @click="showAllMembers = true"
-          class="mt-4 w-full rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 transition hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
-        >
+        <button v-if="!showAllMembers && fakeMembers.length > 10" @click="showAllMembers = true"
+          class="mt-4 w-full rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 transition hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800">
           Show all {{ fakeMembers.length }} members
         </button>
 
-        <button
-          v-if="showAllMembers"
-          @click="showAllMembers = false"
-          class="mt-4 w-full rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 transition hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
-        >
+        <button v-if="showAllMembers" @click="showAllMembers = false"
+          class="mt-4 w-full rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 transition hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800">
           Show less
         </button>
       </article>
