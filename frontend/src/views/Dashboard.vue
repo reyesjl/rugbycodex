@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import NarrationDemo from '@/components/NarrationDemo.vue';
 import { useProfileStore } from '@/stores/profile';
+import AnimatedLink from '@/components/AnimatedLink.vue';
 
 const authStore = useAuthStore();
 const profileStore = useProfileStore();
@@ -43,7 +44,6 @@ const hasOrganizations = computed(() => userOrganizations.value.length > 0);
 
 const lastSignInAt = computed(() => authStore.user?.last_sign_in_at);
 const userEmail = computed(() => authStore.user?.email ?? '—');
-// const userId = computed(() => authStore.user?.id ?? '—');
 
 const handleSignOut = async () => {
   signingOut.value = true;
@@ -149,11 +149,7 @@ const handleSignOut = async () => {
         <ul v-else-if="hasOrganizations" class="mt-6 space-y-2 text-neutral-700 dark:text-neutral-200">
           <li v-for="org in userOrganizations" :key="org.slug" class="flex items-start justify-between gap-4">
             <div class="flex flex-wrap items-baseline gap-2">
-              <RouterLink
-                :to="`/organizations/${org.slug}`"
-                class="relative text-lg font-medium text-neutral-800 dark:text-neutral-200 transition-colors hover:text-neutral-900 dark:hover:text-neutral-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400/60 dark:focus-visible:ring-neutral-600/60 after:absolute after:left-0 after:-bottom-0.5 after:h-0.5 after:w-full after:scale-x-0 after:origin-left after:rounded-full after:bg-current after:transition-transform after:duration-200 hover:after:scale-x-100">
-                {{ org.org_name }}
-              </RouterLink>
+              <AnimatedLink :to="`/organizations/${org.slug}`" :text="org.org_name" />
               <span class="text-sm text-neutral-500 dark:text-neutral-400">[{{ org.role.toUpperCase() }}]</span>
             </div>
             <span class="text-xs text-neutral-500 dark:text-neutral-400 whitespace-nowrap">

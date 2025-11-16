@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { computed, ref, watch } from 'vue';
+import { ref, watch } from 'vue';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuthStore } from '@/stores/auth';
 
@@ -25,9 +25,6 @@ export const useProfileStore = defineStore('profile', () => {
   const profile = ref<UserProfile | null>(null);
   const loadingProfile = ref(false);
   const lastError = ref<string | null>(null);
-
-  //TODO: Use JWT
-  const isAdmin = computed(() => profile.value?.role === 'admin');
 
   const authStore = useAuthStore();
 
@@ -125,7 +122,6 @@ export const useProfileStore = defineStore('profile', () => {
     profile,
     loadingProfile,
     lastError,
-    isAdmin,
     loadingOrganizations,
     organizations,
   };
