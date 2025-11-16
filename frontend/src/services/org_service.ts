@@ -10,7 +10,7 @@ export type Organization = {
   bio: string | null;
 };
 
-export async function getOrganizationBySlug(slug: string): Promise<Organization | null> {
+export async function getOrganizationBySlug(slug: string): Promise<Organization> {
   const { data, error } = await supabase
     .from('organizations')
     .select('*')
