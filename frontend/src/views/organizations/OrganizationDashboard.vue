@@ -68,7 +68,7 @@ onMounted(async () => {
 const orgName = computed(() => org.value?.name ?? 'Organization');
 const orgCreated = computed(() => org.value?.created_at ?? new Date());
 const storageLimitMB = computed(() => org.value?.storage_limit_mb ?? 0);
-const isOwner = computed(() => org.value?.owner === authStore.user?.id);
+const canEdit = computed(() => org.value?.owner === authStore.user?.id || authStore.isAdmin);
 
 // Fake members data
 const fakeMemberNames = [
@@ -159,7 +159,7 @@ const displayedMembers = computed(() =>
             About
           </h2>
           <button
-            v-if="isOwner && !isEditingBio"
+            v-if="canEdit && !isEditingBio"
             @click="startEditingBio"
             class="rounded-lg p-2 text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-100"
             aria-label="Edit bio"
@@ -213,7 +213,7 @@ const displayedMembers = computed(() =>
     </section>
 
     <!-- Members Section (Owner Only) -->
-    <section v-if="isOwner" class="grid gap-8">
+    <section v-if="canEdit" class="grid gap-8">
       <article
         class="rounded-3xl border border-neutral-200/60 bg-white/80 p-6 shadow-[0_24px_60px_rgba(15,23,42,0.08)] transition-colors dark:border-neutral-800/70 dark:bg-neutral-950/70 dark:shadow-[0_24px_60px_rgba(15,23,42,0.35)]">
         <div class="flex items-center justify-between">
