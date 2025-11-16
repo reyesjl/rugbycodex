@@ -121,6 +121,12 @@ router.beforeEach(async (to) => {
     };
   }
 
+  if (to.meta.requiresAdmin && !authStore.isAdmin) {
+    return {
+      name: 'Dashboard',
+    };
+  }
+
   // If an admin navigates to the standard dashboard, redirect them to the admin dashboard
   if (to.name === 'Dashboard' && authStore.isAuthenticated) {
     if (authStore.isAdmin) {
