@@ -41,8 +41,8 @@ const loadOrganizations = async () => {
   orgLoadError.value = null;
   try {
     orgs.value = await getAllOrganizations();
-  } catch (error: any) {
-    orgLoadError.value = error.message || 'Failed to load organizations.';
+  } catch (error) {
+    orgLoadError.value = error instanceof Error ? error.message : 'Failed to load organizations.';
   } finally {
     orgsLoading.value = false;
   }
@@ -63,7 +63,7 @@ const handleCreateOrg = () => {
 const filteredOrgs = computed(() => {
   const sorter = (a: Organization, b: Organization) => b.created_at.getTime() - a.created_at.getTime();
   if (!searchQuery.value.trim()) {
-    return orgs.value.sort(sorter);
+    return [...orgs.value].sort(sorter);
   }
   const query = searchQuery.value.toLowerCase();
   return orgs.value.filter(org =>
