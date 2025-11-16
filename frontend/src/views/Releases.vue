@@ -186,7 +186,7 @@ const scrollToIndex = (index: number, options: { smooth?: boolean } = { smooth: 
 
     container.scrollTo({
       left: nextScrollLeft,
-      behavior: options.smooth === false ? 'auto' : 'smooth'
+      behavior: !options.smooth ? 'auto' : 'smooth'
     });
   }
 

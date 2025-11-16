@@ -102,7 +102,7 @@ export const useProfileStore = defineStore('profile', () => {
       }
 
       profile.value = data as UserProfile;
-      if (loadingOrganizations.value === false) {
+      if (!loadingOrganizations.value) {
         fetchOrganizations();
       }
 
@@ -116,7 +116,7 @@ export const useProfileStore = defineStore('profile', () => {
 
   watch(() => authStore.user, (newUser) => {
     if (newUser !== null) {
-      if (loadingProfile.value === false) fetchProfile(newUser.id);
+      if (!loadingProfile.value) fetchProfile(newUser.id);
     } else {
       profile.value = null;
       lastError.value = null;

@@ -127,15 +127,12 @@ router.beforeEach(async (to) => {
     // loaded
     const profileLoaded = await profileStore.waitForProfileLoad(500);
     if (!profileLoaded) {
-      console.warn('[router] Profile not loaded yet, redirecting to Login.');
+      console.warn('[router] Profile not loaded yet, redirecting to Dashboard.');
       return {
-        name: 'Login',
-        query: {
-          redirect: to.fullPath !== '/' ? to.fullPath : undefined,
-        },
+        name: 'Dashboard',
       };
     }
-    if (profileStore.isAdmin === false) {
+    if (!profileStore.isAdmin) {
       return {
         name: 'Dashboard',
       };
