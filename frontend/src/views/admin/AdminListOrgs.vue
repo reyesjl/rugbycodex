@@ -95,8 +95,8 @@ const confirmDelete = async () => {
     await loadOrganizations();
     showDeleteModal.value = false;
     orgToDelete.value = null;
-  } catch (error: any) {
-    orgDeleteError.value = error.message || 'Failed to delete organization.';
+  } catch (error) {
+    orgDeleteError.value = error instanceof Error ? error.message : 'Failed to delete organization.';
   } finally {
     isDeleting.value = false;
   }

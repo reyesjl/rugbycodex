@@ -73,8 +73,8 @@ const handleCreateOrg = async () => {
     setTimeout(() => {
       router.push({ name: 'AdminListOrgs' });
     }, 500);
-  } catch (error: any) {
-    createError.value = error.message || 'Failed to create organization.';
+  } catch (error) {
+    createError.value = error instanceof Error ? error.message : 'Failed to create organization.';
   } finally {
     isCreating.value = false;
   }
