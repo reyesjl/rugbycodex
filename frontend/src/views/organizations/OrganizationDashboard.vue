@@ -127,7 +127,7 @@ const displayedMembers = computed(() =>
 
     <section class="grid gap-8 md:grid-cols-2">
       <article
-        class="rounded-3xl border border-neutral-200/60 bg-white/80 p-6 shadow-[0_24px_60px_rgba(15,23,42,0.08)] transition-colors dark:border-neutral-800/70 dark:bg-neutral-950/70 dark:shadow-[0_24px_60px_rgba(15,23,42,0.35)]">
+        class=" rounded-3xl border border-neutral-200/60 bg-white/80 p-6 shadow-[0_24px_60px_rgba(15,23,42,0.08)] transition-colors dark:border-neutral-800/70 dark:bg-neutral-950/70 dark:shadow-[0_24px_60px_rgba(15,23,42,0.35)]">
         <h2 class="text-sm font-semibold uppercase tracking-[0.3em] text-neutral-500 dark:text-neutral-500">
           Organization Info
         </h2>
@@ -153,7 +153,7 @@ const displayedMembers = computed(() =>
 
       <!-- Bio Section -->
       <article
-        class="min-h-4xl rounded-3xl border border-neutral-200/60 bg-white/80 p-6 shadow-[0_24px_60px_rgba(15,23,42,0.08)] transition-colors dark:border-neutral-800/70 dark:bg-neutral-950/70 dark:shadow-[0_24px_60px_rgba(15,23,42,0.35)]">
+        class="rounded-3xl border border-neutral-200/60 bg-white/80 p-6 shadow-[0_24px_60px_rgba(15,23,42,0.08)] transition-colors dark:border-neutral-800/70 dark:bg-neutral-950/70 dark:shadow-[0_24px_60px_rgba(15,23,42,0.35)]">
         <div class="flex items-center justify-between">
           <h2 class="text-sm font-semibold uppercase tracking-[0.3em] text-neutral-500 dark:text-neutral-500">
             About
@@ -169,7 +169,7 @@ const displayedMembers = computed(() =>
         </div>
 
         <!-- View Mode -->
-        <div v-if="!isEditingBio" class="mt-6 min-h-[240px] text-neutral-700 dark:text-neutral-200">
+        <div v-if="!isEditingBio" class="mt-6 min-h-[15vh] max-h-[30vh] overflow-y-auto text-neutral-700 dark:text-neutral-200">
           <p v-if="org?.bio" class="text-sm leading-relaxed whitespace-pre-wrap">
             {{ org.bio }}
           </p>
@@ -179,7 +179,7 @@ const displayedMembers = computed(() =>
         </div>
 
         <!-- Edit Mode -->
-        <div v-else class="mt-6">
+        <div v-else class="mt-6 min-h-[15vh] max-h-[30vh] overflow-y-auto">
           <textarea
             v-model="bioEditText"
             rows="10"
