@@ -26,6 +26,8 @@ const navLinks = computed<NavLink[]>(() => {
 
 const isSidebarOpen = ref(false);
 const sidebarRef = ref<HTMLElement | null>(null);
+const toggleButtonDesktopRef = ref<HTMLElement | null>(null);
+const toggleButtonMobileRef = ref<HTMLElement | null>(null);
 const route = useRoute();
 const headerRef = ref<HTMLElement | null>(null);
 const headerHeight = ref(0);
@@ -118,7 +120,13 @@ const onOutsidePointerDown = (e: PointerEvent) => {
   if (!isSidebarOpen.value) return;
   const target = e.target as Node | null;
   const el = sidebarRef.value;
-  if (el && target && !el.contains(target)) {
+  const toggleDesktop = toggleButtonDesktopRef.value;
+  const toggleMobile = toggleButtonMobileRef.value;
+  
+  // Don't close if clicking on the sidebar itself or the toggle buttons
+  if (el && target && !el.contains(target) && 
+      (!toggleDesktop || !toggleDesktop.contains(target)) &&
+      (!toggleMobile || !toggleMobile.contains(target))) {
     closeSidebar();
   }
 };
@@ -187,6 +195,7 @@ watch(
           </RouterLink>
 
           <button
+            ref="toggleButtonDesktopRef"
             type="button"
             class="hidden p-2 text-neutral-600 transition hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-white md:inline-flex"
             aria-label="Toggle navigation"
@@ -206,6 +215,7 @@ watch(
           </button>
 
           <button
+            ref="toggleButtonMobileRef"
             type="button"
             class="flex p-2 text-neutral-600 transition hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-white md:hidden"
             aria-label="Toggle navigation"
