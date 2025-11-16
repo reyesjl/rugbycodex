@@ -40,7 +40,8 @@
     width: 100%;
     margin-left: auto;
     margin-right: auto;
-    padding-left: 1rem; /* 16px */
+    padding-left: 1rem;
+    /* 16px */
     padding-right: 1rem;
   }
 
@@ -218,13 +219,13 @@
 }
 
 /* Dark mode scrollbar */
-:global(.dark) .scrolling-list.overflow-y-auto::-webkit-scrollbar-thumb,
-:global(.dark) .scrolling-list .overflow-y-auto::-webkit-scrollbar-thumb {
+.dark .scrolling-list.overflow-y-auto::-webkit-scrollbar-thumb,
+.dark .scrolling-list.overflow-y-auto::-webkit-scrollbar-thumb {
   background: rgb(64 64 64 / 0.6);
 }
 
-:global(.dark) .scrolling-list.overflow-y-auto::-webkit-scrollbar-thumb:hover,
-:global(.dark) .scrolling-list .overflow-y-auto::-webkit-scrollbar-thumb:hover {
+.dark .scrolling-list.overflow-y-auto::-webkit-scrollbar-thumb:hover,
+.dark .scrolling-list.overflow-y-auto::-webkit-scrollbar-thumb:hover {
   background: rgb(82 82 82 / 0.8);
 }
 
@@ -236,7 +237,7 @@
   scrollbar-gutter: stable;
 }
 
-:global(.dark) .scrolling-list.overflow-y-auto,
-:global(.dark) .scrolling-list .overflow-y-auto {
+.dark .scrolling-list.overflow-y-auto,
+.dark .scrolling-list.overflow-y-auto {
   scrollbar-color: rgb(64 64 64 / 0.6) transparent;
 }
