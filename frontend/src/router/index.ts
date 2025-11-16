@@ -123,10 +123,7 @@ router.beforeEach(async (to) => {
 
   // Verification for Admin Guard
   if (to.meta.requiresAdmin) {
-    // Await profile load just in case, very likely that it is already
-    // loaded
-    const profileLoaded = await profileStore.waitForProfileLoad(500);
-    if (!profileLoaded) {
+    if (profileStore.profile?.id != authStore.user?.id) {
       console.warn('[router] Profile not loaded yet, redirecting to Dashboard.');
       return {
         name: 'Dashboard',

@@ -66,7 +66,7 @@ const handleSignOut = async () => {
         Rugbycodex
       </p>
       <h1 class="mt-3 text-2xl font-semibold text-neutral-900 dark:text-neutral-100">
-        Welcome back, {{ displayName }} {{ profileStore.isAdmin ? '[Admin] ' : '' }}!
+        Welcome back, {{ displayName }} !
       </h1>
       <p class="mt-4 max-w-xl text-neutral-600 dark:text-neutral-400">
         You’re all set up and ready to go. As new features roll out, you’ll find them right in your dashboard.</p>

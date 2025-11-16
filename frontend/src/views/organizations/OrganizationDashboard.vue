@@ -98,6 +98,10 @@ const displayedMembers = computed(() =>
     <LoadingIcon text="Loading Organization ..."/>
   </section>
 
+  <section v-else-if="error" class="container flex min-h-screen items-center justify-center">
+    <p class="text-sm text-red-600 dark:text-red-400">Error: {{ error }}</p>
+  </section>
+
   <!-- Error State -->
   <section v-else-if="!org" class="container flex min-h-screen flex-col items-center justify-center gap-4">
     <p class="text-sm text-red-600 dark:text-red-400">Failed to load: {{ orgSlug }}</p>

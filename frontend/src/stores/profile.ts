@@ -34,11 +34,6 @@ export const useProfileStore = defineStore('profile', () => {
   const organizations = ref<OrgMembership[]>([]);
   const loadingOrganizations = ref(false);
 
-  //TODO: Realtime org update
-  // const loading = ref(false);
-  // const error = ref<string | null>(null);
-  // let organizationSubscription: RealtimeChannel | null = null;
-
   const fetchOrganizations = async () => {
     if (!authStore.user?.id) return;
     loadingOrganizations.value = true;
@@ -126,87 +121,6 @@ export const useProfileStore = defineStore('profile', () => {
     }
   }, { immediate: true });
 
-
-  // const subscribeToOrganizations = () => {
-  //   if (!authStore.user?.id) return;
-
-  //   // Clean up existing subscription
-  //   if (organizationSubscription) {
-  //     supabase.removeChannel(organizationSubscription);
-  //   }
-
-  //   // Subscribe to changes in organization_members table
-  //   organizationSubscription = supabase
-  //     .channel('organization-changes')
-  //     .on(
-  //       'postgres_changes',
-  //       {
-  //         event: '*', // Listen to INSERT, UPDATE, DELETE
-  //         schema: 'public',
-  //         table: 'organization_members',
-  //         filter: `user_id=eq.${authStore.user.id}`,
-  //       },
-  //       (payload) => {
-  //         console.log('Organization membership changed:', payload);
-  //         // Refetch organizations when membership changes
-  //         fetchOrganizations();
-  //       }
-  //     )
-  //     .subscribe();
-  // };
-
-  // const unsubscribeFromOrganizations = () => {
-  //   if (organizationSubscription) {
-  //     supabase.removeChannel(organizationSubscription);
-  //     organizationSubscription = null;
-  //   }
-  // };
-
-  // // Watch for auth changes
-  // watch(
-  //   () => authStore.user,
-  //   async (newUser, oldUser) => {
-  //     if (newUser?.id && newUser.id !== oldUser?.id) {
-  //       await fetchProfile(newUser.id);
-  //       await fetchOrganizations();
-  //       subscribeToOrganizations();
-  //     } else if (!newUser && oldUser) {
-  //       profile.value = null;
-  //       organizations.value = [];
-  //       error.value = null;
-  //       unsubscribeFromOrganizations();
-  //     }
-  //   },
-  //   { immediate: true }
-  // );
-
-  // Cleanup on store disposal (when app unmounts)
-  // onUnmounted(() => {
-  //   unsubscribeFromOrganizations();
-  // });
-
-  const waitForProfileLoad = async (timeout = 5000): Promise<boolean> => {
-    console.log("[profile] Waiting for profile to load with timeout:", timeout);
-    // If not authenticated, no profile to load
-    if (!authStore.user?.id) return false;
-
-    // If profile already loaded, return immediately
-    if (profile.value?.id === authStore.user.id) return true;
-
-    // Wait for loading to complete
-    const startTime = Date.now();
-    while (loadingProfile.value) {
-      if (Date.now() - startTime > timeout) {
-        console.error('[profile] Timeout waiting for profile to load');
-        return false;
-      }
-      await new Promise(resolve => setTimeout(resolve, 50));
-    }
-
-    // Check if we have a profile after loading
-    return profile.value !== null && lastError.value === null;
-  };
-
   return {
     profile,
     loadingProfile,
@@ -214,6 +128,5 @@ export const useProfileStore = defineStore('profile', () => {
     isAdmin,
     loadingOrganizations,
     organizations,
-    waitForProfileLoad,
   };
 });

@@ -37,6 +37,10 @@ export async function getOrganizationBySlug(slug: string): Promise<Organization>
 }
 
 export async function updateBioById(id: string, bio: string) {
+  //TODO: SQL Upsert validation?
+  if (bio.length > 500) {
+    throw new Error('Bio exceeds maximum length of 500 characters.');
+  }
   const { error } = await supabase
     .from('organizations')
     .update({ bio })
