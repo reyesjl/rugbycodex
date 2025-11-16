@@ -86,10 +86,10 @@ export async function createOrganization(
     .from('organizations')
     .insert([
       {
-        "name": name,
-        "slug": slug,
-        "owner": owner,
-        "storage_limit_mb": storage_limit_mb,
+        name: name,
+        slug: slug,
+        owner: owner,
+        storage_limit_mb: storage_limit_mb,
       },
     ])
     .select();
