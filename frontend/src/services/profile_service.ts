@@ -35,17 +35,10 @@ export async function getAllProfiles(): Promise<UserProfile[]> {
   }));
 }
 
-type ProfileWithOrgCountRow = {
-  id: string;
-  name: string;
-  xp: number | null;
-  org_members: { count: number | null }[] | null;
-};
-
 export async function getTopMembersByXp(limit: number = 10): Promise<MemberLeaderboardEntry[]> {
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, name, xp, org_members(count)')
+    .select('id, name, xp, org_members(org_id)')
     .order('xp', { ascending: false })
     .limit(limit);
 
@@ -53,15 +46,12 @@ export async function getTopMembersByXp(limit: number = 10): Promise<MemberLeade
     throw error;
   }
 
-  const rows: ProfileWithOrgCountRow[] = data ?? [];
-  rows.sort((a, b) => (b.xp ?? 0) - (a.xp ?? 0));
-
-  return rows.map((row) => ({
+  return data?.map((row) => ({
     id: row.id,
     name: row.name,
     xp: row.xp ?? 0,
-    orgCount: row.org_members?.[0]?.count ?? 0,
-  }));
+    orgCount: row.org_members?.length ?? 0,
+  })) ?? [];
 }
 
 export async function getProfileById(userId: string): Promise<ProfileWithMemberships> {
