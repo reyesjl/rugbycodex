@@ -48,15 +48,21 @@ const handleRefresh = async () => {
   }, 1000);
 };
 
+const sorter = (a: UserProfile, b: UserProfile) => b.creation_time.getTime() - a.creation_time.getTime();
+
 const filteredProfiles = computed(() => {
-  const sorter = (a: UserProfile, b: UserProfile) => b.creation_time.getTime() - a.creation_time.getTime();
-  if (!searchQuery.value.trim()) {
-    return [...profiles.value].sort(sorter);
+  let result = profiles.value;
+  
+  // Filter if search query exists
+  if (searchQuery.value.trim()) {
+    const query = searchQuery.value.toLowerCase();
+    result = result.filter(profile => 
+      profile.name.toLowerCase().includes(query)
+    );
   }
-  const query = searchQuery.value.toLowerCase();
-  return profiles.value.filter(profile =>
-    profile.name.toLowerCase().includes(query)
-  ).sort(sorter);
+  
+  // Sort once at the end
+  return [...result].sort(sorter);
 });
 
 onMounted(async () => {

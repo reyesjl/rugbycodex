@@ -29,54 +29,50 @@ export async function getAllProfiles(): Promise<UserProfile[]> {
 }
 
 export async function getProfileById(userId: string): Promise<ProfileWithMemberships> {
-  // Fetch profile
-  const { data: profileData, error: profileError } = await supabase
+  const { data, error } = await supabase
     .from('profiles')
-    .select('*')
+    .select(`
+      id,
+      name,
+      xp,
+      creation_time,
+      role,
+      memberships:org_members (
+        org_id,
+        role,
+        joined_at,
+        organization:organizations (
+          id,
+          name,
+          slug
+        )
+      )
+    `)
     .eq('id', userId)
     .single();
 
-  if (profileError) {
-    throw profileError;
+  if (error) {
+    throw error;
   }
 
-  if (!profileData) {
+  if (!data) {
     throw new Error('Profile not found with id: ' + userId);
   }
 
-  // Fetch memberships
-  const { data: membershipsData, error: membershipsError } = await supabase
-    .from('org_members')
-    .select(`
-      org_id,
-      role,
-      joined_at,
-      organizations (
-        id,
-        name,
-        slug
-      )
-    `)
-    .eq('user_id', userId);
-
-  if (membershipsError) {
-    throw membershipsError;
-  }
-
-  const memberships: OrgMembership[] = membershipsData?.map(item => ({
+  const memberships: OrgMembership[] = data.memberships?.map(item => ({
     org_id: item.org_id,
-    org_name: (item.organizations as { name?: string })?.name || 'Unknown',
-    slug: (item.organizations as { slug?: string })?.slug || 'unknown',
+    org_name: (item.organization as { name?: string })?.name || 'Unknown',
+    slug: (item.organization as { slug?: string })?.slug || 'unknown',
     role: item.role,
     join_date: new Date(item.joined_at),
   })) ?? [];
 
   return {
-    id: profileData.id,
-    name: profileData.name,
-    xp: profileData.xp,
-    creation_time: new Date(profileData.creation_time),
-    role: profileData.role,
+    id: data.id,
+    name: data.name,
+    xp: data.xp,
+    creation_time: new Date(data.creation_time),
+    role: data.role,
     memberships,
   };
 }
