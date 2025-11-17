@@ -8,6 +8,7 @@ import { getTopMembersByXp, type MemberLeaderboardEntry } from '@/services/profi
 import SettingsPanel from '@/views/Settings.vue';
 import AdminListOrgs from '@/views/admin/AdminListOrgs.vue';
 import AdminListProfiles from '@/views/admin/AdminListProfiles.vue';
+import AnimatedLink from '@/components/AnimatedLink.vue';
 
 type SidebarPanelId = 'overview' | 'account' | 'organizations' | 'members' | 'narrations';
 
@@ -318,7 +319,7 @@ onMounted(() => {
                           {{ String(index + 1).padStart(2, '0') }}
                         </td>
                         <td class="py-4 pr-6 font-medium">
-                          {{ member.name }}
+                          <AnimatedLink :to="`/admin/profiles/${member.id}`" :text="member.name" />
                         </td>
                         <td class="py-4 pr-6 font-semibold tracking-tight">
                           {{ member.xp.toLocaleString() }}
