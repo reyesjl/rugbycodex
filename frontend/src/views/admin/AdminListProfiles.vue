@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { getAllProfiles, type Profile } from '@/services/profile_service';
+import { getAllProfiles } from '@/services/profile_service';
 import { onMounted, ref, computed } from 'vue';
 import { Icon } from '@iconify/vue';
+import type { UserProfile } from '@/types';
 
-const profiles = ref<Profile[]>([]);
+const profiles = ref<UserProfile[]>([]);
 const profileLoadError = ref<string | null>(null);
 const profilesLoading = ref(true);
 
@@ -48,7 +49,7 @@ const handleRefresh = async () => {
 };
 
 const filteredProfiles = computed(() => {
-  const sorter = (a: Profile, b: Profile) => b.creation_time.getTime() - a.creation_time.getTime();
+  const sorter = (a: UserProfile, b: UserProfile) => b.creation_time.getTime() - a.creation_time.getTime();
   if (!searchQuery.value.trim()) {
     return [...profiles.value].sort(sorter);
   }
