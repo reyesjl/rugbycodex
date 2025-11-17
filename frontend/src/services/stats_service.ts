@@ -14,6 +14,10 @@ async function getTableCount(table: string): Promise<number> {
     throw error;
   }
 
+  if (count === null) {
+    throw new Error(`Failed to get count for table: ${table}`);
+  }
+
   return count ?? 0;
 }
 
