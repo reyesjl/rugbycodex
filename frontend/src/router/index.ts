@@ -5,8 +5,22 @@ import { adminRoutes } from '@/router/admin';
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
-  scrollBehavior() {
-    return { left: 0, top: 0 };
+  scrollBehavior(to, _from, savedPosition) {
+    // If there's a saved position (browser back/forward button), use it
+    if (savedPosition) {
+      return savedPosition
+    }
+
+    // If navigating to a hash (anchor link), scroll to it
+    if (to.hash) {
+      return {
+        el: to.hash,
+        behavior: 'smooth'
+      }
+    }
+
+    // Otherwise scroll to top
+    return { top: 0, left: 0 }
   },
   routes: [
     {
