@@ -12,6 +12,7 @@ import { getAllOrganizations, type Organization } from '@/services/org_service';
 import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
 import type { OrgMembership } from '@/types';
 import CustomSelect from '@/components/CustomSelect.vue';
+import { MEMBERSHIP_ROLES } from '@/constants/memberships';
 
 const route = useRoute();
 const router = useRouter();
@@ -33,13 +34,7 @@ const membershipToDelete = ref<OrgMembership | null>(null);
 const isDeletingMembership = ref(false);
 const membershipDeleteError = ref<string | null>(null);
 
-const availableRoles = [
-  { value: 'owner', label: 'Owner' },
-  { value: 'manager', label: 'Manager' },
-  { value: 'staff', label: 'Staff' },
-  { value: 'member', label: 'Member' },
-  { value: 'viewer', label: 'Viewer' },
-];
+const availableRoles = MEMBERSHIP_ROLES;
 
 const loadProfile = async () => {
   const userId = route.params.id as string;
