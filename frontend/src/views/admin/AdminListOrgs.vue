@@ -213,7 +213,7 @@ onMounted(async () => {
       :show="showDeleteModal" 
       :item-name="orgToDelete?.name || ''" 
       :is-deleting="isDeleting"
-      :popupTitle="'Delete Organization'"
+      :popup-title="'Delete Organization'"
       :error="orgDeleteError" 
       @confirm="confirmDelete" @cancel="closeDeleteModal" @close="closeDeleteModal" 
     />
