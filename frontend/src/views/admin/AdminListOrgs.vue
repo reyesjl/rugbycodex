@@ -209,8 +209,14 @@ onMounted(async () => {
     </section>
 
     <!-- Delete Confirmation Modal -->
-    <ConfirmDeleteModal :show="showDeleteModal" :item-name="orgToDelete?.name || ''" :is-deleting="isDeleting"
-      :error="orgDeleteError" @confirm="confirmDelete" @cancel="closeDeleteModal" @close="closeDeleteModal" />
+    <ConfirmDeleteModal 
+      :show="showDeleteModal" 
+      :item-name="orgToDelete?.name || ''" 
+      :is-deleting="isDeleting"
+      :popup-title="'Delete Organization'"
+      :error="orgDeleteError" 
+      @confirm="confirmDelete" @cancel="closeDeleteModal" @close="closeDeleteModal" 
+    />
 
   </section>
 </template>

@@ -8,7 +8,7 @@ interface Option {
 
 interface Props {
   modelValue: number | string;
-  options: Option[];
+  options: readonly Option[];
   placeholder?: string;
 }
 
