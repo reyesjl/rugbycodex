@@ -7,10 +7,11 @@ import {
   addMembershipToProfile,
   removeMembershipFromProfile,
   type ProfileWithMemberships,
-  type ProfileMembership
 } from '@/services/profile_service';
 import { getAllOrganizations, type Organization } from '@/services/org_service';
 import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
+import type { OrgMembership } from '@/types';
+import CustomSelect from '@/components/CustomSelect.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -28,14 +29,16 @@ const searchOrgQuery = ref('');
 const showOrgDropdown = ref(false);
 
 const showDeleteModal = ref(false);
-const membershipToDelete = ref<ProfileMembership | null>(null);
+const membershipToDelete = ref<OrgMembership | null>(null);
 const isDeletingMembership = ref(false);
 const membershipDeleteError = ref<string | null>(null);
 
 const availableRoles = [
+  { value: 'owner', label: 'Owner' },
+  { value: 'manager', label: 'Manager' },
+  { value: 'staff', label: 'Staff' },
   { value: 'member', label: 'Member' },
-  { value: 'admin', label: 'Admin' },
-  { value: 'owner', label: 'Owner' }
+  { value: 'viewer', label: 'Viewer' },
 ];
 
 const loadProfile = async () => {
@@ -103,7 +106,7 @@ const handleAddMembership = async () => {
   }
 };
 
-const openDeleteModal = (membership: ProfileMembership) => {
+const openDeleteModal = (membership: OrgMembership) => {
   membershipToDelete.value = membership;
   showDeleteModal.value = true;
 };
@@ -144,6 +147,11 @@ const getSelectedOrgName = computed(() => {
   if (!selectedOrgSlug.value) return '';
   const org = organizations.value.find(org => org.slug === selectedOrgSlug.value);
   return org?.name || '';
+});
+
+const deleteText = computed(() => {
+  if (!membershipToDelete.value || !profile.value) return '';
+  return `Membership to ${membershipToDelete.value.org_name} for profile ${profile.value.name}`;
 });
 
 onMounted(async () => {
@@ -199,7 +207,7 @@ onMounted(async () => {
           </div>
           <div class="flex justify-between border-b border-neutral-200 pb-2 dark:border-neutral-800">
             <span class="text-sm font-medium text-neutral-600 dark:text-neutral-400">Role:</span>
-            <span class="text-sm text-neutral-900 dark:text-neutral-100">{{ profile.role }}</span>
+            <span class="text-sm text-neutral-900 dark:text-neutral-100 capitalize">{{ profile.role }}</span>
           </div>
           <div class="flex justify-between border-b border-neutral-200 pb-2 dark:border-neutral-800">
             <span class="text-sm font-medium text-neutral-600 dark:text-neutral-400">XP:</span>
@@ -287,14 +295,11 @@ onMounted(async () => {
               <label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
                 Role
               </label>
-              <select
+              <CustomSelect
                 v-model="selectedRole"
-                class="mt-2 w-full rounded-xl border border-neutral-300 bg-white px-4 py-3 text-neutral-900 transition focus:border-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900/20 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100 dark:focus:border-neutral-100 dark:focus:ring-neutral-100/20"
-              >
-                <option v-for="role in availableRoles" :key="role.value" :value="role.value">
-                  {{ role.label }}
-                </option>
-              </select>
+                :options="availableRoles"
+                placeholder="Select role"
+              />
             </div>
 
             <div v-if="addMembershipError" class="rounded-xl bg-rose-50 p-3 dark:bg-rose-950/30">
@@ -335,7 +340,7 @@ onMounted(async () => {
                   {{ membership.org_name }}
                 </RouterLink>
                 <p class="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
-                  Role: {{ membership.role }} • Joined: {{ membership.joined_at.toLocaleDateString() }}
+                  {{ membership.role.toUpperCase() }} • Joined: {{ membership.join_date.toLocaleDateString() }}
                 </p>
               </div>
               <button
@@ -355,9 +360,10 @@ onMounted(async () => {
     <!-- Delete Membership Confirmation Modal -->
     <ConfirmDeleteModal
       :show="showDeleteModal"
-      :item-name="membershipToDelete?.org_name || ''"
+      :item-name="deleteText"
       :is-deleting="isDeletingMembership"
       :error="membershipDeleteError"
+      :popupTitle="'Remove Membership'"
       @confirm="confirmDeleteMembership"
       @cancel="closeDeleteModal"
       @close="closeDeleteModal"

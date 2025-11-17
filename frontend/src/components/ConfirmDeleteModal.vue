@@ -4,6 +4,7 @@ import { Icon } from '@iconify/vue';
 interface Props {
   show: boolean;
   itemName: string;
+  popupTitle: string;
   isDeleting?: boolean;
   error?: string | null;
 }
@@ -52,7 +53,7 @@ const handleCancel = () => {
 
             <div class="flex-1">
               <h3 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
-                Delete Organization
+                {{ popupTitle }}
               </h3>
               <p class="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
                 Are you sure you want to delete <strong class="font-semibold text-neutral-900 dark:text-neutral-100">{{

@@ -2,24 +2,8 @@ import { defineStore } from 'pinia';
 import { ref, watch } from 'vue';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuthStore } from '@/stores/auth';
+import type { OrgMembership, UserProfile } from '@/types';
 
-export type ProfileRole = 'admin' | 'moderator' | 'user';
-
-export interface UserProfile {
-  id: string;
-  xp: number | null;
-  creation_time: string | null;
-  name: string;
-  role: ProfileRole;
-}
-
-export interface OrgMembership {
-  org_id: string;
-  role: string;
-  org_name: string;
-  slug: string;
-  join_date: Date;
-}
 
 export const useProfileStore = defineStore('profile', () => {
   const profile = ref<UserProfile | null>(null);

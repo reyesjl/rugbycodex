@@ -1,26 +1,11 @@
 import { supabase } from '@/lib/supabaseClient';
+import type { UserProfile, OrgMembership } from '@/types';
 
-export type Profile = {
-  id: string;
-  name: string;
-  xp: number | null;
-  creation_time: Date;
-  role: string;
+export type ProfileWithMemberships = UserProfile & {
+  memberships: OrgMembership[];
 };
 
-export type ProfileMembership = {
-  org_id: string;
-  org_name: string;
-  slug: string;
-  role: string;
-  joined_at: Date;
-};
-
-export type ProfileWithMemberships = Profile & {
-  memberships: ProfileMembership[];
-};
-
-export async function getAllProfiles(): Promise<Profile[]> {
+export async function getAllProfiles(): Promise<UserProfile[]> {
   const { data, error } = await supabase
     .from('profiles')
     .select('*')
@@ -78,12 +63,12 @@ export async function getProfileById(userId: string): Promise<ProfileWithMembers
     throw membershipsError;
   }
 
-  const memberships: ProfileMembership[] = membershipsData?.map(item => ({
+  const memberships: OrgMembership[] = membershipsData?.map(item => ({
     org_id: item.org_id,
     org_name: (item.organizations as { name?: string })?.name || 'Unknown',
     slug: (item.organizations as { slug?: string })?.slug || 'unknown',
     role: item.role,
-    joined_at: new Date(item.joined_at),
+    join_date: new Date(item.joined_at),
   })) ?? [];
 
   return {
