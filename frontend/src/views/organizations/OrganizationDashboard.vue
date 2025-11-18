@@ -38,7 +38,7 @@ const orgRoleOptions = [
   { label: 'Staff', value: 'staff' },
   { label: 'Member', value: 'member' },
   { label: 'Viewer', value: 'viewer' },
-]
+];
 
 const memberCount = computed(() => {
   return members.value.length;
@@ -72,9 +72,9 @@ const saveBio = async () => {
     }
 
     isEditingBio.value = false;
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.error(e);
-    bioError.value = e?.message ?? 'Failed to update bio';
+    bioError.value = e instanceof Error ? e.message : 'Failed to update bio';
   } finally {
     savingBio.value = false;
   }
@@ -83,7 +83,7 @@ const saveBio = async () => {
 async function loadMembers() {
   if (!org.value) {
     memberLoadError.value = "No Organization Present";
-    members.value = []
+    members.value = [];
     return;
   }
 
@@ -93,7 +93,7 @@ async function loadMembers() {
     console.log('Loaded members:', members.value);
   } catch (e) {
     memberLoadError.value = e instanceof Error ? e.message : 'Failed to fetch members';
-    members.value = []
+    members.value = [];
   } finally {
     membersLoading.value = false;
   }
@@ -102,7 +102,7 @@ async function loadMembers() {
 const memberRoleError = ref<string | null>(null);
 const memberRoleSuccess = ref<string | null>(null);
 
-async function handleMemberRoleChange(member: ProfileWithMembership, memberId: string, newRole: OrgRole) {
+async function handleMemberRoleChange(member: ProfileWithMembership, newRole: OrgRole) {
   if (org.value == null) {
     memberRoleError.value = 'Organization is null, cannot change member role';
     return;
@@ -121,17 +121,17 @@ async function handleMemberRoleChange(member: ProfileWithMembership, memberId: s
     // Update local state
     memberRoleSuccess.value = `Successfully updated role for ${member.name} to ${newRole}.`;
     member.org_role = newRole;
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.error(e);
-    memberRoleError.value = e?.message ?? 'Failed to update member role';
+    memberRoleError.value = e instanceof Error ? e.message : 'Failed to update member role';
   }
 }
 
 onMounted(async () => {
   try {
     org.value = await getOrganizationBySlug(props.orgSlug);
-  } catch (e: any) {
-    error.value = e?.message ?? 'Failed to load organization';
+  } catch (e: unknown) {
+    error.value = e instanceof Error ? e.message : 'Failed to load organization';
   } finally {
     loading.value = false;
   }
@@ -281,16 +281,10 @@ async function handleRefreshMembers() {
 
     <!-- Members Section (Owner Only) -->
     <section v-if="canEdit" class="grid gap-8">
-      <ErrorNotification v-if="memberRoleError" 
-        :errorMessage="memberRoleError"
-        @clear-error="memberRoleError = null" 
-        :error-title="'Error Modifying Role'" 
-      /> 
-      <SuccessNotification v-if="memberRoleSuccess"
-        :successMessage="memberRoleSuccess"
-        @clear-success="memberRoleSuccess = null"
-        :success-title="'Role Modified Successfully'" 
-      /> 
+      <ErrorNotification v-if="memberRoleError" :error-message="memberRoleError" @clear-error="memberRoleError = null"
+        :error-title="'Error Modifying Role'" />
+      <SuccessNotification v-if="memberRoleSuccess" :success-message="memberRoleSuccess"
+        @clear-success="memberRoleSuccess = null" :success-title="'Role Modified Successfully'" />
       <div v-if="memberLoadError" class="mt-4">
         <p class="text-sm text-rose-500 dark:text-rose-400">Error: {{ memberLoadError }}</p>
       </div>
@@ -337,14 +331,11 @@ async function handleRefreshMembers() {
                   class="flex items-center justify-between rounded-lg px-3 py-2 text-sm transition hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50">
                   <span class="font-medium">{{ member.name }}</span>
                   <div class="flex items-center gap-3">
-                    <CustomSelect
-                      :options="orgRoleOptions"
-                      :model-value="member.org_role"
-                      @update:model-value="(newRole: number | string) => handleMemberRoleChange(member, member.id, newRole as OrgRole)"
-                      class="w-32 text-xs min-w-[8rem]"
-                    />
+                    <CustomSelect :options="orgRoleOptions" :model-value="member.org_role"
+                      @update:model-value="(newRole: number | string) => handleMemberRoleChange(member, newRole as OrgRole)"
+                      class="w-32 text-xs min-w-[8rem]" />
                     <span class="text-xs text-neutral-400 dark:text-neutral-500">
-                      {{ member.join_date.toLocaleDateString() }}
+                      {{ member.join_date instanceof Date ? member.join_date.toLocaleDateString() : 'N/A' }}
                     </span>
                   </div>
                 </li>
