@@ -11,21 +11,23 @@ import NarrationDemo from '@/components/NarrationDemo.vue';
   <!-- Hero section -->
   <section class="hero container flex min-h-screen flex-col overflow-x-hidden">
     <div class="flex flex-1 flex-col items-center justify-center space-y-8 text-center">
-      <div class="w-full max-w-md md:max-w-lg overflow-hidden">
+      <div class="w-full max-w-md overflow-hidden">
         <div class="dark:hidden">
-          <video
-            :src="heroAnimatedLight"
-            class="mx-auto w-full"
-            playsinline
-            autoplay
-            muted
-            loop
-          >
-            Your browser does not support the video tag.
-          </video>
+          <div class="mx-auto max-w-lg md:max-w-xl w-full">
+            <video
+              :src="heroAnimatedLight"
+              class="mx-auto w-full"
+              playsinline
+              autoplay
+              muted
+              loop
+            >
+              Your browser does not support the video tag.
+            </video>
+          </div>
         </div>
         <div class="hidden dark:block">
-          <div class="mx-auto max-w-lg md:max-w-xl w-full p-4 pb-6 sm:p-6">
+          <div class="mx-auto max-w-lg md:max-w-xl w-full">
             <video
               :src="heroAnimatedDark"
               class="mx-auto w-full"
@@ -39,10 +41,6 @@ import NarrationDemo from '@/components/NarrationDemo.vue';
           </div>
         </div>
       </div>
-      <RouterLink to="/inside" class="inline-flex items-center gap-2 text-xs hover:underline">
-        Inside the Codex
-        <span class="font-semibold text-fuchsia-500">Click Here to Learn More</span>
-      </RouterLink>
     </div>
     <div class="mt-auto mb-20 flex flex-col items-center justify-end md:mb-8">
       <Icon icon="carbon:arrow-down" class="w-16 h-16 animate-bounce text-neutral-400" />

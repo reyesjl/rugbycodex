@@ -181,7 +181,7 @@ watch(
   <div>
     <header
       ref="headerRef"
-      class="fixed top-0 z-50 w-full bg-transparent backdrop-blur transition-colors dark:bg-neutral-950/70"
+      class="fixed top-0 z-50 w-full bg-transparent backdrop-blur transition-colors dark:bg-neutral-950"
     >
       <div
         class="container-lg flex items-center justify-between gap-6 px-6 py-5 md:px-8"
