@@ -27,13 +27,15 @@ const selectedOption = computed(() => {
 });
 
 const dropdownPosition = ref<{ top: string; left: string }>({ top: '0px', left: '0px' });
-const toggleDropdown = (event : MouseEvent) => {
+const toggleDropdown = (event: MouseEvent) => {
   isOpen.value = !isOpen.value;
 
-  // position relative to button
-  let rect = (event.target as HTMLElement).getBoundingClientRect();
+  let rect: DOMRect;
+  // position relative to selection box, probably never be null
   if (selectRef.value != null) {
     rect = selectRef.value.getBoundingClientRect();
+  } else {
+    rect = (event.target as HTMLElement).getBoundingClientRect();
   }
   dropdownPosition.value = {
     top: `${rect.bottom + window.scrollY}px`,
@@ -78,21 +80,21 @@ onBeforeUnmount(() => {
       enter-to-class="transform scale-100 opacity-100" leave-active-class="transition duration-250 ease-in"
       leave-from-class="transform scale-100 opacity-100" leave-to-class="transform scale-95 opacity-0">
       <Teleport to="body">
-        <div v-if="isOpen"
-            class="absolute z-50 rounded-xl border border-neutral-300 bg-white shadow-lg dark:border-neutral-700 dark:bg-neutral-950"
-            :style="{
-              top: dropdownPosition.top,
-              left: dropdownPosition.left,
-              width: selectRef?.offsetWidth + 'px'
-            }">
+        <div v-if="isOpen" role="listbox"
+          class="absolute z-50 rounded-xl border border-neutral-300 bg-white shadow-lg dark:border-neutral-700 dark:bg-neutral-950"
+          :style="{
+            top: dropdownPosition.top,
+            left: dropdownPosition.left,
+            width: selectRef?.offsetWidth + 'px'
+          }">
           <ul class="max-h-60 overflow-y-visible py-1">
-            <li v-for="option in options" :key="option.value" @click="selectOption(option.value)"
-                :class="[
-                  'cursor-pointer px-4 py-3 text-neutral-900 transition dark:text-neutral-100',
-                  option.value === modelValue
-                    ? 'bg-neutral-200 font-semibold dark:bg-neutral-800'
-                    : 'hover:bg-neutral-100 dark:hover:bg-neutral-900'
-                ]">
+            <li v-for="option in options" :key="option.value" role="option" :aria-selected="option.value === modelValue"
+              @click="selectOption(option.value)" :class="[
+                'cursor-pointer px-4 py-3 text-neutral-900 transition dark:text-neutral-100',
+                option.value === modelValue
+                  ? 'bg-neutral-200 font-semibold dark:bg-neutral-800'
+                  : 'hover:bg-neutral-100 dark:hover:bg-neutral-900'
+              ]">
               {{ option.label }}
             </li>
           </ul>
