@@ -144,6 +144,22 @@ export async function removeMembershipFromProfile(
   }
 }
 
+export async function updateMembershipRole(
+  userId: string,
+  orgId: string,
+  newRole: string
+): Promise<void> {
+  const { error } = await supabase
+    .from('org_members')
+    .update({ role: newRole })
+    .eq('user_id', userId)
+    .eq('org_id', orgId);
+
+  if (error) {
+    throw error;
+  }
+}
+
 export async function getOrganizationMembers(orgId: string): Promise<ProfileWithMembership[]> {
   const { data, error } = await supabase
     .from('profile_with_membership')

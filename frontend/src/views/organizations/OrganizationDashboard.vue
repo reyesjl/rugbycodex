@@ -6,8 +6,10 @@ import { getOrganizationBySlug, updateBioById, type Organization } from '@/servi
 import LoadingIcon from '@/components/LoadingIcon.vue';
 import { Icon } from '@iconify/vue';
 import type { ProfileWithMembership, OrgRole } from '@/types';
-import { getOrganizationMembers } from '@/services/profile_service';
+import { getOrganizationMembers, updateMembershipRole } from '@/services/profile_service';
 import CustomSelect from '@/components/CustomSelect.vue';
+import ErrorNotification from '@/components/ErrorNotification.vue';
+import SuccessNotification from '@/components/SuccessNotification.vue';
 
 const props = defineProps<{ orgSlug: string }>();
 
@@ -33,7 +35,7 @@ const refreshSuccess = ref(false);
 const orgRoleOptions = [
   { label: 'Owner', value: 'owner' },
   { label: 'Manager', value: 'manager' },
-  { label: 'Admin', value: 'admin' },
+  { label: 'Staff', value: 'staff' },
   { label: 'Member', value: 'member' },
   { label: 'Viewer', value: 'viewer' },
 ]
@@ -97,24 +99,32 @@ async function loadMembers() {
   }
 }
 
+const memberRoleError = ref<string | null>(null);
+const memberRoleSuccess = ref<string | null>(null);
+
 async function handleMemberRoleChange(member: ProfileWithMembership, memberId: string, newRole: OrgRole) {
-  //TODO: Implement backend update logic here
-  // console.log('Member role: ', member.org_role);
-  // console.log('Changing role for member:', memberId, 'to', newRole);
-  // member.org_role = newRole;
-  // const member = members.value.find(m => m.id === memberId);
-  // if (!member || !org.value) return;
-
-  // try {
-  //   // Update role in backend (assuming updateMemberRole is a service function)
-  //   await updateMemberRole(org.value.id, memberId, newRole);
-
-  //   // Update local state
-  //   member.org_role = newRole;
-  // } catch (e: any) {
-  //   console.error(e);
-  //   memberLoadError.value = e?.message ?? 'Failed to update member role';
-  // }
+  if (org.value == null) {
+    memberRoleError.value = 'Organization is null, cannot change member role';
+    return;
+  }
+  if (!member) {
+    memberRoleError.value = 'Member not found, cannot change role';
+    return;
+  }
+  if (member.org_role === newRole) {
+    return;
+  }
+  memberRoleSuccess.value = null;
+  memberRoleError.value = null;
+  try {
+    await updateMembershipRole(member.id, org.value.id, newRole);
+    // Update local state
+    memberRoleSuccess.value = `Successfully updated role for ${member.name} to ${newRole}.`;
+    member.org_role = newRole;
+  } catch (e: any) {
+    console.error(e);
+    memberRoleError.value = e?.message ?? 'Failed to update member role';
+  }
 }
 
 onMounted(async () => {
@@ -271,6 +281,16 @@ async function handleRefreshMembers() {
 
     <!-- Members Section (Owner Only) -->
     <section v-if="canEdit" class="grid gap-8">
+      <ErrorNotification v-if="memberRoleError" 
+        :errorMessage="memberRoleError"
+        @clear-error="memberRoleError = null" 
+        :error-title="'Error Modifying Role'" 
+      /> 
+      <SuccessNotification v-if="memberRoleSuccess"
+        :successMessage="memberRoleSuccess"
+        @clear-success="memberRoleSuccess = null"
+        :success-title="'Role Modified Successfully'" 
+      /> 
       <div v-if="memberLoadError" class="mt-4">
         <p class="text-sm text-rose-500 dark:text-rose-400">Error: {{ memberLoadError }}</p>
       </div>
@@ -311,20 +331,17 @@ async function handleRefreshMembers() {
               </div>
             </div>
 
-            <div class="mt-6 max-h-96 ">
-              <ul class="space-y-2 text-neutral-700 max-h-[30vh] overflow-y-auto dark:text-neutral-200">
+            <div class="mt-6 ">
+              <ul class="space-y-2 text-neutral-700 max-h-[50vh] overflow-y-auto dark:text-neutral-200">
                 <li v-for="member in displayedMembers" :key="member.id"
                   class="flex items-center justify-between rounded-lg px-3 py-2 text-sm transition hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50">
                   <span class="font-medium">{{ member.name }}</span>
                   <div class="flex items-center gap-3">
-                    <!-- <span class="text-xs uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
-                      {{ member.org_role }}
-                    </span> -->
                     <CustomSelect
                       :options="orgRoleOptions"
                       :model-value="member.org_role"
                       @update:model-value="(newRole: number | string) => handleMemberRoleChange(member, member.id, newRole as OrgRole)"
-                      class="w-32 text-xs"
+                      class="w-32 text-xs min-w-[8rem]"
                     />
                     <span class="text-xs text-neutral-400 dark:text-neutral-500">
                       {{ member.join_date.toLocaleDateString() }}

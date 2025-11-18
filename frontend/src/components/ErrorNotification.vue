@@ -23,7 +23,7 @@ const emit = defineEmits<{
         <p class="text-sm text-rose-700 dark:text-rose-400 mt-1">{{ errorMessage }}</p>
       </div>
       <button @click="emit('clearError')"
-        class="ml-auto rounded-lg p-1 text-rose-600 transition hover:bg-rose-100 dark:text-rose-400 dark:hover:bg-rose-900/30"
+        class="cursor-pointer ml-auto rounded-lg p-1 text-rose-600 transition hover:bg-rose-100 dark:text-rose-400 dark:hover:bg-rose-900/30"
         title="Dismiss">
         <Icon icon="mdi:close" class="h-4 w-4" />
       </button>
