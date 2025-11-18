@@ -46,7 +46,7 @@ export const useProfileStore = defineStore('profile', () => {
         org_name: (item.organizations as any)?.name || 'Unknown',
         join_date: new Date(item.joined_at),
         slug: (item.organizations as any)?.slug || 'unknown',
-        role: item.role,
+        org_role: item.role,
       })) ?? [];
 
       loadingOrganizations.value = false;
