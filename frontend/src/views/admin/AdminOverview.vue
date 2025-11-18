@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import AnimatedLink from '@/components/AnimatedLink.vue';
+import RefreshButton from '@/components/RefreshButton.vue';
 import { getDashboardStats, type DashboardStats } from '@/services/stats_service';
 import { getTopMembersByXp, type MemberLeaderboardEntry } from '@/services/profile_service';
 
@@ -74,15 +75,13 @@ onMounted(() => {
             Platform pulse
           </h2>
         </div>
-        <button
-          type="button"
-          class="self-start text-xs font-semibold uppercase tracking-[0.3em] text-neutral-500 transition hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100"
-          @click="loadDashboardData"
-          :disabled="statsLoading || membersLoading"
-          :class="{ 'opacity-50 cursor-not-allowed': statsLoading || membersLoading }"
+        <RefreshButton
+          class="self-start"
+          :refresh="loadDashboardData"
+          :loading="statsLoading || membersLoading"
+          title="Refresh dashboard data"
         >
-          Refresh
-        </button>
+        </RefreshButton>
       </div>
 
       <div class="mt-8 min-h-[200px]">

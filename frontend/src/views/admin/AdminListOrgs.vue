@@ -5,6 +5,7 @@ import AnimatedLink from '@/components/AnimatedLink.vue';
 import { Icon } from '@iconify/vue';
 import { useRouter } from 'vue-router';
 import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
+import RefreshButton from '@/components/RefreshButton.vue';
 
 const router = useRouter();
 const orgs = ref<Organization[]>([]);
@@ -13,7 +14,6 @@ const orgsLoading = ref(true);
 
 const orgDeleteError = ref<string | null>(null);
 const expandedOrgs = ref<Set<string>>(new Set());
-const refreshSuccess = ref(false);
 const searchQuery = ref('');
 
 const showDeleteModal = ref(false);
@@ -50,10 +50,6 @@ const loadOrganizations = async () => {
 
 const handleRefresh = async () => {
   await loadOrganizations();
-  refreshSuccess.value = true;
-  setTimeout(() => {
-    refreshSuccess.value = false;
-  }, 1000);
 };
 
 const handleCreateOrg = () => {
@@ -137,22 +133,11 @@ onMounted(async () => {
           >
             <Icon icon="mdi:plus" class="h-5 w-5" />
           </button>
-          <button
-            type="button"
-            @click="handleRefresh"
-            :disabled="orgsLoading"
-            class="rounded-lg p-2 transition disabled:cursor-not-allowed disabled:opacity-60"
-            :class="refreshSuccess
-              ? 'text-green-600 hover:bg-green-100 dark:text-green-400 dark:hover:bg-green-900/30'
-              : 'text-neutral-900 hover:bg-neutral-200 dark:text-neutral-100 dark:hover:bg-neutral-800'"
+          <RefreshButton
+            :refresh="handleRefresh"
+            :loading="orgsLoading"
             title="Refresh organizations"
-          >
-            <Icon
-              :icon="refreshSuccess ? 'mdi:check' : 'mdi:refresh'"
-              class="h-5 w-5"
-              :class="{ 'animate-spin': orgsLoading }"
-            />
-          </button>
+          />
         </div>
       </div>
 

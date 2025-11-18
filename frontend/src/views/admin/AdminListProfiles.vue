@@ -3,13 +3,13 @@ import { getAllProfiles } from '@/services/profile_service';
 import { onMounted, ref, computed } from 'vue';
 import { Icon } from '@iconify/vue';
 import type { UserProfile } from '@/types';
+import RefreshButton from '@/components/RefreshButton.vue';
 
 const profiles = ref<UserProfile[]>([]);
 const profileLoadError = ref<string | null>(null);
 const profilesLoading = ref(true);
 
 const expandedProfiles = ref<Set<string>>(new Set());
-const refreshSuccess = ref(false);
 const searchQuery = ref('');
 
 const toggleExpand = (profileId: string) => {
@@ -42,10 +42,6 @@ const loadProfiles = async () => {
 
 const handleRefresh = async () => {
   await loadProfiles();
-  refreshSuccess.value = true;
-  setTimeout(() => {
-    refreshSuccess.value = false;
-  }, 1000);
 };
 
 const sorter = (a: UserProfile, b: UserProfile) => b.creation_time.getTime() - a.creation_time.getTime();
@@ -88,22 +84,11 @@ onMounted(async () => {
           >
             <Icon icon="mdi:unfold-less-horizontal" class="h-5 w-5" />
           </button>
-          <button
-            type="button"
-            @click="handleRefresh"
-            :disabled="profilesLoading"
-            class="rounded-lg p-2 transition disabled:cursor-not-allowed disabled:opacity-60"
-            :class="refreshSuccess
-              ? 'text-green-600 hover:bg-green-100 dark:text-green-400 dark:hover:bg-green-900/30'
-              : 'text-neutral-900 hover:bg-neutral-200 dark:text-neutral-100 dark:hover:bg-neutral-800'"
+          <RefreshButton
+            :refresh="handleRefresh"
+            :loading="profilesLoading"
             title="Refresh profiles"
-          >
-            <Icon
-              :icon="refreshSuccess ? 'mdi:check' : 'mdi:refresh'"
-              class="h-5 w-5"
-              :class="{ 'animate-spin': profilesLoading }"
-            />
-          </button>
+          />
         </div>
       </div>
 
