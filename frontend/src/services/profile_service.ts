@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabaseClient';
-import { type UserProfile, type OrgMembership, type ProfileWithMembership, toProfileWithMembership } from '@/types';
+import { type UserProfile, type OrgMembership, type ProfileWithMembership, toProfileWithMembership, type OrgRole } from '@/types';
 
 export type ProfileWithMemberships = UserProfile & {
   memberships: OrgMembership[];
@@ -147,7 +147,7 @@ export async function removeMembershipFromProfile(
 export async function updateMembershipRole(
   userId: string,
   orgId: string,
-  newRole: string
+  newRole: OrgRole
 ): Promise<void> {
   const { error } = await supabase
     .from('org_members')
