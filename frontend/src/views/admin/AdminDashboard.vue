@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { Icon } from '@iconify/vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
+import Pill from '@/components/ui/Pill.vue';
+
 
 type SidebarRouteName =
   | 'AdminOverview'
@@ -27,6 +29,8 @@ const isSidebarOpen = ref(true);
 
 const signOutError = ref<string | null>(null);
 const signingOut = ref(false);
+const currentTime = ref(new Date());
+let timeInterval: ReturnType<typeof setInterval> | null = null;
 
 const displayName = computed(() => {
   const metadataName = authStore.user?.user_metadata?.name as string | undefined;
@@ -58,6 +62,13 @@ const currentPanelDescription = computed(() => {
   return '';
 });
 
+const greeting = computed(() => {
+  const hours = currentTime.value.getHours();
+  if (hours < 12) return 'Good morning';
+  if (hours < 18) return 'Good afternoon';
+  return 'Good evening';
+});
+
 const toggleSidebar = () => {
   isSidebarOpen.value = !isSidebarOpen.value;
 };
@@ -85,10 +96,23 @@ const handleSignOut = async () => {
   }
   router.push({ name: 'Overview' });
 };
+
+onMounted(() => {
+  timeInterval = setInterval(() => {
+    currentTime.value = new Date();
+  }, 60_000);
+});
+
+onBeforeUnmount(() => {
+  if (timeInterval) {
+    clearInterval(timeInterval);
+    timeInterval = null;
+  }
+});
 </script>
 
 <template>
-  <section class="container-lg py-20">
+  <section class="container py-20">
     <div class="flex flex-col gap-6">
       <div class="flex justify-end">
         <button
@@ -110,7 +134,7 @@ const handleSignOut = async () => {
             <p class="text-xs font-semibold uppercase tracking-[0.4em] text-neutral-500 dark:text-neutral-500">
               Admin
             </p>
-            <nav class="mt-8 flex flex-col gap-3 text-lg font-medium">
+            <nav class="mt-8 flex flex-col gap-3 font-medium">
               <button
                 v-for="item in sidebarLinks"
                 :key="item.id"
@@ -149,9 +173,17 @@ const handleSignOut = async () => {
         <div class="flex-1 space-y-12">
           <header class="border-b border-neutral-200 pb-10 dark:border-neutral-800">
             <template v-if="isOverviewPanel">
-              <h1 class="text-4xl font-semibold text-neutral-900 dark:text-neutral-100">
-                Welcome back, {{ displayName }}.
-              </h1>
+              <div class="flex flex-wrap items-center justify-between gap-4">
+                <h1 class="text-3xl text-black break-words pr-4 dark:text-white">
+                  {{ greeting }}, {{ displayName }}!
+                </h1>
+                <!-- todo: create actual link -->
+                <div class="flex items-center">
+                  <Pill variant="success">InDev</Pill>
+                  <Icon icon="mdi:dot" class="h-3 w-3 text-black dark:text-white" />
+                  <div class="shrink-0 text-sm text-blue-500 dark:text-blue-300">Feedback</div>
+                </div>
+              </div>
               <p class="mt-4 max-w-2xl text-neutral-600 dark:text-neutral-400">
                 Keep tabs on accounts, organizations, and narrations without the extra chrome.
               </p>
