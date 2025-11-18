@@ -44,6 +44,11 @@ const router = createRouter({
       component: () => import('@/views/Inside.vue'),
     },
     {
+      path: '/codexui',
+      name: 'CodexUI',
+      component: () => import('@/views/CodexUI.vue'),
+    },
+    {
       path: '/inside/:slug',
       name: 'InsideArticle',
       component: () => import('@/views/InsideArticle.vue'),
