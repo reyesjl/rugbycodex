@@ -184,7 +184,7 @@ watch(
       class="fixed top-0 z-50 w-full bg-transparent backdrop-blur transition-colors dark:bg-neutral-950/70"
     >
       <div
-        class="container flex items-center justify-between gap-6 px-6 py-5 md:px-8"
+        class="container-lg flex items-center justify-between gap-6 px-6 py-5 md:px-8"
       >
         <div class="flex items-center gap-3 md:gap-4">
           <RouterLink

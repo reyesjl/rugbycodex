@@ -1,35 +1,57 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue';
 import { RouterLink } from 'vue-router';
-import heroImg from '@/assets/logos/Rugbyball.svg';
-import heroWordbox from '@/assets/logos/Rugbycodex.svg';
-// import videoDemo from '@/assets/videos/HeroDemo.webm';
+import heroAnimatedLight from '@/assets/logos/animated/logo-animation-light.mp4';
+import heroAnimatedDark from '@/assets/logos/animated/logo-animation-dark.mp4';
 import narrationDemo from '@/assets/videos/narrationDemo.webm';
 import NarrationDemo from '@/components/NarrationDemo.vue';
 </script>
 
 <template>
   <!-- Hero section -->
-  <section class="hero container flex min-h-screen flex-col items-center justify-center">
-    <div class="text-neutral-400 mt-auto space-y-4">
-      <img :src="heroImg" alt="Rugbycodex"
-        class="lg:mt-20 w-80 md:w-100 lg:w-105 max-w-120 h-auto mx-auto animate-pulse" />
-      <img :src="heroWordbox" alt="Rugbycodex" class="w-80 md:w-100 lg:w-105 max-w-120 h-auto mx-auto" />
-      <div class="text-center">
-        <RouterLink to="/inside" class="inline-flex items-center gap-2 text-xs hover:underline">
-          Inside the Codex
-          <span class="font-semibold text-fuchsia-500">Click Here to Learn More</span>
-        </RouterLink>
+  <section class="hero container flex min-h-screen flex-col overflow-x-hidden">
+    <div class="flex flex-1 flex-col items-center justify-center space-y-8 text-center">
+      <div class="w-full max-w-md md:max-w-lg overflow-hidden">
+        <div class="dark:hidden">
+          <video
+            :src="heroAnimatedLight"
+            class="mx-auto w-full"
+            playsinline
+            autoplay
+            muted
+            loop
+          >
+            Your browser does not support the video tag.
+          </video>
+        </div>
+        <div class="hidden dark:block">
+          <div class="mx-auto max-w-lg md:max-w-xl w-full p-4 pb-6 sm:p-6">
+            <video
+              :src="heroAnimatedDark"
+              class="mx-auto w-full"
+              playsinline
+              autoplay
+              muted
+              loop
+            >
+              Your browser does not support the video tag.
+            </video>
+          </div>
+        </div>
       </div>
+      <RouterLink to="/inside" class="inline-flex items-center gap-2 text-xs hover:underline">
+        Inside the Codex
+        <span class="font-semibold text-fuchsia-500">Click Here to Learn More</span>
+      </RouterLink>
     </div>
-    <div class="mt-auto mb-20 md:mb-8 flex flex-col justify-end items-center">
+    <div class="mt-auto mb-20 flex flex-col items-center justify-end md:mb-8">
       <Icon icon="carbon:arrow-down" class="w-16 h-16 animate-bounce text-neutral-400" />
     </div>
   </section>
 
   <!-- Overview video -->
   <section class="container-lg py-30 flex items-center justify-center">
-    <video class="w-100 md:w-[850px] h-auto border-10 md:border-12 border-neutral-700 rounded-xl" :src="narrationDemo"
+    <video class="w-100 md:w-[850px] h-auto rounded-xl" :src="narrationDemo"
       playsinline autoplay muted loop preload="metadata">
       Your browser does not support the video tag.
     </video>

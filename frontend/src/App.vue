@@ -4,7 +4,7 @@ import { RouterView } from 'vue-router';
 import MainLayout from '@/layouts/MainLayout.vue';
 import MinimalLayout from '@/layouts/MinimalLayout.vue';
 
-const isDarkMode = ref(true);
+const isDarkMode = ref(false);
 const legacyStorageKeys = ['betaRequests.csv'];
 
 const cleanupLegacyLocalStorage = () => {

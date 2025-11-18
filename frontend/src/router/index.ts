@@ -100,12 +100,6 @@ const router = createRouter({
       component: () => import('@/views/Settings.vue'),
       meta: { requiresAuth: true },
     },
-    {
-      path: '/dashboard',
-      name: 'AdminDashboard',
-      component: () => import('@/views/admin/AdminDashboard.vue'),
-      meta: { requiresAuth: true, requiresAdmin: true },
-    },
     ...adminRoutes,
     {
       path: '/organizations/:orgSlug',
@@ -113,6 +107,12 @@ const router = createRouter({
       component: () => import('@/views/organizations/OrganizationDashboard.vue'),
       meta: { requiresAuth: true },
       props: true,
+    },
+    {
+      path: '/:pathMatch(.*)*',
+      name: 'NotFound',
+      component: () => import('@/views/404.vue'),
+      meta: { layout: 'minimal' },
     },
   ],
 });
@@ -144,7 +144,7 @@ router.beforeEach(async (to) => {
   // If an admin navigates to the standard dashboard, redirect them to the admin dashboard
   if (to.name === 'Dashboard' && authStore.isAuthenticated) {
     if (authStore.isAdmin) {
-      return { name: 'AdminDashboard' };
+      return { name: 'AdminOverview' };
     }
   }
 
