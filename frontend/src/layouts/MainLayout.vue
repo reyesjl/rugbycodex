@@ -181,7 +181,7 @@ watch(
   <div>
     <header
       ref="headerRef"
-      class="fixed top-0 z-50 w-full bg-transparent backdrop-blur transition-colors dark:bg-neutral-950"
+      class="fixed top-0 z-50 w-full bg-transparent backdrop-blur transition-colors"
     >
       <div
         class="container-lg flex items-center justify-between gap-6 px-6 py-5 md:px-8"
@@ -234,12 +234,13 @@ watch(
           <RouterLink
             v-else
             to="/dashboard"
-            class="hidden max-w-[14rem] truncate rounded-full bg-neutral-900/80 px-4 py-2 text-sm font-medium text-neutral-100 backdrop-blur transition hover:bg-neutral-900 md:inline-flex"
+            class="hidden max-w-[14rem] truncate rounded-full bg-neutral-800/80 px-4 py-2 text-sm font-medium text-neutral-100 backdrop-blur transition hover:bg-neutral-900 md:inline-flex"
             :title="authStore.user?.user_metadata?.name ?? authStore.user?.email ?? undefined"
           >
             {{ userDisplayName }}
           </RouterLink>
-          <span v-if="authStore.isAdmin">👑</span>
+          <Icon v-if="authStore.isAdmin" icon="mdi:chess-king" class="hidden md:block h-6 w-6 text-black dark:text-white" />
+
         </div>
       </div>
     </header>
@@ -295,8 +296,8 @@ watch(
           >
             Log in
           </RouterLink>
+          <div v-else class="flex flex-row items-center gap-2">
           <RouterLink
-            v-else
             to="/dashboard"
             class="max-w-[14rem] truncate rounded-full bg-neutral-100/80 px-4 py-2 text-sm font-semibold text-neutral-900 transition hover:bg-white/90 md:hidden"
             :title="authStore.user?.user_metadata?.name ?? authStore.user?.email ?? undefined"
@@ -304,6 +305,8 @@ watch(
           >
             {{ userDisplayName }}
           </RouterLink>
+          <Icon v-if="authStore.isAdmin" icon="mdi:chess-king" class="block md:hidden h-6 w-6 text-black dark:text-white" />
+          </div>
         </div>
       </aside>
     </transition>
