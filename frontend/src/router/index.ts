@@ -66,31 +66,31 @@ const router = createRouter({
     {
       path: '/login',
       name: 'Login',
-      component: () => import('@/views/auth/Login.vue'),
+      component: () => import('@/auth/views/Login.vue'),
       meta: { layout: 'minimal', guestOnly: true },
     },
     {
       path: '/reset-password',
       name: 'ResetPassword',
-      component: () => import('@/views/auth/ResetPassword.vue'),
+      component: () => import('@/auth/views/ResetPassword.vue'),
       meta: { layout: 'minimal', guestOnly: true },
     },
     {
       path: '/reset-password/update',
       name: 'ResetPasswordUpdate',
-      component: () => import('@/views/auth/UpdatePassword.vue'),
+      component: () => import('@/auth/views/UpdatePassword.vue'),
       meta: { layout: 'minimal' },
     },
     {
       path: '/signup',
       name: 'Signup',
-      component: () => import('@/views/auth/Signup.vue'),
+      component: () => import('@/auth/views/Signup.vue'),
       meta: { layout: 'minimal', guestOnly: true },
     },
     {
       path: '/confirm-email',
       name: 'ConfirmEmail',
-      component: () => import('@/views/auth/ConfirmEmail.vue'),
+      component: () => import('@/auth/views/ConfirmEmail.vue'),
       meta: { layout: 'minimal' },
     },
     {
