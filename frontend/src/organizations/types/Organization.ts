@@ -9,6 +9,8 @@ export type Organization = {
   bio: string | null;
 };
 
+export type OrganizationUpdateFields = 'name' | 'slug' | 'owner' | 'storage_limit_mb' | 'bio';
+
 /** DTO for creating organizations programmatically. */
 export type CreateOrganizationInput = {
   name: string;
