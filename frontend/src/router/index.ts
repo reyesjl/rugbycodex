@@ -95,19 +95,19 @@ const router = createRouter({
     },
     {
       path: '/dashboard',
-      component: () => import('@/views/Dashboard.vue'),
+      component: () => import('@/profiles/views/Dashboard.vue'),
       meta: { requiresAuth: true },
       name: 'Dashboard',
       children: [
         {
           path: '',
           name: 'DashboardOverview',
-          component: () => import('@/views/dashboard/Overview.vue'),
+          component: () => import('@/profiles/views/dashboard/Overview.vue'),
         },
         {
           path: 'account',
           name: 'DashboardAccount',
-          component: () => import('@/views/dashboard/Account.vue'),
+          component: () => import('@/profiles/views/dashboard/Account.vue'),
         },
       ],
     },
