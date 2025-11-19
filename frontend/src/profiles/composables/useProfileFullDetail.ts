@@ -3,7 +3,7 @@ import { type ProfileDetail } from '@/profiles/types';
 import { profileService } from '@/profiles/services/ProfileService';
 
 
-export function useProfileWithMemberships() {
+export function useProfileFullDetail() {
   const profile = ref<ProfileDetail | null>(null);
   const loading = ref(false);
   const error = ref<string | null>(null);

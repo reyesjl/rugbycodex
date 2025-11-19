@@ -23,3 +23,9 @@ export type UserProfile = {
 
 /** Normalized profile information coupled with all organization memberships. */
 export type ProfileDetail = UserProfile & { memberships: OrgMembership[] };
+
+/**
+ * User profile along with their membership to a specific organization.
+ * Conforms to the VIEW defined ProfileWithMembership in the database.
+ */
+export type ProfileWithMembership = UserProfile & OrgMembership;

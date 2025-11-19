@@ -4,14 +4,16 @@ import { nextTick } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import LoadingIcon from '@/components/LoadingIcon.vue';
 import { Icon } from '@iconify/vue';
-import type { ProfileWithMembership, OrgRole } from '@/types';
-import { getOrganizationMembers, updateMembershipRole } from '@/services/profile_service';
+import type { OrgRole } from '@/types';
 import CustomSelect from '@/components/CustomSelect.vue';
 import ErrorNotification from '@/components/ErrorNotification.vue';
 import SuccessNotification from '@/components/SuccessNotification.vue';
 import { useProfileStore } from '@/stores/profile';
 import { orgService } from '@/organizations/services/OrgService';
 import { type Organization } from '@/organizations/types';
+import { profileService } from '@/profiles/services/ProfileService';
+import { useOrgMembers } from '@/profiles/composables/useOrgMembers';
+import type { ProfileWithMembership } from '@/profiles/types';
 
 const props = defineProps<{ orgSlug: string }>();
 
@@ -29,9 +31,7 @@ const savingBio = ref(false);
 const bioError = ref<string | null>(null);
 
 // Members state
-const members = ref<ProfileWithMembership[]>([]);
-const membersLoading = ref(true);
-const memberLoadError = ref<string | null>(null);
+const orgMembers = useOrgMembers();
 const searchQuery = ref('');
 const refreshSuccess = ref(false);
 
@@ -42,10 +42,6 @@ const orgRoleOptions = [
   { label: 'Member', value: 'member' },
   { label: 'Viewer', value: 'viewer' },
 ];
-
-const memberCount = computed(() => {
-  return members.value.length;
-});
 
 const startEditingBio = () => {
   bioEditText.value = org.value?.bio ?? '';
@@ -83,25 +79,6 @@ const saveBio = async () => {
   }
 };
 
-async function loadMembers() {
-  if (!org.value) {
-    memberLoadError.value = "No Organization Present";
-    members.value = [];
-    return;
-  }
-
-  membersLoading.value = true;
-  try {
-    members.value = await getOrganizationMembers(org.value.id);
-    console.log('Loaded members:', members.value);
-  } catch (e) {
-    memberLoadError.value = e instanceof Error ? e.message : 'Failed to fetch members';
-    members.value = [];
-  } finally {
-    membersLoading.value = false;
-  }
-}
-
 const memberRoleError = ref<string | null>(null);
 const memberRoleSuccess = ref<string | null>(null);
 
@@ -120,7 +97,7 @@ async function handleMemberRoleChange(member: ProfileWithMembership, newRole: Or
   memberRoleSuccess.value = null;
   memberRoleError.value = null;
   try {
-    await updateMembershipRole(member.id, org.value.id, newRole);
+    await profileService.memberships.setRole(member.id, org.value.id, newRole);
     // Update local state
     memberRoleSuccess.value = `Successfully updated role for ${member.name} to ${newRole}.`;
     member.org_role = newRole;
@@ -139,7 +116,7 @@ onMounted(async () => {
     loading.value = false;
   }
 
-  await loadMembers();
+  await orgMembers.loadMembers(org.value?.id ?? '');
 });
 
 const orgName = computed(() => org.value?.name ?? 'Organization');
@@ -147,8 +124,9 @@ const orgCreated = computed(() => org.value?.created_at ?? new Date());
 const storageLimitMB = computed(() => org.value?.storage_limit_mb ?? 0);
 const canEdit = computed(() => profileStore.canManageOrg(org.value?.id ?? '') || authStore.isAdmin);
 const showAllMembers = ref(false);
+
 const filteredMembers = computed(() => {
-  let result = members.value;
+  let result = [...orgMembers.list.value];
   if (!searchQuery.value.trim()) {
     return result;
   }
@@ -165,7 +143,7 @@ const displayedMembers = computed(() =>
 );
 
 async function handleRefreshMembers() {
-  await loadMembers();
+  await orgMembers.loadMembers(org.value?.id ?? '');
   refreshSuccess.value = true;
   await nextTick();
   setTimeout(() => {
@@ -287,11 +265,11 @@ async function handleRefreshMembers() {
         :error-title="'Error Modifying Role'" />
       <SuccessNotification v-if="memberRoleSuccess" :success-message="memberRoleSuccess"
         @clear-success="memberRoleSuccess = null" :success-title="'Role Modified Successfully'" />
-      <div v-if="memberLoadError" class="mt-4">
-        <p class="text-sm text-rose-500 dark:text-rose-400">Error: {{ memberLoadError }}</p>
+      <div v-if="orgMembers.error" class="mt-4">
+        <p class="text-sm text-rose-500 dark:text-rose-400">Error: {{ orgMembers.error }}</p>
       </div>
       <div v-else class="scrolling-list mt-4 overflow-y-auto space-y-4 pr-2">
-        <div v-if="members.length === 0 && !membersLoading" class="mt-4">
+        <div v-if="orgMembers.memberCount.value === 0 && !orgMembers.loading" class="mt-4">
           <p class="text-neutral-600 dark:text-neutral-400">
             No members found.
           </p>
@@ -308,13 +286,13 @@ async function handleRefreshMembers() {
                 <span class="text-xs text-neutral-500 dark:text-neutral-400">
                   {{ filteredMembers.length }} total
                 </span>
-                <button type="button" @click="handleRefreshMembers" :disabled="membersLoading"
+                <button type="button" @click="handleRefreshMembers" :disabled="orgMembers.loading.value"
                   class="rounded-lg p-2 transition disabled:cursor-not-allowed disabled:opacity-60" :class="refreshSuccess
                     ? 'text-green-600 hover:bg-green-100 dark:text-green-400 dark:hover:bg-green-900/30'
                     : 'text-neutral-900 hover:bg-neutral-200 dark:text-neutral-100 dark:hover:bg-neutral-800'"
                   title="Refresh members">
                   <Icon :icon="refreshSuccess ? 'mdi:check' : 'mdi:refresh'" class="h-5 w-5"
-                    :class="{ 'animate-spin': membersLoading }" />
+                    :class="{ 'animate-spin': orgMembers.loading }" />
                 </button>
               </div>
             </div>
@@ -344,9 +322,9 @@ async function handleRefreshMembers() {
               </ul>
             </div>
 
-            <button v-if="!showAllMembers && memberCount > 10" @click="showAllMembers = true"
+            <button v-if="!showAllMembers && orgMembers.memberCount.value > 10" @click="showAllMembers = true"
               class="mt-4 w-full rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 transition hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800">
-              Show all {{ memberCount }} members
+              Show all {{ orgMembers.memberCount.value }} members
             </button>
 
             <button v-if="showAllMembers" @click="showAllMembers = false"

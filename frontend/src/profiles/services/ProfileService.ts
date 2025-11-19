@@ -3,11 +3,9 @@ import { supabase } from '@/lib/supabaseClient';
 import {
   type OrgMembership,
   type OrgRole,
-  type ProfileWithMembership,
-  toProfileWithMembership,
 } from '@/types';
 
-import type { ProfileDetail, UserProfile } from '@/profiles/types';
+import type { ProfileDetail, ProfileWithMembership, UserProfile } from '@/profiles/types';
 
 /**
  * ProfileServiceV2 centralizes all profile and membership data access logic. It is the successor to
@@ -93,6 +91,24 @@ function toMembership(row: MembershipRelationRow): OrgMembership {
     slug: row.organization?.slug ?? 'unknown',
     org_role: row.role,
     join_date: asDate(row.joined_at, 'membership join'),
+  };
+}
+
+function toProfileWithMembership(row: any): ProfileWithMembership {
+  return {
+    // UserProfile fields
+    id: row.id,
+    name: row.name,
+    xp: row.xp,
+    creation_time: new Date(row.creation_time),
+    role: row.role,
+
+    // OrgMembership fields
+    org_id: row.org_id,
+    org_name: row.org_name,
+    slug: row.slug,
+    org_role: row.org_role,
+    join_date: new Date(row.join_date),
   };
 }
 
