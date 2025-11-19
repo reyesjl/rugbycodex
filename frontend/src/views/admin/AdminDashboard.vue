@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type ComponentPublicInstance, type VNodeRef } from 'vue';
 import { Icon } from '@iconify/vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
@@ -29,7 +29,13 @@ const signOutError = ref<string | null>(null);
 const signingOut = ref(false);
 const currentTime = ref(new Date());
 let timeInterval: ReturnType<typeof setInterval> | null = null;
-const tabRefs = ref<Record<SidebarRouteName, HTMLElement | null>>({});
+const tabRefs = ref<Record<SidebarRouteName, HTMLElement | null>>({
+  AdminOverview: null,
+  AdminAccount: null,
+  AdminListOrgs: null,
+  AdminListProfiles: null,
+  AdminNarrations: null,
+});
 
 const displayName = computed(() => {
   const metadataName = authStore.user?.user_metadata?.name as string | undefined;
@@ -58,8 +64,8 @@ const greeting = computed(() => {
   return 'Good evening';
 });
 
-const setTabRef = (id: SidebarRouteName) => (el: HTMLElement | null) => {
-  tabRefs.value[id] = el;
+const setTabRef = (id: SidebarRouteName) => (el: Element | ComponentPublicInstance | null) => {
+  tabRefs.value[id] = el as HTMLElement | null;
 };
 
 const scrollTabIntoView = (id: SidebarRouteName) => {

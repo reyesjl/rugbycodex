@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type ComponentPublicInstance } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { useProfileStore } from '@/stores/profile';
@@ -30,8 +30,8 @@ const tabs: DashboardTab[] = [
 
 const tabRefs = ref<Record<string, HTMLElement | null>>({});
 
-const setTabRef = (id: string) => (el: HTMLElement | null) => {
-  tabRefs.value[id] = el;
+const setTabRef = (id: string) => (el: Element | ComponentPublicInstance | null) => {
+  tabRefs.value[id] = el as HTMLElement | null;
 };
 
 const scrollTabIntoView = (id: string) => {
