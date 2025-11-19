@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue';
 import { useRouter } from 'vue-router';
-import { stringToSlugCase } from '@/utils';
+import { stringToSlugCase } from '@/lib';
 import CustomSelect from '@/components/CustomSelect.vue';
 import { orgService } from '@/organizations/services/OrgService';
 import { type CreateOrganizationInput } from '@/organizations/types';
