@@ -1,16 +1,16 @@
 <script setup lang="ts">
-import { deleteOrganizationById, getAllOrganizations, type Organization } from '@/services/org_service';
 import { onMounted, ref, computed } from 'vue';
 import AnimatedLink from '@/components/AnimatedLink.vue';
 import { Icon } from '@iconify/vue';
 import { useRouter } from 'vue-router';
 import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
+import { useOrganizationList } from '@/organizations/composables/useOrganizationsList';
+import { orgService } from '@/organizations/services/OrgService';
+import type { Organization } from '@/organizations/types';
 
 const router = useRouter();
-const orgs = ref<Organization[]>([]);
-const orgLoadError = ref<string | null>(null);
-const orgsLoading = ref(true);
+const orgList = useOrganizationList();
 
 const orgDeleteError = ref<string | null>(null);
 const expandedOrgs = ref<Set<string>>(new Set());
@@ -36,20 +36,9 @@ const collapseAll = () => {
   expandedOrgs.value.clear();
 };
 
-const loadOrganizations = async () => {
-  orgsLoading.value = true;
-  orgLoadError.value = null;
-  try {
-    orgs.value = await getAllOrganizations();
-  } catch (error) {
-    orgLoadError.value = error instanceof Error ? error.message : 'Failed to load organizations.';
-  } finally {
-    orgsLoading.value = false;
-  }
-};
 
 const handleRefresh = async () => {
-  await loadOrganizations();
+  await orgList.loadOrganizations();
 };
 
 const handleCreateOrg = () => {
@@ -57,14 +46,13 @@ const handleCreateOrg = () => {
 };
 
 const filteredOrgs = computed(() => {
-  const sorter = (a: Organization, b: Organization) => b.created_at.getTime() - a.created_at.getTime();
   if (!searchQuery.value.trim()) {
-    return [...orgs.value].sort(sorter);
+    return [...orgList.organizations.value];
   }
   const query = searchQuery.value.toLowerCase();
-  return orgs.value.filter(org =>
+  return orgList.organizations.value.filter(org =>
     org.name.toLowerCase().includes(query)
-  ).sort(sorter);
+  );
 });
 
 const openDeleteModal = (org: Organization) => {
@@ -87,8 +75,8 @@ const confirmDelete = async () => {
   orgDeleteError.value = null;
 
   try {
-    await deleteOrganizationById(orgToDelete.value.id);
-    await loadOrganizations();
+    await orgService.organizations.deleteById(orgToDelete.value.id);
+    await orgList.loadOrganizations();
     showDeleteModal.value = false;
     orgToDelete.value = null;
   } catch (error) {
@@ -103,7 +91,7 @@ const handleDelete = (org: Organization) => {
 };
 
 onMounted(async () => {
-  await loadOrganizations();
+  await orgList.loadOrganizations();
 });
 
 </script>
@@ -135,7 +123,7 @@ onMounted(async () => {
           </button>
           <RefreshButton
             :refresh="handleRefresh"
-            :loading="orgsLoading"
+            :loading="orgList.loading.value"
             title="Refresh organizations"
           />
         </div>
@@ -153,13 +141,13 @@ onMounted(async () => {
         </div>
       </div>
 
-      <div v-if="filteredOrgs.length === 0 && !orgsLoading && !orgLoadError" class="mt-4">
+      <div v-if="filteredOrgs.length === 0 && !orgList.loading.value && !orgList.error.value" class="mt-4">
         <p class="text-neutral-600 dark:text-neutral-400">
           {{ searchQuery ? 'No organizations match your search.' : 'No organizations found.' }}
         </p>
       </div>
-      <div v-else-if="orgLoadError" class="mt-4">
-        <p class="text-sm text-rose-500 dark:text-rose-400">Error: {{ orgLoadError }}</p>
+      <div v-else-if="orgList.error.value" class="mt-4">
+        <p class="text-sm text-rose-500 dark:text-rose-400">Error: {{ orgList.error.value }}</p>
       </div>
       <div v-else class="scrolling-list mt-4 max-h-[60vh] space-y-4 overflow-y-auto pr-2">
         <TransitionGroup name="org-list" tag="div" class="space-y-4">
