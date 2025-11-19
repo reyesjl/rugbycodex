@@ -53,12 +53,14 @@ type ProfileWithMembershipViewRow = ProfileRow & {
   join_date: string | Date | null;
 };
 
+/** Normalized profile information coupled with all organization memberships. */
 export type ProfileDetail = UserProfile & { memberships: OrgMembership[] };
 
 // Backward compatibility: legacy type alias
 // TODO: Remove eventually? @Bennm23
 export type ProfileWithMemberships = ProfileDetail;
 
+/** Shape used by the XP leaderboard cards and tables. */
 export type MemberLeaderboardEntry = {
   id: string;
   name: string;
