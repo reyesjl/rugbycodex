@@ -7,7 +7,7 @@ import {
   toProfileWithMembership,
 } from '@/types';
 
-import type { UserProfile } from '@/profiles/types';
+import type { ProfileDetail, UserProfile } from '@/profiles/types';
 
 /**
  * ProfileServiceV2 centralizes all profile and membership data access logic. It is the successor to
@@ -53,13 +53,6 @@ type ProfileWithMembershipViewRow = ProfileRow & {
   org_role: OrgRole;
   join_date: string | Date | null;
 };
-
-/** Normalized profile information coupled with all organization memberships. */
-export type ProfileDetail = UserProfile & { memberships: OrgMembership[] };
-
-// Backward compatibility: legacy type alias
-// TODO: Remove eventually? @Bennm23
-export type ProfileWithMemberships = ProfileDetail;
 
 /** Shape used by the XP leaderboard cards and tables. */
 export type MemberLeaderboardEntry = {

@@ -2,30 +2,24 @@
 import { ref, onMounted, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
-import {
-  getProfileById,
-  addMembershipToProfile,
-  removeMembershipFromProfile,
-  type ProfileWithMemberships,
-} from '@/services/profile_service';
 import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
-import type { OrgMembership } from '@/types';
+import type { OrgRole, OrgMembership } from '@/types';
 import CustomSelect from '@/components/CustomSelect.vue';
 import { MEMBERSHIP_ROLES } from '@/constants/memberships';
 import { useOrganizationList } from '@/organizations/composables/useOrganizationsList';
+import { useProfileWithMemberships } from '@/profiles/composables/useProfileWithMemberships';
+import { profileService } from '@/profiles/services/ProfileService';
 
 const route = useRoute();
 const router = useRouter();
 
-const profile = ref<ProfileWithMemberships | null>(null);
+const profileDetail = useProfileWithMemberships();
 const orgList = useOrganizationList();
-const profileLoading = ref(true);
-const profileError = ref<string | null>(null);
 
 const addMembershipError = ref<string | null>(null);
 const isAddingMembership = ref(false);
 const selectedOrgSlug = ref('');
-const selectedRole = ref('member');
+const selectedRole = ref<OrgRole>('member');
 const searchOrgQuery = ref('');
 const showOrgDropdown = ref(false);
 
@@ -35,26 +29,6 @@ const isDeletingMembership = ref(false);
 const membershipDeleteError = ref<string | null>(null);
 
 const availableRoles = MEMBERSHIP_ROLES;
-
-const loadProfile = async () => {
-  const userId = route.params.id as string;
-  if (!userId) {
-    profileError.value = 'No profile ID provided.';
-    profileLoading.value = false;
-    return;
-  }
-
-  profileLoading.value = true;
-  profileError.value = null;
-
-  try {
-    profile.value = await getProfileById(userId);
-  } catch (error) {
-    profileError.value = error instanceof Error ? error.message : 'Failed to load profile.';
-  } finally {
-    profileLoading.value = false;
-  }
-};
 
 const filteredOrganizations = computed(() => {
   if (!searchOrgQuery.value.trim()) {
@@ -67,21 +41,25 @@ const filteredOrganizations = computed(() => {
 });
 
 const availableOrganizations = computed(() => {
-  if (!profile.value) return filteredOrganizations.value;
+  if (!profileDetail.profile.value) return filteredOrganizations.value;
   
-  const memberOrgIds = new Set(profile.value.memberships.map(m => m.org_id));
+  const memberOrgIds = new Set(profileDetail.profile.value.memberships.map(m => m.org_id));
   return filteredOrganizations.value.filter(org => !memberOrgIds.has(org.id));
 });
 
 const handleAddMembership = async () => {
-  if (!profile.value || !selectedOrgSlug.value) return;
+  if (!profileDetail.profile.value || !selectedOrgSlug.value) return;
 
   isAddingMembership.value = true;
   addMembershipError.value = null;
 
   try {
-    await addMembershipToProfile(profile.value.id, selectedOrgSlug.value, selectedRole.value);
-    await loadProfile();
+    await profileService.memberships.addByOrgSlug(
+      profileDetail.profile.value.id,
+      selectedOrgSlug.value,
+      selectedRole.value
+    );
+    await profileDetail.loadProfile(route.params.id as string);
     selectedOrgSlug.value = '';
     selectedRole.value = 'member';
     searchOrgQuery.value = '';
@@ -107,14 +85,17 @@ const closeDeleteModal = () => {
 };
 
 const confirmDeleteMembership = async () => {
-  if (!profile.value || !membershipToDelete.value) return;
+  if (!profileDetail.profile.value || !membershipToDelete.value) return;
 
   isDeletingMembership.value = true;
   membershipDeleteError.value = null;
 
   try {
-    await removeMembershipFromProfile(profile.value.id, membershipToDelete.value.org_id);
-    await loadProfile();
+    await profileService.memberships.remove(
+      profileDetail.profile.value.id,
+      membershipToDelete.value.org_id
+    );
+    await profileDetail.loadProfile(route.params.id as string);
     showDeleteModal.value = false;
     membershipToDelete.value = null;
   } catch (error) {
@@ -137,12 +118,12 @@ const getSelectedOrgName = computed(() => {
 });
 
 const deleteText = computed(() => {
-  if (!membershipToDelete.value || !profile.value) return '';
-  return `Membership to ${membershipToDelete.value.org_name} for profile ${profile.value.name}`;
+  if (!membershipToDelete.value || !profileDetail.profile.value) return '';
+  return `Membership to ${membershipToDelete.value.org_name} for profile ${profileDetail.profile.value.name}`;
 });
 
 onMounted(async () => {
-  await Promise.all([loadProfile(), orgList.loadOrganizations()]);
+  await Promise.all([profileDetail.loadProfile(route.params.id as string), orgList.loadOrganizations()]);
 });
 </script>
 
@@ -161,7 +142,7 @@ onMounted(async () => {
             Rugbycodex Admin
           </p>
           <h1 class="mt-3 text-2xl font-semibold text-neutral-900 dark:text-neutral-100">
-            {{ profile?.name || 'Profile Details' }}
+            {{ profileDetail.profile.value?.name || 'Profile Details' }}
           </h1>
           <p class="mt-4 max-w-xl text-neutral-600 dark:text-neutral-400">
             View and manage profile information and organization memberships.</p>
@@ -169,16 +150,16 @@ onMounted(async () => {
       </div>
     </header>
 
-    <div v-if="profileLoading" class="text-center">
+    <div v-if="profileDetail.loading" class="text-center">
       <Icon icon="mdi:loading" class="h-8 w-8 animate-spin text-neutral-500" />
     </div>
 
-    <div v-else-if="profileError"
+    <div v-else-if="profileDetail.error"
       class="rounded-3xl bg-neutral-100/80 p-8 shadow-[0_40px_80px_rgba(15,23,42,0.1)] backdrop-blur dark:bg-neutral-900/70 dark:shadow-[0_40px_80px_rgba(15,23,42,0.35)]">
-      <p class="text-sm text-rose-500 dark:text-rose-400">Error: {{ profileError }}</p>
+      <p class="text-sm text-rose-500 dark:text-rose-400">Error: {{ profileDetail.error }}</p>
     </div>
 
-    <template v-else-if="profile">
+    <template v-else-if="profileDetail.profile.value">
       <!-- Profile Information -->
       <section
         class="rounded-3xl bg-neutral-100/80 p-8 shadow-[0_40px_80px_rgba(15,23,42,0.1)] backdrop-blur dark:bg-neutral-900/70 dark:shadow-[0_40px_80px_rgba(15,23,42,0.35)]">
@@ -186,23 +167,23 @@ onMounted(async () => {
         <div class="mt-6 space-y-3">
           <div class="flex justify-between border-b border-neutral-200 pb-2 dark:border-neutral-800">
             <span class="text-sm font-medium text-neutral-600 dark:text-neutral-400">ID:</span>
-            <span class="text-sm text-neutral-900 dark:text-neutral-100">{{ profile.id }}</span>
+            <span class="text-sm text-neutral-900 dark:text-neutral-100">{{ profileDetail.profile.value.id }}</span>
           </div>
           <div class="flex justify-between border-b border-neutral-200 pb-2 dark:border-neutral-800">
             <span class="text-sm font-medium text-neutral-600 dark:text-neutral-400">Name:</span>
-            <span class="text-sm text-neutral-900 dark:text-neutral-100">{{ profile.name }}</span>
+            <span class="text-sm text-neutral-900 dark:text-neutral-100">{{ profileDetail.profile.value.name }}</span>
           </div>
           <div class="flex justify-between border-b border-neutral-200 pb-2 dark:border-neutral-800">
             <span class="text-sm font-medium text-neutral-600 dark:text-neutral-400">Role:</span>
-            <span class="text-sm text-neutral-900 dark:text-neutral-100 capitalize">{{ profile.role }}</span>
+            <span class="text-sm text-neutral-900 dark:text-neutral-100 capitalize">{{ profileDetail.profile.value.role }}</span>
           </div>
           <div class="flex justify-between border-b border-neutral-200 pb-2 dark:border-neutral-800">
             <span class="text-sm font-medium text-neutral-600 dark:text-neutral-400">XP:</span>
-            <span class="text-sm text-neutral-900 dark:text-neutral-100">{{ profile.xp ?? 'N/A' }}</span>
+            <span class="text-sm text-neutral-900 dark:text-neutral-100">{{ profileDetail.profile.value.xp ?? 'N/A' }}</span>
           </div>
           <div class="flex justify-between border-b border-neutral-200 pb-2 dark:border-neutral-800">
             <span class="text-sm font-medium text-neutral-600 dark:text-neutral-400">Created:</span>
-            <span class="text-sm text-neutral-900 dark:text-neutral-100">{{ profile.creation_time.toLocaleString()
+            <span class="text-sm text-neutral-900 dark:text-neutral-100">{{ profileDetail.profile.value.creation_time.toLocaleString()
               }}</span>
           </div>
         </div>
@@ -309,13 +290,13 @@ onMounted(async () => {
         </div>
 
         <!-- Memberships List -->
-        <div v-if="profile.memberships.length === 0" class="mt-6">
+        <div v-if="profileDetail.membershipCount.value === 0" class="mt-6">
           <p class="text-neutral-600 dark:text-neutral-400">No organization memberships.</p>
         </div>
         <div v-else class="mt-6 space-y-3">
           <TransitionGroup name="membership-list" tag="div" class="space-y-3">
             <div
-              v-for="membership in profile.memberships"
+              v-for="membership in profileDetail.memberships.value"
               :key="membership.org_id"
               class="flex items-center justify-between rounded-lg border border-neutral-200 bg-white/50 p-4 dark:border-neutral-800 dark:bg-neutral-950/50"
             >

@@ -4,7 +4,8 @@ import { useRouter } from 'vue-router';
 import AnimatedLink from '@/components/AnimatedLink.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
 import { getDashboardStats, type DashboardStats } from '@/services/stats_service';
-import { getTopMembersByXp, type MemberLeaderboardEntry } from '@/services/profile_service';
+import type { MemberLeaderboardEntry } from '@/profiles/types';
+import { profileService } from '@/profiles/services/ProfileService';
 
 const router = useRouter();
 
@@ -34,7 +35,7 @@ const loadDashboardData = async () => {
 
   const [statsResult, membersResult] = await Promise.allSettled([
     getDashboardStats(),
-    getTopMembersByXp(10),
+    profileService.leaderboard.topMembers(10),
   ]);
 
   if (statsResult.status === 'fulfilled') {

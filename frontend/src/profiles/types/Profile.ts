@@ -1,3 +1,5 @@
+import type { OrgMembership } from "@/types";
+
 /**
  * Role given to a profile which controls access and moderation abilities.
  */
@@ -18,3 +20,6 @@ export type UserProfile = {
   /** Access level granted to the profile. */
   role: ProfileRole;
 };
+
+/** Normalized profile information coupled with all organization memberships. */
+export type ProfileDetail = UserProfile & { memberships: OrgMembership[] };

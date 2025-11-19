@@ -14,7 +14,7 @@ export function useProfilesList() {
     try {
       profiles.value = await profileService.profiles.list();
     } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Failed to load organizations.';
+      error.value = e instanceof Error ? e.message : 'Failed to load profiles.';
     } finally {
       loading.value = false;
     }
