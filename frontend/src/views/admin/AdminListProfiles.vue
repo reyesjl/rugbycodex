@@ -117,7 +117,7 @@ onMounted(async () => {
           <div
             v-for="profile in filteredProfiles"
             :key="profile.id"
-            class="overflow-hidden rounded-lg border border-neutral-200/60 bg-white/80 shadow-[0_12px_40px_rgba(15,23,42,0.08)] transition-colors dark:border-neutral-800/70 dark:bg-neutral-950/70 dark:shadow-[0_12px_40px_rgba(15,23,42,0.35)]"
+            class="overflow-hidden rounded-lg border border-neutral-200/60 bg-white/80 transition-colors dark:border-neutral-800/70 dark:bg-neutral-950/70 dark:shadow-[0_12px_40px_rgba(15,23,42,0.35)]"
           >
             <div
               @click="toggleExpand(profile.id)"
