@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref, computed } from 'vue';
 import { nextTick } from 'vue';
-import { useAuthStore } from '@/stores/auth';
+import { useAuthStore } from '@/auth/stores/useAuthStore';
 import LoadingIcon from '@/components/LoadingIcon.vue';
 import { Icon } from '@iconify/vue';
 import type { OrgRole } from '@/types';

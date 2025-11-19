@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type ComponentPublicInstance } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { useAuthStore } from '@/stores/auth';
+import { useAuthStore } from '@/auth/stores/useAuthStore';
 import { useProfileStore } from '@/profiles/stores/useProfileStore';
 
 type DashboardTabRoute = 'DashboardOverview' | 'DashboardAccount';

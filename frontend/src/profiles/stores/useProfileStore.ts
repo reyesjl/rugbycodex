@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref, watch } from 'vue';
 import { supabase } from '@/lib/supabaseClient';
-import { useAuthStore } from '@/stores/auth';
+import { useAuthStore } from '@/auth/stores/useAuthStore';
 import type { OrgMembership } from '@/types';
 import type { UserProfile } from '@/profiles/types';
 
@@ -63,7 +63,7 @@ export const useProfileStore = defineStore('profile', () => {
     if (!membership) return false;
     return membership.org_role === 'owner' || membership.org_role === 'manager';
   };
-  
+
   const fetchProfile = async (userId: string) => {
     // TODO: Interrupt ongoing fetch?
     if (profile.value?.id === userId) {

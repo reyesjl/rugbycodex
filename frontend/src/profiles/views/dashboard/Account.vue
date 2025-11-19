@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { useAuthStore } from '@/stores/auth';
+import { useAuthStore } from '@/auth/stores/useAuthStore';
 
 const authStore = useAuthStore();
 
@@ -15,7 +15,8 @@ const lastSignInAt = computed(() => authStore.user?.last_sign_in_at);
 
 <template>
   <section class="grid gap-6 md:grid-cols-2">
-    <article class="rounded-2xl border border-neutral-200 bg-white p-6 text-neutral-900 shadow-sm dark:border-neutral-800 dark:bg-neutral-950/60 dark:text-neutral-100">
+    <article
+      class="rounded-2xl border border-neutral-200 bg-white p-6 text-neutral-900 shadow-sm dark:border-neutral-800 dark:bg-neutral-950/60 dark:text-neutral-100">
       <h3 class="text-sm font-semibold uppercase text-neutral-500 dark:text-neutral-400">
         Account
       </h3>

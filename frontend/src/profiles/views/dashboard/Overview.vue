@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { useAuthStore } from '@/stores/auth';
+import { useAuthStore } from '@/auth/stores/useAuthStore';
 
 const authStore = useAuthStore();
 const narrationCount = computed(() => 0);
@@ -13,7 +13,8 @@ const displayName = computed(() => {
 
 <template>
   <section class="space-y-6">
-    <article class="rounded-2xl border border-neutral-200 bg-neutral-50/90 p-6 text-neutral-900 shadow-[0_10px_30px_rgba(0,0,0,0.05)] dark:border-neutral-800 dark:bg-neutral-900/80 dark:text-neutral-100 dark:shadow-[0_10px_30px_rgba(0,0,0,0.35)]">
+    <article
+      class="rounded-2xl border border-neutral-200 bg-neutral-50/90 p-6 text-neutral-900 shadow-[0_10px_30px_rgba(0,0,0,0.05)] dark:border-neutral-800 dark:bg-neutral-900/80 dark:text-neutral-100 dark:shadow-[0_10px_30px_rgba(0,0,0,0.35)]">
       <p class="text-xs font-semibold uppercase text-neutral-500 dark:text-neutral-400">
         Narrations
       </p>

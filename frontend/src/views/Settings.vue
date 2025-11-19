@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
-import { DISPLAY_NAME_MAX_LENGTH, DISPLAY_NAME_MIN_LENGTH, useAuthStore } from '@/stores/auth';
+import { DISPLAY_NAME_MAX_LENGTH, DISPLAY_NAME_MIN_LENGTH, useAuthStore } from '@/auth/stores/useAuthStore';
 
 const authStore = useAuthStore();
 const displayName = ref('');
@@ -82,8 +82,7 @@ const handleSubmit = async () => {
 <template>
   <section class="space-y-6">
     <article
-      class="rounded-3xl border border-neutral-200/60 bg-white/80 p-6 shadow-[0_24px_60px_rgba(15,23,42,0.08)] transition-colors dark:border-neutral-800/70 dark:bg-neutral-950/70 dark:shadow-[0_24px_60px_rgba(15,23,42,0.35)]"
-    >
+      class="rounded-3xl border border-neutral-200/60 bg-white/80 p-6 shadow-[0_24px_60px_rgba(15,23,42,0.08)] transition-colors dark:border-neutral-800/70 dark:bg-neutral-950/70 dark:shadow-[0_24px_60px_rgba(15,23,42,0.35)]">
       <div>
         <p class="text-xs font-semibold uppercase tracking-[0.3em] text-neutral-500 dark:text-neutral-500">
           Account Settings
@@ -98,15 +97,9 @@ const handleSubmit = async () => {
           <label for="display-name" class="text-sm font-medium text-neutral-700 dark:text-neutral-200">
             Display name
           </label>
-          <input
-            id="display-name"
-            v-model="displayName"
-            type="text"
-            :maxlength="DISPLAY_NAME_MAX_LENGTH"
+          <input id="display-name" v-model="displayName" type="text" :maxlength="DISPLAY_NAME_MAX_LENGTH"
             class="block w-full rounded-2xl border border-neutral-200/70 bg-white/80 px-4 py-3 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/30 dark:border-neutral-700/70 dark:bg-neutral-900/60 dark:text-neutral-50 dark:placeholder:text-neutral-500 dark:focus:ring-neutral-100/30"
-            placeholder="Enter your preferred name"
-            autocomplete="name"
-          />
+            placeholder="Enter your preferred name" autocomplete="name" />
           <p class="text-xs text-neutral-500 dark:text-neutral-400">
             {{ trimmedLength }} characters &middot; keep between {{ DISPLAY_NAME_MIN_LENGTH }} and
             {{ DISPLAY_NAME_MAX_LENGTH }} characters.
@@ -117,15 +110,11 @@ const handleSubmit = async () => {
         </div>
 
         <div class="space-y-3">
-          <button
-            type="submit"
+          <button type="submit"
             class="inline-flex items-center justify-center rounded-2xl bg-neutral-900 px-6 py-3 text-sm font-semibold uppercase tracking-[0.2em] text-neutral-100 transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-neutral-50 dark:text-neutral-900 dark:hover:bg-neutral-200"
-            :disabled="!canSubmit"
-          >
-            <span
-              v-if="saving"
-              class="mr-3 h-4 w-4 animate-spin rounded-full border-2 border-neutral-200 border-t-transparent dark:border-neutral-700"
-            ></span>
+            :disabled="!canSubmit">
+            <span v-if="saving"
+              class="mr-3 h-4 w-4 animate-spin rounded-full border-2 border-neutral-200 border-t-transparent dark:border-neutral-700"></span>
             <span>{{ saving ? 'Saving…' : 'Save changes' }}</span>
           </button>
 

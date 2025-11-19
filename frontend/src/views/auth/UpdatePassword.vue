@@ -2,7 +2,7 @@
 import { computed, reactive, ref, watch, onMounted } from 'vue';
 import { RouterLink, useRoute, useRouter } from 'vue-router';
 import { supabase } from '@/lib/supabaseClient';
-import { useAuthStore } from '@/stores/auth';
+import { useAuthStore } from '@/auth/stores/useAuthStore';
 
 const authStore = useAuthStore();
 const route = useRoute();
@@ -135,10 +135,8 @@ const handleSubmit = async () => {
 <template>
   <section class="container flex min-h-screen items-center justify-center pt-24 pb-24">
     <div class="w-full max-w-lg space-y-10">
-      <RouterLink
-        to="/"
-        class="mx-auto inline-flex items-center gap-2 text-sm font-medium text-neutral-500 transition hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100"
-      >
+      <RouterLink to="/"
+        class="mx-auto inline-flex items-center gap-2 text-sm font-medium text-neutral-500 transition hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100">
         Home
       </RouterLink>
       <header class="space-y-3 text-center">
@@ -151,60 +149,39 @@ const handleSubmit = async () => {
         </p>
       </header>
 
-      <div
-        v-if="loading"
-        class="rounded-3xl border border-neutral-200/60 bg-white/80 p-8 text-center shadow-[0_24px_60px_rgba(15,23,42,0.08)] backdrop-blur-md dark:border-neutral-800/70 dark:bg-neutral-950/70 dark:shadow-[0_24px_60px_rgba(15,23,42,0.35)]"
-      >
+      <div v-if="loading"
+        class="rounded-3xl border border-neutral-200/60 bg-white/80 p-8 text-center shadow-[0_24px_60px_rgba(15,23,42,0.08)] backdrop-blur-md dark:border-neutral-800/70 dark:bg-neutral-950/70 dark:shadow-[0_24px_60px_rgba(15,23,42,0.35)]">
         <p class="text-sm text-neutral-600 dark:text-neutral-300">Validating your reset link…</p>
       </div>
 
-      <div
-        v-else-if="initializationError"
-        class="rounded-3xl border border-rose-300/60 bg-rose-50/80 p-8 text-center shadow-[0_24px_60px_rgba(15,23,42,0.08)] backdrop-blur-md dark:border-rose-900/70 dark:bg-rose-950/70 dark:text-rose-100 dark:shadow-[0_24px_60px_rgba(76,5,25,0.35)]"
-      >
+      <div v-else-if="initializationError"
+        class="rounded-3xl border border-rose-300/60 bg-rose-50/80 p-8 text-center shadow-[0_24px_60px_rgba(15,23,42,0.08)] backdrop-blur-md dark:border-rose-900/70 dark:bg-rose-950/70 dark:text-rose-100 dark:shadow-[0_24px_60px_rgba(76,5,25,0.35)]">
         <p class="text-sm">{{ initializationError }}</p>
-        <RouterLink
-          to="/reset-password"
-          class="mt-6 inline-flex items-center justify-center rounded-full border border-rose-400 px-4 py-2 text-sm font-medium text-rose-600 transition hover:bg-rose-100/80 dark:border-rose-300/70 dark:text-rose-100 dark:hover:bg-rose-900/40"
-        >
+        <RouterLink to="/reset-password"
+          class="mt-6 inline-flex items-center justify-center rounded-full border border-rose-400 px-4 py-2 text-sm font-medium text-rose-600 transition hover:bg-rose-100/80 dark:border-rose-300/70 dark:text-rose-100 dark:hover:bg-rose-900/40">
           Request a new reset link
         </RouterLink>
       </div>
 
-      <form
-        v-else
-        @submit.prevent="handleSubmit"
-        class="rounded-3xl border border-neutral-200/60 bg-white/80 p-8 shadow-[0_24px_60px_rgba(15,23,42,0.08)] backdrop-blur-md transition-colors dark:border-neutral-800/70 dark:bg-neutral-950/70 dark:shadow-[0_24px_60px_rgba(15,23,42,0.35)]"
-      >
+      <form v-else @submit.prevent="handleSubmit"
+        class="rounded-3xl border border-neutral-200/60 bg-white/80 p-8 shadow-[0_24px_60px_rgba(15,23,42,0.08)] backdrop-blur-md transition-colors dark:border-neutral-800/70 dark:bg-neutral-950/70 dark:shadow-[0_24px_60px_rgba(15,23,42,0.35)]">
         <div class="space-y-6">
           <div class="space-y-2">
             <label for="new-password" class="text-sm font-medium text-neutral-700 dark:text-neutral-200">
               New password
             </label>
-            <input
-              id="new-password"
-              v-model="form.password"
-              type="password"
-              autocomplete="new-password"
-              minlength="6"
+            <input id="new-password" v-model="form.password" type="password" autocomplete="new-password" minlength="6"
               required
-              class="block w-full rounded-2xl border border-neutral-200/70 bg-white/80 px-4 py-3 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/30 dark:border-neutral-700/70 dark:bg-neutral-900/60 dark:text-neutral-50 dark:placeholder:text-neutral-500 dark:focus:ring-neutral-100/30"
-            />
+              class="block w-full rounded-2xl border border-neutral-200/70 bg-white/80 px-4 py-3 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/30 dark:border-neutral-700/70 dark:bg-neutral-900/60 dark:text-neutral-50 dark:placeholder:text-neutral-500 dark:focus:ring-neutral-100/30" />
           </div>
 
           <div class="space-y-2">
             <label for="confirm-new-password" class="text-sm font-medium text-neutral-700 dark:text-neutral-200">
               Confirm password
             </label>
-            <input
-              id="confirm-new-password"
-              v-model="form.confirmPassword"
-              type="password"
-              autocomplete="new-password"
-              minlength="6"
-              required
-              class="block w-full rounded-2xl border border-neutral-200/70 bg-white/80 px-4 py-3 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/30 dark:border-neutral-700/70 dark:bg-neutral-900/60 dark:text-neutral-50 dark:placeholder:text-neutral-500 dark:focus:ring-neutral-100/30"
-            />
+            <input id="confirm-new-password" v-model="form.confirmPassword" type="password" autocomplete="new-password"
+              minlength="6" required
+              class="block w-full rounded-2xl border border-neutral-200/70 bg-white/80 px-4 py-3 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/30 dark:border-neutral-700/70 dark:bg-neutral-900/60 dark:text-neutral-50 dark:placeholder:text-neutral-500 dark:focus:ring-neutral-100/30" />
             <p v-if="showPasswordMismatch" class="text-sm text-rose-500 dark:text-rose-400">Passwords do not match.</p>
           </div>
         </div>
@@ -216,11 +193,9 @@ const handleSubmit = async () => {
           {{ successMessage }}
         </p>
 
-        <button
-          type="submit"
+        <button type="submit"
           class="mt-10 inline-flex w-full items-center justify-center rounded-2xl bg-neutral-900 px-4 py-3 text-sm font-semibold uppercase tracking-[0.2em] text-neutral-100 transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-neutral-50 dark:text-neutral-900 dark:hover:bg-neutral-200"
-          :disabled="submitting || passwordMismatch"
-        >
+          :disabled="submitting || passwordMismatch">
           {{ submitting ? 'Updating…' : 'Update password' }}
         </button>
       </form>

@@ -2,7 +2,7 @@
 import { ref, watch, computed, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import { Icon } from '@iconify/vue';
 import { RouterLink, useRoute } from 'vue-router';
-import { useAuthStore } from '@/stores/auth';
+import { useAuthStore } from '@/auth/stores/useAuthStore';
 
 const props = defineProps<{
   toggleDarkMode: () => void;
@@ -122,11 +122,11 @@ const onOutsidePointerDown = (e: PointerEvent) => {
   const el = sidebarRef.value;
   const toggleDesktop = toggleButtonDesktopRef.value;
   const toggleMobile = toggleButtonMobileRef.value;
-  
+
   // Don't close if clicking on the sidebar itself or the toggle buttons
-  if (el && target && !el.contains(target) && 
-      (!toggleDesktop || !toggleDesktop.contains(target)) &&
-      (!toggleMobile || !toggleMobile.contains(target))) {
+  if (el && target && !el.contains(target) &&
+    (!toggleDesktop || !toggleDesktop.contains(target)) &&
+    (!toggleMobile || !toggleMobile.contains(target))) {
     closeSidebar();
   }
 };
@@ -179,133 +179,88 @@ watch(
 
 <template>
   <div>
-    <header
-      ref="headerRef"
-      class="fixed top-0 z-50 w-full bg-transparent backdrop-blur transition-colors"
-    >
-      <div
-        class="container-lg flex items-center justify-between gap-6 px-6 py-5 md:px-8"
-      >
+    <header ref="headerRef" class="fixed top-0 z-50 w-full bg-transparent backdrop-blur transition-colors">
+      <div class="container-lg flex items-center justify-between gap-6 px-6 py-5 md:px-8">
         <div class="flex items-center gap-3 md:gap-4">
-          <RouterLink
-            to="/"
-            class="text-xl tracking-medium text-neutral-900 transition-colors hover:text-black dark:text-neutral-100 dark:hover:text-white md:text-xl"
-          >
+          <RouterLink to="/"
+            class="text-xl tracking-medium text-neutral-900 transition-colors hover:text-black dark:text-neutral-100 dark:hover:text-white md:text-xl">
             Rugby<span class="font-semibold">codex</span>
           </RouterLink>
 
-          <button
-            ref="toggleButtonDesktopRef"
-            type="button"
+          <button ref="toggleButtonDesktopRef" type="button"
             class="hidden p-2 text-neutral-600 transition hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-white md:inline-flex"
-            aria-label="Toggle navigation"
-            @click="toggleSidebar"
-          >
+            aria-label="Toggle navigation" @click="toggleSidebar">
             <Icon :icon="sidebarToggleIcon" class="h-5 w-5" />
           </button>
         </div>
 
         <div class="flex items-center gap-3 md:gap-4">
-          <button
-            type="button"
+          <button type="button"
             class="rounded-full bg-transparent p-2 text-neutral-600 transition hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-white"
-            aria-label="Search"
-          >
+            aria-label="Search">
             <Icon icon="carbon:search" class="h-4 w-4" />
           </button>
 
-          <button
-            ref="toggleButtonMobileRef"
-            type="button"
+          <button ref="toggleButtonMobileRef" type="button"
             class="flex p-2 text-neutral-600 transition hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-white md:hidden"
-            aria-label="Toggle navigation"
-            @click="toggleSidebar"
-          >
+            aria-label="Toggle navigation" @click="toggleSidebar">
             <Icon :icon="sidebarToggleIcon" class="h-5 w-5" />
           </button>
 
-          <RouterLink
-            v-if="!authStore.isAuthenticated"
-            to="/login"
-            class="hidden rounded-full bg-neutral-900 px-4 py-2 text-sm font-medium text-neutral-100 transition hover:bg-neutral-800 dark:hover:bg-neutral-800 md:inline-flex md:items-center"
-          >
+          <RouterLink v-if="!authStore.isAuthenticated" to="/login"
+            class="hidden rounded-full bg-neutral-900 px-4 py-2 text-sm font-medium text-neutral-100 transition hover:bg-neutral-800 dark:hover:bg-neutral-800 md:inline-flex md:items-center">
             Log in
           </RouterLink>
-          <RouterLink
-            v-else
-            to="/dashboard"
+          <RouterLink v-else to="/dashboard"
             class="hidden max-w-[14rem] truncate rounded-full bg-neutral-800/80 px-4 py-2 text-sm font-medium text-neutral-100 backdrop-blur transition hover:bg-neutral-900 md:inline-flex"
-            :title="authStore.user?.user_metadata?.name ?? authStore.user?.email ?? undefined"
-          >
+            :title="authStore.user?.user_metadata?.name ?? authStore.user?.email ?? undefined">
             {{ userDisplayName }}
           </RouterLink>
-          <Icon v-if="authStore.isAdmin" icon="mdi:chess-king" class="hidden md:block h-6 w-6 text-black dark:text-white" />
+          <Icon v-if="authStore.isAdmin" icon="mdi:chess-king"
+            class="hidden md:block h-6 w-6 text-black dark:text-white" />
 
         </div>
       </div>
     </header>
 
     <transition name="sidebar">
-      <aside
-        v-if="isSidebarOpen"
-        ref="sidebarRef"
+      <aside v-if="isSidebarOpen" ref="sidebarRef"
         class="fixed left-0 right-auto z-40 flex w-72 max-w-full flex-col bg-transparent text-neutral-900 shadow-2xl backdrop-blur dark:bg-neutral-950/70 dark:text-white md:w-80 md:rounded-none"
-        :style="sidebarStyles"
-      >
+        :style="sidebarStyles">
         <nav class="flex-1 space-y-1 px-4 pt-6">
-          <RouterLink
-            v-for="link in navLinks"
-            :key="link.to"
-            :to="link.to"
-            custom
-            v-slot="{ href, navigate, isExactActive }"
-          >
-            <a
-              :href="href"
-              @click="navigate"
-              class="block rounded-2xl px-4 py-3 text-sm transition"
-              :class="[
-                isExactActive
-                  ? 'bg-neutral-900/10 text-neutral-900 ring-1 ring-neutral-900/10 dark:bg-neutral-800 dark:text-white dark:ring-neutral-700/60'
-                  : 'text-neutral-700 hover:bg-neutral-900/5 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-900/60 dark:hover:text-white'
-              ]"
-            >
+          <RouterLink v-for="link in navLinks" :key="link.to" :to="link.to" custom
+            v-slot="{ href, navigate, isExactActive }">
+            <a :href="href" @click="navigate" class="block rounded-2xl px-4 py-3 text-sm transition" :class="[
+              isExactActive
+                ? 'bg-neutral-900/10 text-neutral-900 ring-1 ring-neutral-900/10 dark:bg-neutral-800 dark:text-white dark:ring-neutral-700/60'
+                : 'text-neutral-700 hover:bg-neutral-900/5 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-900/60 dark:hover:text-white'
+            ]">
               {{ link.label }}
             </a>
           </RouterLink>
         </nav>
 
-        <div
-          class="flex items-end justify-between px-6 pt-4 transition-all duration-300 ease-out"
-          :style="{ paddingBottom: sidebarFooterPadding }"
-        >
-          <button
-            type="button"
+        <div class="flex items-end justify-between px-6 pt-4 transition-all duration-300 ease-out"
+          :style="{ paddingBottom: sidebarFooterPadding }">
+          <button type="button"
             class="rounded-full border border-neutral-300 bg-neutral-200/70 p-2 text-sm text-neutral-600 transition hover:bg-neutral-200 dark:border-neutral-800 dark:bg-neutral-900/60 dark:text-neutral-400 dark:hover:bg-neutral-800"
-            aria-label="Toggle dark mode"
-            @click="props.toggleDarkMode"
-          >
+            aria-label="Toggle dark mode" @click="props.toggleDarkMode">
             <Icon icon="carbon:brightness-contrast" class="h-4 w-4" />
           </button>
 
-          <RouterLink
-            v-if="!authStore.isAuthenticated"
-            to="/login"
+          <RouterLink v-if="!authStore.isAuthenticated" to="/login"
             class="rounded-full bg-neutral-100 px-4 py-2 text-sm font-semibold text-neutral-900 transition hover:bg-white/90 md:hidden"
-            @click="closeSidebar"
-          >
+            @click="closeSidebar">
             Log in
           </RouterLink>
           <div v-else class="flex flex-row items-center gap-2">
-          <RouterLink
-            to="/dashboard"
-            class="max-w-[14rem] truncate rounded-full bg-neutral-100/80 px-4 py-2 text-sm font-semibold text-neutral-900 transition hover:bg-white/90 md:hidden"
-            :title="authStore.user?.user_metadata?.name ?? authStore.user?.email ?? undefined"
-            @click="closeSidebar"
-          >
-            {{ userDisplayName }}
-          </RouterLink>
-          <Icon v-if="authStore.isAdmin" icon="mdi:chess-king" class="block md:hidden h-6 w-6 text-black dark:text-white" />
+            <RouterLink to="/dashboard"
+              class="max-w-[14rem] truncate rounded-full bg-neutral-100/80 px-4 py-2 text-sm font-semibold text-neutral-900 transition hover:bg-white/90 md:hidden"
+              :title="authStore.user?.user_metadata?.name ?? authStore.user?.email ?? undefined" @click="closeSidebar">
+              {{ userDisplayName }}
+            </RouterLink>
+            <Icon v-if="authStore.isAdmin" icon="mdi:chess-king"
+              class="block md:hidden h-6 w-6 text-black dark:text-white" />
           </div>
         </div>
       </aside>
@@ -336,7 +291,8 @@ watch(
             Rugbycodex imagines a shared language for the sport; where video, narration, and context meet.
             We’re building a platform that lets clubs and coaches preserve ideas, experiment with tactics,
             and keep institutional knowledge alive for the next season and beyond. Questions? Reach us at
-            <a class="underline transition-colors hover:text-white" href="mailto:contact@biasware.com">contact@biasware.com</a>
+            <a class="underline transition-colors hover:text-white"
+              href="mailto:contact@biasware.com">contact@biasware.com</a>
           </p>
         </div>
 
@@ -346,7 +302,8 @@ watch(
             Development <br />
             Jose Reyes <a class="text-neutral-400" href="https://www.youtube.com/watch?v=mbOP11df6QY">@reyesjl</a>
             <br />
-            Benn Mellinger <a class="text-neutral-400" href="https://github.com/bennm23" target="_blank" rel="noreferrer">@bennm23</a>
+            Benn Mellinger <a class="text-neutral-400" href="https://github.com/bennm23" target="_blank"
+              rel="noreferrer">@bennm23</a>
           </p>
           <p class="leading-relaxed">
             Built by<br />

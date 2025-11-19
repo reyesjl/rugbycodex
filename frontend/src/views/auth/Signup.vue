@@ -2,7 +2,7 @@
 import { reactive, ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import { RouterLink, useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
-import { useAuthStore } from '@/stores/auth';
+import { useAuthStore } from '@/auth/stores/useAuthStore';
 
 declare global {
   interface Window {
@@ -298,15 +298,9 @@ const handleSubmit = async () => {
             <label for="password" class="text-sm font-medium text-neutral-700 dark:text-neutral-200">
               Password
             </label>
-            <input
-              id="password"
-              v-model="form.password"
-              type="password"
-              autocomplete="new-password"
-              minlength="6"
+            <input id="password" v-model="form.password" type="password" autocomplete="new-password" minlength="6"
               required
-              class="block w-full rounded-2xl border border-neutral-200/70 bg-white/80 px-4 py-3 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/30 dark:border-neutral-700/70 dark:bg-neutral-900/60 dark:text-neutral-50 dark:placeholder:text-neutral-500 dark:focus:ring-neutral-100/30"
-            />
+              class="block w-full rounded-2xl border border-neutral-200/70 bg-white/80 px-4 py-3 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/30 dark:border-neutral-700/70 dark:bg-neutral-900/60 dark:text-neutral-50 dark:placeholder:text-neutral-500 dark:focus:ring-neutral-100/30" />
             <p class="text-xs text-neutral-500 dark:text-neutral-400">
               Use at least 6 characters. You can reset it later from your dashboard.
             </p>
@@ -316,13 +310,8 @@ const handleSubmit = async () => {
             <label for="confirm-password" class="text-sm font-medium text-neutral-700 dark:text-neutral-200">
               Confirm password
             </label>
-            <input
-              id="confirm-password"
-              v-model="form.confirmPassword"
-              type="password"
-              autocomplete="new-password"
-              minlength="6"
-              required
+            <input id="confirm-password" v-model="form.confirmPassword" type="password" autocomplete="new-password"
+              minlength="6" required
               class="block w-full rounded-2xl border border-neutral-200/70 bg-white/80 px-4 py-3 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/30 dark:border-neutral-700/70 dark:bg-neutral-900/60 dark:text-neutral-50 dark:placeholder:text-neutral-500 dark:focus:ring-neutral-100/30" />
             <p v-if="showPasswordMismatch" class="text-sm text-rose-500 dark:text-rose-400">Passwords do not match.</p>
           </div>
