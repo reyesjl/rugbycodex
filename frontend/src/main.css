@@ -241,3 +241,12 @@
 .dark .scrolling-list.overflow-y-auto {
   scrollbar-color: rgb(64 64 64 / 0.6) transparent;
 }
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

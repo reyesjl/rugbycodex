@@ -345,6 +345,8 @@ watch(
           <p class="leading-relaxed">
             Development <br />
             Jose Reyes <a class="text-neutral-400" href="https://www.youtube.com/watch?v=mbOP11df6QY">@reyesjl</a>
+            <br />
+            Benn Mellinger <a class="text-neutral-400" href="https://github.com/bennm23" target="_blank" rel="noreferrer">@bennm23</a>
           </p>
           <p class="leading-relaxed">
             Built by<br />
