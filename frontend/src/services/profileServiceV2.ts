@@ -9,7 +9,12 @@ import {
 } from '@/types';
 
 /**
- * ProfileServiceV2 centralizes all profile and membership data access logic.
+ * ProfileServiceV2 centralizes all profile and membership data access logic. It is the successor to
+ * `profile_service.ts`, exposing the same capabilities but grouped into clear namespaces:
+ *
+ * - `profiles`: CRUD-style endpoints for profile rows and membership-enriched views.
+ * - `leaderboard`: aggregations such as the XP leaderboard.
+ * - `memberships`: operations that span profiles, org_members, and organizations.
  *
  * Usage:
  * ```ts
@@ -21,8 +26,8 @@ import {
  * await profileServiceV2.memberships.addByOrgSlug(userId, 'org-slug', 'manager');
  * ```
  *
- * Prefer this service over direct Supabase calls so typemaps, error handling,
- * and domain conventions stay consistent across the app.
+ * Prefer this service over direct Supabase calls or the legacy service to keep mappers, error handling,
+ * and domain conventions consistent while we migrate callers.
  */
 
 type ProfileRow = {
