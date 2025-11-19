@@ -8,17 +8,17 @@ import {
   removeMembershipFromProfile,
   type ProfileWithMemberships,
 } from '@/services/profile_service';
-import { getAllOrganizations, type Organization } from '@/services/org_service';
 import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
 import type { OrgMembership } from '@/types';
 import CustomSelect from '@/components/CustomSelect.vue';
 import { MEMBERSHIP_ROLES } from '@/constants/memberships';
+import { useOrganizationList } from '@/organizations/composables/useOrganizationsList';
 
 const route = useRoute();
 const router = useRouter();
 
 const profile = ref<ProfileWithMemberships | null>(null);
-const organizations = ref<Organization[]>([]);
+const orgList = useOrganizationList();
 const profileLoading = ref(true);
 const profileError = ref<string | null>(null);
 
@@ -56,20 +56,12 @@ const loadProfile = async () => {
   }
 };
 
-const loadOrganizations = async () => {
-  try {
-    organizations.value = await getAllOrganizations();
-  } catch (error) {
-    console.error('Failed to load organizations:', error);
-  }
-};
-
 const filteredOrganizations = computed(() => {
   if (!searchOrgQuery.value.trim()) {
-    return organizations.value;
+    return [...orgList.organizations.value];
   }
   const query = searchOrgQuery.value.toLowerCase();
-  return organizations.value.filter(org =>
+  return orgList.organizations.value.filter(org =>
     org.name.toLowerCase().includes(query) || org.slug.toLowerCase().includes(query)
   );
 });
@@ -135,12 +127,12 @@ const confirmDeleteMembership = async () => {
 const selectOrganization = (slug: string) => {
   selectedOrgSlug.value = slug;
   showOrgDropdown.value = false;
-  searchOrgQuery.value = organizations.value.find(org => org.slug === slug)?.name || '';
+  searchOrgQuery.value = orgList.organizations.value.find(org => org.slug === slug)?.name || '';
 };
 
 const getSelectedOrgName = computed(() => {
   if (!selectedOrgSlug.value) return '';
-  const org = organizations.value.find(org => org.slug === selectedOrgSlug.value);
+  const org = orgList.organizations.value.find(org => org.slug === selectedOrgSlug.value);
   return org?.name || '';
 });
 
@@ -150,7 +142,7 @@ const deleteText = computed(() => {
 });
 
 onMounted(async () => {
-  await Promise.all([loadProfile(), loadOrganizations()]);
+  await Promise.all([loadProfile(), orgList.loadOrganizations()]);
 });
 </script>
 

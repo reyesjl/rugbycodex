@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { deleteOrganizationById, type Organization } from '@/services/org_service';
 import { onMounted, ref, computed } from 'vue';
 import AnimatedLink from '@/components/AnimatedLink.vue';
 import { Icon } from '@iconify/vue';
@@ -7,6 +6,8 @@ import { useRouter } from 'vue-router';
 import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
 import { useOrganizationList } from '@/organizations/composables/useOrganizationsList';
+import { orgService } from '@/organizations/services/OrgService';
+import type { Organization } from '@/organizations/types';
 
 const router = useRouter();
 const orgList = useOrganizationList();
@@ -45,14 +46,13 @@ const handleCreateOrg = () => {
 };
 
 const filteredOrgs = computed(() => {
-  const sorter = (a: Organization, b: Organization) => b.created_at.getTime() - a.created_at.getTime();
   if (!searchQuery.value.trim()) {
-    return [...orgList.organizations.value].sort(sorter);
+    return [...orgList.organizations.value];
   }
   const query = searchQuery.value.toLowerCase();
   return orgList.organizations.value.filter(org =>
     org.name.toLowerCase().includes(query)
-  ).sort(sorter);
+  );
 });
 
 const openDeleteModal = (org: Organization) => {
@@ -75,7 +75,7 @@ const confirmDelete = async () => {
   orgDeleteError.value = null;
 
   try {
-    await deleteOrganizationById(orgToDelete.value.id);
+    await orgService.organizations.deleteById(orgToDelete.value.id);
     await orgList.loadOrganizations();
     showDeleteModal.value = false;
     orgToDelete.value = null;

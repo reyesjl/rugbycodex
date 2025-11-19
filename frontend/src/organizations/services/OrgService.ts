@@ -1,5 +1,6 @@
 import type { PostgrestError } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabaseClient';
+import type { CreateOrganizationInput, Organization, OrgMediaAsset } from '@/organizations/types';
 
 /**
  * orgServiceV2 centralizes organization-centric behavior and replaces `org_service.ts`.
@@ -9,12 +10,12 @@ import { supabase } from '@/lib/supabaseClient';
  *
  * Usage:
  * ```ts
- * import { orgServiceV2 } from '@/services/orgServiceV2';
+ * import { orgService } from '@/services/OrgService';
  *
- * const orgs = await orgServiceV2.organizations.list();
- * const org = await orgServiceV2.organizations.getBySlug('club-slug');
- * await orgServiceV2.organizations.updateBio(org.id, 'New mission statement');
- * await orgServiceV2.mediaAssets.listByOrganization(org.id, { limit: 20 });
+ * const orgs = await orgService.organizations.list();
+ * const org = await orgService.organizations.getBySlug('club-slug');
+ * await orgService.organizations.updateBio(org.id, 'New mission statement');
+ * await orgService.mediaAssets.listByOrganization(org.id, { limit: 20 });
  * ```
  */
 
@@ -44,42 +45,7 @@ type MediaAssetRow = {
   created_at: string | Date | null;
 };
 
-/** Single organization row returned to consumers. */
-export type Organization = {
-  id: string;
-  owner: string | null;
-  slug: string;
-  name: string;
-  created_at: Date;
-  storage_limit_mb: number;
-  bio: string | null;
-};
 
-/** DTO for creating organizations programmatically. */
-export type CreateOrganizationInput = {
-  name: string;
-  slug: string;
-  owner?: string | null;
-  storage_limit_mb?: number;
-  bio?: string | null;
-};
-
-/** Minimal media asset metadata tied to an organization. */
-export type OrgMediaAsset = {
-  id: string;
-  org_id: string;
-  uploader_id: string;
-  bucket: string;
-  storage_path: string;
-  file_size_bytes: number;
-  mime_type: string;
-  duration_seconds: number;
-  checksum: string;
-  source: string;
-  file_name: string;
-  status: string;
-  created_at: Date;
-};
 
 type ListQueryResult<T = unknown> = PromiseLike<{ data: T[] | null; error: PostgrestError | null }>;
 type SingleQueryResult<T = unknown> = PromiseLike<{ data: T | null; error: PostgrestError | null }>;
@@ -152,7 +118,7 @@ function validateBio(bio: string | null): string | null {
   return bio;
 }
 
-export const orgServiceV2 = {
+export const orgService = {
   organizations: {
     /**
      * Returns all organizations ordered by creation date.
@@ -279,3 +245,4 @@ export const orgServiceV2 = {
     },
   },
 };
+

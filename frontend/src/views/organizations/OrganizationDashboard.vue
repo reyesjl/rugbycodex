@@ -2,7 +2,6 @@
 import { onMounted, ref, computed } from 'vue';
 import { nextTick } from 'vue';
 import { useAuthStore } from '@/stores/auth';
-import { getOrganizationBySlug, updateBioById, type Organization } from '@/services/org_service';
 import LoadingIcon from '@/components/LoadingIcon.vue';
 import { Icon } from '@iconify/vue';
 import type { ProfileWithMembership, OrgRole } from '@/types';
@@ -11,6 +10,8 @@ import CustomSelect from '@/components/CustomSelect.vue';
 import ErrorNotification from '@/components/ErrorNotification.vue';
 import SuccessNotification from '@/components/SuccessNotification.vue';
 import { useProfileStore } from '@/stores/profile';
+import { orgService } from '@/organizations/services/OrgService';
+import { type Organization } from '@/organizations/types';
 
 const props = defineProps<{ orgSlug: string }>();
 
@@ -67,7 +68,7 @@ const saveBio = async () => {
   bioError.value = null;
 
   try {
-    await updateBioById(org.value.id, bioEditText.value.trim());
+    await orgService.organizations.updateBio(org.value.id, bioEditText.value.trim());
     // Update local state
     if (org.value) {
       org.value.bio = bioEditText.value.trim() || null;
@@ -131,7 +132,7 @@ async function handleMemberRoleChange(member: ProfileWithMembership, newRole: Or
 
 onMounted(async () => {
   try {
-    org.value = await getOrganizationBySlug(props.orgSlug);
+    org.value = await orgService.organizations.getBySlug(props.orgSlug);
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : 'Failed to load organization';
   } finally {
