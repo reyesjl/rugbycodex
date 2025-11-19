@@ -42,7 +42,7 @@ type MembershipRelationRow = {
   org_id: string;
   role: OrgRole;
   joined_at: string | Date | null;
-  organization: { id: string; name: string; slug: string } | null;
+  organization: { id: string; name: string | null; slug: string | null } | null;
 };
 
 type ProfileWithMembershipViewRow = ProfileRow & {
@@ -86,16 +86,13 @@ function toUserProfile(row: ProfileRow): UserProfile {
   };
 }
 
-function toMembership(row: Partial<MembershipRelationRow> & Partial<OrgMembership>): OrgMembership {
-  if (!row.org_id) {
-    throw new Error('Membership is missing organization identifier.');
-  }
+function toMembership(row: MembershipRelationRow): OrgMembership {
   return {
-    org_id: row.org_id as string,
-    org_name: row.org_name ?? row.organization?.name ?? 'Unknown',
-    slug: row.slug ?? row.organization?.slug ?? 'unknown',
-    org_role: row.role ?? row.org_role ?? 'member',
-    join_date: asDate(row.joined_at ?? row.join_date ?? null, 'membership join'),
+    org_id: row.org_id,
+    org_name: row.organization?.name ?? 'Unknown',
+    slug: row.organization?.slug ?? 'unknown',
+    org_role: row.role,
+    join_date: asDate(row.joined_at, 'membership join'),
   };
 }
 
