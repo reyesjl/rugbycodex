@@ -2,7 +2,7 @@ import type { PostgrestError } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabaseClient';
 import {
   type OrgMembership,
-  type OrgRole,
+  type MembershipRole,
 } from '@/profiles/types';
 
 import type { ProfileDetail, ProfileWithMembership, UserProfile } from '@/profiles/types';
@@ -39,7 +39,7 @@ type ProfileRow = {
 
 type MembershipRelationRow = {
   org_id: string;
-  role: OrgRole;
+  role: MembershipRole;
   joined_at: string | Date | null;
   organization: { id: string; name: string | null; slug: string | null } | null;
 };
@@ -48,7 +48,7 @@ type ProfileWithMembershipViewRow = ProfileRow & {
   org_id: string;
   org_name: string | null;
   slug: string | null;
-  org_role: OrgRole;
+  org_role: MembershipRole;
   join_date: string | Date | null;
 };
 
@@ -242,7 +242,7 @@ export const profileService = {
      * Adds a user to an organization by slug.
      * @throws Error when the org slug is invalid or the user already belongs to the org.
      */
-    async addByOrgSlug(userId: string, orgSlug: string, role: OrgRole = 'member'): Promise<void> {
+    async addByOrgSlug(userId: string, orgSlug: string, role: MembershipRole = 'member'): Promise<void> {
       const orgId = await getOrganizationIdBySlug(orgSlug);
       const { error } = await supabase
         .from('org_members')
@@ -269,7 +269,7 @@ export const profileService = {
     /**
      * Updates the role assigned to a user within an organization.
      */
-    async setRole(userId: string, orgId: string, role: OrgRole): Promise<void> {
+    async setRole(userId: string, orgId: string, role: MembershipRole): Promise<void> {
       const { error } = await supabase.from('org_members').update({ role }).eq('user_id', userId).eq('org_id', orgId);
       if (error) {
         throw error;

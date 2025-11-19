@@ -4,7 +4,7 @@ import { nextTick } from 'vue';
 import { useAuthStore } from '@/auth/stores/useAuthStore';
 import LoadingIcon from '@/components/LoadingIcon.vue';
 import { Icon } from '@iconify/vue';
-import type { OrgRole } from '@/profiles/types';
+import { MEMBERSHIP_ROLES, type MembershipRole } from '@/profiles/types';
 import CustomSelect from '@/components/CustomSelect.vue';
 import ErrorNotification from '@/components/ErrorNotification.vue';
 import SuccessNotification from '@/components/SuccessNotification.vue';
@@ -41,14 +41,6 @@ const {
 
 const searchQuery = ref('');
 const refreshSuccess = ref(false);
-
-const orgRoleOptions = [
-  { label: 'Owner', value: 'owner' },
-  { label: 'Manager', value: 'manager' },
-  { label: 'Staff', value: 'staff' },
-  { label: 'Member', value: 'member' },
-  { label: 'Viewer', value: 'viewer' },
-];
 
 const startEditingBio = () => {
   bioEditText.value = org.value?.bio ?? '';
@@ -89,7 +81,7 @@ const saveBio = async () => {
 const memberRoleError = ref<string | null>(null);
 const memberRoleSuccess = ref<string | null>(null);
 
-async function handleMemberRoleChange(member: ProfileWithMembership, newRole: OrgRole) {
+async function handleMemberRoleChange(member: ProfileWithMembership, newRole: MembershipRole) {
   if (org.value == null) {
     memberRoleError.value = 'Organization is null, cannot change member role';
     return;
@@ -318,8 +310,8 @@ async function handleRefreshMembers() {
                   class="flex items-center justify-between rounded-lg px-3 py-2 text-sm transition hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50">
                   <span class="font-medium">{{ member.name }}</span>
                   <div class="flex items-center gap-3">
-                    <CustomSelect :options="orgRoleOptions" :model-value="member.org_role"
-                      @update:model-value="(newRole: number | string) => handleMemberRoleChange(member, newRole as OrgRole)"
+                    <CustomSelect :options="MEMBERSHIP_ROLES" :model-value="member.org_role"
+                      @update:model-value="(newRole: number | string) => handleMemberRoleChange(member, newRole as MembershipRole)"
                       class="w-32 text-xs min-w-[8rem]" />
                     <span class="text-xs text-neutral-400 dark:text-neutral-500">
                       {{ member.join_date instanceof Date ? member.join_date.toLocaleDateString() : 'N/A' }}

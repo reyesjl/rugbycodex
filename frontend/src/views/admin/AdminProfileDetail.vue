@@ -4,11 +4,11 @@ import { useRoute, useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
 import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
 import CustomSelect from '@/components/CustomSelect.vue';
-import { MEMBERSHIP_ROLES } from '@/constants/memberships';
+import { MEMBERSHIP_ROLES } from '@/profiles/types';
 import { useOrganizationList } from '@/organizations/composables/useOrganizationsList';
 import { useProfileFullDetail } from '@/profiles/composables/useProfileFullDetail';
 import { profileService } from '@/profiles/services/ProfileService';
-import type { OrgMembership, OrgRole } from '@/profiles/types';
+import type { OrgMembership, MembershipRole } from '@/profiles/types';
 
 const route = useRoute();
 const router = useRouter();
@@ -25,7 +25,7 @@ const orgList = useOrganizationList();
 const addMembershipError = ref<string | null>(null);
 const isAddingMembership = ref(false);
 const selectedOrgSlug = ref('');
-const selectedRole = ref<OrgRole>('member');
+const selectedRole = ref<MembershipRole>('member');
 const searchOrgQuery = ref('');
 const showOrgDropdown = ref(false);
 
