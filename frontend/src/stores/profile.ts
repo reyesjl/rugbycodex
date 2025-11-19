@@ -57,6 +57,12 @@ export const useProfileStore = defineStore('profile', () => {
     }
   };
 
+  function canManageOrg(orgId: string): boolean {
+    const membership = organizations.value.find(org => org.org_id === orgId);
+    if (!membership) return false;
+    return membership.org_role === 'owner' || membership.org_role === 'manager';
+  };
+  
   const fetchProfile = async (userId: string) => {
     // TODO: Interrupt ongoing fetch?
     if (profile.value?.id === userId) {
@@ -108,5 +114,6 @@ export const useProfileStore = defineStore('profile', () => {
     lastError,
     loadingOrganizations,
     organizations,
+    canManageOrg,
   };
 });

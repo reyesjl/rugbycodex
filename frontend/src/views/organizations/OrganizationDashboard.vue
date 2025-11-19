@@ -10,10 +10,12 @@ import { getOrganizationMembers, updateMembershipRole } from '@/services/profile
 import CustomSelect from '@/components/CustomSelect.vue';
 import ErrorNotification from '@/components/ErrorNotification.vue';
 import SuccessNotification from '@/components/SuccessNotification.vue';
+import { useProfileStore } from '@/stores/profile';
 
 const props = defineProps<{ orgSlug: string }>();
 
 const authStore = useAuthStore();
+const profileStore = useProfileStore();
 
 const loading = ref(true);
 const error = ref<string | null>(null);
@@ -142,8 +144,7 @@ onMounted(async () => {
 const orgName = computed(() => org.value?.name ?? 'Organization');
 const orgCreated = computed(() => org.value?.created_at ?? new Date());
 const storageLimitMB = computed(() => org.value?.storage_limit_mb ?? 0);
-const canEdit = computed(() => org.value?.owner === authStore.user?.id || authStore.isAdmin);
-
+const canEdit = computed(() => profileStore.canManageOrg(org.value?.id ?? '') || authStore.isAdmin);
 const showAllMembers = ref(false);
 const filteredMembers = computed(() => {
   let result = members.value;
