@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type ComponentPublicInstance, type VNodeRef } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type ComponentPublicInstance } from 'vue';
 import { Icon } from '@iconify/vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
@@ -44,18 +44,6 @@ const displayName = computed(() => {
 });
 
 const activeRouteName = computed(() => route.name as string | undefined);
-
-const isOverviewPanel = computed(() => activeRouteName.value === 'AdminOverview');
-
-const currentPanelLabel = computed(() => {
-  if (isOverviewPanel.value) return 'Overview';
-
-  const activeName = activeRouteName.value;
-  if (!activeName) {
-    return (route.meta?.adminLabel as string | undefined) ?? '';
-  }
-  return sidebarLinks.find(link => link.id === activeName)?.label ?? (route.meta?.adminLabel as string | undefined) ?? '';
-});
 
 const greeting = computed(() => {
   const hours = currentTime.value.getHours();
