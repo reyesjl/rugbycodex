@@ -245,7 +245,7 @@ export const profileServiceV2 = {
         .insert([{ user_id: userId, org_id: orgId, role }]);
 
       if (error) {
-        if ('code' in error && error.code === '23505') {
+        if (error.code === '23505') {
           throw new Error('User is already a member of this organization.');
         }
         throw error;
