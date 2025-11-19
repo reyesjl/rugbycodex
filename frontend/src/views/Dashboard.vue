@@ -2,7 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type ComponentPublicInstance } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
-import { useProfileStore } from '@/stores/profile';
+import { useProfileStore } from '@/profiles/stores/profile';
 
 type DashboardTabRoute = 'DashboardOverview' | 'DashboardAccount';
 type DashboardTab = {
@@ -145,8 +145,8 @@ onBeforeUnmount(() => {
                 ? 'border-b-2 border-black text-black dark:border-white dark:text-white'
                 : 'text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100'
             ]">
-            {{ tab.label }}
-          </span>
+              {{ tab.label }}
+            </span>
           </button>
           <button
             type="button"

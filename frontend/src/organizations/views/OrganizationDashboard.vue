@@ -8,7 +8,7 @@ import type { OrgRole } from '@/types';
 import CustomSelect from '@/components/CustomSelect.vue';
 import ErrorNotification from '@/components/ErrorNotification.vue';
 import SuccessNotification from '@/components/SuccessNotification.vue';
-import { useProfileStore } from '@/stores/profile';
+import { useProfileStore } from '@/profiles/stores/profile';
 import { orgService } from '@/organizations/services/OrgService';
 import { type Organization } from '@/organizations/types';
 import { profileService } from '@/profiles/services/ProfileService';
@@ -31,12 +31,12 @@ const savingBio = ref(false);
 const bioError = ref<string | null>(null);
 
 // Destructure the values
-const { 
+const {
   list: orgMembers,
-  loading: membersLoading ,
+  loading: membersLoading,
   error: membersError,
   memberCount,
-  loadMembers 
+  loadMembers
 } = useOrgMembers();
 
 const searchQuery = ref('');
