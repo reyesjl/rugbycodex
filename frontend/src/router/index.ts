@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router';
-import pinia from '@/stores';
+import pinia from '@/lib/pinia';
 import { useAuthStore } from '@/auth/stores/useAuthStore';
 import { adminRoutes } from '@/router/admin';
 
