@@ -5,6 +5,7 @@ export const adminRoutes: RouteRecordRaw[] = [
     path: '/admin',
     component: () => import('@/views/admin/AdminDashboard.vue'),
     meta: { requiresAuth: true, requiresAdmin: true },
+    name: 'AdminDashboard',
     children: [
       {
         path: '',
