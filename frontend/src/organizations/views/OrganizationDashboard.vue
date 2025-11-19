@@ -30,8 +30,15 @@ const bioEditText = ref('');
 const savingBio = ref(false);
 const bioError = ref<string | null>(null);
 
-// Members state
-const orgMembers = useOrgMembers();
+// Destructure the values
+const { 
+  list: orgMembers,
+  loading: membersLoading ,
+  error: membersError,
+  memberCount,
+  loadMembers 
+} = useOrgMembers();
+
 const searchQuery = ref('');
 const refreshSuccess = ref(false);
 
@@ -116,7 +123,7 @@ onMounted(async () => {
     loading.value = false;
   }
 
-  await orgMembers.loadMembers(org.value?.id ?? '');
+  await loadMembers(org.value?.id ?? '');
 });
 
 const orgName = computed(() => org.value?.name ?? 'Organization');
@@ -126,7 +133,7 @@ const canEdit = computed(() => profileStore.canManageOrg(org.value?.id ?? '') ||
 const showAllMembers = ref(false);
 
 const filteredMembers = computed(() => {
-  let result = [...orgMembers.list.value];
+  let result = [...orgMembers.value];
   if (!searchQuery.value.trim()) {
     return result;
   }
@@ -143,7 +150,7 @@ const displayedMembers = computed(() =>
 );
 
 async function handleRefreshMembers() {
-  await orgMembers.loadMembers(org.value?.id ?? '');
+  await loadMembers(org.value?.id ?? '');
   refreshSuccess.value = true;
   await nextTick();
   setTimeout(() => {
@@ -265,11 +272,11 @@ async function handleRefreshMembers() {
         :error-title="'Error Modifying Role'" />
       <SuccessNotification v-if="memberRoleSuccess" :success-message="memberRoleSuccess"
         @clear-success="memberRoleSuccess = null" :success-title="'Role Modified Successfully'" />
-      <div v-if="orgMembers.error" class="mt-4">
-        <p class="text-sm text-rose-500 dark:text-rose-400">Error: {{ orgMembers.error }}</p>
+      <div v-if="membersError" class="mt-4">
+        <p class="text-sm text-rose-500 dark:text-rose-400">Error: {{ membersError }}</p>
       </div>
       <div v-else class="scrolling-list mt-4 overflow-y-auto space-y-4 pr-2">
-        <div v-if="orgMembers.memberCount.value === 0 && !orgMembers.loading" class="mt-4">
+        <div v-if="memberCount === 0 && !membersLoading" class="mt-4">
           <p class="text-neutral-600 dark:text-neutral-400">
             No members found.
           </p>
@@ -286,13 +293,13 @@ async function handleRefreshMembers() {
                 <span class="text-xs text-neutral-500 dark:text-neutral-400">
                   {{ filteredMembers.length }} total
                 </span>
-                <button type="button" @click="handleRefreshMembers" :disabled="orgMembers.loading.value"
+                <button type="button" @click="handleRefreshMembers" :disabled="membersLoading"
                   class="rounded-lg p-2 transition disabled:cursor-not-allowed disabled:opacity-60" :class="refreshSuccess
                     ? 'text-green-600 hover:bg-green-100 dark:text-green-400 dark:hover:bg-green-900/30'
                     : 'text-neutral-900 hover:bg-neutral-200 dark:text-neutral-100 dark:hover:bg-neutral-800'"
                   title="Refresh members">
                   <Icon :icon="refreshSuccess ? 'mdi:check' : 'mdi:refresh'" class="h-5 w-5"
-                    :class="{ 'animate-spin': orgMembers.loading }" />
+                    :class="{ 'animate-spin': membersLoading }" />
                 </button>
               </div>
             </div>
@@ -322,9 +329,9 @@ async function handleRefreshMembers() {
               </ul>
             </div>
 
-            <button v-if="!showAllMembers && orgMembers.memberCount.value > 10" @click="showAllMembers = true"
+            <button v-if="!showAllMembers && memberCount > 10" @click="showAllMembers = true"
               class="mt-4 w-full rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 transition hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800">
-              Show all {{ orgMembers.memberCount.value }} members
+              Show all {{ memberCount }} members
             </button>
 
             <button v-if="showAllMembers" @click="showAllMembers = false"
