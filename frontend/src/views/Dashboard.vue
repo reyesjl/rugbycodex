@@ -134,22 +134,26 @@ onBeforeUnmount(() => {
             class="whitespace-nowrap rounded-lg px-2 text-xs font-semibold uppercase transition snap-center"
             :ref="setTabRef(tab.id)"
             :class="[
-              tab.routeName && activeRouteName === tab.routeName
-                ? 'bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 shadow'
-                : 'text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100',
-              tab.disabled ? 'cursor-not-allowed opacity-50' : ''
+              tab.disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer',
             ]"
             :disabled="tab.disabled"
             @click="handleTabChange(tab)"
           >
+            <span :class="[
+              'inline-block',
+              activeRouteName === tab.routeName
+                ? 'border-b-2 border-black text-black dark:border-white dark:text-white'
+                : 'text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100'
+            ]">
             {{ tab.label }}
+          </span>
           </button>
           <button
             type="button"
-            class="whitespace-nowrap rounded-lg px-2 text-xs font-semibold uppercase text-rose-500 transition hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300"
+            class="whitespace-nowrap cursor-pointer rounded-lg px-2 text-xs font-semibold uppercase text-rose-500 transition hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300"
             @click="handleSignOut"
             :disabled="signingOut"
-            :class="{ 'opacity-50 cursor-not-allowed': signingOut }"
+            :class="{ 'opacity-50 cursor-not-allowed': signingOut}"
           >
             {{ signingOut ? 'Signing out…' : 'Sign out' }}
           </button>

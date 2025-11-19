@@ -127,32 +127,26 @@ onBeforeUnmount(() => {
         </div>
       </header>
 
-      <nav class="relative flex overflow-x-auto rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-950/60 no-scrollbar snap-x snap-proximity my-5">
+      <nav
+        class="relative flex overflow-x-auto rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-950/60 no-scrollbar snap-x snap-proximity my-5">
         <div class="tab-strip flex min-w-full gap-1 py-1">
-          <button
-            v-for="item in sidebarLinks"
-            :key="item.id"
-            type="button"
-            class="whitespace-nowrap rounded-lg px-2 text-xs font-semibold uppercase transition snap-center"
-            :ref="setTabRef(item.id)"
-            :class="[
+          <button v-for="item in sidebarLinks" :key="item.id" type="button"
+            class="whitespace-nowrap px-2 text-xs font-semibold uppercase transition snap-center"
+            :ref="setTabRef(item.id)" :class="[
+              item.disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+            ]" :disabled="item.disabled" @click="handlePanelChange(item.id)">
+            <span :class="[
+              'inline-block',
               activeRouteName === item.id
-                ? 'bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 shadow'
-                : 'text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100',
-              item.disabled ? 'cursor-not-allowed opacity-50' : ''
-            ]"
-            :disabled="item.disabled"
-            @click="handlePanelChange(item.id)"
-          >
-            {{ item.label }}
+                ? 'border-b-2 border-black text-black dark:border-white dark:text-white'
+                : 'text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100'
+            ]">
+              {{ item.label }}
+            </span>
           </button>
-          <button
-            type="button"
-            class="whitespace-nowrap rounded-lg px-2 text-xs font-semibold uppercase text-rose-500 transition hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300"
-            @click="handleSignOut"
-            :disabled="signingOut"
-            :class="{ 'opacity-50 cursor-not-allowed': signingOut }"
-          >
+          <button type="button"
+            class="whitespace-nowrap cursor-pointer rounded-lg px-2 text-xs font-semibold uppercase text-rose-500 transition hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300"
+            @click="handleSignOut" :disabled="signingOut" :class="{ 'opacity-50 cursor-not-allowed': signingOut }">
             {{ signingOut ? 'Signing out…' : 'Sign out' }}
           </button>
         </div>
