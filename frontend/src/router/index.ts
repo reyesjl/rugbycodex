@@ -137,6 +137,8 @@ const router = createRouter({
 router.beforeEach(async (to) => {
   const authStore = useAuthStore(pinia);
 
+  const userDashboardRoutes = ['Dashboard', 'DashboardOverview', 'DashboardAccount'];
+
   if ((to.meta.requiresAuth || to.meta.requiresAdmin) && !authStore.isAuthenticated) {
     return {
       name: 'Login',
@@ -159,7 +161,12 @@ router.beforeEach(async (to) => {
   }
 
   // Redirect admins away from the user dashboard routes
-  if (authStore.isAuthenticated && authStore.isAdmin && typeof to.name === 'string' && to.name.startsWith('Dashboard')) {
+  if (
+    authStore.isAuthenticated &&
+    authStore.isAdmin &&
+    typeof to.name === 'string' &&
+    userDashboardRoutes.includes(to.name)
+  ) {
     return { name: 'AdminOverview' };
   }
 
