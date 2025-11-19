@@ -31,6 +31,7 @@ export default tseslint.config(
         setInterval: 'readonly',
         clearInterval: 'readonly',
         URLSearchParams: 'readonly',
+        Element: 'readonly',
         HTMLElement: 'readonly',
         HTMLScriptElement: 'readonly',
         HTMLAudioElement: 'readonly',

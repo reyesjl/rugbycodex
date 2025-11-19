@@ -95,9 +95,21 @@ const router = createRouter({
     },
     {
       path: '/dashboard',
-      name: 'Dashboard',
       component: () => import('@/views/Dashboard.vue'),
       meta: { requiresAuth: true },
+      name: 'Dashboard',
+      children: [
+        {
+          path: '',
+          name: 'DashboardOverview',
+          component: () => import('@/views/dashboard/Overview.vue'),
+        },
+        {
+          path: 'account',
+          name: 'DashboardAccount',
+          component: () => import('@/views/dashboard/Account.vue'),
+        },
+      ],
     },
     {
       path: '/settings',
@@ -125,6 +137,8 @@ const router = createRouter({
 router.beforeEach(async (to) => {
   const authStore = useAuthStore(pinia);
 
+  const userDashboardRoutes = ['Dashboard', 'DashboardOverview', 'DashboardAccount'];
+
   if ((to.meta.requiresAuth || to.meta.requiresAdmin) && !authStore.isAuthenticated) {
     return {
       name: 'Login',
@@ -136,21 +150,24 @@ router.beforeEach(async (to) => {
 
   if (to.meta.guestOnly && authStore.isAuthenticated) {
     return {
-      name: 'Dashboard',
+      name: 'DashboardOverview',
     };
   }
 
   if (to.meta.requiresAdmin && !authStore.isAdmin) {
     return {
-      name: 'Dashboard',
+      name: 'DashboardOverview',
     };
   }
 
-  // If an admin navigates to the standard dashboard, redirect them to the admin dashboard
-  if (to.name === 'Dashboard' && authStore.isAuthenticated) {
-    if (authStore.isAdmin) {
-      return { name: 'AdminOverview' };
-    }
+  // Redirect admins away from the user dashboard routes
+  if (
+    authStore.isAuthenticated &&
+    authStore.isAdmin &&
+    typeof to.name === 'string' &&
+    userDashboardRoutes.includes(to.name)
+  ) {
+    return { name: 'AdminOverview' };
   }
 
   return true;
