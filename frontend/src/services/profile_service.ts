@@ -36,6 +36,9 @@ export async function getAllProfiles(): Promise<UserProfile[]> {
 }
 
 export async function getTopMembersByXp(limit: number = 10): Promise<MemberLeaderboardEntry[]> {
+  if (!Number.isInteger(limit) || limit <= 0) {
+    throw new Error('Limit must be a positive integer.');
+  }
   const { data, error } = await supabase
     .from('profiles')
     .select('id, name, xp, org_members(org_id)')

@@ -8,7 +8,7 @@ const router = createRouter({
   scrollBehavior(to, _from, savedPosition) {
     // If there's a saved position (browser back/forward button), use it
     if (savedPosition) {
-      return savedPosition
+      return savedPosition;
     }
 
     // If navigating to a hash (anchor link), scroll to it
@@ -16,7 +16,7 @@ const router = createRouter({
       return {
         el: to.hash,
         behavior: 'smooth'
-      }
+      };
     }
 
     // Otherwise scroll to top
