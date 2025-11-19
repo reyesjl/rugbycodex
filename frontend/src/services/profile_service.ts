@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabaseClient';
-import { type UserProfile, type OrgMembership, type ProfileWithMembership, toProfileWithMembership, type OrgRole } from '@/types';
+import type { UserProfile } from '@/profiles/types';
+import { type OrgMembership, type ProfileWithMembership, toProfileWithMembership, type OrgRole } from '@/types';
 
 export type ProfileWithMemberships = UserProfile & {
   memberships: OrgMembership[];
@@ -11,29 +12,6 @@ export type MemberLeaderboardEntry = {
   xp: number;
   orgCount: number;
 };
-
-export async function getAllProfiles(): Promise<UserProfile[]> {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('*')
-    .order('creation_time', { ascending: false });
-
-  if (error) {
-    throw error;
-  }
-
-  if (!data) {
-    throw new Error('No profiles found.');
-  }
-
-  return data.map((profile) => ({
-    id: profile.id,
-    name: profile.name,
-    xp: profile.xp,
-    creation_time: new Date(profile.creation_time),
-    role: profile.role,
-  }));
-}
 
 export async function getTopMembersByXp(limit: number = 10): Promise<MemberLeaderboardEntry[]> {
   if (!Number.isInteger(limit) || limit <= 0) {

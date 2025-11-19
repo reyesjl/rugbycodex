@@ -2,7 +2,8 @@ import { defineStore } from 'pinia';
 import { ref, watch } from 'vue';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuthStore } from '@/stores/auth';
-import type { OrgMembership, UserProfile } from '@/types';
+import type { OrgMembership } from '@/types';
+import type { UserProfile } from '@/profiles/types';
 
 
 export const useProfileStore = defineStore('profile', () => {

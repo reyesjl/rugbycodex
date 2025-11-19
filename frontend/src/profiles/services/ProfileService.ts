@@ -4,9 +4,10 @@ import {
   type OrgMembership,
   type OrgRole,
   type ProfileWithMembership,
-  type UserProfile,
   toProfileWithMembership,
 } from '@/types';
+
+import type { UserProfile } from '@/profiles/types';
 
 /**
  * ProfileServiceV2 centralizes all profile and membership data access logic. It is the successor to
@@ -125,7 +126,7 @@ async function getOrganizationIdBySlug(slug: string): Promise<string> {
   return org.id;
 }
 
-export const profileServiceV2 = {
+export const profileService = {
   profiles: {
     /**
      * Fetches all profiles ordered by creation date (newest first).
@@ -267,3 +268,4 @@ export const profileServiceV2 = {
     },
   },
 };
+

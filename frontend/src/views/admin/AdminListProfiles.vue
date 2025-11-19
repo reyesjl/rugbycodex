@@ -1,13 +1,8 @@
 <script setup lang="ts">
-import { getAllProfiles } from '@/services/profile_service';
 import { onMounted, ref, computed } from 'vue';
 import { Icon } from '@iconify/vue';
-import type { UserProfile } from '@/types';
 import RefreshButton from '@/components/RefreshButton.vue';
-
-const profiles = ref<UserProfile[]>([]);
-const profileLoadError = ref<string | null>(null);
-const profilesLoading = ref(true);
+import { useProfilesList } from '@/profiles/composables/useProfileList';
 
 const expandedProfiles = ref<Set<string>>(new Set());
 const searchQuery = ref('');
@@ -28,26 +23,14 @@ const collapseAll = () => {
   expandedProfiles.value.clear();
 };
 
-const loadProfiles = async () => {
-  profilesLoading.value = true;
-  profileLoadError.value = null;
-  try {
-    profiles.value = await getAllProfiles();
-  } catch (error) {
-    profileLoadError.value = error instanceof Error ? error.message : 'Failed to load profiles.';
-  } finally {
-    profilesLoading.value = false;
-  }
-};
+const profileList = useProfilesList();
 
 const handleRefresh = async () => {
-  await loadProfiles();
+  await profileList.loadProfiles();
 };
 
-const sorter = (a: UserProfile, b: UserProfile) => b.creation_time.getTime() - a.creation_time.getTime();
-
 const filteredProfiles = computed(() => {
-  let result = profiles.value;
+  let result = [...profileList.profiles.value];
   
   // Filter if search query exists
   if (searchQuery.value.trim()) {
@@ -57,12 +40,11 @@ const filteredProfiles = computed(() => {
     );
   }
   
-  // Sort once at the end
-  return [...result].sort(sorter);
+  return result;
 });
 
 onMounted(async () => {
-  await loadProfiles();
+  await profileList.loadProfiles();
 });
 
 </script>
@@ -86,7 +68,7 @@ onMounted(async () => {
           </button>
           <RefreshButton
             :refresh="handleRefresh"
-            :loading="profilesLoading"
+            :loading="profileList.loading.value"
             title="Refresh profiles"
           />
         </div>
@@ -104,13 +86,13 @@ onMounted(async () => {
         </div>
       </div>
 
-      <div v-if="filteredProfiles.length === 0 && !profilesLoading && !profileLoadError" class="mt-4">
+      <div v-if="filteredProfiles.length === 0 && !profileList.loading.value && !profileList.error.value" class="mt-4">
         <p class="text-neutral-600 dark:text-neutral-400">
           {{ searchQuery ? 'No profiles match your search.' : 'No profiles found.' }}
         </p>
       </div>
-      <div v-else-if="profileLoadError" class="mt-4">
-        <p class="text-sm text-rose-500 dark:text-rose-400">Error: {{ profileLoadError }}</p>
+      <div v-else-if="profileList.error.value" class="mt-4">
+        <p class="text-sm text-rose-500 dark:text-rose-400">Error: {{ profileList.error.value }}</p>
       </div>
       <div v-else class="scrolling-list mt-4 max-h-[60vh] space-y-4 overflow-y-auto pr-2">
         <TransitionGroup name="profile-list" tag="div" class="space-y-4">
