@@ -129,7 +129,7 @@ onBeforeUnmount(() => {
 
       <nav
         class="relative flex overflow-x-auto rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-950/60 no-scrollbar snap-x snap-proximity my-5">
-        <div class="tab-strip flex min-w-full gap-1 py-1">
+        <div class="px-2 flex min-w-full gap-1 py-1">
           <button v-for="item in sidebarLinks" :key="item.id" type="button"
             class="whitespace-nowrap px-2 text-xs font-semibold uppercase transition snap-center"
             :ref="setTabRef(item.id)" :class="[
@@ -161,25 +161,3 @@ onBeforeUnmount(() => {
     </div>
   </section>
 </template>
-
-<style scoped>
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
-}
-
-.no-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-
-.tab-strip {
-  padding-inline: 0.5rem 1.25rem;
-  scroll-padding-inline-start: 0.5rem;
-  scroll-padding-inline-end: 1.25rem;
-}
-
-.tab-strip::after {
-  content: '';
-  flex: 0 0 1rem;
-}
-</style>
