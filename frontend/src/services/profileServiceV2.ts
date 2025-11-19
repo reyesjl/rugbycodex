@@ -8,6 +8,23 @@ import {
   toProfileWithMembership,
 } from '@/types';
 
+/**
+ * ProfileServiceV2 centralizes all profile and membership data access logic.
+ *
+ * Usage:
+ * ```ts
+ * import { profileServiceV2 } from '@/services/profileServiceV2';
+ *
+ * const profiles = await profileServiceV2.profiles.list();
+ * const profile = await profileServiceV2.profiles.getWithMemberships(profileId);
+ * const leaderboard = await profileServiceV2.leaderboard.topMembers(5);
+ * await profileServiceV2.memberships.addByOrgSlug(userId, 'org-slug', 'manager');
+ * ```
+ *
+ * Prefer this service over direct Supabase calls so typemaps, error handling,
+ * and domain conventions stay consistent across the app.
+ */
+
 type ProfileRow = {
   id: string;
   name: string;
@@ -108,6 +125,10 @@ async function getOrganizationIdBySlug(slug: string): Promise<string> {
 
 export const profileServiceV2 = {
   profiles: {
+    /**
+     * Fetches all profiles ordered by creation date (newest first).
+     * @returns List of normalized user profiles.
+     */
     async list(): Promise<UserProfile[]> {
       const rows = await getList<ProfileRow>(
         supabase.from('profiles').select('*').order('creation_time', { ascending: false }),
@@ -116,6 +137,11 @@ export const profileServiceV2 = {
       return rows.map(toUserProfile);
     },
 
+    /**
+     * Retrieves a single profile by identifier.
+     * @param profileId Profile UUID.
+     * @throws Error when the profile does not exist.
+     */
     async getById(profileId: string): Promise<UserProfile> {
       const row = await getSingle<ProfileRow>(
         supabase.from('profiles').select('*').eq('id', profileId).single(),
@@ -124,6 +150,11 @@ export const profileServiceV2 = {
       return toUserProfile(row);
     },
 
+    /**
+     * Returns a profile along with all organization memberships.
+     * @param profileId Profile UUID.
+     * @throws Error when profile is missing.
+     */
     async getWithMemberships(profileId: string): Promise<ProfileDetail> {
       const row = await getSingle<ProfileRow & { memberships?: MembershipRelationRow[] }>(
         supabase
@@ -162,6 +193,10 @@ export const profileServiceV2 = {
   },
 
   leaderboard: {
+    /**
+     * Returns the top profiles ranked by XP.
+     * @param limit Max number of results (must be positive).
+     */
     async topMembers(limit: number = 10): Promise<MemberLeaderboardEntry[]> {
       if (!Number.isInteger(limit) || limit <= 0) {
         throw new Error('Limit must be a positive integer.');
@@ -181,6 +216,11 @@ export const profileServiceV2 = {
   },
 
   memberships: {
+    /**
+     * Lists members of an organization using the database view.
+     * @param orgId Organization UUID.
+     * @throws Error when no members exist for the org.
+     */
     async listByOrganization(orgId: string): Promise<ProfileWithMembership[]> {
       const rows = await getList<ProfileWithMembershipViewRow>(
         supabase.from('profile_with_membership').select('*').eq('org_id', orgId),
@@ -189,6 +229,10 @@ export const profileServiceV2 = {
       return rows.map(toProfileWithMembership);
     },
 
+    /**
+     * Adds a user to an organization by slug.
+     * @throws Error when the org slug is invalid or the user already belongs to the org.
+     */
     async addByOrgSlug(userId: string, orgSlug: string, role: OrgRole = 'member'): Promise<void> {
       const orgId = await getOrganizationIdBySlug(orgSlug);
       const { error } = await supabase
@@ -203,6 +247,9 @@ export const profileServiceV2 = {
       }
     },
 
+    /**
+     * Removes a membership between a user and organization.
+     */
     async remove(userId: string, orgId: string): Promise<void> {
       const { error } = await supabase.from('org_members').delete().eq('user_id', userId).eq('org_id', orgId);
       if (error) {
@@ -210,6 +257,9 @@ export const profileServiceV2 = {
       }
     },
 
+    /**
+     * Updates the role assigned to a user within an organization.
+     */
     async setRole(userId: string, orgId: string, role: OrgRole): Promise<void> {
       const { error } = await supabase.from('org_members').update({ role }).eq('user_id', userId).eq('org_id', orgId);
       if (error) {
