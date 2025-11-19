@@ -36,6 +36,7 @@ export default tseslint.config(
         HTMLAudioElement: 'readonly',
         HTMLDivElement: 'readonly',
         MouseEvent: 'readonly',
+        PointerEvent: 'readonly',
         Node: 'readonly',
         requestAnimationFrame: 'readonly',
         cancelAnimationFrame: 'readonly',
@@ -43,7 +44,8 @@ export default tseslint.config(
         localStorage: 'readonly',
         URL: 'readonly',
         fetch: 'readonly',
-        AudioContext: 'readonly'
+        AudioContext: 'readonly',
+        DOMRect: 'readonly'
       }
     }
   },

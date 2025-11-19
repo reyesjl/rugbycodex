@@ -335,7 +335,7 @@ onMounted(async () => {
                   {{ membership.org_name }}
                 </RouterLink>
                 <p class="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
-                  {{ membership.role.toUpperCase() }} • Joined: {{ membership.join_date.toLocaleDateString() }}
+                  {{ membership.org_role.toUpperCase() }} • Joined: {{ membership.join_date.toLocaleDateString() }}
                 </p>
               </div>
               <button

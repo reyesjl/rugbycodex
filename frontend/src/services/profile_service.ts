@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabaseClient';
-import type { UserProfile, OrgMembership } from '@/types';
+import { type UserProfile, type OrgMembership, type ProfileWithMembership, toProfileWithMembership, type OrgRole } from '@/types';
 
 export type ProfileWithMemberships = UserProfile & {
   memberships: OrgMembership[];
@@ -92,7 +92,7 @@ export async function getProfileById(userId: string): Promise<ProfileWithMembers
     org_id: item.org_id,
     org_name: (item.organization as { name?: string })?.name || 'Unknown',
     slug: (item.organization as { slug?: string })?.slug || 'unknown',
-    role: item.role,
+    org_role: item.role,
     join_date: new Date(item.joined_at),
   })) ?? [];
 
@@ -171,4 +171,37 @@ export async function removeMembershipFromProfile(
   if (error) {
     throw error;
   }
+}
+
+export async function updateMembershipRole(
+  userId: string,
+  orgId: string,
+  newRole: OrgRole
+): Promise<void> {
+  const { error } = await supabase
+    .from('org_members')
+    .update({ role: newRole })
+    .eq('user_id', userId)
+    .eq('org_id', orgId);
+
+  if (error) {
+    throw error;
+  }
+}
+
+export async function getOrganizationMembers(orgId: string): Promise<ProfileWithMembership[]> {
+  const { data, error } = await supabase
+    .from('profile_with_membership')
+    .select('*')
+    .eq('org_id', orgId);
+
+  if (error) {
+    throw error;
+  }
+
+  if (!data) {
+    throw new Error('No members found for organization with id: ' + orgId);
+  }
+
+  return data.map(toProfileWithMembership);
 }

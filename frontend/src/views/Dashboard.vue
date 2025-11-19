@@ -30,8 +30,8 @@ const accountRole = computed(() => {
 const userOrganizations = computed(() => {
   const list = [...profileStore.organizations];
   return list.sort((a, b) => {
-    const aOwner = a.role.toLowerCase() === 'owner';
-    const bOwner = b.role.toLowerCase() === 'owner';
+    const aOwner = a.org_role.toLowerCase() === 'owner';
+    const bOwner = b.org_role.toLowerCase() === 'owner';
     // Owner first
     if (aOwner !== bOwner) return aOwner ? -1 : 1;
     // Then by newest join date
@@ -138,26 +138,26 @@ const handleSignOut = async () => {
         <h2 class="text-sm font-semibold uppercase tracking-[0.3em] text-neutral-500 dark:text-neutral-500">
           Organizations
         </h2>
-        
+
         <div v-if="profileStore.loadingOrganizations" class="mt-6">
           <div class="flex items-center gap-2 text-sm text-neutral-500 dark:text-neutral-400">
             <span class="h-4 w-4 animate-spin rounded-full border-2 border-neutral-300 border-t-transparent dark:border-neutral-700"></span>
             <span>Loading organizations...</span>
           </div>
         </div>
-        
+
         <ul v-else-if="hasOrganizations" class="mt-6 space-y-2 text-neutral-700 dark:text-neutral-200">
           <li v-for="org in userOrganizations" :key="org.slug" class="flex items-start justify-between gap-4">
             <div class="flex flex-wrap items-baseline gap-2">
               <AnimatedLink :to="`/organizations/${org.slug}`" :text="org.org_name" />
-              <span class="text-sm text-neutral-500 dark:text-neutral-400">[{{ org.role.toUpperCase() }}]</span>
+              <span class="text-sm text-neutral-500 dark:text-neutral-400">[{{ org.org_role.toUpperCase() }}]</span>
             </div>
             <span class="text-xs text-neutral-500 dark:text-neutral-400 whitespace-nowrap">
               Joined {{ org.join_date.toLocaleDateString() }}
             </span>
           </li>
         </ul>
-        
+
         <p v-else class="mt-6 text-sm text-neutral-500 dark:text-neutral-400">
           You are not part of any organizations yet.
         </p>

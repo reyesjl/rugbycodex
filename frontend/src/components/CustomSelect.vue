@@ -26,8 +26,21 @@ const selectedOption = computed(() => {
   return props.options.find(opt => opt.value === props.modelValue);
 });
 
-const toggleDropdown = () => {
+const dropdownPosition = ref<{ top: string; left: string }>({ top: '0px', left: '0px' });
+const toggleDropdown = (event: MouseEvent) => {
   isOpen.value = !isOpen.value;
+
+  let rect: DOMRect;
+  // position relative to selection box, probably never be null
+  if (selectRef.value != null) {
+    rect = selectRef.value.getBoundingClientRect();
+  } else {
+    rect = (event.target as HTMLElement).getBoundingClientRect();
+  }
+  dropdownPosition.value = {
+    top: `${rect.bottom + window.scrollY}px`,
+    left: `${rect.left + window.scrollX}px`,
+  };
 };
 
 const selectOption = (value: number | string) => {
@@ -63,22 +76,31 @@ onBeforeUnmount(() => {
       </span>
     </button>
 
-    <Transition enter-active-class="transition duration-100 ease-out" enter-from-class="transform scale-95 opacity-0"
-      enter-to-class="transform scale-100 opacity-100" leave-active-class="transition duration-75 ease-in"
+    <Transition enter-active-class="transition duration-250 ease-out" enter-from-class="transform scale-95 opacity-0"
+      enter-to-class="transform scale-100 opacity-100" leave-active-class="transition duration-250 ease-in"
       leave-from-class="transform scale-100 opacity-100" leave-to-class="transform scale-95 opacity-0">
-      <div v-if="isOpen"
-        class="absolute z-10 mt-2 w-full overflow-hidden rounded-xl border border-neutral-300 bg-white shadow-lg dark:border-neutral-700 dark:bg-neutral-950">
-        <ul class="max-h-60 overflow-auto py-1">
-          <li v-for="option in options" :key="option.value" @click="selectOption(option.value)" :class="[
-            'cursor-pointer px-4 py-3 text-neutral-900 transition dark:text-neutral-100',
-            option.value === modelValue
-              ? 'bg-neutral-200 font-semibold dark:bg-neutral-800'
-              : 'hover:bg-neutral-100 dark:hover:bg-neutral-900'
-          ]">
-            {{ option.label }}
-          </li>
-        </ul>
-      </div>
+      <Teleport to="body">
+        <div v-if="isOpen" role="listbox"
+          class="absolute z-50 rounded-xl border border-neutral-300 bg-white shadow-lg dark:border-neutral-700 dark:bg-neutral-950"
+          :style="{
+            top: dropdownPosition.top,
+            left: dropdownPosition.left,
+            width: selectRef?.offsetWidth + 'px'
+          }">
+          <ul class="max-h-60 overflow-y-visible py-1">
+            <li v-for="option in options" :key="option.value" role="option" :aria-selected="option.value === modelValue"
+              @click="selectOption(option.value)" :class="[
+                'cursor-pointer px-4 py-3 text-neutral-900 transition dark:text-neutral-100',
+                option.value === modelValue
+                  ? 'bg-neutral-200 font-semibold dark:bg-neutral-800'
+                  : 'hover:bg-neutral-100 dark:hover:bg-neutral-900'
+              ]">
+              {{ option.label }}
+            </li>
+          </ul>
+        </div>
+      </Teleport>
     </Transition>
+
   </div>
 </template>
