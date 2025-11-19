@@ -5,8 +5,22 @@ import { adminRoutes } from '@/router/admin';
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
-  scrollBehavior() {
-    return { left: 0, top: 0 };
+  scrollBehavior(to, _from, savedPosition) {
+    // If there's a saved position (browser back/forward button), use it
+    if (savedPosition) {
+      return savedPosition;
+    }
+
+    // If navigating to a hash (anchor link), scroll to it
+    if (to.hash) {
+      return {
+        el: to.hash,
+        behavior: 'smooth'
+      };
+    }
+
+    // Otherwise scroll to top
+    return { top: 0, left: 0 }
   },
   routes: [
     {
@@ -28,6 +42,11 @@ const router = createRouter({
       path: '/inside',
       name: 'InsideTheCodex',
       component: () => import('@/views/Inside.vue'),
+    },
+    {
+      path: '/codexui',
+      name: 'CodexUI',
+      component: () => import('@/views/CodexUI.vue'),
     },
     {
       path: '/inside/:slug',
@@ -86,12 +105,6 @@ const router = createRouter({
       component: () => import('@/views/Settings.vue'),
       meta: { requiresAuth: true },
     },
-    {
-      path: '/dashboard',
-      name: 'AdminDashboard',
-      component: () => import('@/views/admin/AdminDashboard.vue'),
-      meta: { requiresAuth: true, requiresAdmin: true },
-    },
     ...adminRoutes,
     {
       path: '/organizations/:orgSlug',
@@ -99,6 +112,12 @@ const router = createRouter({
       component: () => import('@/views/organizations/OrganizationDashboard.vue'),
       meta: { requiresAuth: true },
       props: true,
+    },
+    {
+      path: '/:pathMatch(.*)*',
+      name: 'NotFound',
+      component: () => import('@/views/404.vue'),
+      meta: { layout: 'minimal' },
     },
   ],
 });
@@ -130,7 +149,7 @@ router.beforeEach(async (to) => {
   // If an admin navigates to the standard dashboard, redirect them to the admin dashboard
   if (to.name === 'Dashboard' && authStore.isAuthenticated) {
     if (authStore.isAdmin) {
-      return { name: 'AdminDashboard' };
+      return { name: 'AdminOverview' };
     }
   }
 
