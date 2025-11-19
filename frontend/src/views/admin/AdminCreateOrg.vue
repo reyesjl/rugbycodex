@@ -2,8 +2,9 @@
 import { ref, watch, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { stringToSlugCase } from '@/utils';
-import { createOrganization } from '@/services/org_service';
 import CustomSelect from '@/components/CustomSelect.vue';
+import { orgService } from '@/organizations/services/OrgService';
+import { type CreateOrganizationInput } from '@/organizations/types';
 
 const router = useRouter();
 const orgName = ref('');
@@ -55,12 +56,12 @@ const handleCreateOrg = async () => {
   createSuccess.value = false;
 
   try {
-    await createOrganization(
-      orgName.value,
-      orgSlug.value,
-      ownerId.value || null,
-      storageSize.value * 1024
-    );
+    await orgService.organizations.create({
+      name: orgName.value,
+      slug: orgSlug.value,
+      owner: ownerId.value || null,
+      storage_limit_mb: storageSize.value * 1024
+    } as CreateOrganizationInput);
 
     createSuccess.value = true;
 

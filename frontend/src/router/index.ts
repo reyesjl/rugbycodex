@@ -121,7 +121,7 @@ const router = createRouter({
     {
       path: '/organizations/:orgSlug',
       name: 'OrganizationDetail',
-      component: () => import('@/views/organizations/OrganizationDashboard.vue'),
+      component: () => import('@/organizations/views/OrganizationDashboard.vue'),
       meta: { requiresAuth: true },
       props: true,
     },

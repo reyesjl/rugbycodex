@@ -1,5 +1,6 @@
-import { getAllOrganizations, type Organization } from "@/services/org_service";
 import { ref } from 'vue';
+import { type Organization } from '@/organizations/types';
+import { orgService } from '@/organizations/services/OrgService';
 
 
 export function useOrganizationList() {
@@ -11,7 +12,7 @@ export function useOrganizationList() {
     loading.value = true;
     error.value = null;
     try {
-      organizations.value = await getAllOrganizations();
+      organizations.value = await orgService.organizations.list();
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to load organizations.';
     } finally {
