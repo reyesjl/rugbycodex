@@ -5,6 +5,13 @@ export type ProfileWithMemberships = UserProfile & {
   memberships: OrgMembership[];
 };
 
+export type MemberLeaderboardEntry = {
+  id: string;
+  name: string;
+  xp: number;
+  orgCount: number;
+};
+
 export async function getAllProfiles(): Promise<UserProfile[]> {
   const { data, error } = await supabase
     .from('profiles')
@@ -26,6 +33,28 @@ export async function getAllProfiles(): Promise<UserProfile[]> {
     creation_time: new Date(profile.creation_time),
     role: profile.role,
   }));
+}
+
+export async function getTopMembersByXp(limit: number = 10): Promise<MemberLeaderboardEntry[]> {
+  if (!Number.isInteger(limit) || limit <= 0) {
+    throw new Error('Limit must be a positive integer.');
+  }
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, name, xp, org_members(org_id)')
+    .order('xp', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    throw error;
+  }
+
+  return data?.map((row) => ({
+    id: row.id,
+    name: row.name,
+    xp: row.xp ?? 0,
+    orgCount: row.org_members?.length ?? 0,
+  })) ?? [];
 }
 
 export async function getProfileById(userId: string): Promise<ProfileWithMemberships> {
