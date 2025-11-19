@@ -55,6 +55,10 @@ type ProfileWithMembershipViewRow = ProfileRow & {
 
 export type ProfileDetail = UserProfile & { memberships: OrgMembership[] };
 
+// Backward compatibility: legacy type alias
+// TODO: Remove eventually? @Bennm23
+export type ProfileWithMemberships = ProfileDetail;
+
 export type MemberLeaderboardEntry = {
   id: string;
   name: string;
