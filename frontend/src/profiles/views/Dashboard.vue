@@ -2,7 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type ComponentPublicInstance } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
-import { useProfileStore } from '@/profiles/stores/profile';
+import { useProfileStore } from '@/profiles/stores/useProfileStore';
 
 type DashboardTabRoute = 'DashboardOverview' | 'DashboardAccount';
 type DashboardTab = {
@@ -125,20 +125,14 @@ onBeforeUnmount(() => {
         </div>
       </header>
 
-      <nav class="relative my-5 flex overflow-x-auto rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-950/60 no-scrollbar snap-x snap-proximity">
+      <nav
+        class="relative my-5 flex overflow-x-auto rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-950/60 no-scrollbar snap-x snap-proximity">
         <div class="px-2 flex min-w-full gap-1 py-1">
-          <button
-            v-for="tab in tabs"
-            :key="tab.id"
-            type="button"
+          <button v-for="tab in tabs" :key="tab.id" type="button"
             class="whitespace-nowrap rounded-lg px-2 text-xs font-semibold uppercase transition snap-center"
-            :ref="setTabRef(tab.id)"
-            :class="[
+            :ref="setTabRef(tab.id)" :class="[
               tab.disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer',
-            ]"
-            :disabled="tab.disabled"
-            @click="handleTabChange(tab)"
-          >
+            ]" :disabled="tab.disabled" @click="handleTabChange(tab)">
             <span :class="[
               'inline-block',
               activeRouteName === tab.routeName
@@ -148,13 +142,9 @@ onBeforeUnmount(() => {
               {{ tab.label }}
             </span>
           </button>
-          <button
-            type="button"
+          <button type="button"
             class="whitespace-nowrap cursor-pointer rounded-lg px-2 text-xs font-semibold uppercase text-rose-500 transition hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300"
-            @click="handleSignOut"
-            :disabled="signingOut"
-            :class="{ 'opacity-50 cursor-not-allowed': signingOut}"
-          >
+            @click="handleSignOut" :disabled="signingOut" :class="{ 'opacity-50 cursor-not-allowed': signingOut }">
             {{ signingOut ? 'Signing out…' : 'Sign out' }}
           </button>
         </div>

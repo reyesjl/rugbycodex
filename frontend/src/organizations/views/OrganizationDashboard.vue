@@ -8,7 +8,7 @@ import type { OrgRole } from '@/types';
 import CustomSelect from '@/components/CustomSelect.vue';
 import ErrorNotification from '@/components/ErrorNotification.vue';
 import SuccessNotification from '@/components/SuccessNotification.vue';
-import { useProfileStore } from '@/profiles/stores/profile';
+import { useProfileStore } from '@/profiles/stores/useProfileStore';
 import { orgService } from '@/organizations/services/OrgService';
 import { type Organization } from '@/organizations/types';
 import { profileService } from '@/profiles/services/ProfileService';
