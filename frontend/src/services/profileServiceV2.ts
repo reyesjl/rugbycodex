@@ -40,8 +40,8 @@ export type MemberLeaderboardEntry = {
   orgCount: number;
 };
 
-type ListQueryResult<T = any> = PromiseLike<{ data: T[] | null; error: PostgrestError | null }>;
-type SingleQueryResult<T = any> = PromiseLike<{ data: T | null; error: PostgrestError | null }>;
+type ListQueryResult<T = unknown> = PromiseLike<{ data: T[] | null; error: PostgrestError | null }>;
+type SingleQueryResult<T = unknown> = PromiseLike<{ data: T | null; error: PostgrestError | null }>;
 
 function asDate(value: string | Date | null, context: string): Date {
   if (!value) {
@@ -77,7 +77,7 @@ function toMembership(row: Partial<MembershipRelationRow> & Partial<OrgMembershi
   };
 }
 
-async function getList<T = any>(query: ListQueryResult<T>, emptyMessage?: string): Promise<T[]> {
+async function getList<T = unknown>(query: ListQueryResult<T>, emptyMessage?: string): Promise<T[]> {
   const { data, error } = await query;
   if (error) throw error;
   if (!data) {
@@ -89,7 +89,7 @@ async function getList<T = any>(query: ListQueryResult<T>, emptyMessage?: string
   return data;
 }
 
-async function getSingle<T = any>(query: SingleQueryResult<T>, notFoundMessage: string): Promise<T> {
+async function getSingle<T = unknown>(query: SingleQueryResult<T>, notFoundMessage: string): Promise<T> {
   const { data, error } = await query;
   if (error) throw error;
   if (!data) {
