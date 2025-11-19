@@ -3,7 +3,8 @@ import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import AnimatedLink from '@/components/AnimatedLink.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
-import { getDashboardStats, type DashboardStats } from '@/services/stats_service';
+import { getDashboardStats } from '@/admin/services/stats_service';
+import type { DashboardStats } from '@/admin/types';
 import type { MemberLeaderboardEntry } from '@/profiles/types';
 import { profileService } from '@/profiles/services/ProfileService';
 
