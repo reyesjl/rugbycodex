@@ -68,6 +68,7 @@ const displayName = computed(() => {
 
 const profileXp = computed(() => Number(profileStore.profile?.xp ?? 0));
 const xpDisplay = computed(() => profileXp.value.toLocaleString());
+//TODO: Replace with actual level calculation
 const currentLevel = computed(() => 1);
 
 const greeting = computed(() => {
