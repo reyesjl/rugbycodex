@@ -19,7 +19,7 @@ const statColumns = computed(() => {
   if (!stats.value) return [];
 
   return [
-    { id: 'organizations', label: 'Organizations', description: 'Active orgs', value: stats.value.organizations },
+    { id: 'organizations', label: 'Orgs', description: 'Active orgs', value: stats.value.organizations },
     { id: 'members', label: 'Members', description: 'Profiles on file', value: stats.value.members },
     { id: 'narrations', label: 'Narrations', description: 'Stories shared', value: stats.value.narrations },
     { id: 'uploads', label: 'Uploads', description: 'Media assets', value: stats.value.uploads },
