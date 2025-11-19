@@ -100,16 +100,10 @@ function toMembership(row: MembershipRelationRow): OrgMembership {
   };
 }
 
-async function getList<T = unknown>(query: ListQueryResult<T>, emptyMessage?: string): Promise<T[]> {
+async function getList<T = unknown>(query: ListQueryResult<T>): Promise<T[]> {
   const { data, error } = await query;
   if (error) throw error;
-  if (!data) {
-    if (emptyMessage) {
-      throw new Error(emptyMessage);
-    }
-    return [];
-  }
-  return data;
+  return data ?? [];
 }
 
 async function getSingle<T = unknown>(query: SingleQueryResult<T>, notFoundMessage: string): Promise<T> {
@@ -137,8 +131,7 @@ export const profileServiceV2 = {
      */
     async list(): Promise<UserProfile[]> {
       const rows = await getList<ProfileRow>(
-        supabase.from('profiles').select('*').order('creation_time', { ascending: false }),
-        'No profiles found.'
+        supabase.from('profiles').select('*').order('creation_time', { ascending: false })
       );
       return rows.map(toUserProfile);
     },
@@ -225,12 +218,10 @@ export const profileServiceV2 = {
     /**
      * Lists members of an organization using the database view.
      * @param orgId Organization UUID.
-     * @throws Error when no members exist for the org.
      */
     async listByOrganization(orgId: string): Promise<ProfileWithMembership[]> {
       const rows = await getList<ProfileWithMembershipViewRow>(
-        supabase.from('profile_with_membership').select('*').eq('org_id', orgId),
-        `No members found for organization with id: ${orgId}`
+        supabase.from('profile_with_membership').select('*').eq('org_id', orgId)
       );
       return rows.map(toProfileWithMembership);
     },
