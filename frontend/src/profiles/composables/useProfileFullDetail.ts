@@ -24,16 +24,11 @@ export function useProfileFullDetail() {
     return profile.value?.memberships || [];
   });
 
-  const membershipCount = computed(() => {
-    return memberships.value.length;
-  });
-
   return {
     profile,
     loading,
     error,
     memberships,
-    membershipCount,
 
     loadProfile,
   }
