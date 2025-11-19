@@ -87,16 +87,22 @@ onMounted(() => {
       <div class="mt-8 min-h-[200px]">
         <p v-if="statsLoading" class="text-neutral-500 dark:text-neutral-400">Loading insights…</p>
         <p v-else-if="statsError" class="text-sm text-rose-500 dark:text-rose-400">{{ statsError }}</p>
-        <div v-else class="grid gap-10 md:grid-cols-2 lg:grid-cols-4">
-          <article v-for="stat in statColumns" :key="stat.id" class="flex flex-col gap-2">
-            <p class="text-xs font-semibold uppercase tracking-[0.4em] text-neutral-500 dark:text-neutral-400">
-              {{ stat.label }}
-            </p>
-            <div class="text-5xl font-semibold text-neutral-900 dark:text-neutral-100">
-              {{ stat.value.toLocaleString() }}
-            </div>
-            <p class="text-sm text-neutral-500 dark:text-neutral-400">{{ stat.description }}</p>
-          </article>
+        <div v-else class="relative -mx-4 px-4">
+          <div class="stat-strip flex gap-4 overflow-x-auto py-2 no-scrollbar md:flex-wrap">
+            <article
+              v-for="stat in statColumns"
+              :key="stat.id"
+              class="flex min-w-[220px] snap-start flex-col gap-2 border border-neutral-200 bg-neutral-50/90 px-4 py-6 text-neutral-900 shadow-[0_10px_30px_rgba(0,0,0,0.05)] dark:border-neutral-800 dark:bg-neutral-900/80 dark:text-neutral-100 dark:shadow-[0_10px_30px_rgba(0,0,0,0.35)] md:min-w-[230px] md:flex-1 md:snap-none"
+            >
+              <p class="text-xs font-semibold uppercase text-neutral-500 dark:text-neutral-400">
+                {{ stat.label }}
+              </p>
+              <div class="text-5xl font-semibold text-neutral-900 dark:text-neutral-100">
+                {{ stat.value.toLocaleString() }}
+              </div>
+              <p class="text-sm text-neutral-500 dark:text-neutral-400">{{ stat.description }}</p>
+            </article>
+          </div>
         </div>
       </div>
     </section>
@@ -162,5 +168,33 @@ onMounted(() => {
         </div>
       </div>
     </section>
-  </section>
+</section>
 </template>
+
+<style scoped>
+.stat-strip {
+  scroll-snap-type: x mandatory;
+  padding-inline: 0.5rem;
+}
+
+.stat-strip > article {
+  scroll-snap-align: center;
+}
+
+@media (min-width: 768px) {
+  .stat-strip {
+    scroll-snap-type: none;
+    overflow-x: visible;
+    padding-inline: 0;
+  }
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+</style>

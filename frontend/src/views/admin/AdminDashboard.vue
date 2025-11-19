@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Icon } from '@iconify/vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
@@ -25,12 +25,11 @@ const authStore = useAuthStore();
 const router = useRouter();
 const route = useRoute();
 
-const isSidebarOpen = ref(true);
-
 const signOutError = ref<string | null>(null);
 const signingOut = ref(false);
 const currentTime = ref(new Date());
 let timeInterval: ReturnType<typeof setInterval> | null = null;
+const tabRefs = ref<Record<SidebarRouteName, HTMLElement | null>>({});
 
 const displayName = computed(() => {
   const metadataName = authStore.user?.user_metadata?.name as string | undefined;
@@ -52,16 +51,6 @@ const currentPanelLabel = computed(() => {
   return sidebarLinks.find(link => link.id === activeName)?.label ?? (route.meta?.adminLabel as string | undefined) ?? '';
 });
 
-const currentPanelDescription = computed(() => {
-  const descriptionOverride = route.meta?.adminDescription as string | undefined;
-  if (descriptionOverride) return descriptionOverride;
-
-  if (!isOverviewPanel.value && currentPanelLabel.value) {
-    return `Manage ${currentPanelLabel.value.toLowerCase()} from your admin command center.`;
-  }
-  return '';
-});
-
 const greeting = computed(() => {
   const hours = currentTime.value.getHours();
   if (hours < 12) return 'Good morning';
@@ -69,8 +58,15 @@ const greeting = computed(() => {
   return 'Good evening';
 });
 
-const toggleSidebar = () => {
-  isSidebarOpen.value = !isSidebarOpen.value;
+const setTabRef = (id: SidebarRouteName) => (el: HTMLElement | null) => {
+  tabRefs.value[id] = el;
+};
+
+const scrollTabIntoView = (id: SidebarRouteName) => {
+  nextTick(() => {
+    const el = tabRefs.value[id];
+    el?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+  });
 };
 
 const handlePanelChange = (panelId: SidebarRouteName) => {
@@ -79,10 +75,7 @@ const handlePanelChange = (panelId: SidebarRouteName) => {
   }
 
   router.push({ name: panelId });
-
-  if (typeof window !== 'undefined' && window.innerWidth < 1024) {
-    isSidebarOpen.value = false;
-  }
+  scrollTabIntoView(panelId);
 };
 
 const handleSignOut = async () => {
@@ -103,6 +96,17 @@ onMounted(() => {
   }, 60_000);
 });
 
+watch(
+  activeRouteName,
+  (newName) => {
+    if (!newName) return;
+    if (sidebarLinks.some(link => link.id === newName)) {
+      scrollTabIntoView(newName as SidebarRouteName);
+    }
+  },
+  { immediate: true }
+);
+
 onBeforeUnmount(() => {
   if (timeInterval) {
     clearInterval(timeInterval);
@@ -113,110 +117,81 @@ onBeforeUnmount(() => {
 
 <template>
   <section class="container py-20">
-    <div class="flex flex-col gap-6">
-      <div class="flex justify-end">
-        <button
-          type="button"
-          class="inline-flex items-center gap-3 rounded-full border border-neutral-200 px-4 py-2 text-sm font-semibold uppercase tracking-[0.2em] text-neutral-700 transition hover:border-neutral-900 hover:text-neutral-900 dark:border-neutral-800 dark:text-neutral-200 dark:hover:border-neutral-100 dark:hover:text-neutral-100"
-          @click="toggleSidebar"
-        >
-          <Icon :icon="isSidebarOpen ? 'carbon:close' : 'carbon:menu'" class="h-5 w-5" />
-          <span>{{ isSidebarOpen ? 'Close menu' : 'Open menu' }}</span>
-        </button>
-      </div>
-
-      <div class="flex flex-col gap-12 lg:flex-row lg:items-start">
-        <Transition name="sidebar-slide">
-          <aside
-            v-if="isSidebarOpen"
-            class="p-8 text-base lg:sticky lg:top-20 lg:h-[calc(100vh-5rem)] lg:w-64 lg:overflow-y-auto lg:self-start"
-          >
-            <p class="text-xs font-semibold uppercase tracking-[0.4em] text-neutral-500 dark:text-neutral-500">
-              Admin
-            </p>
-            <nav class="mt-8 flex flex-col gap-3 font-medium">
-              <button
-                v-for="item in sidebarLinks"
-                :key="item.id"
-                type="button"
-                class="pl-2 text-left text-neutral-500 transition hover:text-neutral-800 disabled:cursor-not-allowed disabled:opacity-50 dark:text-neutral-400 dark:hover:text-neutral-100"
-                :class="activeRouteName === item.id
-                  ? 'text-neutral-900 dark:text-white'
-                  : ''"
-                :disabled="item.disabled"
-                @click="handlePanelChange(item.id)"
-              >
-                {{ item.label }}
-                <span
-                  v-if="item.disabled"
-                  class="ml-2 inline-flex items-center rounded-full bg-neutral-200 px-2 py-0.5 text-xs uppercase tracking-[0.3em] text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300"
-                >
-                  Soon
-                </span>
-              </button>
-            </nav>
-            <button
-              type="button"
-              class="mt-10 text-xs font-semibold uppercase tracking-[0.3em] text-neutral-500 transition hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100"
-              @click="handleSignOut"
-              :disabled="signingOut"
-              :class="{ 'opacity-50': signingOut }"
-            >
-              {{ signingOut ? 'Signing out…' : 'Sign out' }}
-            </button>
-            <p v-if="signOutError" class="mt-3 text-sm text-rose-500 dark:text-rose-400">
-              {{ signOutError }}
-            </p>
-          </aside>
-        </Transition>
-
-        <div class="flex-1 space-y-12">
-          <header class="border-b border-neutral-200 pb-10 dark:border-neutral-800">
-            <template v-if="isOverviewPanel">
-              <div class="flex flex-wrap items-center justify-between gap-4">
-                <h1 class="text-3xl text-black break-words pr-4 dark:text-white">
-                  {{ greeting }}, {{ displayName }}!
-                </h1>
-                <!-- todo: create actual link -->
-                <div class="flex items-center">
-                  <Pill variant="success">InDev</Pill>
-                  <Icon icon="mdi:dot" class="h-3 w-3 text-black dark:text-white" />
-                  <div class="shrink-0 text-sm text-blue-500 dark:text-blue-300">Feedback</div>
-                </div>
-              </div>
-              <p class="mt-4 max-w-2xl text-neutral-600 dark:text-neutral-400">
-                Keep tabs on accounts, organizations, and narrations without the extra chrome.
-              </p>
-            </template>
-            <template v-else>
-              <p class="text-xs font-semibold uppercase tracking-[0.4em] text-neutral-500 dark:text-neutral-500">
-                Admin
-              </p>
-              <h1 class="mt-4 text-3xl font-semibold text-neutral-900 dark:text-neutral-100">
-                {{ currentPanelLabel }}
-              </h1>
-              <p v-if="currentPanelDescription" class="mt-4 max-w-2xl text-neutral-600 dark:text-neutral-400">
-                {{ currentPanelDescription }}
-              </p>
-            </template>
-          </header>
-
-          <RouterView />
+    <div class="flex flex-col">
+      <header class="border-b border-neutral-200 pb-5 dark:border-neutral-800">
+        <div class="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h2 class="text-3xl text-neutral-900 dark:text-neutral-100">
+              {{ greeting }}, {{ displayName }}!
+            </h2>
+          </div>
+          <div class="flex items-center">
+            <Pill variant="success">InDev</Pill>
+            <Icon icon="mdi:dot" class="h-3 w-3 text-black dark:text-white" />
+            <div class="shrink-0 text-sm text-blue-500 dark:text-blue-300">Feedback</div>
+          </div>
         </div>
-      </div>
+      </header>
+
+      <nav class="relative flex overflow-x-auto rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-950/60 no-scrollbar snap-x snap-proximity my-5">
+        <div class="tab-strip flex min-w-full gap-1 py-1">
+          <button
+            v-for="item in sidebarLinks"
+            :key="item.id"
+            type="button"
+            class="whitespace-nowrap rounded-lg px-2 text-xs font-semibold uppercase transition snap-center"
+            :ref="setTabRef(item.id)"
+            :class="[
+              activeRouteName === item.id
+                ? 'bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 shadow'
+                : 'text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100',
+              item.disabled ? 'cursor-not-allowed opacity-50' : ''
+            ]"
+            :disabled="item.disabled"
+            @click="handlePanelChange(item.id)"
+          >
+            {{ item.label }}
+          </button>
+          <button
+            type="button"
+            class="whitespace-nowrap rounded-lg px-2 text-xs font-semibold uppercase text-rose-500 transition hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300"
+            @click="handleSignOut"
+            :disabled="signingOut"
+            :class="{ 'opacity-50 cursor-not-allowed': signingOut }"
+          >
+            {{ signingOut ? 'Signing out…' : 'Sign out' }}
+          </button>
+        </div>
+      </nav>
+
+
+      <p v-if="signOutError" class="text-sm text-rose-500 dark:text-rose-400">
+        {{ signOutError }}
+      </p>
+
+      <RouterView />
     </div>
   </section>
 </template>
 
 <style scoped>
-.sidebar-slide-enter-active,
-.sidebar-slide-leave-active {
-  transition: all 0.3s ease;
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }
 
-.sidebar-slide-enter-from,
-.sidebar-slide-leave-to {
-  opacity: 0;
-  transform: translateX(-2rem);
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.tab-strip {
+  padding-inline: 0.5rem 1.25rem;
+  scroll-padding-inline-start: 0.5rem;
+  scroll-padding-inline-end: 1.25rem;
+}
+
+.tab-strip::after {
+  content: '';
+  flex: 0 0 1rem;
 }
 </style>
