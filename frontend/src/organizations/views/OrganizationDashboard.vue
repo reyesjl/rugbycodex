@@ -4,7 +4,7 @@ import { nextTick } from 'vue';
 import { useAuthStore } from '@/auth/stores/useAuthStore';
 import LoadingIcon from '@/components/LoadingIcon.vue';
 import { Icon } from '@iconify/vue';
-import type { OrgRole } from '@/types';
+import type { OrgRole } from '@/profiles/types';
 import CustomSelect from '@/components/CustomSelect.vue';
 import ErrorNotification from '@/components/ErrorNotification.vue';
 import SuccessNotification from '@/components/SuccessNotification.vue';

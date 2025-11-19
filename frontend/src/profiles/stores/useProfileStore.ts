@@ -2,7 +2,7 @@ import { defineStore } from 'pinia';
 import { ref, watch } from 'vue';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuthStore } from '@/auth/stores/useAuthStore';
-import type { OrgMembership } from '@/types';
+import type { OrgMembership } from '@/profiles/types';
 import type { UserProfile } from '@/profiles/types';
 
 

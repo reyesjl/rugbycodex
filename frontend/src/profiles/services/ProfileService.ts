@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabaseClient';
 import {
   type OrgMembership,
   type OrgRole,
-} from '@/types';
+} from '@/profiles/types';
 
 import type { ProfileDetail, ProfileWithMembership, UserProfile } from '@/profiles/types';
 

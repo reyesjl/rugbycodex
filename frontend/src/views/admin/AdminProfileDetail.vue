@@ -3,12 +3,12 @@ import { ref, onMounted, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
 import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
-import type { OrgRole, OrgMembership } from '@/types';
 import CustomSelect from '@/components/CustomSelect.vue';
 import { MEMBERSHIP_ROLES } from '@/constants/memberships';
 import { useOrganizationList } from '@/organizations/composables/useOrganizationsList';
 import { useProfileFullDetail } from '@/profiles/composables/useProfileFullDetail';
 import { profileService } from '@/profiles/services/ProfileService';
+import type { OrgMembership, OrgRole } from '@/profiles/types';
 
 const route = useRoute();
 const router = useRouter();
