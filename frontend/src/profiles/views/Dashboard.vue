@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/auth/stores/useAuthStore';
 import { useProfileStore } from '@/profiles/stores/useProfileStore';
 
-type DashboardTabRoute = 'DashboardOverview' | 'DashboardAccount';
+type DashboardTabRoute = 'DashboardOverview' | 'DashboardAccount' | 'DashboardMemberships';
 type DashboardTab = {
   id: string;
   label: string;
@@ -25,6 +25,7 @@ let timeInterval: ReturnType<typeof setInterval> | null = null;
 const tabs: DashboardTab[] = [
   { id: 'overview', label: 'Overview', routeName: 'DashboardOverview' },
   { id: 'account', label: 'Account', routeName: 'DashboardAccount' },
+  { id: 'memberships', label: 'Memberships', routeName: 'DashboardMemberships' },
   { id: 'narrations', label: 'Narrations', disabled: true },
 ];
 

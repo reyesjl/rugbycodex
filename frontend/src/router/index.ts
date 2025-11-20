@@ -109,6 +109,11 @@ const router = createRouter({
           name: 'DashboardAccount',
           component: () => import('@/profiles/views/dashboard/Account.vue'),
         },
+        {
+          path: 'memberships',
+          name: 'DashboardMemberships',
+          component: () => import('@/profiles/views/dashboard/OrgMemberships.vue'),
+        },
       ],
     },
     {
