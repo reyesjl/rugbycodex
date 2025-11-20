@@ -1,17 +1,19 @@
 <script setup lang="ts">
 import { onMounted, ref, computed } from 'vue';
 import { nextTick } from 'vue';
-import { useAuthStore } from '@/stores/auth';
+import { useAuthStore } from '@/auth/stores/useAuthStore';
 import LoadingIcon from '@/components/LoadingIcon.vue';
 import { Icon } from '@iconify/vue';
-import type { ProfileWithMembership, OrgRole } from '@/types';
-import { getOrganizationMembers, updateMembershipRole } from '@/services/profile_service';
+import { MEMBERSHIP_ROLES, type MembershipRole } from '@/profiles/types';
 import CustomSelect from '@/components/CustomSelect.vue';
 import ErrorNotification from '@/components/ErrorNotification.vue';
 import SuccessNotification from '@/components/SuccessNotification.vue';
-import { useProfileStore } from '@/stores/profile';
+import { useProfileStore } from '@/profiles/stores/useProfileStore';
 import { orgService } from '@/organizations/services/OrgService';
 import { type Organization } from '@/organizations/types';
+import { profileService } from '@/profiles/services/ProfileService';
+import { useOrgMembers } from '@/profiles/composables/useOrgMembers';
+import type { ProfileWithMembership } from '@/profiles/types';
 
 const props = defineProps<{ orgSlug: string }>();
 
@@ -28,24 +30,17 @@ const bioEditText = ref('');
 const savingBio = ref(false);
 const bioError = ref<string | null>(null);
 
-// Members state
-const members = ref<ProfileWithMembership[]>([]);
-const membersLoading = ref(true);
-const memberLoadError = ref<string | null>(null);
+// Destructure the values
+const {
+  list: orgMembers,
+  loading: membersLoading,
+  error: membersError,
+  memberCount,
+  loadMembers
+} = useOrgMembers();
+
 const searchQuery = ref('');
 const refreshSuccess = ref(false);
-
-const orgRoleOptions = [
-  { label: 'Owner', value: 'owner' },
-  { label: 'Manager', value: 'manager' },
-  { label: 'Staff', value: 'staff' },
-  { label: 'Member', value: 'member' },
-  { label: 'Viewer', value: 'viewer' },
-];
-
-const memberCount = computed(() => {
-  return members.value.length;
-});
 
 const startEditingBio = () => {
   bioEditText.value = org.value?.bio ?? '';
@@ -83,29 +78,10 @@ const saveBio = async () => {
   }
 };
 
-async function loadMembers() {
-  if (!org.value) {
-    memberLoadError.value = "No Organization Present";
-    members.value = [];
-    return;
-  }
-
-  membersLoading.value = true;
-  try {
-    members.value = await getOrganizationMembers(org.value.id);
-    console.log('Loaded members:', members.value);
-  } catch (e) {
-    memberLoadError.value = e instanceof Error ? e.message : 'Failed to fetch members';
-    members.value = [];
-  } finally {
-    membersLoading.value = false;
-  }
-}
-
 const memberRoleError = ref<string | null>(null);
 const memberRoleSuccess = ref<string | null>(null);
 
-async function handleMemberRoleChange(member: ProfileWithMembership, newRole: OrgRole) {
+async function handleMemberRoleChange(member: ProfileWithMembership, newRole: MembershipRole) {
   if (org.value == null) {
     memberRoleError.value = 'Organization is null, cannot change member role';
     return;
@@ -120,7 +96,7 @@ async function handleMemberRoleChange(member: ProfileWithMembership, newRole: Or
   memberRoleSuccess.value = null;
   memberRoleError.value = null;
   try {
-    await updateMembershipRole(member.id, org.value.id, newRole);
+    await profileService.memberships.setRole(member.id, org.value.id, newRole);
     // Update local state
     memberRoleSuccess.value = `Successfully updated role for ${member.name} to ${newRole}.`;
     member.org_role = newRole;
@@ -139,7 +115,7 @@ onMounted(async () => {
     loading.value = false;
   }
 
-  await loadMembers();
+  await loadMembers(org.value?.id ?? '');
 });
 
 const orgName = computed(() => org.value?.name ?? 'Organization');
@@ -147,8 +123,9 @@ const orgCreated = computed(() => org.value?.created_at ?? new Date());
 const storageLimitMB = computed(() => org.value?.storage_limit_mb ?? 0);
 const canEdit = computed(() => profileStore.canManageOrg(org.value?.id ?? '') || authStore.isAdmin);
 const showAllMembers = ref(false);
+
 const filteredMembers = computed(() => {
-  let result = members.value;
+  let result = [...orgMembers.value];
   if (!searchQuery.value.trim()) {
     return result;
   }
@@ -165,7 +142,7 @@ const displayedMembers = computed(() =>
 );
 
 async function handleRefreshMembers() {
-  await loadMembers();
+  await loadMembers(org.value?.id ?? '');
   refreshSuccess.value = true;
   await nextTick();
   setTimeout(() => {
@@ -287,11 +264,11 @@ async function handleRefreshMembers() {
         :error-title="'Error Modifying Role'" />
       <SuccessNotification v-if="memberRoleSuccess" :success-message="memberRoleSuccess"
         @clear-success="memberRoleSuccess = null" :success-title="'Role Modified Successfully'" />
-      <div v-if="memberLoadError" class="mt-4">
-        <p class="text-sm text-rose-500 dark:text-rose-400">Error: {{ memberLoadError }}</p>
+      <div v-if="membersError" class="mt-4">
+        <p class="text-sm text-rose-500 dark:text-rose-400">Error: {{ membersError }}</p>
       </div>
       <div v-else class="scrolling-list mt-4 overflow-y-auto space-y-4 pr-2">
-        <div v-if="members.length === 0 && !membersLoading" class="mt-4">
+        <div v-if="memberCount === 0 && !membersLoading" class="mt-4">
           <p class="text-neutral-600 dark:text-neutral-400">
             No members found.
           </p>
@@ -333,8 +310,8 @@ async function handleRefreshMembers() {
                   class="flex items-center justify-between rounded-lg px-3 py-2 text-sm transition hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50">
                   <span class="font-medium">{{ member.name }}</span>
                   <div class="flex items-center gap-3">
-                    <CustomSelect :options="orgRoleOptions" :model-value="member.org_role"
-                      @update:model-value="(newRole: number | string) => handleMemberRoleChange(member, newRole as OrgRole)"
+                    <CustomSelect :options="MEMBERSHIP_ROLES" :model-value="member.org_role"
+                      @update:model-value="(newRole: number | string) => handleMemberRoleChange(member, newRole as MembershipRole)"
                       class="w-32 text-xs min-w-[8rem]" />
                     <span class="text-xs text-neutral-400 dark:text-neutral-500">
                       {{ member.join_date instanceof Date ? member.join_date.toLocaleDateString() : 'N/A' }}

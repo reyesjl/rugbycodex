@@ -1,6 +1,6 @@
 import { ref, toValue, watch, type MaybeRefOrGetter } from 'vue';
 import { supabase } from '@/lib/supabaseClient';
-import { useAuthStore } from '@/stores/auth';
+import { useAuthStore } from '@/auth/stores/useAuthStore';
 
 type TrackArticleViewResponse = {
   views?: number;

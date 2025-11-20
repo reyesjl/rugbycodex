@@ -91,7 +91,7 @@ onBeforeUnmount(() => {
   <button
     type="button"
     :title="title"
-    class="inline-flex items-center justify-center rounded-lg transition disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+    class="inline-flex items-center justify-center rounded-lg transition disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline focus-visible:outline-offset-2"
     :class="[buttonPaddingClass, buttonStateClass]"
     :disabled="isButtonDisabled"
     @click="handleClick"

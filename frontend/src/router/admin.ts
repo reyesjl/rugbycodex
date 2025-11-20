@@ -3,14 +3,14 @@ import type { RouteRecordRaw } from 'vue-router';
 export const adminRoutes: RouteRecordRaw[] = [
   {
     path: '/admin',
-    component: () => import('@/views/admin/AdminDashboard.vue'),
+    component: () => import('@/admin/views/AdminDashboard.vue'),
     meta: { requiresAuth: true, requiresAdmin: true },
     name: 'AdminDashboard',
     children: [
       {
         path: '',
         name: 'AdminOverview',
-        component: () => import('@/views/admin/AdminOverview.vue'),
+        component: () => import('@/admin/views/AdminOverview.vue'),
         meta: { requiresAuth: true, requiresAdmin: true, },
       },
       {
@@ -22,31 +22,31 @@ export const adminRoutes: RouteRecordRaw[] = [
       {
         path: 'organizations',
         name: 'AdminListOrgs',
-        component: () => import('@/views/admin/AdminListOrgs.vue'),
+        component: () => import('@/admin/views/AdminListOrgs.vue'),
         meta: { requiresAuth: true, requiresAdmin: true, },
       },
       {
         path: 'create-org',
         name: 'AdminCreateOrg',
-        component: () => import('@/views/admin/AdminCreateOrg.vue'),
+        component: () => import('@/admin/views/AdminCreateOrg.vue'),
         meta: { requiresAuth: true, requiresAdmin: true, },
       },
       {
         path: 'profiles',
         name: 'AdminListProfiles',
-        component: () => import('@/views/admin/AdminListProfiles.vue'),
+        component: () => import('@/admin/views/AdminListProfiles.vue'),
         meta: { requiresAuth: true, requiresAdmin: true, },
       },
       {
         path: 'profiles/:id',
         name: 'AdminProfileDetail',
-        component: () => import('@/views/admin/AdminProfileDetail.vue'),
+        component: () => import('@/admin/views/AdminProfileDetail.vue'),
         meta: { requiresAuth: true, requiresAdmin: true, },
       },
       {
         path: 'narrations',
         name: 'AdminNarrations',
-        component: () => import('@/views/admin/AdminNarrationsPlaceholder.vue'),
+        component: () => import('@/admin/views/AdminNarrationsPlaceholder.vue'),
         meta: { requiresAuth: true, requiresAdmin: true, },
       },
     ],

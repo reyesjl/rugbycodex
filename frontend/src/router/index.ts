@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router';
-import pinia from '@/stores';
-import { useAuthStore } from '@/stores/auth';
+import pinia from '@/lib/pinia';
+import { useAuthStore } from '@/auth/stores/useAuthStore';
 import { adminRoutes } from '@/router/admin';
 
 const router = createRouter({
@@ -66,48 +66,48 @@ const router = createRouter({
     {
       path: '/login',
       name: 'Login',
-      component: () => import('@/views/auth/Login.vue'),
+      component: () => import('@/auth/views/Login.vue'),
       meta: { layout: 'minimal', guestOnly: true },
     },
     {
       path: '/reset-password',
       name: 'ResetPassword',
-      component: () => import('@/views/auth/ResetPassword.vue'),
+      component: () => import('@/auth/views/ResetPassword.vue'),
       meta: { layout: 'minimal', guestOnly: true },
     },
     {
       path: '/reset-password/update',
       name: 'ResetPasswordUpdate',
-      component: () => import('@/views/auth/UpdatePassword.vue'),
+      component: () => import('@/auth/views/UpdatePassword.vue'),
       meta: { layout: 'minimal' },
     },
     {
       path: '/signup',
       name: 'Signup',
-      component: () => import('@/views/auth/Signup.vue'),
+      component: () => import('@/auth/views/Signup.vue'),
       meta: { layout: 'minimal', guestOnly: true },
     },
     {
       path: '/confirm-email',
       name: 'ConfirmEmail',
-      component: () => import('@/views/auth/ConfirmEmail.vue'),
+      component: () => import('@/auth/views/ConfirmEmail.vue'),
       meta: { layout: 'minimal' },
     },
     {
       path: '/dashboard',
-      component: () => import('@/views/Dashboard.vue'),
+      component: () => import('@/profiles/views/Dashboard.vue'),
       meta: { requiresAuth: true },
       name: 'Dashboard',
       children: [
         {
           path: '',
           name: 'DashboardOverview',
-          component: () => import('@/views/dashboard/Overview.vue'),
+          component: () => import('@/profiles/views/dashboard/Overview.vue'),
         },
         {
           path: 'account',
           name: 'DashboardAccount',
-          component: () => import('@/views/dashboard/Account.vue'),
+          component: () => import('@/profiles/views/dashboard/Account.vue'),
         },
       ],
     },
