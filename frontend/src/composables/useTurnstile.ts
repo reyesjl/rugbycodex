@@ -20,11 +20,7 @@ declare global {
   }
 }
 
-const turnstileTestKey = '1x00000000000000000000AA';
-
-const turnstileSiteKey = import.meta.env.PROD
-  ? import.meta.env.VITE_TURNSTILE_SITE_KEY ?? ''
-  : import.meta.env.VITE_TURNSTILE_SITE_KEY_DEV ?? import.meta.env.VITE_TURNSTILE_SITE_KEY ?? turnstileTestKey;
+const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY ?? '';
 
 const turnstileScriptId = 'cloudflare-turnstile-script';
 
