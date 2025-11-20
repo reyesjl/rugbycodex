@@ -2,6 +2,7 @@
 import { reactive, ref, watch } from 'vue';
 import { RouterLink, useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/auth/stores/useAuthStore';
+import TurnstileVerification from '@/components/TurnstileVerification.vue';
 
 const router = useRouter();
 const route = useRoute();
@@ -11,6 +12,9 @@ const form = reactive({
   email: '',
   password: '',
 });
+
+const turnstileToken = ref('');
+const turnstileRequired = ref(false);
 
 const loading = ref(false);
 const errorMessage = ref<string | null>(null);
@@ -47,7 +51,17 @@ const handleSubmit = async () => {
   resendSuccessMessage.value = null;
   resendErrorMessage.value = null;
 
-  const { error } = await authStore.signIn(form.email, form.password);
+  if (turnstileRequired.value && !turnstileToken.value) {
+    errorMessage.value = 'Please complete the verification challenge.';
+    loading.value = false;
+    return;
+  }
+
+  const { error } = await authStore.signIn(
+    form.email,
+    form.password,
+    turnstileRequired.value ? turnstileToken.value : undefined,
+  );
   loading.value = false;
 
   if (error) {
@@ -126,6 +140,12 @@ watch(
           </div>
         </div>
 
+        <TurnstileVerification
+          class="mt-6"
+          v-model:token="turnstileToken"
+          v-model:required="turnstileRequired"
+        />
+
         <div class="mt-2 text-right text-sm">
           <RouterLink to="/reset-password"
             class="font-medium text-neutral-600 underline-offset-4 transition hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-neutral-100">
@@ -155,7 +175,7 @@ watch(
 
         <button type="submit"
           class="mt-10 inline-flex w-full items-center justify-center rounded-2xl bg-neutral-900 px-4 py-3 text-sm font-semibold uppercase tracking-[0.2em] text-neutral-100 transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-neutral-50 dark:text-neutral-900 dark:hover:bg-neutral-200"
-          :disabled="loading">
+          :disabled="loading || (turnstileRequired && !turnstileToken)">
           {{ loading ? 'Signing in…' : 'Log In' }}
         </button>
       </form>

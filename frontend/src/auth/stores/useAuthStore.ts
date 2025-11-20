@@ -7,6 +7,7 @@ import { decodeSupabaseAccessToken } from '@/lib/jwt';
 export const DISPLAY_NAME_MIN_LENGTH = 2;
 export const DISPLAY_NAME_MAX_LENGTH = 60;
 const SESSION_EXPIRED_MESSAGE = 'Your session has expired. Please sign in again.';
+const FRIENDLY_CAPTCHA_ERROR = 'Verification failed. Please complete the security check and try again.';
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<User | null>(null);
@@ -19,6 +20,18 @@ export const useAuthStore = defineStore('auth', () => {
 
   let initPromise: Promise<void> | null = null;
   let subscription: Subscription | null = null;
+
+  const normalizeAuthError = (error: AuthError | null) => {
+    if (!error) return null;
+    const normalizedMessage = error.message?.toLowerCase() ?? '';
+    if (normalizedMessage.includes('captcha protection')) {
+      return {
+        ...error,
+        message: FRIENDLY_CAPTCHA_ERROR,
+      } as AuthError;
+    }
+    return error;
+  };
 
   const setAuthState = (nextSession: Session | null) => {
     session.value = nextSession;
@@ -114,16 +127,22 @@ export const useAuthStore = defineStore('auth', () => {
     }
   };
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = async (email: string, password: string, captchaToken?: string) => {
     lastError.value = null;
     const result = await supabase.auth.signInWithPassword({
       email,
       password,
+      options: captchaToken
+        ? {
+            captchaToken,
+          }
+        : undefined,
     });
 
     if (result.error) {
-      lastError.value = result.error.message;
-      return { data: null, error: result.error };
+      const normalizedError = normalizeAuthError(result.error) ?? result.error;
+      lastError.value = normalizedError.message;
+      return { data: null, error: normalizedError };
     }
 
     setAuthState(result.data.session ?? null);
@@ -158,6 +177,7 @@ export const useAuthStore = defineStore('auth', () => {
     password: string,
     metadata?: Record<string, unknown>,
     redirectTo?: string,
+    captchaToken?: string,
   ) => {
     lastError.value = null;
     const emailRedirectTo =
@@ -166,10 +186,15 @@ export const useAuthStore = defineStore('auth', () => {
     const options: {
       data?: Record<string, unknown>;
       emailRedirectTo?: string;
+      captchaToken?: string;
     } = {};
 
     if (metadata) {
       options.data = metadata;
+    }
+
+    if (captchaToken) {
+      options.captchaToken = captchaToken;
     }
 
     if (emailRedirectTo) {
@@ -183,8 +208,9 @@ export const useAuthStore = defineStore('auth', () => {
     });
 
     if (result.error) {
-      lastError.value = result.error.message;
-      return { data: null, error: result.error };
+      const normalizedError = normalizeAuthError(result.error) ?? result.error;
+      lastError.value = normalizedError.message;
+      return { data: null, error: normalizedError };
     }
 
     setAuthState(result.data.session ?? null);
