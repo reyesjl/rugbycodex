@@ -1,5 +1,5 @@
-import { computed, ref } from 'vue';
-import { type ProfileDetail } from '@/profiles/types';
+import { computed, ref, type ComputedRef } from 'vue';
+import { type OrgMembership, type ProfileDetail } from '@/profiles/types';
 import { profileService } from '@/profiles/services/ProfileService';
 
 
@@ -9,8 +9,7 @@ export function useProfileFullDetail() {
   const error = ref<string | null>(null);
 
   const loadProfile = async (id: string) => {
-    loading.value = true;
-    error.value = null;
+    clearProfile();
     try {
       profile.value = await profileService.profiles.getWithMemberships(id);
     } catch (e) {
@@ -20,9 +19,22 @@ export function useProfileFullDetail() {
     }
   };
 
-  const memberships = computed(() => {
+  const memberships: ComputedRef<OrgMembership[]> = computed(() => {
     return profile.value?.memberships || [];
   });
+
+  function canManageOrg(orgId: string): boolean {
+    const membership = memberships.value.find(org => org.org_id === orgId);
+    if (!membership) return false;
+    return membership.org_role === 'owner' || membership.org_role === 'manager';
+  };
+
+  function clearProfile() {
+    profile.value = null;
+    loading.value = false;
+    error.value = null;
+  }
+
 
   return {
     profile,
@@ -31,6 +43,8 @@ export function useProfileFullDetail() {
     memberships,
 
     loadProfile,
+    canManageOrg,
+    clearProfile,
   }
 };
 
