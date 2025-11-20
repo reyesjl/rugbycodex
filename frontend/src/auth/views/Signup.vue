@@ -1,42 +1,9 @@
 <script setup lang="ts">
-import { reactive, ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
+import { reactive, ref, computed, watch, nextTick } from 'vue';
 import { RouterLink, useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
 import { useAuthStore } from '@/auth/stores/useAuthStore';
-
-declare global {
-  interface Window {
-    turnstile?: {
-      render: (
-        container: string | HTMLElement,
-        options: {
-          sitekey: string;
-          theme?: 'light' | 'dark' | 'auto';
-          size?: 'normal' | 'compact' | 'invisible';
-          callback?: (token: string) => void;
-          'error-callback'?: () => void;
-          'expired-callback'?: () => void;
-        }
-      ) => string;
-      reset?: (widgetId?: string) => void;
-      remove?: (widgetId: string) => void;
-    };
-  }
-}
-
-const turnstileTestKey = '1x00000000000000000000AA';
-
-const turnstileSiteKey = import.meta.env.PROD
-  ? import.meta.env.VITE_TURNSTILE_SITE_KEY ?? ''
-  : import.meta.env.VITE_TURNSTILE_SITE_KEY_DEV ?? import.meta.env.VITE_TURNSTILE_SITE_KEY ?? turnstileTestKey;
-
-const shouldRenderTurnstile = computed(() => Boolean(turnstileSiteKey));
-const turnstileToken = ref('');
-const turnstileScriptId = 'cloudflare-turnstile-script';
-const turnstileContainer = ref<HTMLElement | null>(null);
-const turnstileWidgetId = ref<string | null>(null);
-const isDarkMode = ref(false);
-const turnstileTheme = computed(() => (isDarkMode.value ? 'dark' : 'light'));
+import TurnstileVerification from '@/components/TurnstileVerification.vue';
 const authStore = useAuthStore();
 const router = useRouter();
 const signingUp = ref(false);
@@ -44,128 +11,8 @@ const supabaseError = ref<string | null>(null);
 const supabaseMessage = ref<string | null>(null);
 const confirmationRedirectUrl =
   typeof window !== 'undefined' ? `${window.location.origin}/confirm-email` : undefined;
-
-let turnstileScriptPromise: Promise<void> | null = null;
-let darkModeObserver: MutationObserver | null = null;
-
-const appendTurnstileScript = () => {
-  if (typeof document === 'undefined') return null;
-
-  const existing = document.getElementById(turnstileScriptId) as HTMLScriptElement | null;
-  if (existing) {
-    return existing;
-  }
-
-  const script = document.createElement('script');
-  script.id = turnstileScriptId;
-  script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js';
-  script.async = true;
-  script.defer = true;
-  document.head.appendChild(script);
-  return script;
-};
-
-const ensureTurnstileScript = () => {
-  if (typeof window === 'undefined' || !shouldRenderTurnstile.value) {
-    return Promise.resolve();
-  }
-
-  if (window.turnstile) {
-    return Promise.resolve();
-  }
-
-  if (turnstileScriptPromise) {
-    return turnstileScriptPromise;
-  }
-
-  turnstileScriptPromise = new Promise<void>((resolve) => {
-    const script = appendTurnstileScript();
-    if (!script) {
-      resolve();
-      return;
-    }
-
-    if (script.dataset.loaded === 'true') {
-      resolve();
-      return;
-    }
-
-    const onLoad = () => {
-      script.dataset.loaded = 'true';
-      resolve();
-    };
-
-    const onError = () => {
-      turnstileScriptPromise = null;
-      resolve();
-    };
-
-    script.addEventListener('load', onLoad, { once: true });
-    script.addEventListener('error', onError, { once: true });
-  });
-
-  return turnstileScriptPromise;
-};
-
-const syncDarkMode = () => {
-  if (typeof document === 'undefined') return;
-  isDarkMode.value = document.documentElement.classList.contains('dark');
-};
-
-const removeTurnstile = () => {
-  if (typeof window === 'undefined') return;
-  if (!turnstileWidgetId.value) return;
-  window.turnstile?.remove?.(turnstileWidgetId.value);
-  turnstileWidgetId.value = null;
-  turnstileToken.value = '';
-  if (turnstileContainer.value) {
-    turnstileContainer.value.innerHTML = '';
-  }
-};
-
-const mountTurnstile = async () => {
-  if (!shouldRenderTurnstile.value) return;
-  if (typeof window === 'undefined') return;
-  await ensureTurnstileScript();
-  if (!window.turnstile || !turnstileContainer.value) return;
-
-  removeTurnstile();
-  turnstileToken.value = '';
-  turnstileContainer.value.innerHTML = '';
-
-  turnstileWidgetId.value = window.turnstile.render(turnstileContainer.value, {
-    sitekey: turnstileSiteKey,
-    theme: turnstileTheme.value,
-    size: 'normal',
-    callback: (token: string) => {
-      turnstileToken.value = token;
-    },
-  });
-};
-
-onMounted(async () => {
-  if (!shouldRenderTurnstile.value) return;
-  appendTurnstileScript();
-  syncDarkMode();
-  await nextTick();
-  await mountTurnstile();
-
-  if (typeof document !== 'undefined' && typeof MutationObserver !== 'undefined') {
-    darkModeObserver = new MutationObserver(() => {
-      syncDarkMode();
-    });
-    darkModeObserver.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['class'],
-    });
-  }
-});
-
-onBeforeUnmount(() => {
-  removeTurnstile();
-  darkModeObserver?.disconnect();
-  darkModeObserver = null;
-});
+const turnstileToken = ref('');
+const turnstileRequired = ref(false);
 
 const form = reactive({
   name: '',
@@ -186,10 +33,6 @@ const passwordMismatch = computed(
 );
 const showPasswordMismatch = computed(() => Boolean(form.confirmPassword?.trim()) && passwordMismatch.value);
 
-watch(turnstileTheme, () => {
-  void mountTurnstile();
-});
-
 watch(
   () => [form.password, form.confirmPassword],
   () => {
@@ -200,7 +43,7 @@ watch(
 );
 
 const handleSubmit = async () => {
-  if (shouldRenderTurnstile.value && !turnstileToken.value) {
+  if (turnstileRequired.value && !turnstileToken.value) {
     console.warn('turnstile verification is required before submitting');
     return;
   }
@@ -233,6 +76,7 @@ const handleSubmit = async () => {
     form.password,
     metadata,
     confirmationRedirectUrl,
+    turnstileRequired.value ? turnstileToken.value : undefined,
   );
 
   if (error) {
@@ -278,8 +122,19 @@ const handleSubmit = async () => {
         class="rounded-3xl border border-neutral-200/60 bg-white/80 p-8 shadow-[0_24px_60px_rgba(15,23,42,0.08)] backdrop-blur-md transition-colors dark:border-neutral-800/70 dark:bg-neutral-950/70 dark:shadow-[0_24px_60px_rgba(15,23,42,0.35)]">
         <div class="space-y-6">
           <div class="sr-only" aria-hidden="true">
-            <label for="company" class="text-sm font-medium">Company</label>
-            <input id="company" name="company" v-model="form.honeypot" type="text" tabindex="-1" autocomplete="off" />
+            <label for="signup-company" class="text-sm font-medium">Company</label>
+            <input
+              id="signup-company"
+              v-model="form.honeypot"
+              type="text"
+              name="company"
+              tabindex="-1"
+              autocomplete="off"
+              autocorrect="off"
+              autocapitalize="off"
+              spellcheck="false"
+              inputmode="text"
+            />
           </div>
 
           <div class="space-y-2">
@@ -368,10 +223,11 @@ const handleSubmit = async () => {
           </div>
         </div>
 
-        <!-- Cloudflare Turnstile -->
-        <div v-if="shouldRenderTurnstile" class="mt-6 flex justify-around">
-          <div ref="turnstileContainer" class="w-full max-w-sm"></div>
-        </div>
+        <TurnstileVerification
+          class="mt-6"
+          v-model:token="turnstileToken"
+          v-model:required="turnstileRequired"
+        />
 
         <p v-if="supabaseError" class="mt-6 text-sm text-rose-500 dark:text-rose-400">
           {{ supabaseError }}
@@ -379,7 +235,7 @@ const handleSubmit = async () => {
 
         <button type="submit"
           class="mt-10 inline-flex w-full items-center justify-center rounded-2xl bg-neutral-900 px-4 py-3 text-sm font-semibold uppercase tracking-[0.2em] text-neutral-100 transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-neutral-50 dark:text-neutral-900 dark:hover:bg-neutral-200"
-          :disabled="signingUp || passwordMismatch || (shouldRenderTurnstile && !turnstileToken)">
+          :disabled="signingUp || passwordMismatch || (turnstileRequired && !turnstileToken)">
           {{ signingUp ? 'Submitting…' : 'Request Invite' }}
         </button>
       </form>
