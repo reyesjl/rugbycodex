@@ -2,7 +2,6 @@
 import { computed, defineAsyncComponent, type Component } from 'vue';
 import { useRoute } from 'vue-router';
 import { insideEntries } from '@/data/inside';
-import { useArticleViewTracker } from '@/composables/useArticleViewTracker';
 
 const route = useRoute();
 
@@ -12,8 +11,6 @@ const articleModules = import.meta.glob<{ default: Component }>(
 
 const slug = computed(() => route.params.slug as string | undefined);
 
-// Track article views for analytics
-useArticleViewTracker(slug);
 
 const entry = computed(() => {
   if (!slug.value) {
