@@ -3,8 +3,6 @@ import { ref } from 'vue';
 import { RouterLink, RouterView } from 'vue-router';
 import { Icon } from '@iconify/vue';
 
-const isNavCollapsed = ref(false);
-
 const adminLinks = [
   { to: '/v2/dashboard', label: '← Back to Dashboard' },
   { to: '/v2/admin', label: 'System Overview' },
@@ -19,6 +17,7 @@ const adminLinks = [
   { to: '/v2/profile', label: 'Profile' },
 ];
 
+const isNavCollapsed = ref(false);
 const toggleNav = () => {
   isNavCollapsed.value = !isNavCollapsed.value;
 };
