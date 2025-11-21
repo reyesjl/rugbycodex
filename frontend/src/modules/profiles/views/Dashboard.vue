@@ -2,7 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type ComponentPublicInstance } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/auth/stores/useAuthStore';
-import { useProfileStore } from '@/profiles/stores/useProfileStore';
+import { useProfileStore } from '@/modules/profiles/stores/useProfileStore';
 
 type DashboardTabRoute = 'DashboardOverview' | 'DashboardAccount' | 'DashboardMemberships';
 type DashboardTab = {

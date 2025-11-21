@@ -1,6 +1,6 @@
 import { computed, ref, type ComputedRef } from 'vue';
-import { type OrgMembership, type ProfileDetail } from '@/profiles/types';
-import { profileService } from '@/profiles/services/ProfileService';
+import { type OrgMembership, type ProfileDetail } from '@/modules/profiles/types';
+import { profileService } from '@/modules/profiles/services/ProfileService';
 
 
 export function useProfileFullDetail() {

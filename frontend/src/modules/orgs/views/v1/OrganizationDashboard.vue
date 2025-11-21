@@ -4,16 +4,16 @@ import { nextTick } from 'vue';
 import { useAuthStore } from '@/auth/stores/useAuthStore';
 import LoadingIcon from '@/components/LoadingIcon.vue';
 import { Icon } from '@iconify/vue';
-import { MEMBERSHIP_ROLES, type MembershipRole } from '@/profiles/types';
+import { MEMBERSHIP_ROLES, type MembershipRole } from '@/modules/profiles/types';
 import CustomSelect from '@/components/CustomSelect.vue';
 import ErrorNotification from '@/components/ErrorNotification.vue';
 import SuccessNotification from '@/components/SuccessNotification.vue';
-import { useProfileStore } from '@/profiles/stores/useProfileStore';
+import { useProfileStore } from '@/modules/profiles/stores/useProfileStore';
 import { orgService } from '@/modules/orgs/services/orgService';
 import { type Organization } from '@/modules/orgs/types';
-import { profileService } from '@/profiles/services/ProfileService';
-import { useOrgMembers } from '@/profiles/composables/useOrgMembers';
-import type { ProfileWithMembership } from '@/profiles/types';
+import { profileService } from '@/modules/profiles/services/ProfileService';
+import { useOrgMembers } from '@/modules/profiles/composables/useOrgMembers';
+import type { ProfileWithMembership } from '@/modules/profiles/types';
 
 const props = defineProps<{ orgSlug: string }>();
 

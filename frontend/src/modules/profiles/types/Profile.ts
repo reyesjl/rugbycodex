@@ -1,4 +1,4 @@
-import type { OrgMembership } from "@/profiles/types/Membership";
+import type { OrgMembership } from "@/modules/profiles/types/Membership";
 
 /**
  * Role given to a profile which controls access and moderation abilities.

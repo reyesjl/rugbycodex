@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { useProfileStore } from '@/profiles/stores/useProfileStore';
+import { useProfileStore } from '@/modules/profiles/stores/useProfileStore';
 import AnimatedLink from '@/components/AnimatedLink.vue';
-import { ROLE_ORDER } from '@/profiles/types';
+import { ROLE_ORDER } from '@/modules/profiles/types';
 
 const profileStore = useProfileStore();
 const prioritizedMemberships = computed(() => {
@@ -25,19 +25,12 @@ const prioritizedMemberships = computed(() => {
         You are not a member of any organizations.
       </div>
       <div v-else class="max-h-[80vh] overflow-y-auto">
-        <div
-          v-for="m in prioritizedMemberships"
-          :key="m.org_id"
-          class="flex flex-col border-b border-neutral-200 py-4 dark:border-neutral-800"
-        >
+        <div v-for="m in prioritizedMemberships" :key="m.org_id"
+          class="flex flex-col border-b border-neutral-200 py-4 dark:border-neutral-800">
           <!-- Row: Left = org link, Right = role + join date -->
           <div class="flex items-center justify-between">
-            <AnimatedLink
-              :to="`/organizations/${m.slug}`"
-              :text="m.org_name"
-              class="text-base font-medium"
-              @click.stop
-            />
+            <AnimatedLink :to="`/organizations/${m.slug}`" :text="m.org_name" class="text-base font-medium"
+              @click.stop />
 
             <div class="flex overflow-auto items-center gap-4 text-sm text-neutral-600 dark:text-neutral-400">
               <span class="font-medium capitalize text-neutral-800 dark:text-neutral-200">

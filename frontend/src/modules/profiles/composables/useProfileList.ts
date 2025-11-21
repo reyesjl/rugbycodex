@@ -1,6 +1,6 @@
 import { ref } from 'vue';
-import { type UserProfile } from '@/profiles/types';
-import { profileService } from '@/profiles/services/ProfileService';
+import { type UserProfile } from '@/modules/profiles/types';
+import { profileService } from '@/modules/profiles/services/ProfileService';
 
 
 export function useProfilesList() {

@@ -1,6 +1,6 @@
 import { ref } from 'vue';
-import { type UserProfile } from '@/profiles/types';
-import { profileService } from '@/profiles/services/ProfileService';
+import { type UserProfile } from '@/modules/profiles/types';
+import { profileService } from '@/modules/profiles/services/ProfileService';
 
 
 export function useProfile() {
@@ -8,7 +8,7 @@ export function useProfile() {
   const loading = ref(false);
   const error = ref<string | null>(null);
 
-  const loadProfile = async (id : string | null) => {
+  const loadProfile = async (id: string | null) => {
     if (!id) {
       error.value = 'Profile ID is required to load profile.';
       return;

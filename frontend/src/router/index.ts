@@ -96,24 +96,24 @@ const router = createRouter({
     },
     {
       path: '/dashboard',
-      component: () => import('@/profiles/views/Dashboard.vue'),
+      component: () => import('@/modules/profiles/views/Dashboard.vue'),
       meta: { requiresAuth: true },
       name: 'Dashboard',
       children: [
         {
           path: '',
           name: 'DashboardOverview',
-          component: () => import('@/profiles/views/dashboard/Overview.vue'),
+          component: () => import('@/modules/profiles/views/dashboard/Overview.vue'),
         },
         {
           path: 'account',
           name: 'DashboardAccount',
-          component: () => import('@/profiles/views/dashboard/Account.vue'),
+          component: () => import('@/modules/profiles/views/dashboard/Account.vue'),
         },
         {
           path: 'memberships',
           name: 'DashboardMemberships',
-          component: () => import('@/profiles/views/dashboard/OrgMemberships.vue'),
+          component: () => import('@/modules/profiles/views/dashboard/OrgMemberships.vue'),
         },
       ],
     },

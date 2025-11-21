@@ -4,11 +4,11 @@ import { useRoute, useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
 import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
 import CustomSelect from '@/components/CustomSelect.vue';
-import { MEMBERSHIP_ROLES } from '@/profiles/types';
+import { MEMBERSHIP_ROLES } from '@/modules/profiles/types';
 import { useOrganizationList } from '@/modules/orgs/composables/useOrganizationsList';
-import { useProfileFullDetail } from '@/profiles/composables/useProfileFullDetail';
-import { profileService } from '@/profiles/services/ProfileService';
-import type { OrgMembership, MembershipRole } from '@/profiles/types';
+import { useProfileFullDetail } from '@/modules/profiles/composables/useProfileFullDetail';
+import { profileService } from '@/modules/profiles/services/ProfileService';
+import type { OrgMembership, MembershipRole } from '@/modules/profiles/types';
 
 const route = useRoute();
 const router = useRouter();
@@ -182,18 +182,18 @@ onMounted(async () => {
           <div class="flex justify-between border-b border-neutral-200 pb-2 dark:border-neutral-800">
             <span class="text-sm font-medium text-neutral-600 dark:text-neutral-400">Role:</span>
             <span class="text-sm text-neutral-900 dark:text-neutral-100 capitalize">{{ profile.role
-            }}</span>
+              }}</span>
           </div>
           <div class="flex justify-between border-b border-neutral-200 pb-2 dark:border-neutral-800">
             <span class="text-sm font-medium text-neutral-600 dark:text-neutral-400">XP:</span>
             <span class="text-sm text-neutral-900 dark:text-neutral-100">{{ profile.xp ?? 'N/A'
-            }}</span>
+              }}</span>
           </div>
           <div class="flex justify-between border-b border-neutral-200 pb-2 dark:border-neutral-800">
             <span class="text-sm font-medium text-neutral-600 dark:text-neutral-400">Created:</span>
             <span class="text-sm text-neutral-900 dark:text-neutral-100">{{
               profile.creation_time.toLocaleString()
-            }}</span>
+              }}</span>
           </div>
         </div>
       </section>

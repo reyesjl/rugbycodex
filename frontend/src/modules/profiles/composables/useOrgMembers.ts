@@ -1,6 +1,6 @@
 import { computed, ref } from 'vue';
-import { type ProfileWithMembership } from '@/profiles/types';
-import { profileService } from '@/profiles/services/ProfileService';
+import { type ProfileWithMembership } from '@/modules/profiles/types';
+import { profileService } from '@/modules/profiles/services/ProfileService';
 
 
 export function useOrgMembers() {

@@ -3,9 +3,9 @@ import { supabase } from '@/lib/supabaseClient';
 import {
   type OrgMembership,
   type MembershipRole,
-} from '@/profiles/types';
+} from '@/modules/profiles/types';
 
-import type { ProfileDetail, ProfileWithMembership, UserProfile } from '@/profiles/types';
+import type { ProfileDetail, ProfileWithMembership, UserProfile } from '@/modules/profiles/types';
 
 /**
  * ProfileServiceV2 centralizes all profile and membership data access logic. It is the successor to
