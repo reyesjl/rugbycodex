@@ -3,8 +3,8 @@ import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import AnimatedLink from '@/components/AnimatedLink.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
-import { getDashboardStats } from '@/admin/services/stats_service';
-import type { DashboardStats } from '@/admin/types';
+import { getDashboardStats } from '@/modules/admin/services/stats_service';
+import type { DashboardStats } from '@/modules/admin/types';
 import type { MemberLeaderboardEntry } from '@/profiles/types';
 import { profileService } from '@/profiles/services/ProfileService';
 
@@ -77,12 +77,8 @@ onMounted(() => {
             Platform pulse
           </h2>
         </div>
-        <RefreshButton
-          class="self-start"
-          :refresh="loadDashboardData"
-          :loading="statsLoading || membersLoading"
-          title="Refresh dashboard data"
-        >
+        <RefreshButton class="self-start" :refresh="loadDashboardData" :loading="statsLoading || membersLoading"
+          title="Refresh dashboard data">
         </RefreshButton>
       </div>
 
@@ -91,11 +87,8 @@ onMounted(() => {
         <p v-else-if="statsError" class="text-sm text-rose-500 dark:text-rose-400">{{ statsError }}</p>
         <div v-else class="relative -mx-4 px-4">
           <div class="stat-strip flex gap-4 overflow-x-auto py-2 no-scrollbar md:flex-wrap">
-            <article
-              v-for="stat in statColumns"
-              :key="stat.id"
-              class="flex min-w-[220px] snap-start flex-col gap-2 border border-neutral-200 bg-neutral-50/90 px-4 py-6 text-neutral-900 shadow-[0_10px_30px_rgba(0,0,0,0.05)] dark:border-neutral-800 dark:bg-neutral-900/80 dark:text-neutral-100 dark:shadow-[0_10px_30px_rgba(0,0,0,0.35)] md:min-w-[230px] md:flex-1 md:snap-none"
-            >
+            <article v-for="stat in statColumns" :key="stat.id"
+              class="flex min-w-[220px] snap-start flex-col gap-2 border border-neutral-200 bg-neutral-50/90 px-4 py-6 text-neutral-900 shadow-[0_10px_30px_rgba(0,0,0,0.05)] dark:border-neutral-800 dark:bg-neutral-900/80 dark:text-neutral-100 dark:shadow-[0_10px_30px_rgba(0,0,0,0.35)] md:min-w-[230px] md:flex-1 md:snap-none">
               <p class="text-xs font-semibold uppercase text-neutral-500 dark:text-neutral-400">
                 {{ stat.label }}
               </p>
@@ -111,8 +104,7 @@ onMounted(() => {
 
     <section>
       <div
-        class="flex flex-col gap-2 border-b border-neutral-200 pb-6 dark:border-neutral-800 sm:flex-row sm:items-end sm:justify-between"
-      >
+        class="flex flex-col gap-2 border-b border-neutral-200 pb-6 dark:border-neutral-800 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p class="text-xs font-semibold uppercase tracking-[0.4em] text-neutral-500 dark:text-neutral-500">
             Members
@@ -121,11 +113,9 @@ onMounted(() => {
             XP leaderboard
           </h2>
         </div>
-        <button
-          type="button"
+        <button type="button"
           class="self-start text-xs font-semibold uppercase tracking-[0.3em] text-neutral-500 transition hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100"
-          @click="handleViewAllMembers"
-        >
+          @click="handleViewAllMembers">
           View all
         </button>
       </div>
@@ -147,11 +137,8 @@ onMounted(() => {
               </tr>
             </thead>
             <tbody>
-              <tr
-                v-for="(member, index) in topMembers"
-                :key="member.id"
-                class="border-b border-neutral-200 text-neutral-900 dark:border-neutral-800 dark:text-neutral-100"
-              >
+              <tr v-for="(member, index) in topMembers" :key="member.id"
+                class="border-b border-neutral-200 text-neutral-900 dark:border-neutral-800 dark:text-neutral-100">
                 <td class="py-4 pr-6 text-xs font-semibold text-neutral-500 dark:text-neutral-500">
                   {{ String(index + 1).padStart(2, '0') }}
                 </td>
@@ -170,7 +157,7 @@ onMounted(() => {
         </div>
       </div>
     </section>
-</section>
+  </section>
 </template>
 
 <style scoped>
@@ -179,7 +166,7 @@ onMounted(() => {
   padding-inline: 0.5rem;
 }
 
-.stat-strip > article {
+.stat-strip>article {
   scroll-snap-align: center;
 }
 

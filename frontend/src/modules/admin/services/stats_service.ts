@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabaseClient';
-import type { DashboardStats } from '@/admin/types';
+import type { DashboardStats } from '@/modules/admin/types';
 
 async function getTableCount(table: string): Promise<number> {
   const { count, error } = await supabase.from(table).select('*', { count: 'exact', head: true });
