@@ -1,16 +1,24 @@
 <script setup lang="ts">
+import { useAuthStore } from '@/auth/stores/useAuthStore';
+import { computed } from 'vue';
 import { RouterLink, RouterView } from 'vue-router';
+
+const authStore = useAuthStore();
 
 // TODO: wire search to pgvector
 // TODO: connect to real org store
-const navLinks = [
+const allLinks = [
   { to: '/v2/dashboard', label: 'Dashboard' },
   { to: '/v2/narrations', label: 'My Narrations' },
   { to: '/v2/media', label: 'My Media' },
   { to: '/v2/organizations', label: 'Organizations' },
   { to: '/v2/profile', label: 'Profile' },
   { to: '/v2/settings', label: 'Settings' },
+  { to: '/v2/admin', label: 'Admin', condition: authStore.isAdmin },
 ];
+const navLinks = computed(() =>
+  allLinks.filter((link) => (link.condition !== undefined ? link.condition : true)),
+);
 </script>
 
 <template>
