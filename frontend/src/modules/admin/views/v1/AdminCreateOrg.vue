@@ -3,8 +3,8 @@ import { ref, watch, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { stringToSlugCase } from '@/lib';
 import CustomSelect from '@/components/CustomSelect.vue';
-import { orgService } from '@/organizations/services/orgService';
-import { type CreateOrganizationInput } from '@/organizations/types';
+import { orgService } from '@/modules/orgs/services/orgService';
+import { type CreateOrganizationInput } from '@/modules/orgs/types';
 
 const router = useRouter();
 const orgName = ref('');

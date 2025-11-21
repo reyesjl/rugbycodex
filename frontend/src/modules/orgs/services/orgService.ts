@@ -1,6 +1,6 @@
 import type { PostgrestError } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabaseClient';
-import type { CreateOrganizationInput, Organization, OrganizationUpdateFields, OrgMediaAsset } from '@/organizations/types';
+import type { CreateOrganizationInput, Organization, OrganizationUpdateFields, OrgMediaAsset } from '@/modules/orgs/types';
 
 /**
  * orgServiceV2 centralizes organization-centric behavior and replaces `org_service.ts`.

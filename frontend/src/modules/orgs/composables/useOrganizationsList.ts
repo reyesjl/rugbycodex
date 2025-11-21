@@ -1,6 +1,6 @@
 import { ref } from 'vue';
-import { type Organization } from '@/organizations/types';
-import { orgService } from '@/organizations/services/orgService';
+import { type Organization } from '@/modules/orgs/types';
+import { orgService } from '@/modules/orgs/services/orgService';
 
 
 export function useOrganizationList() {
