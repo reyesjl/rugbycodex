@@ -12,7 +12,7 @@ import AdminMediaReviewStub from '@/modules/admin/views/AdminMediaReviewStub.vue
 import AdminNarrationsModerationStub from '@/modules/admin/views/AdminNarrationsModerationStub.vue';
 import AdminOrgsStub from '@/modules/admin/views/AdminOrgs.vue';
 import AdminOverviewStub from '@/modules/admin/views/AdminOverview.vue';
-import AdminUsersStub from '@/modules/admin/views/AdminUsersStub.vue';
+import AdminUsersStub from '@/modules/admin/views/AdminUsers.vue';
 import DashboardStub from '@/modules/app/views/DashboardStub.vue';
 import MarketingHome from '@/modules/marketing/views/MarketingHome.vue';
 import MyMediaStub from '@/modules/app/views/MyMediaStub.vue';
