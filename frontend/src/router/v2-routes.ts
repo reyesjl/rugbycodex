@@ -10,7 +10,7 @@ import AdminFeatureFlagsStub from '@/modules/admin/views/AdminFeatureFlagsStub.v
 import AdminJobsStub from '@/modules/admin/views/AdminJobsStub.vue';
 import AdminMediaReviewStub from '@/modules/admin/views/AdminMediaReviewStub.vue';
 import AdminNarrationsModerationStub from '@/modules/admin/views/AdminNarrationsModerationStub.vue';
-import AdminOrgsStub from '@/modules/admin/views/AdminOrgsStub.vue';
+import AdminOrgsStub from '@/modules/admin/views/AdminOrgs.vue';
 import AdminOverviewStub from '@/modules/admin/views/AdminOverview.vue';
 import AdminUsersStub from '@/modules/admin/views/AdminUsersStub.vue';
 import DashboardStub from '@/modules/app/views/DashboardStub.vue';
