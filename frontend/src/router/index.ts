@@ -103,17 +103,17 @@ const router = createRouter({
         {
           path: '',
           name: 'DashboardOverview',
-          component: () => import('@/modules/profiles/views/dashboard/Overview.vue'),
+          component: () => import('@/modules/profiles/views/v1/dashboard/Overview.vue'),
         },
         {
           path: 'account',
           name: 'DashboardAccount',
-          component: () => import('@/modules/profiles/views/dashboard/Account.vue'),
+          component: () => import('@/modules/profiles/views/v1/dashboard/Account.vue'),
         },
         {
           path: 'memberships',
           name: 'DashboardMemberships',
-          component: () => import('@/modules/profiles/views/dashboard/OrgMemberships.vue'),
+          component: () => import('@/modules/profiles/views/v1/dashboard/OrgMemberships.vue'),
         },
       ],
     },
