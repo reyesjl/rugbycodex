@@ -67,7 +67,7 @@ const closeMenu = () => {
     <transition name="marketing-nav-fade">
         <div
             v-if="isMenuOpen"
-            class="fixed inset-0 z-50 grid grid-rows-[auto_1fr] bg-white/80 text-neutral-700 backdrop-blur dark:bg-neutral-900/80 dark:text-neutral-100 md:hidden"
+            class="fixed inset-0 z-50 grid grid-rows-[auto_1fr] bg-white/80 text-neutral-700 backdrop-blur-xs dark:bg-neutral-900/80 dark:text-neutral-100 md:hidden"
             @click.self="closeMenu"
         >
             <div class="container-lg grid grid-cols-[auto_1fr_auto] items-center w-full py-4">
