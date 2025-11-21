@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router';
 import pinia from '@/lib/pinia';
 import { useAuthStore } from '@/auth/stores/useAuthStore';
 import { adminRoutes } from '@/router/admin';
+import { v2Routes } from '@/router/v2-routes';
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -95,24 +96,24 @@ const router = createRouter({
     },
     {
       path: '/dashboard',
-      component: () => import('@/profiles/views/Dashboard.vue'),
+      component: () => import('@/modules/profiles/views/Dashboard.vue'),
       meta: { requiresAuth: true },
       name: 'Dashboard',
       children: [
         {
           path: '',
           name: 'DashboardOverview',
-          component: () => import('@/profiles/views/dashboard/Overview.vue'),
+          component: () => import('@/modules/profiles/views/dashboard/Overview.vue'),
         },
         {
           path: 'account',
           name: 'DashboardAccount',
-          component: () => import('@/profiles/views/dashboard/Account.vue'),
+          component: () => import('@/modules/profiles/views/dashboard/Account.vue'),
         },
         {
           path: 'memberships',
           name: 'DashboardMemberships',
-          component: () => import('@/profiles/views/dashboard/OrgMemberships.vue'),
+          component: () => import('@/modules/profiles/views/dashboard/OrgMemberships.vue'),
         },
       ],
     },
@@ -126,10 +127,11 @@ const router = createRouter({
     {
       path: '/organizations/:orgSlug',
       name: 'OrganizationDetail',
-      component: () => import('@/organizations/views/OrganizationDashboard.vue'),
+      component: () => import('@/modules/orgs/views/v1/OrganizationDashboard.vue'),
       meta: { requiresAuth: true },
       props: true,
     },
+    ...v2Routes,
     {
       path: '/:pathMatch(.*)*',
       name: 'NotFound',
