@@ -6,7 +6,7 @@ import { useRouter } from 'vue-router';
 import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
 import { useOrganizationList } from '@/organizations/composables/useOrganizationsList';
-import { orgService } from '@/organizations/services/OrgService';
+import { orgService } from '@/organizations/services/orgService';
 import type { Organization } from '@/organizations/types';
 
 const router = useRouter();

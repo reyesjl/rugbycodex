@@ -10,7 +10,7 @@ import type { CreateOrganizationInput, Organization, OrganizationUpdateFields, O
  *
  * Usage:
  * ```ts
- * import { orgService } from '@/services/OrgService';
+ * import { orgService } from '@/services/orgService';
  *
  * const orgs = await orgService.organizations.list();
  * const org = await orgService.organizations.getBySlug('club-slug');
