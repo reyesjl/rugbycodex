@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router';
 import pinia from '@/lib/pinia';
 import { useAuthStore } from '@/auth/stores/useAuthStore';
 import { adminRoutes } from '@/router/admin';
+import { v2Routes } from '@/router/v2-routes';
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -130,6 +131,7 @@ const router = createRouter({
       meta: { requiresAuth: true },
       props: true,
     },
+    ...v2Routes,
     {
       path: '/:pathMatch(.*)*',
       name: 'NotFound',

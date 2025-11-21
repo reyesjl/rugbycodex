@@ -15,3 +15,10 @@
 ## Cloudflare Turnstile
 - The signup form optionally renders the Turnstile widget when `VITE_TURNSTILE_SITE_KEY` or `VITE_TURNSTILE_SITE_KEY_DEV` are present.
 - When Turnstile is enabled, form submission is blocked until a valid token is received.
+
+## V2 Layout System (parallel scaffolding)
+- Visit `/v2/marketing`, `/v2/dashboard`, `/v2/orgs/example-org/overview`, and `/v2/admin` to smoke test the new layouts and stubs.
+- Existing routes and screens remain untouched; all new UI lives in parallel under `/v2/*`.
+- V2 layouts: Marketing, Main (personal scope), Org (org scope), and Admin (system scope) with placeholders for search, org selection, notifications, and avatars.
+- Stub views exist for every domain slice across marketing, app, orgs, and admin; swap them with real components as you wire data.
+- Next steps: replace stubs with real pages and connect permissions/org data/search to live stores and services.
