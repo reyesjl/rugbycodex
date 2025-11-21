@@ -19,7 +19,7 @@ import MyMediaStub from '@/modules/app/views/MyMediaStub.vue';
 import MyNarrationsStub from '@/modules/app/views/MyNarrationsStub.vue';
 import OrganizationsStub from '@/modules/app/views/OrganizationsStub.vue';
 import ProfileStub from '@/modules/app/views/ProfileStub.vue';
-import SettingsStub from '@/modules/app/views/SettingsStub.vue';
+import SettingsStub from '@/modules/profiles/views/ProfileSettings.vue';
 import OrgAdminToolsStub from '@/modules/orgs/views/OrgAdminToolsStub.vue';
 import OrgMediaStub from '@/modules/orgs/views/OrgMediaStub.vue';
 import OrgMembersStub from '@/modules/orgs/views/OrgMembersStub.vue';
