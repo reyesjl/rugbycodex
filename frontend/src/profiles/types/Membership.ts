@@ -48,5 +48,16 @@ export type OrgMembership = {
   /** Date the user joined the organization. */
   join_date: Date;
 };
+export type OrgMembershipRow = {
+  org_id: string;
+  user_id: string;
+  role: MembershipRole;
+  joined_at: string | Date | null;
+};
 
-
+export type MembershipRelationRow = {
+  org_id: string;
+  role: MembershipRole;
+  joined_at: string | Date | null;
+  organization: { id: string; name: string | null; slug: string | null } | null;
+};

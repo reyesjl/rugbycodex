@@ -1,4 +1,4 @@
-import type { OrgMembership } from "@/profiles/types/Membership";
+import type { MembershipRole, OrgMembership } from "@/profiles/types/Membership";
 
 /**
  * Role given to a profile which controls access and moderation abilities.
@@ -29,3 +29,19 @@ export type ProfileDetail = UserProfile & { memberships: OrgMembership[] };
  * Conforms to the VIEW defined ProfileWithMembership in the database.
  */
 export type ProfileWithMembership = UserProfile & OrgMembership;
+
+export type ProfileRow = {
+  id: string;
+  name: string;
+  xp: number | null;
+  creation_time: string | Date | null;
+  role: UserProfile['role'];
+};
+
+export type ProfileWithMembershipViewRow = ProfileRow & {
+  org_id: string;
+  org_name: string | null;
+  slug: string | null;
+  org_role: MembershipRole;
+  join_date: string | Date | null;
+};

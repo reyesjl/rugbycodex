@@ -5,7 +5,7 @@ import {
   type MembershipRole,
 } from '@/profiles/types';
 
-import type { ProfileDetail, ProfileWithMembership, UserProfile } from '@/profiles/types';
+import type { MembershipRelationRow, ProfileDetail, ProfileRow, ProfileWithMembership, ProfileWithMembershipViewRow, UserProfile } from '@/profiles/types';
 
 /**
  * ProfileServiceV2 centralizes all profile and membership data access logic. It is the successor to
@@ -28,29 +28,6 @@ import type { ProfileDetail, ProfileWithMembership, UserProfile } from '@/profil
  * Prefer this service over direct Supabase calls or the legacy service to keep mappers, error handling,
  * and domain conventions consistent while we migrate callers.
  */
-
-type ProfileRow = {
-  id: string;
-  name: string;
-  xp: number | null;
-  creation_time: string | Date | null;
-  role: UserProfile['role'];
-};
-
-type MembershipRelationRow = {
-  org_id: string;
-  role: MembershipRole;
-  joined_at: string | Date | null;
-  organization: { id: string; name: string | null; slug: string | null } | null;
-};
-
-type ProfileWithMembershipViewRow = ProfileRow & {
-  org_id: string;
-  org_name: string | null;
-  slug: string | null;
-  org_role: MembershipRole;
-  join_date: string | Date | null;
-};
 
 /** Shape used by the XP leaderboard cards and tables. */
 export type MemberLeaderboardEntry = {

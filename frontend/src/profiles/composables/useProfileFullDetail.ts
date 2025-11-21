@@ -1,6 +1,8 @@
-import { computed, ref, type ComputedRef } from 'vue';
-import { type OrgMembership, type ProfileDetail } from '@/profiles/types';
+import { computed, onBeforeUnmount, onMounted, ref, type ComputedRef } from 'vue';
+import { type MembershipRelationRow, type OrgMembership, type OrgMembershipRow, type ProfileDetail } from '@/profiles/types';
 import { profileService } from '@/profiles/services/ProfileService';
+import { useDbWatcherStore, type PostgresChange } from '@/lib/useDbWatcher';
+import { supabase } from '@/lib/supabaseClient';
 
 
 export function useProfileFullDetail() {
@@ -34,6 +36,52 @@ export function useProfileFullDetail() {
     loading.value = false;
     error.value = null;
   }
+
+  const dbWatcher = useDbWatcherStore()
+
+  function handleMembershipChange(payload: PostgresChange<OrgMembershipRow>) {
+    console.log("Event Type on membership change:", payload.eventType);
+    console.log('Membership old:', payload.old)
+    console.log('Membership new:', payload.new)
+    switch (payload.eventType) {
+      case 'INSERT':
+        // If a new membership is added for the current profile, reload the profile detail
+        if (profile.value && payload.new && payload.new.user_id === profile.value.id) {
+          loadProfile(profile.value.id);
+        }
+        break;
+      case 'UPDATE':
+        if (profile.value && payload.new) {  
+          profile.value.memberships.forEach(membership => {
+            // Update the membership details if it matches the updated record
+            if (membership.org_id === payload.new!.org_id) {
+              membership.org_role = payload.new!.role;
+            }
+          });
+        };
+        break;
+      case 'DELETE':
+        if (profile.value && payload.old) {  
+          // Remove the membership from the profile's memberships
+          profile.value.memberships = profile.value.memberships.filter(
+            membership => membership.org_id !== payload.old!.org_id
+          );
+        };
+        break;
+      default:
+        console.warn(`Unhandled membership change event type: ${payload.eventType}`);
+    }
+  }
+
+  onMounted(() => {
+    console.log("Mounting!");
+    console.log(supabase.getChannels());
+    const unsub = dbWatcher.subscribe<OrgMembershipRow>('org_members', handleMembershipChange)
+    onBeforeUnmount(() => {
+      console.log("Unmounting!");
+      unsub();
+    });
+  })
 
 
   return {
