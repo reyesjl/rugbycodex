@@ -4,7 +4,6 @@ import FakeWaveform from "./FakeWaveform.vue";
 import { Icon } from "@iconify/vue";
 import { ref } from "vue";
 import LoadingIcon from "@/components/LoadingIcon.vue";
-import { useTypewriter } from "@/composables/useTypewriter";
 import { supabase } from "@/lib/supabaseClient";
 import type { TranscriptionResponse } from "@/modules/narrations/types";
 
@@ -114,10 +113,10 @@ const handleTranscribe = async () => {
           </button>
           <LoadingIcon v-if="loadingTranscription" />
           <span v-else-if="transcriptionError" class="text-red-500">{{ transcriptionError }} </span>
-          <textarea v-else
-            :value="transcription"
+          <textarea v-else-if="transcription"
+            v-model="transcription"
             :placeholder="'Transcription ...'"
-            class="border w-full overflow-auto min-h-[200px] rounded px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-400"
+            class="border overflow-auto min-h-[200px] rounded px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-400"
           />
         </div>
       </div>
