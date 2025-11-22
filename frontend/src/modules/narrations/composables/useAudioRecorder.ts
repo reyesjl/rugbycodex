@@ -32,8 +32,7 @@ function encodeWAV(samples: Float32Array, sampleRate: number): Blob {
   // Write PCM samples
   let offset = 44;
   for (let i = 0; i < samples.length; i++) {
-    const sample = samples[i] ?? 0;
-    const s = Math.max(-1, Math.min(1, sample));
+    const s = Math.max(-1, Math.min(1, samples[i] ?? 0));
     view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
     offset += 2;
   }
@@ -85,7 +84,7 @@ export function useAudioRecorder() {
           audioBlob.value = wavBlob;
           audioUrl.value = URL.createObjectURL(wavBlob);
         } catch (conversionError) {
-          error.value = 'Failed to convert audio to WAV format';
+          error.value = conversionError instanceof Error ? conversionError.message : 'Failed to convert audio to WAV format';
         }
 
         // Stop all tracks to release mic

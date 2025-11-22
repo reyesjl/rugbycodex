@@ -49,9 +49,6 @@ const props = defineProps<{
   animation-delay: 360ms;
 }
 
-.waveform .bar:nth-child(5) {
-  animation-delay: 480ms;
-}
 
 @keyframes waveform-bounce {
   0% {
