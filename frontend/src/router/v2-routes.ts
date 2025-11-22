@@ -16,7 +16,7 @@ import AdminUsersStub from '@/modules/admin/views/AdminUsers.vue';
 import DashboardStub from '@/modules/app/views/DashboardStub.vue';
 import MarketingHome from '@/modules/marketing/views/MarketingHome.vue';
 import MyMediaStub from '@/modules/app/views/MyMediaStub.vue';
-import MyNarrationsStub from '@/modules/app/views/MyNarrationsStub.vue';
+import MyNarrationsStub from '@/modules/profiles/views/MyNarrations.vue';
 import OrganizationsStub from '@/modules/app/views/OrganizationsStub.vue';
 import ProfileStub from '@/modules/app/views/ProfileStub.vue';
 import SettingsStub from '@/modules/profiles/views/ProfileSettings.vue';
