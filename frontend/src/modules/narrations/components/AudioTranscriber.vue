@@ -105,7 +105,7 @@ const handleTranscribe = async () => {
         </div>
 
         <!-- Transcription Section -->
-        <div v-if="audioBlob" class="flex flex-col items-center gap-4 w-full">
+        <div class="flex flex-col items-center gap-4 w-full">
           <button @click="handleTranscribe"
             class="flex items-center gap-2 px-6 py-3 rounded-lg font-medium text-white bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-md hover:shadow-lg transition-all duration-200">
             <Icon icon="mdi:text-to-speech" class="w-5 h-5" />
