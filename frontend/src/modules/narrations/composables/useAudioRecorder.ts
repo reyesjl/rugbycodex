@@ -72,8 +72,20 @@ export function useAudioRecorder() {
 
         try {
           // Convert webm to WAV
+          if (!audioContext) {
+            throw new Error("Audio context is not available for conversion");
+          }
           const arrayBuffer = await webmBlob.arrayBuffer();
-          const audioBuffer = await audioContext!.decodeAudioData(arrayBuffer);
+          let audioBuffer: AudioBuffer;
+          try {
+            audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+          } catch (decodeErr) {
+            throw new Error(
+              decodeErr instanceof Error
+                ? decodeErr.message
+                : "Failed to decode audio data"
+            );
+          }
 
           // Get PCM data from first channel
           const pcmData = audioBuffer.getChannelData(0);
