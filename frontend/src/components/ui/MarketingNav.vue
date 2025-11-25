@@ -153,7 +153,7 @@ watch(isMenuOpen, (isOpen) => {
             class="fixed inset-0 z-50 grid grid-rows-[auto_1fr] text-white bg-black/50 backdrop-blur-xs md:hidden"
             @click.self="closeMenu"
         >
-            <div class="container-lg grid grid-cols-[auto_1fr_auto] items-center w-full py-4">
+            <div class="container-lg grid grid-cols-[auto_1fr_auto] items-center w-full py-5">
                 <RouterLink class="brand-name text-xl dark:text-white" to="/v2/marketing">
                     rugby<span class="font-semibold">codex</span>
                 </RouterLink>

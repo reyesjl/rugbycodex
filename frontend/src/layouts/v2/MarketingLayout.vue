@@ -2,6 +2,10 @@
 import { RouterView } from 'vue-router';
 
 import MarketingNav from '@/components/ui/MarketingNav.vue';
+
+defineProps<{
+    toggleDarkMode: () => void;
+}>();
 </script>
 
 <template>

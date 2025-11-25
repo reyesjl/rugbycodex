@@ -1,27 +1,13 @@
 <script setup lang="ts">
-import { Icon } from '@iconify/vue';
+import LandingThreeColumnSection from '../components/LandingThreeColumnSection.vue';
 
 </script>
 <template>
-    <section class="navclear bg-black text-white" data-nav-theme="dark">
-        <div class="container-lg pt-50 flex flex-col gap-8 justify-end">
-            <h2 class="text-5xl md:text-9xl font-bold">Players</h2>
-            <div class="grid md:grid-cols-12 gap-6 text-xs mt-6 pb-8 uppercase">
-                <div class="md:col-start-1 md:col-end-3 space-y-3">
-                    <p>Personal Insight Engine</p>
-                    <p>[ PIE ]</p>
-                </div>
-                <div class="md:col-start-3 md:col-end-8">
-                    Players get personalized insight from their own footage — find your strengths, fix your weaknesses,
-                    and accelerate your development.
-                    See exactly where you can improve through searchable clips, voice-led analysis, and real rugby
-                    terminology built with elite coaches.
-                </div>
-                <div class="md:col-start-8 md:col-end-13 flex justify-end">
-                <!-- carbon iconify down arrow -->
-                    <Icon icon="carbon:chevron-down-outline" width="32" height="32" class="text-white mt-2" />
-                </div>
-            </div>
-        </div>
-    </section>
+  <LandingThreeColumnSection
+    title="Players"
+    system-title="Personal Insight Engine"
+    system-code="Pie"
+    description="Players get personalized insight from their own footage — find your strengths, fix your weaknesses, and accelerate your development. see exactly where you can improve through searchable clips, voice-led analysis, and real rugby terminology built with elite coaches."
+    icon="carbon:chevron-down-outline"
+  />
 </template>
