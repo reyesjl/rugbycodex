@@ -48,29 +48,24 @@ import heroImage from '@/assets/modules/marketing/saracens-hero.jpg';
     <div class="absolute inset-0 bg-black/50"></div>
 
     <!-- Content -->
-    <div class="relative z-10 flex h-full items-end">
+    <div class="relative z-10 flex h-full items-end pb-10 md:pb-20">
       <div class="container-lg pb-20 text-white">
         <h1 class="max-w-3xl text-4xl md:text-6xl">
           Turn rugby footage into searchable moments using your voice.
         </h1>
-        <div class="mt-2 text-lg max-w-3xl">Instantly create game reviews, training plans, player highlights, and more.</div>
+        <div class="mt-5 text-lg max-w-3xl">Instantly create game reviews, training plans, player highlights, and more.</div>
         <div class="button-set flex gap-5 mt-6 items-center">
           <RouterLink
             to="/v2/marketing"
-            class="inline-block bg-white text-black font-semibold px-3 py-1 rounded-full hover:bg-neutral-300"
-          >Get Started</RouterLink>
+            class="inline-block border-1 border-neutral-400 px-4 py-2 hover:bg-neutral-100 hover:text-black transition"
+          >GET STARTED</RouterLink>
           <RouterLink
             to="/v2/marketing"
-            class="hover:underline underline-offset-4 font-semibold"
+            class="hover:underline underline-offset-4"
           >Learn more</RouterLink>
         </div>
       </div>
     </div>
 
-  </section>
-  <section class="py-20">
-    <div class="container-lg">
-      <h2 class="text-4xl">Empowering Rugby Educators Everywhere</h2>
-    </div>
   </section>
 </template>

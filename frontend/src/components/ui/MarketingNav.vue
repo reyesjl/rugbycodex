@@ -114,7 +114,7 @@ watch(isMenuOpen, (isOpen) => {
                 rugby<span class="font-semibold">codex</span>
             </RouterLink>
 
-            <div class="hidden justify-center md:flex md:gap-8">
+            <div class="hidden justify-center md:flex md:gap-8 sm:text-sm">
                 <RouterLink class="text-white hover:text-neutral-400 whitespace-nowrap" to="/v2/marketing/for-coaches">
                     For Coaches
                 </RouterLink>
@@ -126,11 +126,11 @@ watch(isMenuOpen, (isOpen) => {
                 </RouterLink>
             </div>
 
-            <div class="hidden justify-end space-x-4 md:flex items-center">
+            <div class="hidden justify-end space-x-4 md:flex items-center sm:text-sm">
                 <RouterLink class="text-white hover:text-neutral-400 whitespace-nowrap" to="/v2/marketing">
                     Login
                 </RouterLink>
-                <RouterLink class="text-black bg-white rounded-full px-2 hover:bg-neutral-200 whitespace-nowrap" to="/v2/marketing">
+                <RouterLink class="text-white px-2 py-1 border-1 border-neutral-400 hover:bg-neutral-100 hover:text-black whitespace-nowrap transition" to="/v2/marketing">
                     Get Started
                 </RouterLink>
             </div>
