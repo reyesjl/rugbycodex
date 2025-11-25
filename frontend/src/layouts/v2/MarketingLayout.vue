@@ -5,11 +5,11 @@ import MarketingNav from '@/components/ui/MarketingNav.vue';
 </script>
 
 <template>
-    <header class="">
-      <MarketingNav />
-    </header>
+    <MarketingNav />
 
-    <main>
-      <RouterView />
-    </main>
+    <RouterView />
 </template>
+
+<style scoped>
+
+</style>

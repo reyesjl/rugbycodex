@@ -35,6 +35,10 @@
   font-family: "Inter", sans-serif;
 }
 
+.navclear {
+  padding-top: var(--marketing-nav-height, 0px);
+}
+
 @layer utilities {
   .container {
     width: 100%;

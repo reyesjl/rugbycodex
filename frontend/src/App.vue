@@ -3,6 +3,7 @@ import { ref, onMounted, watch } from 'vue';
 import { RouterView } from 'vue-router';
 import MainLayout from '@/layouts/MainLayout.vue';
 import MinimalLayout from '@/layouts/MinimalLayout.vue';
+import MarketingLayout from '@/layouts/v2/MarketingLayout.vue';
 
 const isDarkMode = ref(false);
 const legacyStorageKeys = ['betaRequests.csv'];
@@ -19,10 +20,12 @@ const cleanupLegacyLocalStorage = () => {
 const layoutComponents = {
   main: MainLayout,
   minimal: MinimalLayout,
+  marketing: MarketingLayout,
 } as const;
 
 const resolveLayout = (layout?: string) => {
   if (layout === 'minimal') return layoutComponents.minimal;
+  if (layout === 'marketing') return layoutComponents.marketing;
   return layoutComponents.main;
 };
 

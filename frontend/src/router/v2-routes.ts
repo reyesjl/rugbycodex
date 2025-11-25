@@ -32,13 +32,23 @@ export const v2Routes: RouteRecordRaw[] = [
   {
     path: '/v2/marketing',
     component: MarketingLayout,
-    meta: { layout: 'minimal' },
+    meta: { layout: 'marketing' },
     children: [
       {
         path: '',
         name: 'V2MarketingHome',
         component: MarketingHome,
       },
+      {
+        path: 'for-players',
+        name: 'V2ForPlayers',
+        component: () => import('@/modules/marketing/views/ForPlayers.vue'),
+      },
+      {
+        path: 'for-coaches',
+        name: 'V2ForCoaches',
+        component: () => import('@/modules/marketing/views/ForCoaches.vue'),
+      }
     ],
   },
   {
