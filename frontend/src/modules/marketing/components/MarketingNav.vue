@@ -2,6 +2,8 @@
 import { Icon } from '@iconify/vue';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { RouterLink } from 'vue-router';
+import Button from '@/components/ui/primitives/Button.vue';
+import NavLink from '@/components/ui/primitives/NavLink.vue';
 
 const NAV_VISIBLE_TOP = '0px';
 const NAV_HIDDEN_TOP = '-120px';
@@ -115,6 +117,9 @@ watch(isMenuOpen, (isOpen) => {
             </RouterLink>
 
             <div class="hidden justify-center md:flex md:gap-8 sm:text-sm">
+                <NavLink to="/v2/marketing/for-coaches">
+                    For Coaches
+                </NavLink>
                 <RouterLink class="text-white hover:text-neutral-400 whitespace-nowrap" to="/v2/marketing/for-coaches">
                     For Coaches
                 </RouterLink>
@@ -130,9 +135,7 @@ watch(isMenuOpen, (isOpen) => {
                 <RouterLink class="text-white hover:text-neutral-400 whitespace-nowrap" to="/v2/marketing">
                     Login
                 </RouterLink>
-                <RouterLink class="text-white px-2 py-1 border-1 border-neutral-400 hover:bg-neutral-100 hover:text-black whitespace-nowrap transition" to="/v2/marketing">
-                    Get Started
-                </RouterLink>
+                <Button variant="base" color="primary" to="/v2/marketing/">Get Started</Button>
             </div>
 
             <button

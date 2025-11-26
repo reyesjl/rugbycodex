@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { RouterView } from 'vue-router';
 
-import MarketingNav from '@/components/ui/MarketingNav.vue';
+import MarketingNav from '@/modules/marketing/components/MarketingNav.vue';
 
 defineProps<{
     toggleDarkMode: () => void;

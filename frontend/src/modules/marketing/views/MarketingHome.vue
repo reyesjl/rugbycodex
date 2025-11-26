@@ -26,7 +26,7 @@ import heroImage from '@/assets/modules/marketing/saracens-hero.jpg';
       />
     </div>
   </section> -->
-  <section class="relative h-screen overflow-hidden">
+  <section class="relative h-dvh overflow-hidden">
     <!-- Background video
     <video
       autoplay
