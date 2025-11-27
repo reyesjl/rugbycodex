@@ -46,7 +46,8 @@ export default tseslint.config(
         URL: 'readonly',
         fetch: 'readonly',
         AudioContext: 'readonly',
-        DOMRect: 'readonly'
+        DOMRect: 'readonly',
+        FormData: 'readonly'
       }
     }
   },
