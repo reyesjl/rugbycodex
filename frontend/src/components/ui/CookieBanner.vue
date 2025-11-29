@@ -2,7 +2,7 @@
 import { computed } from 'vue';
 import { useCookieConsent } from '@/composables/useCookieConsent';
 
-const { consent, hasDecided, accept, reject } = useCookieConsent();
+const { hasDecided, accept, reject } = useCookieConsent();
 const show = computed(() => !hasDecided.value);
 </script>
 <template>
