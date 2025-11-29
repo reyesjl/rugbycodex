@@ -2,6 +2,8 @@
 // import heroAnimatedLight from '@/assets/logos/animated/logo-animation-light.mp4';
 // import heroAnimatedDark from '@/assets/logos/animated/logo-animation-dark.mp4';
 import heroImage from '@/assets/modules/marketing/saracens-hero.jpg';
+import Button from '@/components/ui/primitives/Button.vue';
+import { RouterLink } from 'vue-router';
 </script>
 <template>
   <!-- <section class="min-h-screen grid place-items-center px-4">
@@ -55,10 +57,9 @@ import heroImage from '@/assets/modules/marketing/saracens-hero.jpg';
         </h1>
         <div class="mt-5 text-lg max-w-3xl">Instantly create game reviews, training plans, player highlights, and more.</div>
         <div class="button-set flex gap-5 mt-6 items-center">
-          <RouterLink
-            to="/v2/marketing"
-            class="inline-block border-1 border-neutral-400 px-4 py-2 hover:bg-neutral-100 hover:text-black transition"
-          >GET STARTED</RouterLink>
+          <Button size="md">
+            GET STARTED
+          </Button>
           <RouterLink
             to="/v2/marketing"
             class="hover:underline underline-offset-4"
@@ -66,6 +67,11 @@ import heroImage from '@/assets/modules/marketing/saracens-hero.jpg';
         </div>
       </div>
     </div>
+  </section>
 
+  <section class="py-20">
+    <div class="container-lg h-screen">
+      <h1>Test goes here...</h1>
+    </div>
   </section>
 </template>

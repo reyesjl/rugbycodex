@@ -39,12 +39,18 @@ const updateNavVisibility = () => {
     isAtTop.value = currentScrollY <= 0;
 
     if (Math.abs(delta) < MIN_SCROLL_DELTA) {
+        lastScrollY.value = currentScrollY;
         return;
     }
 
-    if (currentScrollY <= SCROLL_HIDE_OFFSET || delta < 0) {
+    if (currentScrollY <= SCROLL_HIDE_OFFSET) {
+        // near the top: always show
         isNavHidden.value = false;
-    } else if (delta > 0 && currentScrollY > SCROLL_HIDE_OFFSET) {
+    } else if (delta > 0) {
+        // scrolling down: hide nav
+        isNavHidden.value = true;
+    } else {
+        // scrolling up: show nav
         isNavHidden.value = false;
     }
 
@@ -113,22 +119,25 @@ watch(isMenuOpen, (isOpen) => {
     >
         <div class="container-lg grid grid-cols-[auto_1fr_auto] items-center py-5">
             <RouterLink class="brand-name text-xl text-white hover:text-neutral-400" to="/v2/marketing">
-                rugby<span class="font-semibold">codex</span>
+                RUGBY<span class="font-semibold">CODEX</span>
             </RouterLink>
 
             <div class="hidden justify-center md:flex md:gap-8 sm:text-sm">
-                <NavLink to="/v2/marketing/for-coaches">
-                    For Coaches
+                <NavLink to="/v2/marketing/coaches">
+                    Coaches
                 </NavLink>
-                <RouterLink class="text-white hover:text-neutral-400 whitespace-nowrap" to="/v2/marketing/for-coaches">
-                    For Coaches
-                </RouterLink>
-                <RouterLink class="text-white hover:text-neutral-400 whitespace-nowrap" to="/v2/marketing/for-players">
-                    For Players
-                </RouterLink>
-                <RouterLink class="text-white hover:text-neutral-400 whitespace-nowrap" to="/v2/marketing">
+                <NavLink to="/v2/marketing/players">
+                    Players
+                </NavLink>
+                <NavLink to="/v2/marketing/unions">
+                    Unions
+                </NavLink>
+                <NavLink to="/v2/marketing/inside">
                     Inside the Codex
-                </RouterLink>
+                </NavLink>
+                <NavLink to="/v2/marketing/mission">
+                    Mission
+                </NavLink>
             </div>
 
             <div class="hidden justify-end space-x-4 md:flex items-center sm:text-sm">
@@ -153,12 +162,12 @@ watch(isMenuOpen, (isOpen) => {
     <transition name="marketing-nav-fade">
         <div
             v-if="isMenuOpen"
-            class="fixed inset-0 z-50 grid grid-rows-[auto_1fr] text-white bg-black/50 backdrop-blur-xs md:hidden"
+            class="fixed inset-0 z-50 grid grid-rows-[auto_1fr] text-white bg-black/50 backdrop-blur md:hidden"
             @click.self="closeMenu"
         >
             <div class="container-lg grid grid-cols-[auto_1fr_auto] items-center w-full py-5">
                 <RouterLink class="brand-name text-xl dark:text-white" to="/v2/marketing">
-                    rugby<span class="font-semibold">codex</span>
+                    RUGBY<span class="font-semibold">CODEX</span>
                 </RouterLink>
 
                 <div></div>
@@ -173,37 +182,49 @@ watch(isMenuOpen, (isOpen) => {
                 </button>
             </div>
 
-            <div class="flex flex-col items-end mt-10 space-y-6 px-6 text-3xl font-semibold lowercase">
+            <div class="flex flex-col pt-10 space-y-6 px-5 text-2xl capitalize">
                 <RouterLink
-                    class="text-right hover:text-neutral-500 text-white w-full"
-                    to="/v2/marketing/for-coaches"
+                    class="hover:text-neutral-500 text-white w-fit"
+                    to="/v2/marketing/coaches"
                     @click="closeMenu"
                 >
-                    for coaches
+                    Coaches
                 </RouterLink>
                 <RouterLink
-                    class="text-right hover:text-neutral-500 text-white w-full"
-                    to="/v2/marketing/for-players"
+                    class="hover:text-neutral-500 text-white w-fit"
+                    to="/v2/marketing/players"
                     @click="closeMenu"
                 >
-                    for players
+                    Players
                 </RouterLink>
                 <RouterLink
-                    class="text-right hover:text-neutral-500 text-white w-full"
+                    class="hover:text-neutral-500 text-white w-fit"
+                    to="/v2/marketing/unions"
+                    @click="closeMenu"
+                >
+                    Unions
+                </RouterLink>
+                <RouterLink
+                    class="hover:text-neutral-500 text-white w-fit"
                     to="/v2/marketing"
                     @click="closeMenu"
                 >
                     inside the codex
                 </RouterLink>
                 <RouterLink
-                    class="text-right hover:text-neutral-500 text-white w-full"
+                    class="hover:text-neutral-500 text-white w-fit"
+                    to="/v2/marketing/mission"
+                    @click="closeMenu"
+                >mission</RouterLink>
+                <RouterLink
+                    class="hover:text-neutral-500 text-white w-fit"
                     to="/v2/marketing"
                     @click="closeMenu"
                 >
                     login
                 </RouterLink>
                 <RouterLink
-                    class="text-right hover:text-neutral-500 text-white w-full"
+                    class="hover:text-neutral-500 text-white w-fit"
                     to="/v2/marketing"
                     @click="closeMenu"
                 >

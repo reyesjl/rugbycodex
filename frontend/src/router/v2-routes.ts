@@ -40,14 +40,19 @@ export const v2Routes: RouteRecordRaw[] = [
         component: MarketingHome,
       },
       {
-        path: 'for-players',
+        path: 'players',
         name: 'V2ForPlayers',
         component: () => import('@/modules/marketing/views/ForPlayers.vue'),
       },
       {
-        path: 'for-coaches',
+        path: 'coaches',
         name: 'V2ForCoaches',
         component: () => import('@/modules/marketing/views/ForCoaches.vue'),
+      },
+      {
+        path: 'unions',
+        name: 'V2ForUnions',
+        component: () => import('@/modules/marketing/views/ForUnions.vue'),
       }
     ],
   },

@@ -1,0 +1,18 @@
+<script setup lang="ts">
+import { computed } from 'vue';
+import { useCookieConsent } from '@/composables/useCookieConsent';
+
+const { consent, hasDecided, accept, reject } = useCookieConsent();
+const show = computed(() => !hasDecided.value);
+</script>
+<template>
+  <div v-if="show" class="z-50 text-xs md:text-sm fixed bottom-0 right-0 p-8 text-black bg-white/50 backdrop-blur-sm w-full md:w-1/2 flex flex-col md:flex-row justify-between gap-2 items-center">
+    <div class="content pb-4 w-full md:w-2/3 text-center md:text-left">We use optional analytics cookies to understand how you use our site so we can improve it. View our Privacy Policy for details.</div>
+    <div class="buttons flex gap-2 justify-center">
+        <span @click="accept" class="cursor-pointer underline underline-offset-2">Accept</span>|
+        <span @click="reject" class="cursor-pointer underline underline-offset-2">Reject</span>
+    </div>
+  </div>
+</template>
+<style scoped lang="css">
+</style>

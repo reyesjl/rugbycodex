@@ -46,7 +46,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="navclear bg-black text-white" data-nav-theme="dark">
+  <section class="navclear bg-black text-white">
     <div class="container-lg pt-50 flex flex-col gap-8 justify-end">
       
       <!-- HEADLINE -->

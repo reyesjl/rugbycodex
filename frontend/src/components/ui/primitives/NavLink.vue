@@ -5,7 +5,7 @@ import { useRoute, RouterLink } from "vue-router";
 const props = defineProps<{ to: string }>();
 const route = useRoute();
 
-const isActive = computed(() => route.path.startsWith(props.to));
+const isActive = computed(() => route.path === props.to);
 </script>
 
 <template>
@@ -13,8 +13,8 @@ const isActive = computed(() => route.path.startsWith(props.to));
     :to="to"
     class="whitespace-nowrap transition-colors duration-150"
     :class="[
-      isActive ? 'text-white' : 'text-neutral-400',
-      'hover:text-neutral-200',
+      isActive ? 'underline underline-offset-4' : '',
+      'text-white hover:text-neutral-400',
     ]"
   >
     <slot />

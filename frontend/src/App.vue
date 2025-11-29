@@ -37,15 +37,17 @@ onMounted(() => {
   } else {
     isDarkMode.value = window.matchMedia('(prefers-color-scheme: dark)').matches;
   }
-});
+}); 
 
 watch(
   isDarkMode,
   (newValue) => {
     if (newValue) {
       document.documentElement.classList.add('dark');
+      console.log('Dark mode enabled');
     } else {
       document.documentElement.classList.remove('dark');
+      console.log('Dark mode disabled');
     }
     localStorage.setItem('darkMode', JSON.stringify(newValue));
   },

@@ -5,6 +5,7 @@ import App from './App.vue';
 import router from './router';
 import pinia from '@/lib/pinia';
 import { useAuthStore } from '@/auth/stores/useAuthStore';
+import { useCookieConsent } from './composables/useCookieConsent';
 
 const app = createApp(App);
 
@@ -23,6 +24,14 @@ const bootstrap = async () => {
 
   await router.isReady();
   app.mount('#app');
+
+  // Check cookie consent status
+  const { consent, hasDecided } = useCookieConsent();
+  if (hasDecided.value && consent.value === 'accepted') {
+    // Initialize services that require cookie consent here
+    console.log('Cookie consent accepted. Initializing analytics...');
+    // TODO : initializeAnalytics();
+  }
 };
 
 void bootstrap();
