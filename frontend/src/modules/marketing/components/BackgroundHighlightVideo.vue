@@ -7,6 +7,7 @@ interface Props {
   randomWindow?: number; // seconds
   highlights?: Array<number | string>; // timestamps to bias toward
   highlightBias?: number; // probability to pick a highlight (0-1), default 0.7
+  bgClass?: string; // Tailwind utility classes for background (e.g., 'bg-black')
 }
 
 const props = defineProps<Props>();
@@ -86,15 +87,20 @@ onMounted(() => {
 </script>
 
 <template>
-  <video
-    ref="videoRef"
-    class="w-full h-auto shadow-lg"
-    autoplay
-    loop
-    muted
-    playsinline
-  >
-    <source v-if="props.srcWebm" :src="props.srcWebm" type="video/webm" />
-    <source :src="props.srcMp4" type="video/mp4" />
-  </video>
+  <div class="relative">
+    <video
+      ref="videoRef"
+      class="w-full h-auto md:pt-10"
+      :class="props.bgClass"
+      autoplay
+      loop
+      muted
+      playsinline
+    >
+      <source v-if="props.srcWebm" :src="props.srcWebm" type="video/webm" />
+      <source :src="props.srcMp4" type="video/mp4" />
+    </video>
+    <!-- Linear black gradient bottom to top -->
+    <div class="absolute bottom-0 left-0 right-0 h-20 md:h-100 pointer-events-none bg-gradient-to-t from-black via-black/40 to-transparent"></div>
+  </div>
 </template>

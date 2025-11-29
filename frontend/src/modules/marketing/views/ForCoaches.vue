@@ -13,6 +13,16 @@ import herovideo from '@/assets/modules/marketing/highlights.mp4';
   />
 
   <section class="text-white">
-    <BackgroundHighlightVideo :srcMp4="herovideo" :highlights="['0:22','1:34','1:52','0:42','0:57']" />
+    <BackgroundHighlightVideo 
+      :srcMp4="herovideo" 
+      :highlights="['0:22','1:34','1:52','0:42','0:57']" 
+      :bgClass="'bg-black'"
+    />
+  </section>
+
+  <section>
+    <div class="container h-screen">
+
+    </div>
   </section>
 </template>

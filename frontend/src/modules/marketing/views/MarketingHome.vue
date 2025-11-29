@@ -4,6 +4,11 @@
 import heroImage from '@/assets/modules/marketing/saracens-hero.jpg';
 import Button from '@/components/ui/primitives/Button.vue';
 import { RouterLink } from 'vue-router';
+import razorImg from '@/assets/modules/marketing/razor.jpg';
+import pocockImg from '@/assets/modules/marketing/pocock.jpg';
+import safaImg from '@/assets/modules/marketing/safa.jpg';
+import ImageCell from '@/modules/marketing/components/ImageCell.vue';
+import { Icon } from '@iconify/vue';
 </script>
 <template>
   <!-- <section class="min-h-screen grid place-items-center px-4">
@@ -69,9 +74,25 @@ import { RouterLink } from 'vue-router';
     </div>
   </section>
 
-  <section class="py-20">
+  <!-- Three Columns grid -->
+  <section class="bg-black p-5">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+      <ImageCell :src="razorImg" title="Coaching" description="First to know, first to act." :to="'/v2/marketing/coaches'" />
+      <ImageCell :src="pocockImg" title="Playing" description="Add IQ to your rugby." :to="'/v2/marketing/players'" />
+      <ImageCell :src="safaImg" title="Growing" description="Smarter not harder." :to="'/v2/marketing/unions'" />
+    </div>
+  </section>
+
+  <section class="py-20 bg-gray-600 text-white">
     <div class="container-lg h-screen">
-      <h1>Test goes here...</h1>
+      <div class="grid grid-cols-1 md:grid-cols-2 items-center">
+        <h1 class="text-2xl font-semibold">Codex-1</h1>
+        <!-- Make this a link with an underline -->
+         <RouterLink
+            to="/v2/marketing"
+            class="w-fit flex text-sm gap-1 items-center hover:underline underline-offset-4"
+          >Rebuild American Rugby <Icon icon="carbon:arrow-up-right" /></RouterLink>
+      </div>
     </div>
   </section>
 </template>
