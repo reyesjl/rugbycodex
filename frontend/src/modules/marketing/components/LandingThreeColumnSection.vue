@@ -58,7 +58,8 @@ onBeforeUnmount(() => {
         <!-- LEFT COLUMN -->
         <div ref="col1" class="md:col-start-1 md:col-end-3 space-y-3 fade-item">
           <p>{{ systemTitle }}</p>
-          <p>[ {{ systemCode }} ]</p>
+          <!-- Consolas font -->
+          <p class="text-sm console-font">[{{ systemCode }}]</p>
         </div>
 
         <!-- MIDDLE COLUMN -->
@@ -86,5 +87,8 @@ onBeforeUnmount(() => {
 .fade-item.visible {
   opacity: 1;
   transform: translateY(0);
+}
+.console-font {
+  font-family: 'Consolas', monospace;
 }
 </style>

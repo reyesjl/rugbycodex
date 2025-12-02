@@ -4,9 +4,9 @@
 import heroImage from '@/assets/modules/marketing/saracens-hero.jpg';
 import Button from '@/components/ui/primitives/Button.vue';
 import { RouterLink } from 'vue-router';
-import razorImg from '@/assets/modules/marketing/razor.jpg';
-import pocockImg from '@/assets/modules/marketing/pocock.jpg';
-import safaImg from '@/assets/modules/marketing/safa.jpg';
+import simonImg from '@/assets/modules/marketing/simon.jpg';
+import coreyImg from '@/assets/modules/marketing/corey.png';
+import usawImg from '@/assets/modules/marketing/usaw.jpg';
 import ImageCell from '@/modules/marketing/components/ImageCell.vue';
 import { Icon } from '@iconify/vue';
 </script>
@@ -60,7 +60,7 @@ import { Icon } from '@iconify/vue';
         <h1 class="max-w-3xl text-4xl md:text-6xl">
           Turn rugby footage into searchable moments using your voice.
         </h1>
-        <div class="mt-5 text-lg max-w-3xl">Instantly create game reviews, training plans, player highlights, and more.</div>
+        <div class="mt-5 text-lg max-w-3xl">Build those moments into reviews, training plans, highlights, and teachable clips — instantly.</div>
         <div class="button-set flex gap-5 mt-6 items-center">
           <Button size="md">
             GET STARTED
@@ -77,9 +77,9 @@ import { Icon } from '@iconify/vue';
   <!-- Three Columns grid -->
   <section class="bg-black p-5">
     <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
-      <ImageCell :src="razorImg" title="Coaching" description="First to know, first to act." :to="'/v2/marketing/coaches'" />
-      <ImageCell :src="pocockImg" title="Playing" description="Add IQ to your rugby." :to="'/v2/marketing/players'" />
-      <ImageCell :src="safaImg" title="Growing" description="Smarter not harder." :to="'/v2/marketing/unions'" />
+      <ImageCell :src="simonImg" title="Coaches" description="Break down film in minutes, not hours." :to="'/v2/marketing/coaches'" />
+      <ImageCell :src="coreyImg" title="Players" description="Find your strengths. Fix your weaknesses." :to="'/v2/marketing/players'" />
+      <ImageCell :src="usawImg" title="Unions" description="Build a shared rugby knowledge system." :to="'/v2/marketing/unions'" />
     </div>
   </section>
 

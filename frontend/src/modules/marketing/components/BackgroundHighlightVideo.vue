@@ -12,8 +12,14 @@ interface Props {
 
 const props = defineProps<Props>();
 const videoRef = ref<HTMLVideoElement | null>(null);
+const isVisible = ref(false);
 
 onMounted(() => {
+  // trigger slide/fade animation after mount
+  requestAnimationFrame(() => {
+    isVisible.value = true;
+  });
+
   const video = videoRef.value;
   if (!video) return;
 
@@ -87,10 +93,13 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="relative">
+  <div
+    class="relative overflow-hidden transition-opacity duration-1000 ease-out"
+    :class="isVisible ? 'opacity-100' : 'opacity-0'"
+  >
     <video
       ref="videoRef"
-      class="w-full h-auto md:pt-10"
+      class="w-full h-auto p-5"
       :class="props.bgClass"
       autoplay
       loop
@@ -101,6 +110,6 @@ onMounted(() => {
       <source :src="props.srcMp4" type="video/mp4" />
     </video>
     <!-- Linear black gradient bottom to top -->
-    <div class="absolute bottom-0 left-0 right-0 h-20 md:h-100 pointer-events-none bg-gradient-to-t from-black via-black/40 to-transparent"></div>
+    <div class="absolute bottom-0 left-0 right-0 h-20 md:h-100 pointer-events-none bg-gradient-to-t from-black via-black/80 to-transparent"></div>
   </div>
 </template>
