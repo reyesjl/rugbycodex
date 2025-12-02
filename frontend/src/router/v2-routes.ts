@@ -1,43 +1,15 @@
 import type { RouteRecordRaw } from 'vue-router';
 
-import AdminLayout from '@/layouts/v2/AdminLayout.vue';
-import MainLayout from '@/layouts/v2/MainLayout.vue';
-import MarketingLayout from '@/layouts/v2/MarketingLayout.vue';
-import OrgLayout from '@/layouts/v2/OrgLayout.vue';
-import AdminBillingStub from '@/modules/admin/views/AdminBillingStub.vue';
-import AdminExperimentsStub from '@/modules/admin/views/AdminExperimentsStub.vue';
-import AdminFeatureFlagsStub from '@/modules/admin/views/AdminFeatureFlagsStub.vue';
-import AdminJobsStub from '@/modules/admin/views/AdminJobsStub.vue';
-import AdminMediaReviewStub from '@/modules/admin/views/AdminMediaReviewStub.vue';
-import AdminNarrationsModerationStub from '@/modules/admin/views/AdminNarrationsModerationStub.vue';
-import AdminOrgsStub from '@/modules/admin/views/AdminOrgs.vue';
-import AdminOverviewStub from '@/modules/admin/views/AdminOverview.vue';
-import AdminUsersStub from '@/modules/admin/views/AdminUsers.vue';
-import DashboardStub from '@/modules/app/views/DashboardStub.vue';
-import MarketingHome from '@/modules/marketing/views/MarketingHome.vue';
-import MyMediaStub from '@/modules/app/views/MyMediaStub.vue';
-import MyNarrationsStub from '@/modules/app/views/MyNarrationsStub.vue';
-import OrganizationsStub from '@/modules/app/views/OrganizationsStub.vue';
-import ProfileStub from '@/modules/app/views/ProfileStub.vue';
-import SettingsStub from '@/modules/profiles/views/ProfileSettings.vue';
-import OrgAdminToolsStub from '@/modules/orgs/views/OrgAdminToolsStub.vue';
-import OrgMediaStub from '@/modules/orgs/views/OrgMediaStub.vue';
-import OrgMembersStub from '@/modules/orgs/views/OrgMembersStub.vue';
-import OrgNarrationsStub from '@/modules/orgs/views/OrgNarrationsStub.vue';
-import OrgOverviewStub from '@/modules/orgs/views/OrgOverviewStub.vue';
-import OrgSettingsStub from '@/modules/orgs/views/OrgSettingsStub.vue';
-import OrgVaultsStub from '@/modules/orgs/views/OrgVaultsStub.vue';
-
 export const v2Routes: RouteRecordRaw[] = [
   {
     path: '/v2/marketing',
-    component: MarketingLayout,
+    component: () => import('@/layouts/v2/MarketingLayout.vue'),
     meta: { layout: 'marketing' },
     children: [
       {
         path: '',
         name: 'V2MarketingHome',
-        component: MarketingHome,
+        component: () => import('@/modules/marketing/views/MarketingHome.vue'),
       },
       {
         path: 'players',
@@ -53,144 +25,149 @@ export const v2Routes: RouteRecordRaw[] = [
         path: 'unions',
         name: 'V2ForUnions',
         component: () => import('@/modules/marketing/views/ForUnions.vue'),
+      },
+      {
+        path: 'mission',
+        name: 'V2Mission',
+        component: () => import('@/modules/marketing/views/Mission.vue'),
       }
     ],
   },
   {
     path: '/v2',
-    component: MainLayout,
+    component: () => import('@/layouts/v2/MainLayout.vue'),
     meta: { layout: 'minimal', requiresAuth: true },
     children: [
       {
         path: 'dashboard',
         name: 'V2Dashboard',
-        component: DashboardStub,
+        component: () => import('@/modules/app/views/DashboardStub.vue'),
       },
       {
         path: 'narrations',
         name: 'V2MyNarrations',
-        component: MyNarrationsStub,
+        component: () => import('@/modules/app/views/MyNarrationsStub.vue'),
       },
       {
         path: 'media',
         name: 'V2MyMedia',
-        component: MyMediaStub,
+        component: () => import('@/modules/app/views/MyMediaStub.vue'),
       },
       {
         path: 'organizations',
         name: 'V2Organizations',
-        component: OrganizationsStub,
+        component: () => import('@/modules/app/views/OrganizationsStub.vue'),
       },
       {
         path: 'profile',
         name: 'V2Profile',
-        component: ProfileStub,
+        component: () => import('@/modules/app/views/ProfileStub.vue'),
       },
       {
         path: 'settings',
         name: 'V2Settings',
-        component: SettingsStub,
+        component: () => import('@/modules/profiles/views/ProfileSettings.vue'),
       },
     ],
   },
   {
     path: '/v2/orgs/:slug',
-    component: OrgLayout,
+    component: () => import('@/layouts/v2/OrgLayout.vue'),
     meta: { layout: 'minimal', requiresAuth: true },
     children: [
       {
         path: 'overview',
         name: 'V2OrgOverview',
-        component: OrgOverviewStub,
+        component: () => import('@/modules/orgs/views/OrgOverviewStub.vue'),
         props: true,
       },
       {
         path: 'vaults',
         name: 'V2OrgVaults',
-        component: OrgVaultsStub,
+        component: () => import('@/modules/orgs/views/OrgVaultsStub.vue'),
         props: true,
       },
       {
         path: 'narrations',
         name: 'V2OrgNarrations',
-        component: OrgNarrationsStub,
+        component: () => import('@/modules/orgs/views/OrgNarrationsStub.vue'),
         props: true,
       },
       {
         path: 'media',
         name: 'V2OrgMedia',
-        component: OrgMediaStub,
+        component: () => import('@/modules/orgs/views/OrgMediaStub.vue'),
         props: true,
       },
       {
         path: 'members',
         name: 'V2OrgMembers',
-        component: OrgMembersStub,
+        component: () => import('@/modules/orgs/views/OrgMembersStub.vue'),
         props: true,
       },
       {
         path: 'settings',
         name: 'V2OrgSettings',
-        component: OrgSettingsStub,
+        component: () => import('@/modules/orgs/views/OrgSettingsStub.vue'),
         props: true,
       },
       {
         path: 'admin',
         name: 'V2OrgAdminTools',
-        component: OrgAdminToolsStub,
+        component: () => import('@/modules/orgs/views/OrgAdminToolsStub.vue'),
         props: true,
       },
     ],
   },
   {
     path: '/v2/admin',
-    component: AdminLayout,
+    component: () => import('@/layouts/v2/AdminLayout.vue'),
     meta: { layout: 'minimal', requiresAuth: true, requiresAdmin: true },
     children: [
       {
         path: '',
         name: 'V2AdminOverview',
-        component: AdminOverviewStub,
+        component: () => import('@/modules/admin/views/AdminOverview.vue'),
       },
       {
         path: 'orgs',
         name: 'V2AdminOrgs',
-        component: AdminOrgsStub,
+        component: () => import('@/modules/admin/views/AdminOrgs.vue'),
       },
       {
         path: 'users',
         name: 'V2AdminUsers',
-        component: AdminUsersStub,
+        component: () => import('@/modules/admin/views/AdminUsers.vue'),
       },
       {
         path: 'narrations',
         name: 'V2AdminNarrationsModeration',
-        component: AdminNarrationsModerationStub,
+        component: () => import('@/modules/admin/views/AdminNarrationsModerationStub.vue'),
       },
       {
         path: 'media',
         name: 'V2AdminMediaReview',
-        component: AdminMediaReviewStub,
+        component: () => import('@/modules/admin/views/AdminMediaReviewStub.vue'),
       },
       {
         path: 'jobs',
         name: 'V2AdminJobs',
-        component: AdminJobsStub,
+        component: () => import('@/modules/admin/views/AdminJobsStub.vue'),
       },
       {
         path: 'billing',
         name: 'V2AdminBilling',
-        component: AdminBillingStub,
+        component: () => import('@/modules/admin/views/AdminBillingStub.vue'),
       },
       {
         path: 'flags',
         name: 'V2AdminFeatureFlags',
-        component: AdminFeatureFlagsStub,
+        component: () => import('@/modules/admin/views/AdminFeatureFlagsStub.vue'),
       },
       {
         path: 'experiments',
         name: 'V2AdminExperiments',
-        component: AdminExperimentsStub,
+        component: () => import('@/modules/admin/views/AdminExperimentsStub.vue'),
       },
     ],
   },

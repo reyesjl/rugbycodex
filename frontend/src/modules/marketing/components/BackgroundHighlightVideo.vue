@@ -99,7 +99,7 @@ onMounted(() => {
   >
     <video
       ref="videoRef"
-      class="w-full h-auto p-5"
+      class="w-full h-auto"
       :class="props.bgClass"
       autoplay
       loop

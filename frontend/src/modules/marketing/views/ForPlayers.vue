@@ -6,16 +6,20 @@ import TabSystem from '../components/TabSystem.vue';
 
 const playerSlides = [
   {
-    "title": "Know Your Game",
-    "description": "See every clip you're involved in—cleanly tagged and easy to review. Understand your strengths, fix your weaknesses, and track how you improve over time."
+    "title": "Personalized Clip Library",
+    "description": "Every involvement you make—carry, tackle, pass, breakdown, support—is voice-tagged and grouped. Review your game with clean structure instead of raw footage."
   },
   {
-    "title": "Learn From Real Rugby",
-    "description": "Review coach and analyst narrations directly on your clips. Hear exactly what they see and learn the terminology and cues used at higher levels."
+    "title": "Guided Rugby Understanding",
+    "description": "Hear coach and analyst narrations directly on your actions. Learn the cues, terminology, and decision frameworks used at higher levels—applied to your moments."
   },
   {
-    "title": "Improve With Guided Reps",
-    "description": "Get targeted insights based on your own clips—what to work on, where to focus, and how to transfer it into training. Built from your real match moments."
+    "title": "Intelligent Work-Ons Generator",
+    "description": "Rugbycodex surfaces patterns from your clips and turns them into clear work-ons. See where you’re improving, where trends repeat, and what to prioritize in training."
+  },
+  {
+    "title": "Player Development Timeline",
+    "description": "Track your growth across matches. See how your decision-making, involvements, and impact change over time with clean visibility—not guesswork."
   }
 ];
 

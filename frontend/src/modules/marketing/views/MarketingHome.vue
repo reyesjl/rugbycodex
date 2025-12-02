@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // import heroAnimatedLight from '@/assets/logos/animated/logo-animation-light.mp4';
 // import heroAnimatedDark from '@/assets/logos/animated/logo-animation-dark.mp4';
+import { Icon } from '@iconify/vue';
 import heroImage from '@/assets/modules/marketing/saracens-hero.jpg';
 import Button from '@/components/ui/primitives/Button.vue';
 import { RouterLink } from 'vue-router';
@@ -8,7 +9,10 @@ import simonImg from '@/assets/modules/marketing/simon.jpg';
 import coreyImg from '@/assets/modules/marketing/corey.png';
 import usawImg from '@/assets/modules/marketing/usaw.jpg';
 import ImageCell from '@/modules/marketing/components/ImageCell.vue';
-import { Icon } from '@iconify/vue';
+// import BackgroundHighlightVideo from '../components/BackgroundHighlightVideo.vue';
+// import herovideo from '@/assets/modules/marketing/highlights.mp4';
+import BackgroundHighlightPhoto from '../components/BackgroundHighlightPhoto.vue';
+import bgImg from '@/assets/modules/marketing/mission1.jpg';
 </script>
 <template>
   <!-- <section class="min-h-screen grid place-items-center px-4">
@@ -58,7 +62,7 @@ import { Icon } from '@iconify/vue';
     <div class="relative z-10 flex h-full items-end pb-10 md:pb-20">
       <div class="container-lg pb-20 text-white">
         <h1 class="max-w-3xl text-4xl md:text-6xl">
-          Turn rugby footage into searchable moments using your voice.
+          Turn Rugby Footage into Searchable Moments Using Your Voice.
         </h1>
         <div class="mt-5 text-lg max-w-3xl">Build those moments into reviews, training plans, highlights, and teachable clips — instantly.</div>
         <div class="button-set flex gap-5 mt-6 items-center">
@@ -83,22 +87,32 @@ import { Icon } from '@iconify/vue';
     </div>
   </section>
 
-  <section class="py-20 bg-gray-600 text-white">
+  <section class="py-20 bg-[tan]/40 text-black">
     <div class="container-lg">
-      <div class="grid grid-cols-1 md:grid-cols-2 items-center">
-        <h1 class="text-2xl font-semibold">Codex-1</h1>
+      <div class="grid grid-cols-1 md:grid-cols-2 items-center pb-10">
+        <h1 class="text-2xl font-semibold">Codex-1 : Origins</h1>
         <!-- Make this a link with an underline -->
          <RouterLink
-            to="/v2/marketing"
+            to="/v2/marketing/mission"
             class="w-fit flex text-sm gap-1 items-center hover:underline underline-offset-4"
-          >The Rugby Arsenal <Icon icon="carbon:arrow-up-right" /></RouterLink>
+          >The Rugby Knowledge Engine <Icon icon="carbon:arrow-up-right" /></RouterLink>
       </div>
 
-      <div class="grid grid-cols-1 md:grid-cols-2 items-center pt-20">
+      <!-- <BackgroundHighlightVideo
+          :srcMp4="herovideo" 
+          :highlights="['0:22','1:34','1:52','0:42','0:57']" 
+          :bgClass="'bg-tan/40'"
+        /> -->
+        <BackgroundHighlightPhoto
+          :imgSrc="bgImg" 
+        />
+
+      <div class="grid grid-cols-1 md:grid-cols-2 items-center pt-10">
         <div class="flex flex-col">
           <p>Designed by Rugbycodex</p>
           <p>Built Across the Rugby World</p>
         </div>
+
         <div>The foundation for next-generation rugby analysis, coaching, and pathways.</div>
       </div>
     </div>

@@ -6,16 +6,16 @@ import herovideo from '@/assets/modules/marketing/highlights.mp4';
 
 const coachSlides = [
   {
-    "title": "Enhanced Personal Voice",
+    "title": "Searchable Voice Narrations",
     "description": "Record voice notes for training or matches and rugbycodex converts them into searchable insights—time-aligned to your footage and ready for players to review."
   },
   {
-    "title": "Dynamic Multi-layer Analysis",
+    "title": "Layered Clip Breakdown",
     "description": "Rugbycodex auto-tags each clip by phase and lets coaches, analysts, and players add narrations to the same moment, creating stacked perspectives and shared clarity."
   },
   {
     "title": "Predictive Session Planning",
-    "description": "Turn your footage into targeted session plans with intelligent suggestions drawn from your own match patterns and recurring trends. Driven by your actions."
+    "description": "Turn your footage into targeted session plans with intelligent suggestions drawn from your own match patterns and recurring trends."
   },
   {
     "title": "Shared Knowledge Network",

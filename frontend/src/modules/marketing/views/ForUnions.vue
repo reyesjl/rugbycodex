@@ -7,7 +7,7 @@ import TabSystem from '../components/TabSystem.vue';
 const unionSlides = [
   {
     "title": "Regional Performance Map",
-    "description": "See how clubs and age groups across your region are progressing. Identify strengths, weaknesses, and trends with unified match footage, narrations, and analytics."
+    "description": "See how clubs and age groups across your region are progressing. Identify strengths, weaknesses, and trends with unified match footage, narrations, and analytics.",
   },
   {
     "title": "Coaching Standards & Development",

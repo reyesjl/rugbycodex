@@ -31,8 +31,6 @@ watch(
   { deep: true }
 );
 
-const activeSlide = computed(() => props.slides?.[activeIndex.value]);
-
 const counterText = computed(() => {
   const total = props.slides?.length ?? 0;
   if (!total) return '00 / 00';
@@ -71,31 +69,42 @@ const handleTabClick = (index: number) => {
         </button>
       </div>
 
-      <div v-if="activeSlide" class="bg-white text-black py-8">
-        <div class="grid grid-cols-1 md:grid-cols-12 grid-rows-none md:grid-rows-[auto_auto_1fr] gap-8 relative">
-          <div class="order-1 md:order-none md:col-start-1 md:col-end-2 md:row-start-1 pl-4 text-xs">
-            {{ counterText }}
-          </div>
-
-          <div class="order-2 md:order-none md:col-start-3 md:col-end-7 md:row-start-1 space-y-4 px-4 md:px-0">
-            <div class="desc-title text-xs uppercase tracking-wide">
-              {{ activeSlide.title }}
+      <div v-if="props.slides?.length" class="relative">
+        <div
+          v-for="(slide, index) in props.slides"
+          :key="`${slide.title}-content-${index}`"
+          class="bg-white text-black py-8 transition-opacity duration-500 ease-in-out"
+          :class="index === activeIndex
+            ? 'opacity-100 relative pointer-events-auto'
+            : 'opacity-0 absolute inset-0 pointer-events-none w-full h-full'"
+        >
+          <div class="grid grid-cols-1 md:grid-cols-12 grid-rows-none md:grid-rows-[auto_auto_1fr] gap-8 relative">
+            <div class="order-1 md:order-none md:col-start-1 md:col-end-2 md:row-start-1 pl-4 text-xs">
+              {{ counterText }}
             </div>
-            <p class="desc-text text-lg md:text-xl max-w-xl leading-snug">
-              {{ activeSlide.description }}
-            </p>
-          </div>
 
-          <div class="order-3 md:order-none md:col-start-9 md:col-end-13 md:row-start-1 md:row-end-[4] md:pr-8">
-            <div v-if="activeSlide.mediaSrc" class="w-full h-full aspect-video">
-              <img :src="activeSlide.mediaSrc" class="w-full h-full object-cover" />
+            <div class="order-2 md:order-none md:col-start-3 md:col-end-7 md:row-start-1 space-y-4 px-4 md:px-0">
+              <div class="desc-title text-xs uppercase tracking-wide">
+                {{ slide.title }}
+              </div>
+              <p class="desc-text text-lg md:text-xl max-w-xl md:leading-[2]">
+                {{ slide.description }}
+              </p>
             </div>
-            <div v-else class="w-full h-full aspect-video bg-gray-500"></div>
-          </div>
 
-          <div class="order-4 md:order-none md:col-start-1 md:col-end-2 md:row-start-3 flex items-end pl-4 mb-[-0.5rem]">
-            <div class="text-6xl md:text-8xl leading-none">
-              {{ activeIndex + 1 }}
+            <div class="order-3 md:order-none md:col-start-9 md:col-end-13 md:row-start-1 md:row-end-[4] md:pr-8">
+              <div v-if="slide.mediaSrc" class="w-full h-full aspect-video">
+                <img :src="slide.mediaSrc" class="w-full h-full object-cover" />
+              </div>
+              <div v-else class="w-full h-full aspect-video bg-gray-200 text-xs text-gray-500 flex justify-center items-center">
+                [demo coming soon]
+              </div>
+            </div>
+
+            <div class="order-4 md:order-none md:col-start-1 md:col-end-2 md:row-start-3 flex items-end pl-4 mb-[-0.5rem]">
+              <div class="text-6xl md:text-8xl leading-none">
+                {{ index + 1 }}
+              </div>
             </div>
           </div>
         </div>
