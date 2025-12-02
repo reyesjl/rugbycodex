@@ -2,6 +2,23 @@
 import LandingThreeColumnSection from '../components/LandingThreeColumnSection.vue';
 import BackgroundHighlightVideo from '../components/BackgroundHighlightVideo.vue';
 import herovideo from '@/assets/modules/marketing/highlights.mp4';
+import TabSystem from '../components/TabSystem.vue';
+
+const playerSlides = [
+  {
+    "title": "Know Your Game",
+    "description": "See every clip you're involved in—cleanly tagged and easy to review. Understand your strengths, fix your weaknesses, and track how you improve over time."
+  },
+  {
+    "title": "Learn From Real Rugby",
+    "description": "Review coach and analyst narrations directly on your clips. Hear exactly what they see and learn the terminology and cues used at higher levels."
+  },
+  {
+    "title": "Improve With Guided Reps",
+    "description": "Get targeted insights based on your own clips—what to work on, where to focus, and how to transfer it into training. Built from your real match moments."
+  }
+];
+
 </script>
 <template>
   <LandingThreeColumnSection title="Players" system-title="Personal Insight Engine" system-code="Pie"
@@ -14,4 +31,8 @@ import herovideo from '@/assets/modules/marketing/highlights.mp4';
       :bgClass="'bg-black'"
     />
   </section>
+
+
+  <!-- Tab System -->
+  <TabSystem section-title="Core Functions" :slides="playerSlides" />
 </template>

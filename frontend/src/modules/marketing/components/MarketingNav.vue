@@ -123,6 +123,9 @@ watch(isMenuOpen, (isOpen) => {
             </RouterLink>
 
             <div class="hidden justify-center md:flex md:gap-8 sm:text-sm">
+                <NavLink to="/v2/marketing">
+                    Home
+                </NavLink>
                 <NavLink to="/v2/marketing/coaches">
                     Coaches
                 </NavLink>
@@ -183,6 +186,13 @@ watch(isMenuOpen, (isOpen) => {
             </div>
 
             <div class="flex flex-col pt-10 space-y-6 px-5 text-2xl capitalize">
+                <RouterLink
+                    class="hover:text-neutral-500 text-white w-fit"
+                    to="/v2/marketing"
+                    @click="closeMenu"
+                >
+                    Home
+                </RouterLink>
                 <RouterLink
                     class="hover:text-neutral-500 text-white w-fit"
                     to="/v2/marketing/coaches"

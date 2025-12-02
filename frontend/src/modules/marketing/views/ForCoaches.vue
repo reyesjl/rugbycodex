@@ -1,14 +1,36 @@
 <script setup lang="ts">
 import LandingThreeColumnSection from '../components/LandingThreeColumnSection.vue';
 import BackgroundHighlightVideo from '../components/BackgroundHighlightVideo.vue';
+import TabSystem from '../components/TabSystem.vue';
 import herovideo from '@/assets/modules/marketing/highlights.mp4';
+
+const coachSlides = [
+  {
+    "title": "Enhanced Personal Voice",
+    "description": "Record voice notes for training or matches and rugbycodex converts them into searchable insights—time-aligned to your footage and ready for players to review."
+  },
+  {
+    "title": "Dynamic Multi-layer Analysis",
+    "description": "Rugbycodex auto-tags each clip by phase and lets coaches, analysts, and players add narrations to the same moment, creating stacked perspectives and shared clarity."
+  },
+  {
+    "title": "Predictive Session Planning",
+    "description": "Turn your footage into targeted session plans with intelligent suggestions drawn from your own match patterns and recurring trends. Driven by your actions."
+  },
+  {
+    "title": "Shared Knowledge Network",
+    "description": "Share selected clips, narrations, and guides with your coaching group. Your insight scales without extra calls or emails—your network learns from the same moments you do."
+  }
+];
+
+
 </script>
 <template>
   <LandingThreeColumnSection
     title="Coaches"
-    system-title="Team Learning System"
+    system-title="Tactical Learning System"
     system-code="TLS"
-    description="Coaches use rugbycodex to break down matches, teach systems, and build a shared understanding across their teams. find patterns faster, see moments in context, and turn narrations into clarity that your players can act on."
+    description="Coaches use rugbycodex to break down matches, teach systems, and build a shared understanding across their teams. Find patterns faster, see moments in context, and turn narrations into clarity that your players can act on."
     icon="carbon:chevron-down-outline"
   />
 
@@ -20,65 +42,7 @@ import herovideo from '@/assets/modules/marketing/highlights.mp4';
     />
   </section>
 
-  <section class="bg-black py-20">
-    <div class="container-lg flex flex-col space-y-8">
+  <!-- Tab System -->
+  <TabSystem section-title="Core Functions" :slides="coachSlides" />
 
-      <!-- Section title -->
-      <div class="text-2xl md:text-4xl text-white">Core Functions</div>
-      
-      <!-- Tabs -->
-      <div class="tabs overflow-x-scroll no-scrollbar border-1 border-b-white text-xs md:text-base flex items-center">
-        <div class="tab pb-4 pr-8 border-b-1 border-white text-white cursor-pointer font-medium whitespace-nowrap">
-          Enhanced Personal Voice
-        </div>
-        <div class="tab pb-4 pr-8 border-b-1 border-transparent text-gray-500 font-medium cursor-pointer whitespace-nowrap">
-          Dynamic Multi-layer Analysis
-        </div>
-        <div class="tab pb-4 pr-8 border-b-1 border-transparent text-gray-500 font-medium cursor-pointer whitespace-nowrap">
-          Predictive Session Planning
-        </div>
-      </div>
-
-      <!-- Grid wrapper -->
-      <div class="bg-white text-black py-8">
-        <div class="grid grid-cols-1 md:grid-cols-12 grid-rows-none md:grid-rows-[auto_auto_1fr] gap-8 relative">
-
-          <!-- counter -->
-          <div class="order-1 md:order-none 
-                      md:col-start-1 md:col-end-2 md:row-start-1 pl-4 text-xs">
-            01 / 03
-          </div>
-
-          <!--  description -->
-          <div class="order-2 md:order-none 
-                      md:col-start-3 md:col-end-7 md:row-start-1 space-y-4
-                      px-4 md:px-0">
-            <div class="desc-title text-xs uppercase tracking-wide">
-              Enhanced Personal Voice
-            </div>
-            <p class="desc-text text-lg md:text-xl max-w-xl leading-snug">
-              Coaches can record voice notes during training sessions or matches, which are
-            </p>
-          </div>
-
-          <!-- right side media (spans all rows) -->
-          <div class="order-3 md:order-none 
-                      md:col-start-9 md:col-end-13 md:row-start-1 md:row-end-[4] md:pr-8">
-            <div class="w-full h-full aspect-video bg-gray-500">
-              <!-- drop image/video here -->
-            </div>
-          </div>
-
-          <!-- giant index number -->
-          <div class="order-4 md:order-none 
-                      md:col-start-1 md:col-end-2 md:row-start-3 flex items-end pl-4 mb-[-0.5rem]">
-            <div class="text-6xl md:text-8xl leading-none">
-              1
-            </div>
-          </div>
-
-        </div>
-      </div>
-    </div>
-  </section>
 </template>

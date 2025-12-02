@@ -84,14 +84,22 @@ import { Icon } from '@iconify/vue';
   </section>
 
   <section class="py-20 bg-gray-600 text-white">
-    <div class="container-lg h-screen">
+    <div class="container-lg">
       <div class="grid grid-cols-1 md:grid-cols-2 items-center">
         <h1 class="text-2xl font-semibold">Codex-1</h1>
         <!-- Make this a link with an underline -->
          <RouterLink
             to="/v2/marketing"
             class="w-fit flex text-sm gap-1 items-center hover:underline underline-offset-4"
-          >Rebuild American Rugby <Icon icon="carbon:arrow-up-right" /></RouterLink>
+          >The Rugby Arsenal <Icon icon="carbon:arrow-up-right" /></RouterLink>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 items-center pt-20">
+        <div class="flex flex-col">
+          <p>Designed by Rugbycodex</p>
+          <p>Built Across the Rugby World</p>
+        </div>
+        <div>The foundation for next-generation rugby analysis, coaching, and pathways.</div>
       </div>
     </div>
   </section>

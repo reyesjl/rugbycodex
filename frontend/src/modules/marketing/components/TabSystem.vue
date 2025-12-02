@@ -1,0 +1,105 @@
+<script setup lang="ts">
+import { computed, ref, watch } from 'vue';
+
+interface Slide {
+  title: string;
+  description: string;
+  mediaSrc?: string;
+}
+
+defineOptions({ name: 'TabSystem' });
+
+const props = defineProps<{
+  sectionTitle: string;
+  slides: Slide[];
+}>();
+
+const activeIndex = ref(0);
+
+watch(
+  () => props.slides,
+  (slides) => {
+    if (!slides?.length) {
+      activeIndex.value = 0;
+      return;
+    }
+
+    if (activeIndex.value > slides.length - 1) {
+      activeIndex.value = 0;
+    }
+  },
+  { deep: true }
+);
+
+const activeSlide = computed(() => props.slides?.[activeIndex.value]);
+
+const counterText = computed(() => {
+  const total = props.slides?.length ?? 0;
+  if (!total) return '00 / 00';
+
+  const format = (value: number) => value.toString().padStart(2, '0');
+  return `${format(activeIndex.value + 1)} / ${format(total)}`;
+});
+
+const handleTabClick = (index: number) => {
+  activeIndex.value = index;
+};
+</script>
+
+<template>
+  <section class="bg-black py-20">
+    <div class="container-lg flex flex-col space-y-8">
+      <div class="text-2xl md:text-4xl text-white">
+        {{ props.sectionTitle }}
+      </div>
+
+      <div
+        v-if="props.slides?.length"
+        class="tabs overflow-x-scroll no-scrollbar border-1 border-b-white text-xs md:text-base flex items-center"
+      >
+        <button
+          v-for="(slide, index) in props.slides"
+          :key="`${slide.title}-${index}`"
+          type="button"
+          class="tab pb-4 pr-8 border-b-1 font-medium cursor-pointer whitespace-nowrap"
+          :class="index === activeIndex
+            ? 'border-white text-white'
+            : 'border-transparent text-gray-500'"
+          @click="handleTabClick(index)"
+        >
+          {{ slide.title }}
+        </button>
+      </div>
+
+      <div v-if="activeSlide" class="bg-white text-black py-8">
+        <div class="grid grid-cols-1 md:grid-cols-12 grid-rows-none md:grid-rows-[auto_auto_1fr] gap-8 relative">
+          <div class="order-1 md:order-none md:col-start-1 md:col-end-2 md:row-start-1 pl-4 text-xs">
+            {{ counterText }}
+          </div>
+
+          <div class="order-2 md:order-none md:col-start-3 md:col-end-7 md:row-start-1 space-y-4 px-4 md:px-0">
+            <div class="desc-title text-xs uppercase tracking-wide">
+              {{ activeSlide.title }}
+            </div>
+            <p class="desc-text text-lg md:text-xl max-w-xl leading-snug">
+              {{ activeSlide.description }}
+            </p>
+          </div>
+
+          <div class="order-3 md:order-none md:col-start-9 md:col-end-13 md:row-start-1 md:row-end-[4] md:pr-8">
+            <div v-if="activeSlide.mediaSrc" class="w-full h-full aspect-video">
+              <img :src="activeSlide.mediaSrc" class="w-full h-full object-cover" />
+            </div>
+            <div v-else class="w-full h-full aspect-video bg-gray-500"></div>
+          </div>
+
+          <div class="order-4 md:order-none md:col-start-1 md:col-end-2 md:row-start-3 flex items-end pl-4 mb-[-0.5rem]">
+            <div class="text-6xl md:text-8xl leading-none">
+              {{ activeIndex + 1 }}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</template>
