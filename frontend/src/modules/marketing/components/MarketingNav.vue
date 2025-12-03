@@ -135,19 +135,19 @@ watch(isMenuOpen, (isOpen) => {
                 <NavLink to="/v2/marketing/unions">
                     Unions
                 </NavLink>
-                <NavLink to="/v2/marketing/inside">
+                <!-- <NavLink to="/v2/marketing/inside">
                     Inside the Codex
-                </NavLink>
+                </NavLink> -->
                 <NavLink to="/v2/marketing/mission">
                     Mission
                 </NavLink>
             </div>
 
             <div class="hidden justify-end space-x-4 md:flex items-center sm:text-sm">
-                <RouterLink class="text-white hover:text-neutral-400 whitespace-nowrap" to="/v2/marketing">
+                <RouterLink class="text-white hover:text-neutral-400 whitespace-nowrap" to="/v2/auth/login">
                     Login
                 </RouterLink>
-                <Button variant="base" color="primary" to="/v2/marketing/">Get Started</Button>
+                <Button variant="base" color="primary" to="/v2/auth/signup">Get Started</Button>
             </div>
 
             <button
@@ -214,13 +214,13 @@ watch(isMenuOpen, (isOpen) => {
                 >
                     Unions
                 </RouterLink>
-                <RouterLink
+                <!-- <RouterLink
                     class="hover:text-neutral-500 text-white w-fit"
                     to="/v2/marketing"
                     @click="closeMenu"
                 >
                     inside the codex
-                </RouterLink>
+                </RouterLink> -->
                 <RouterLink
                     class="hover:text-neutral-500 text-white w-fit"
                     to="/v2/marketing/mission"
@@ -228,14 +228,14 @@ watch(isMenuOpen, (isOpen) => {
                 >mission</RouterLink>
                 <RouterLink
                     class="hover:text-neutral-500 text-white w-fit"
-                    to="/v2/marketing"
+                    to="/v2/auth/login"
                     @click="closeMenu"
                 >
                     login
                 </RouterLink>
                 <RouterLink
                     class="hover:text-neutral-500 text-white w-fit"
-                    to="/v2/marketing"
+                    to="/v2/auth/signup"
                     @click="closeMenu"
                 >
                     get started

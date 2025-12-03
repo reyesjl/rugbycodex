@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { RouterLink, type RouteLocationRaw } from "vue-router";
 
 type Variant = "base" | "glass" | "solid" | "outline";
 type Color = "primary" | "white" | "danger" | "neutral";
@@ -12,6 +13,10 @@ const props = withDefaults(
     size?: Size;
     disabled?: boolean;
     type?: "button" | "submit";
+    to?: RouteLocationRaw;
+    href?: string;
+    target?: "_self" | "_blank" | "_parent" | "_top";
+    rel?: string;
   }>(),
   {
     variant: "base",
@@ -65,12 +70,47 @@ const variantClasses = computed(() => {
   if (props.variant === "glass") return glass[props.color];
   return base[props.color];
 });
+
+const resolvedRel = computed(() => {
+  if (props.rel) return props.rel;
+  if (props.target === "_blank") return "noreferrer noopener";
+  return undefined;
+});
+
+const componentTag = computed(() => {
+  if (props.to) return RouterLink;
+  if (props.href) return "a";
+  return "button";
+});
+
+const componentAttrs = computed(() => {
+  if (props.to) {
+    return {
+      to: props.to,
+      target: props.target,
+      rel: resolvedRel.value,
+    };
+  }
+
+  if (props.href) {
+    return {
+      href: props.href,
+      target: props.target,
+      rel: resolvedRel.value,
+    };
+  }
+
+  return {
+    type: props.type,
+    disabled: props.disabled,
+  };
+});
 </script>
 
 <template>
-  <button
-    :type="type"
-    :disabled="disabled"
+  <component
+    :is="componentTag"
+    v-bind="componentAttrs"
     class="
       select-none
       rounded-xs
@@ -80,5 +120,5 @@ const variantClasses = computed(() => {
     :class="[sizes[size], variantClasses]"
   >
     <slot />
-  </button>
+  </component>
 </template>

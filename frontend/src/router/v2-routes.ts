@@ -33,6 +33,23 @@ export const v2Routes: RouteRecordRaw[] = [
       }
     ],
   },
+  { 
+    path: '/v2/auth',
+    component: () => import('@/layouts/v2/AuthLayout.vue'),
+    meta: { layout: 'auth' },
+    children: [
+      {
+        path: 'login',
+        name: 'V2Login',
+        component: () => import('@/modules/auth/views/Login.vue'),
+      },
+      { 
+        path: 'signup',
+        name: 'V2Signup',
+        component: () => import('@/modules/auth/views/Signup.vue'),
+      }
+    ],
+  },
   {
     path: '/v2',
     component: () => import('@/layouts/v2/MainLayout.vue'),

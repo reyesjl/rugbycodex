@@ -4,6 +4,7 @@ import { RouterView } from 'vue-router';
 import MainLayout from '@/layouts/MainLayout.vue';
 import MinimalLayout from '@/layouts/MinimalLayout.vue';
 import MarketingLayout from '@/layouts/v2/MarketingLayout.vue';
+import AuthLayout from '@/layouts/v2/AuthLayout.vue';
 
 const isDarkMode = ref(false);
 const legacyStorageKeys = ['betaRequests.csv'];
@@ -21,6 +22,7 @@ const layoutComponents = {
   main: MainLayout,
   minimal: MinimalLayout,
   marketing: MarketingLayout,
+  auth: AuthLayout,
 } as const;
 
 const resolveLayout = (layout?: string) => {

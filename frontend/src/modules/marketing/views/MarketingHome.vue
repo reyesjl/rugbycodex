@@ -66,11 +66,9 @@ import bgImg from '@/assets/modules/marketing/mission1.jpg';
         </h1>
         <div class="mt-5 text-lg max-w-3xl">Build those moments into reviews, training plans, highlights, and teachable clips — instantly.</div>
         <div class="button-set flex gap-5 mt-6 items-center">
-          <Button size="md">
-            GET STARTED
-          </Button>
+          <Button size="md" variant="base" color="primary" to="/v2/auth/signup">GET STARTED</Button>
           <RouterLink
-            to="/v2/marketing"
+            to="/v2/marketing/mission"
             class="hover:underline underline-offset-4"
           >Learn more</RouterLink>
         </div>
