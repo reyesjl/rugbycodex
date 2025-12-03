@@ -89,12 +89,12 @@ import bgImg from '@/assets/modules/marketing/mission1.jpg';
 
   <section class="py-20 bg-[tan]/40 text-black">
     <div class="container-lg">
-      <div class="grid grid-cols-1 md:grid-cols-2 items-center pb-10">
-        <h1 class="text-2xl font-semibold">Codex-1 : Origins</h1>
+      <div class="grid gap-5 grid-cols-1 md:grid-cols-2 items-center pb-10">
+        <h1 class="text-2xl font-semibold">Rugbycodex-1 : Origins</h1>
         <!-- Make this a link with an underline -->
          <RouterLink
             to="/v2/marketing/mission"
-            class="w-fit flex text-sm gap-1 items-center hover:underline underline-offset-4"
+            class="w-fit flex text-sm gap-1 items-center underline underline-offset-4"
           >The Rugby Knowledge Engine <Icon icon="carbon:arrow-up-right" /></RouterLink>
       </div>
 
