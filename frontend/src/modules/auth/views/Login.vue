@@ -3,6 +3,8 @@ import { reactive, ref, watch } from 'vue';
 import { RouterLink, useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/auth/stores/useAuthStore';
 import TurnstileVerification from '@/components/TurnstileVerification.vue';
+import bgImg from '@/assets/modules/auth/headingley.jpg';
+import { useStaggeredFade } from '@/composables/useStaggeredFade';
 
 const router = useRouter();
 const route = useRoute();
@@ -24,6 +26,8 @@ const resendSuccessMessage = ref<string | null>(null);
 const resendErrorMessage = ref<string | null>(null);
 const confirmationRedirectUrl =
   typeof window !== 'undefined' ? `${window.location.origin}/confirm-email` : undefined;
+
+const { register: registerFadeItem } = useStaggeredFade();
 
 const redirectPath = () => {
   const redirect = route.query.redirect;
@@ -108,85 +112,103 @@ watch(
 </script>
 
 <template>
-  <section class="container flex min-h-screen items-center justify-center pt-24 pb-24">
-    <div class="w-full max-w-lg space-y-10">
-      <RouterLink to="/"
-        class="mx-auto inline-flex items-center gap-2 text-sm font-medium text-neutral-500 transition hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100">
-        Home
-      </RouterLink>
-      <header class="space-y-3 text-center">
-        <p class="text-xs font-semibold uppercase tracking-[0.3em] text-neutral-500 dark:text-neutral-500">
-          Rugbycodex
-        </p>
-        <h1 class="text-3xl font-semibold text-neutral-900 dark:text-neutral-100">Welcome back</h1>
-        <p class="text-neutral-600 dark:text-neutral-400">
-          Sign in to continue shaping the knowledge base for your club and community.
-        </p>
-      </header>
-
-      <form @submit.prevent="handleSubmit"
-        class="rounded-3xl border border-neutral-200/60 bg-white/80 p-8 shadow-[0_24px_60px_rgba(15,23,42,0.08)] backdrop-blur-md transition-colors dark:border-neutral-800/70 dark:bg-neutral-950/70 dark:shadow-[0_24px_60px_rgba(15,23,42,0.35)]">
-        <div class="space-y-6">
-          <div class="space-y-2">
-            <label for="email" class="text-sm font-medium text-neutral-700 dark:text-neutral-200">Email</label>
-            <input id="email" v-model="form.email" type="email" inputmode="email" autocomplete="email" required
-              class="block w-full rounded-2xl border border-neutral-200/70 bg-white/80 px-4 py-3 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/30 dark:border-neutral-700/70 dark:bg-neutral-900/60 dark:text-neutral-50 dark:placeholder:text-neutral-500 dark:focus:ring-neutral-100/30" />
+  <p class="navclear"></p>
+  <section class="h-screen relative">
+    <img :src="bgImg" alt="Background" class="fixed inset-0 h-full w-full object-cover" />
+    <div class="fixed inset-0 bg-black/60"></div>
+    <div class="relative z-10 max-w-xl mx-auto px-4">
+      <div class="flex justify-center h-screen py-20 md:py-50">
+        <div class="w-full">
+          <div class="space-y-5">
+            <div class="flex justify-between">
+              <RouterLink to="/v2/marketing" >
+                <p class="text-white">RUGBY<span class="font-semibold">CODEX</span></p>
+              </RouterLink>
+              
+              <div class="flex border-1 border-white">
+                <RouterLink to="/v2/auth/login" class="underline-none text-xs p-1 px-2 bg-white !text-black">
+                  LOGIN
+                </RouterLink>
+                <RouterLink to="/v2/auth/signup" class="underline-none text-xs p-1 px-2 text-white">
+                  SIGNUP
+                </RouterLink>
+              </div>
+            </div>
+            
+            <h1 class="text-5xl md:text-8xl text-white" :ref="registerFadeItem">Welcome back.</h1>
           </div>
+          <form @submit.prevent="handleSubmit" 
+            class="mt-10 ">
+            <div class="space-y-10">
+              <div class="flex flex-col space-y-2" :ref="registerFadeItem">
+                <label for="email" class="text-xs uppercase text-white">Email</label>
+                <input id="email" v-model="form.email" type="email" inputmode="email" autocomplete="email" required
+                  class="block w-full backdrop-blur bg-black/10 text-white border-b-2 border-white placeholder-white/30 px-2 py-1 outline-none" placeholder="user@rugbycodex.com"/>
+              </div>
 
-          <div class="space-y-2">
-            <label for="password" class="text-sm font-medium text-neutral-700 dark:text-neutral-200">Password</label>
-            <input id="password" v-model="form.password" type="password" autocomplete="current-password" required
-              class="block w-full rounded-2xl border border-neutral-200/70 bg-white/80 px-4 py-3 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/30 dark:border-neutral-700/70 dark:bg-neutral-900/60 dark:text-neutral-50 dark:placeholder:text-neutral-500 dark:focus:ring-neutral-100/30" />
+              <div class="flex flex-col space-y-2" :ref="registerFadeItem">
+                <label for="password" class="text-xs uppercase text-white">Password</label>
+                <input id="password" v-model="form.password" type="password" autocomplete="current-password" required
+                  class="block w-full backdrop-blur bg-black/10 text-white border-b-2 border-white placeholder-white/30 px-2 py-1 outline-none" placeholder="password" />
+              </div>
+            </div>
+
+            
+            <TurnstileVerification
+            class="mt-6"
+              v-model:token="turnstileToken"
+              v-model:required="turnstileRequired"
+            />
+
+            <div class="mt-2 text-right text-sm" :ref="registerFadeItem">
+              <RouterLink to="/reset-password"
+                class="font-medium text-white underline underline-offset-4 transition ">
+                Forgot your password?
+              </RouterLink>
+            </div>
+
+            <p v-if="errorMessage" class="mt-6 text-sm text-rose-500 dark:text-rose-400">
+              {{ errorMessage }}
+            </p>
+
+            <div v-if="needsConfirmation"
+              class="mt-4 space-y-2 rounded-2xl bg-neutral-100/80 p-4 text-sm text-neutral-700 dark:bg-neutral-900/60 dark:text-neutral-200">
+              <p>Didn't receive the confirmation email?</p>
+              <button type="button"
+                class="font-semibold text-neutral-900 underline underline-offset-4 transition hover:text-neutral-700 disabled:cursor-not-allowed disabled:opacity-60 dark:text-neutral-100 dark:hover:text-neutral-200"
+                :disabled="resendingConfirmation" @click="handleResendConfirmation">
+                {{ resendingConfirmation ? 'Sending…' : 'Resend confirmation email' }}
+              </button>
+              <p v-if="resendSuccessMessage" class="text-emerald-600 dark:text-emerald-400">
+                {{ resendSuccessMessage }}
+              </p>
+              <p v-if="resendErrorMessage" class="text-rose-500 dark:text-rose-400">
+                {{ resendErrorMessage }}
+              </p>
+            </div>
+
+            <button type="submit" :ref="registerFadeItem"
+              class="mt-10 inline-flex w-full items-center justify-center rounded-xs bg-white px-4 py-3 text-sm uppercase tracking-[0.2em] text-black"
+              :disabled="loading || (turnstileRequired && !turnstileToken)">
+              {{ loading ? 'Signing in…' : !turnstileToken ? 'Verifying…' : 'Log In' }}
+            </button>
+            
+          </form>
           </div>
-        </div>
-
-        <TurnstileVerification
-          class="mt-6"
-          v-model:token="turnstileToken"
-          v-model:required="turnstileRequired"
-        />
-
-        <div class="mt-2 text-right text-sm">
-          <RouterLink to="/reset-password"
-            class="font-medium text-neutral-600 underline-offset-4 transition hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-neutral-100">
-            Forgot your password?
-          </RouterLink>
-        </div>
-
-        <p v-if="errorMessage" class="mt-6 text-sm text-rose-500 dark:text-rose-400">
-          {{ errorMessage }}
-        </p>
-
-        <div v-if="needsConfirmation"
-          class="mt-4 space-y-2 rounded-2xl bg-neutral-100/80 p-4 text-sm text-neutral-700 dark:bg-neutral-900/60 dark:text-neutral-200">
-          <p>Didn't receive the confirmation email?</p>
-          <button type="button"
-            class="font-semibold text-neutral-900 underline underline-offset-4 transition hover:text-neutral-700 disabled:cursor-not-allowed disabled:opacity-60 dark:text-neutral-100 dark:hover:text-neutral-200"
-            :disabled="resendingConfirmation" @click="handleResendConfirmation">
-            {{ resendingConfirmation ? 'Sending…' : 'Resend confirmation email' }}
-          </button>
-          <p v-if="resendSuccessMessage" class="text-emerald-600 dark:text-emerald-400">
-            {{ resendSuccessMessage }}
-          </p>
-          <p v-if="resendErrorMessage" class="text-rose-500 dark:text-rose-400">
-            {{ resendErrorMessage }}
-          </p>
-        </div>
-
-        <button type="submit"
-          class="mt-10 inline-flex w-full items-center justify-center rounded-2xl bg-neutral-900 px-4 py-3 text-sm font-semibold uppercase tracking-[0.2em] text-neutral-100 transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-neutral-50 dark:text-neutral-900 dark:hover:bg-neutral-200"
-          :disabled="loading || (turnstileRequired && !turnstileToken)">
-          {{ loading ? 'Signing in…' : 'Log In' }}
-        </button>
-      </form>
-
-      <footer class="text-center text-sm text-neutral-500 dark:text-neutral-400">
-        Need a Rugbycodex account? <br />
-        <RouterLink to="/signup"
-          class="font-medium text-neutral-700 underline-offset-4 transition hover:text-neutral-900 dark:text-neutral-200 dark:hover:text-neutral-100">
-          Request beta access
-        </RouterLink>
-      </footer>
+      </div>
     </div>
   </section>
 </template>
+
+<style scoped>
+.fade-item {
+  opacity: 0;
+  transform: translateY(30px);
+  transition: all 0.7s cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+.fade-item.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+</style>

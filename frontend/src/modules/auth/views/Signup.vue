@@ -4,6 +4,8 @@ import { RouterLink, useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
 import { useAuthStore } from '@/auth/stores/useAuthStore';
 import TurnstileVerification from '@/components/TurnstileVerification.vue';
+import bgImg from '@/assets/modules/auth/headingley.jpg';
+import { useStaggeredFade } from '@/composables/useStaggeredFade';
 const authStore = useAuthStore();
 const router = useRouter();
 const signingUp = ref(false);
@@ -13,6 +15,7 @@ const confirmationRedirectUrl =
   typeof window !== 'undefined' ? `${window.location.origin}/confirm-email` : undefined;
 const turnstileToken = ref('');
 const turnstileRequired = ref(false);
+const { register: registerFadeItem } = useStaggeredFade();
 
 const form = reactive({
   name: '',
@@ -102,167 +105,177 @@ const handleSubmit = async () => {
 </script>
 
 <template>
-  <section class="container flex min-h-screen items-center justify-center pt-24 pb-24">
-    <div class="w-full max-w-lg space-y-10">
-      <RouterLink to="/"
-        class="mx-auto inline-flex items-center gap-2 text-sm font-medium text-neutral-500 transition hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100">
-        Home
-      </RouterLink>
-      <header class="space-y-3 text-center">
-        <p class="text-xs font-semibold uppercase tracking-[0.3em] text-neutral-500 dark:text-neutral-500">
-          Rugbycodex
-        </p>
-        <h1 class="text-3xl font-semibold text-neutral-900 dark:text-neutral-100">Request Beta Access</h1>
-        <p class="text-neutral-600 dark:text-neutral-400">
-          Rugbycodex is currently in a closed beta. Tell us a bit about yourself so we can get you early access.
-        </p>
-      </header>
+  <p class="navclear"></p>
+  <section class="relative h-screen">
+    <img :src="bgImg" alt="Background" class="fixed inset-0 h-full w-full object-cover" />
+    <div class="fixed inset-0 bg-black/60"></div>
+    <div class="relative z-10 max-w-xl mx-auto px-4">
+      <div class="flex items-center min-h-screen py-20 md:py-50">
+        <div class="w-full">
+          <div class="space-y-5">
+            <div class="flex justify-between">
+              <RouterLink to="/v2/marketing" >
+                <p class="text-white">RUGBY<span class="font-semibold">CODEX</span></p>
+              </RouterLink>
+              <div class="flex border-1 border-white">
+                <RouterLink to="/v2/auth/login"
+                  class="underline-none text-xs p-1 px-2 text-white">
+                  LOGIN
+                </RouterLink>
+                <RouterLink to="/v2/auth/signup" class="underline-none text-xs p-1 px-2 bg-white !text-black">
+                  SIGNUP
+                </RouterLink>
+              </div>
+            </div>
 
-      <form v-if="!submissionLogged" @submit.prevent="handleSubmit"
-        class="rounded-3xl border border-neutral-200/60 bg-white/80 p-8 shadow-[0_24px_60px_rgba(15,23,42,0.08)] backdrop-blur-md transition-colors dark:border-neutral-800/70 dark:bg-neutral-950/70 dark:shadow-[0_24px_60px_rgba(15,23,42,0.35)]">
-        <div class="space-y-6">
-          <div class="sr-only" aria-hidden="true">
-            <label for="signup-company" class="text-sm font-medium">Company</label>
-            <input
-              id="signup-company"
-              v-model="form.honeypot"
-              type="text"
-              name="company"
-              tabindex="-1"
-              autocomplete="off"
-              autocorrect="off"
-              autocapitalize="off"
-              spellcheck="false"
-              inputmode="text"
-            />
+            <h1 class="text-5xl md:text-8xl text-white" :ref="registerFadeItem">Welcome.</h1>
           </div>
 
-          <div class="space-y-2">
-            <label for="name" class="text-sm font-medium text-neutral-700 dark:text-neutral-200">Name</label>
-            <input id="name" v-model="form.name" type="text" autocomplete="name" required
-              class="block w-full rounded-2xl border border-neutral-200/70 bg-white/80 px-4 py-3 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/30 dark:border-neutral-700/70 dark:bg-neutral-900/60 dark:text-neutral-50 dark:placeholder:text-neutral-500 dark:focus:ring-neutral-100/30" />
-          </div>
+          <form v-if="!submissionLogged" @submit.prevent="handleSubmit" class="mt-10">
+            <div class="space-y-10">
+              <div class="sr-only" aria-hidden="true">
+                <label for="signup-company" class="text-xs">Company</label>
+                <input
+                  id="signup-company"
+                  v-model="form.honeypot"
+                  type="text"
+                  name="company"
+                  tabindex="-1"
+                  autocomplete="off"
+                  autocorrect="off"
+                  autocapitalize="off"
+                  spellcheck="false"
+                  inputmode="text"
+                />
+              </div>
 
-          <div class="space-y-2">
-            <label for="email" class="text-sm font-medium text-neutral-700 dark:text-neutral-200">Email</label>
-            <input id="email" v-model="form.email" type="email" inputmode="email" autocomplete="email" required
-              class="block w-full rounded-2xl border border-neutral-200/70 bg-white/80 px-4 py-3 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/30 dark:border-neutral-700/70 dark:bg-neutral-900/60 dark:text-neutral-50 dark:placeholder:text-neutral-500 dark:focus:ring-neutral-100/30" />
-          </div>
+              <div class="flex flex-col space-y-2" :ref="registerFadeItem">
+                <label for="name" class="text-xs uppercase text-white">Name</label>
+                <input id="name" v-model="form.name" type="text" autocomplete="name" placeholder="displayname" required
+                  class="block w-full backdrop-blur bg-black/10 text-white border-b-2 border-white placeholder-white/30 px-2 py-1 outline-none" />
+              </div>
 
-          <div class="space-y-2">
-            <label for="password" class="text-sm font-medium text-neutral-700 dark:text-neutral-200">
-              Password
-            </label>
-            <input id="password" v-model="form.password" type="password" autocomplete="new-password" minlength="6"
-              required
-              class="block w-full rounded-2xl border border-neutral-200/70 bg-white/80 px-4 py-3 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/30 dark:border-neutral-700/70 dark:bg-neutral-900/60 dark:text-neutral-50 dark:placeholder:text-neutral-500 dark:focus:ring-neutral-100/30" />
-            <p class="text-xs text-neutral-500 dark:text-neutral-400">
-              Use at least 6 characters. You can reset it later from your dashboard.
+              <div class="flex flex-col space-y-2" :ref="registerFadeItem">
+                <label for="email" class="text-xs uppercase text-white">Email</label>
+                <input id="email" v-model="form.email" type="email" inputmode="email" autocomplete="email" placeholder="user@rugbycodex.com" required
+                  class="block w-full backdrop-blur bg-black/10 text-white border-b-2 border-white placeholder-white/30 px-2 py-1 outline-none" />
+              </div>
+
+              <div class="flex flex-col space-y-2" :ref="registerFadeItem">
+                <label for="password" class="text-xs uppercase text-white">Password</label>
+                <input id="password" v-model="form.password" type="password" autocomplete="new-password" minlength="6"
+                  required
+                  class="block w-full backdrop-blur bg-black/10 text-white border-b-2 border-white placeholder-white/30 px-2 py-1 outline-none" />
+                <p class="text-xs text-white/70">
+                  Use at least 6 characters. You can reset it later from your dashboard.
+                </p>
+              </div>
+
+              <div class="flex flex-col space-y-2" :ref="registerFadeItem">
+                <label for="confirm-password" class="text-xs uppercase text-white">Confirm password</label>
+                <input id="confirm-password" v-model="form.confirmPassword" type="password" autocomplete="new-password"
+                  minlength="6" required
+                  class="block w-full backdrop-blur bg-black/10 text-white border-b-2 border-white placeholder-white/30 px-2 py-1 outline-none" />
+                <p v-if="showPasswordMismatch" class="text-sm text-rose-400">Passwords do not match.</p>
+              </div>
+
+              <div class="flex flex-col space-y-2" :ref="registerFadeItem">
+                <label for="phone" class="text-xs uppercase text-white">Phone number (optional)</label>
+                <input id="phone" v-model="form.phone" type="tel" inputmode="tel" autocomplete="tel"
+                  placeholder="e.g. +1 555 123 4567"
+                  class="block w-full backdrop-blur bg-black/10 text-white border-b-2 border-white placeholder-white/30 px-2 py-1 outline-none" />
+              </div>
+
+              <div class="flex flex-col space-y-2" :ref="registerFadeItem">
+                <label for="organization" class="text-xs uppercase text-white">Club or organization</label>
+                <input id="organization" v-model="form.organization" type="text" placeholder="None"
+                  class="block w-full backdrop-blur bg-black/10 text-white border-b-2 border-white placeholder-white/30 px-2 py-1 outline-none" />
+              </div>
+
+              <div class="flex flex-col space-y-2" :ref="registerFadeItem">
+                <label for="role" class="text-xs uppercase text-white">Role</label>
+                <select id="role" v-model="form.role" required
+                  class="block w-full backdrop-blur bg-black/10 text-white border-b-2 border-white px-2 py-1 outline-none">
+                  <option disabled value="">Select a role</option>
+                  <option value="player">Player</option>
+                  <option value="coach">Coach</option>
+                  <option value="analyst">Analyst</option>
+                  <option value="referee">Referee</option>
+                  <option value="administrator">Administrator / Union Staff</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+
+              <div class="flex flex-col space-y-2" :ref="registerFadeItem">
+                <label for="usage" class="text-xs uppercase text-white">How do you plan to use Rugbycodex?</label>
+                <textarea id="usage" v-model="form.usage" rows="3" placeholder="Share a short overview" required
+                  class="block w-full backdrop-blur bg-black/10 text-white border-b-2 border-white placeholder-white/30 px-2 py-1 outline-none"></textarea>
+              </div>
+
+              <div class="flex flex-col space-y-2" :ref="registerFadeItem">
+                <label for="referral" class="text-xs uppercase text-white">How did you hear about us?</label>
+                <select id="referral" v-model="form.referral"
+                  class="block w-full backdrop-blur bg-black/10 text-white border-b-2 border-white px-2 py-1 outline-none">
+                  <option value="">Select an option</option>
+                  <option value="referral">Friend or teammate</option>
+                  <option value="social">Social media</option>
+                  <option value="event">Conference or event</option>
+                  <option value="search">Search engine</option>
+                  <option value="community">Rugby community forum</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="mt-6" :ref="registerFadeItem">
+              <TurnstileVerification
+                v-model:token="turnstileToken"
+                v-model:required="turnstileRequired"
+              />
+            </div>
+
+            <p v-if="supabaseError" class="mt-6 text-sm text-rose-400">
+              {{ supabaseError }}
             </p>
+
+            <button type="submit" :ref="registerFadeItem"
+              class="mt-10 inline-flex w-full items-center justify-center rounded-xs bg-white px-4 py-3 text-sm uppercase tracking-[0.2em] text-black"
+              :disabled="signingUp || passwordMismatch || (turnstileRequired && !turnstileToken)">
+              {{ signingUp ? 'Submitting…' : !turnstileToken ? 'Verifying…' : 'Sign Up' }}
+            </button>
+          </form>
+
+          <div v-else
+            class="mt-10 rounded-xs border border-white/40 bg-white/10 p-8 text-center text-white backdrop-blur">
+            <div class="flex flex-col items-center gap-4">
+              <Icon icon="solar:check-circle-bold-duotone" class="h-10 w-10 text-emerald-300" />
+              <p class="text-lg font-medium">Access requested.</p>
+              <p v-if="supabaseMessage" class="text-sm text-white/80">
+                {{ supabaseMessage }}
+              </p>
+              <p class="text-xs font-semibold text-rose-200">*Be sure to check junk and spam folders!</p>
+              <RouterLink to="/"
+                class="text-sm font-medium underline underline-offset-4 text-white">
+                Return home
+              </RouterLink>
+            </div>
           </div>
 
-          <div class="space-y-2">
-            <label for="confirm-password" class="text-sm font-medium text-neutral-700 dark:text-neutral-200">
-              Confirm password
-            </label>
-            <input id="confirm-password" v-model="form.confirmPassword" type="password" autocomplete="new-password"
-              minlength="6" required
-              class="block w-full rounded-2xl border border-neutral-200/70 bg-white/80 px-4 py-3 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/30 dark:border-neutral-700/70 dark:bg-neutral-900/60 dark:text-neutral-50 dark:placeholder:text-neutral-500 dark:focus:ring-neutral-100/30" />
-            <p v-if="showPasswordMismatch" class="text-sm text-rose-500 dark:text-rose-400">Passwords do not match.</p>
-          </div>
-
-          <div class="space-y-2">
-            <label for="phone" class="text-sm font-medium text-neutral-700 dark:text-neutral-200">Phone number
-              (optional)</label>
-            <input id="phone" v-model="form.phone" type="tel" inputmode="tel" autocomplete="tel"
-              placeholder="e.g. +1 555 123 4567"
-              class="block w-full rounded-2xl border border-neutral-200/70 bg-white/80 px-4 py-3 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/30 dark:border-neutral-700/70 dark:bg-neutral-900/60 dark:text-neutral-50 dark:placeholder:text-neutral-500 dark:focus:ring-neutral-100/30" />
-          </div>
-
-          <div class="space-y-2">
-            <label for="organization" class="text-sm font-medium text-neutral-700 dark:text-neutral-200">Club or
-              organization</label>
-            <input id="organization" v-model="form.organization" type="text" placeholder="None"
-              class="block w-full rounded-2xl border border-neutral-200/70 bg-white/80 px-4 py-3 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/30 dark:border-neutral-700/70 dark:bg-neutral-900/60 dark:text-neutral-50 dark:placeholder:text-neutral-500 dark:focus:ring-neutral-100/30" />
-          </div>
-
-          <div class="space-y-2">
-            <label for="role" class="text-sm font-medium text-neutral-700 dark:text-neutral-200">Role</label>
-            <select id="role" v-model="form.role" required
-              class="block w-full appearance-none rounded-2xl border border-neutral-200/70 bg-white/80 px-4 py-3 text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900/30 dark:border-neutral-700/70 dark:bg-neutral-900/60 dark:text-neutral-50 dark:focus:ring-neutral-100/30">
-              <option disabled value="">Select a role</option>
-              <option value="player">Player</option>
-              <option value="coach">Coach</option>
-              <option value="analyst">Analyst</option>
-              <option value="referee">Referee</option>
-              <option value="administrator">Administrator / Union Staff</option>
-              <option value="other">Other</option>
-            </select>
-          </div>
-
-          <div class="space-y-2">
-            <label for="usage" class="text-sm font-medium text-neutral-700 dark:text-neutral-200">How do you plan to use
-              Rugbycodex?</label>
-            <textarea id="usage" v-model="form.usage" rows="3" placeholder="Share a short overview" required
-              class="block w-full rounded-2xl border border-neutral-200/70 bg-white/80 px-4 py-3 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/30 dark:border-neutral-700/70 dark:bg-neutral-900/60 dark:text-neutral-50 dark:placeholder:text-neutral-500 dark:focus:ring-neutral-100/30" />
-          </div>
-
-          <div class="space-y-2">
-            <label for="referral" class="text-sm font-medium text-neutral-700 dark:text-neutral-200">How did you hear
-              about us?</label>
-            <select id="referral" v-model="form.referral"
-              class="block w-full appearance-none rounded-2xl border border-neutral-200/70 bg-white/80 px-4 py-3 text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900/30 dark:border-neutral-700/70 dark:bg-neutral-900/60 dark:text-neutral-50 dark:focus:ring-neutral-100/30">
-              <option value="">Select an option</option>
-              <option value="referral">Friend or teammate</option>
-              <option value="social">Social media</option>
-              <option value="event">Conference or event</option>
-              <option value="search">Search engine</option>
-              <option value="community">Rugby community forum</option>
-              <option value="other">Other</option>
-            </select>
-          </div>
-        </div>
-
-        <TurnstileVerification
-          class="mt-6"
-          v-model:token="turnstileToken"
-          v-model:required="turnstileRequired"
-        />
-
-        <p v-if="supabaseError" class="mt-6 text-sm text-rose-500 dark:text-rose-400">
-          {{ supabaseError }}
-        </p>
-
-        <button type="submit"
-          class="mt-10 inline-flex w-full items-center justify-center rounded-2xl bg-neutral-900 px-4 py-3 text-sm font-semibold uppercase tracking-[0.2em] text-neutral-100 transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-neutral-50 dark:text-neutral-900 dark:hover:bg-neutral-200"
-          :disabled="signingUp || passwordMismatch || (turnstileRequired && !turnstileToken)">
-          {{ signingUp ? 'Submitting…' : 'Request Invite' }}
-        </button>
-      </form>
-
-      <div v-else
-        class="rounded-3xl border border-emerald-300/60 bg-emerald-50/80 p-8 text-center shadow-[0_24px_60px_rgba(15,23,42,0.08)] backdrop-blur-md dark:border-emerald-800/60 dark:bg-emerald-900/40 dark:shadow-[0_24px_60px_rgba(15,23,42,0.35)]">
-        <div class="flex flex-col items-center gap-4">
-          <Icon icon="solar:check-circle-bold-duotone" class="h-10 w-10 text-emerald-500" />
-          <p class="text-lg font-medium text-emerald-800 dark:text-emerald-100">Access requested.</p>
-          <p v-if="supabaseMessage" class="text-sm text-emerald-700 dark:text-emerald-200">
-            {{ supabaseMessage }}
-          </p>
-          <p class="text-xs font-semibold text-red-500">*Be sure to check junk and spam folders!</p>
-          <RouterLink to="/"
-            class="text-sm font-medium text-emerald-700 underline-offset-4 transition hover:text-emerald-800 dark:text-emerald-200 dark:hover:text-emerald-100">
-            Return home
-          </RouterLink>
         </div>
       </div>
-
-      <footer class="text-center text-sm text-neutral-500 dark:text-neutral-400">
-        Already have access?
-        <RouterLink to="/login"
-          class="font-medium text-neutral-700 underline-offset-4 transition hover:text-neutral-900 dark:text-neutral-200 dark:hover:text-neutral-100">
-          Log in instead
-        </RouterLink>
-      </footer>
     </div>
   </section>
 </template>
+
+<style scoped>
+.fade-item {
+  opacity: 0;
+  transform: translateY(30px);
+  transition: all 0.7s cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+.fade-item.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+</style>

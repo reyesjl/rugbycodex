@@ -28,6 +28,7 @@ const layoutComponents = {
 const resolveLayout = (layout?: string) => {
   if (layout === 'minimal') return layoutComponents.minimal;
   if (layout === 'marketing') return layoutComponents.marketing;
+  if (layout === 'auth') return layoutComponents.auth;
   return layoutComponents.main;
 };
 
