@@ -33,7 +33,7 @@ jobs:
       run: echo "RELEASE=$(date +%Y%m%d%H%M%S)" >> $GITHUB_ENV
 
     - name: Deploy via rsync over SSH
-      uses: burnett01/rsync-deployments@v1
+      uses: burnett01/rsync-deployments@main
       with:
         switches: "-avz --delete"
         path: "dist/"
