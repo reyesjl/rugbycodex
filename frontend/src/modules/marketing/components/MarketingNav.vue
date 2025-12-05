@@ -15,7 +15,7 @@ const isNavHidden = ref(false);
 const isAtTop = ref(true);
 const lastScrollY = ref(0);
 const navRef = ref<HTMLElement | null>(null);
-let resizeObserver: ResizeObserver | null = null;
+let resizeObserver: globalThis.ResizeObserver | null = null;
 
 const navPositionStyle = computed(() => ({
     top: isNavHidden.value ? NAV_HIDDEN_TOP : NAV_VISIBLE_TOP,
@@ -67,12 +67,18 @@ const setNavHeightVar = () => {
 };
 
 const initNavResizeObserver = () => {
-    if (typeof window === 'undefined' || !navRef.value || typeof ResizeObserver === 'undefined') {
+    if (typeof window === 'undefined' || !navRef.value) {
         setNavHeightVar();
         return;
     }
 
-    resizeObserver = new ResizeObserver(() => {
+    const hasResizeObserver = 'ResizeObserver' in window && typeof window.ResizeObserver === 'function';
+    if (!hasResizeObserver) {
+        setNavHeightVar();
+        return;
+    }
+
+    resizeObserver = new window.ResizeObserver(() => {
         setNavHeightVar();
     });
     resizeObserver.observe(navRef.value);

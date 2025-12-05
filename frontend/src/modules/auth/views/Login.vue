@@ -136,7 +136,7 @@ watch(
               <div class="flex flex-col space-y-2" :ref="registerFadeItem">
                 <label for="email" class="text-xs uppercase text-white">Email</label>
                 <input id="email" v-model="form.email" type="email" inputmode="email" autocomplete="email" required
-                  class="block w-full backdrop-blur bg-black/10 text-white border-b-2 border-white placeholder-white/30 px-2 py-1 outline-none" placeholder="user@rugbycodex.com"/>
+                  class="block w-full backdrop-blur bg-black/10 text-white border-b-2 border-white placeholder-white/30 px-2 py-1 outline-none" placeholder="user@rugbycodex.com" />
               </div>
 
               <div class="flex flex-col space-y-2" :ref="registerFadeItem">
