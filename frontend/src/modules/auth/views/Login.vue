@@ -5,6 +5,7 @@ import { useAuthStore } from '@/auth/stores/useAuthStore';
 import TurnstileVerification from '@/components/TurnstileVerification.vue';
 import bgImg from '@/assets/modules/auth/headingley.jpg';
 import { useStaggeredFade } from '@/composables/useStaggeredFade';
+import AuthNav from '../components/AuthNav.vue';
 
 const router = useRouter();
 const route = useRoute();
@@ -112,29 +113,21 @@ watch(
 </script>
 
 <template>
-  <p class="navclear"></p>
-  <section class="h-screen relative">
+  <section class="relative h-screen">
+    <!-- Background image -->
     <img :src="bgImg" alt="Background" class="fixed inset-0 h-full w-full object-cover" />
+    
+    <!-- Overlay -->
     <div class="fixed inset-0 bg-black/60"></div>
+
+    <!-- Content -->
     <div class="relative z-10 max-w-xl mx-auto px-4">
-      <div class="flex justify-center h-screen py-20 md:py-50">
+      <!-- Small auth navigation -->
+      <AuthNav />
+
+      <div class="flex justify-center min-h-screen py-20">
         <div class="w-full">
           <div class="space-y-5">
-            <div class="flex justify-between">
-              <RouterLink to="/v2/marketing" >
-                <p class="text-white">RUGBY<span class="font-semibold">CODEX</span></p>
-              </RouterLink>
-              
-              <div class="flex border-1 border-white">
-                <RouterLink to="/v2/auth/login" class="underline-none text-xs p-1 px-2 bg-white !text-black">
-                  LOGIN
-                </RouterLink>
-                <RouterLink to="/v2/auth/signup" class="underline-none text-xs p-1 px-2 text-white">
-                  SIGNUP
-                </RouterLink>
-              </div>
-            </div>
-            
             <h1 class="text-5xl md:text-8xl text-white" :ref="registerFadeItem">Welcome back.</h1>
           </div>
           <form @submit.prevent="handleSubmit" 

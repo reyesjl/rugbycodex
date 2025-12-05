@@ -16,6 +16,7 @@ const confirmationRedirectUrl =
 const turnstileToken = ref('');
 const turnstileRequired = ref(false);
 const { register: registerFadeItem } = useStaggeredFade();
+import AuthNav from '../components/AuthNav.vue';
 
 const form = reactive({
   name: '',
@@ -105,29 +106,20 @@ const handleSubmit = async () => {
 </script>
 
 <template>
-  <p class="navclear"></p>
   <section class="relative h-screen">
+    <!-- Background image -->
     <img :src="bgImg" alt="Background" class="fixed inset-0 h-full w-full object-cover" />
+    
+    <!-- Overlay -->
     <div class="fixed inset-0 bg-black/60"></div>
+    <!-- Content -->
     <div class="relative z-10 max-w-xl mx-auto px-4">
-      <div class="flex items-center min-h-screen py-20 md:py-50">
+      <!-- Small auth navigation -->
+      <AuthNav />
+      
+      <div class="flex items-center min-h-screen py-20">
         <div class="w-full">
           <div class="space-y-5">
-            <div class="flex justify-between">
-              <RouterLink to="/v2/marketing" >
-                <p class="text-white">RUGBY<span class="font-semibold">CODEX</span></p>
-              </RouterLink>
-              <div class="flex border-1 border-white">
-                <RouterLink to="/v2/auth/login"
-                  class="underline-none text-xs p-1 px-2 text-white">
-                  LOGIN
-                </RouterLink>
-                <RouterLink to="/v2/auth/signup" class="underline-none text-xs p-1 px-2 bg-white !text-black">
-                  SIGNUP
-                </RouterLink>
-              </div>
-            </div>
-
             <h1 class="text-5xl md:text-8xl text-white" :ref="registerFadeItem">Welcome.</h1>
           </div>
 
