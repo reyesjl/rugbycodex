@@ -1,5 +1,13 @@
+<script setup lang="ts">
+import { storeToRefs } from 'pinia';
+import { useProfileStore } from '@/modules/profiles/stores/useProfileStore';
+
+const profileStore = useProfileStore();
+const { profile } = storeToRefs(profileStore);
+
+</script>
 <template>
-  <div class="p-10 text-center text-gray-700">
-    Stub: Dashboard
+  <div class="container-lg py-6">
+    <div class="text-white">Welcome back, {{ profile?.name }}</div>
   </div>
 </template>

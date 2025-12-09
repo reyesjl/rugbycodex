@@ -148,7 +148,7 @@ router.beforeEach(async (to) => {
 
   if ((to.meta.requiresAuth || to.meta.requiresAdmin) && !authStore.isAuthenticated) {
     return {
-      name: 'Login',
+      name: 'V2Login',
       query: {
         redirect: to.fullPath !== '/' ? to.fullPath : undefined,
       },

@@ -4,6 +4,9 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { RouterLink } from 'vue-router';
 import Button from '@/components/ui/primitives/Button.vue';
 import NavLink from '@/components/ui/primitives/NavLink.vue';
+import { useAuthStore } from '@/auth/stores/useAuthStore';
+
+const authStore = useAuthStore();
 
 const NAV_VISIBLE_TOP = '0px';
 const NAV_HIDDEN_TOP = '-120px';
@@ -149,7 +152,12 @@ watch(isMenuOpen, (isOpen) => {
                 </NavLink>
             </div>
 
-            <div class="hidden justify-end space-x-4 md:flex items-center sm:text-sm">
+            <!-- Display profile button if user is logged in -->
+            <!-- authStore.isAuthenticated -->
+            <RouterLink v-if="authStore.isAuthenticated" class="hidden justify-end md:flex items-center space-x-2 sm:text-sm" :to="`/v2/dashboard`">
+                <Icon icon="carbon:user-avatar"  width="25" height="25" class="h-full w-full p-2 text-white rounded-full cursor-pointer" />    
+            </RouterLink> 
+            <div v-else class="hidden justify-end space-x-4 md:flex items-center sm:text-sm">
                 <RouterLink class="text-white hover:text-neutral-400 whitespace-nowrap" to="/v2/auth/login">
                     Login
                 </RouterLink>
@@ -232,20 +240,34 @@ watch(isMenuOpen, (isOpen) => {
                     to="/v2/marketing/mission"
                     @click="closeMenu"
                 >mission</RouterLink>
-                <RouterLink
-                    class="hover:text-neutral-500 text-white w-fit"
-                    to="/v2/auth/login"
-                    @click="closeMenu"
-                >
-                    login
-                </RouterLink>
-                <RouterLink
-                    class="hover:text-neutral-500 text-white w-fit"
-                    to="/v2/auth/signup"
-                    @click="closeMenu"
-                >
-                    get started
-                </RouterLink>
+
+                <!-- Show profile if user logged in -->
+                <!-- authStore.isAuthenticated -->
+                <div v-if="authStore.isAuthenticated">
+                    <RouterLink
+                        class="hover:text-neutral-500 text-white w-fit"
+                        :to="`/v2/dashboard`"
+                        @click="closeMenu"
+                    >
+                        profile
+                    </RouterLink>
+                </div>
+                <div v-else class="flex flex-col space-y-6">
+                    <RouterLink
+                        class="hover:text-neutral-500 text-white w-fit"
+                        to="/v2/auth/login"
+                        @click="closeMenu"
+                    >
+                        login
+                    </RouterLink>
+                    <RouterLink
+                        class="hover:text-neutral-500 text-white w-fit"
+                        to="/v2/auth/signup"
+                        @click="closeMenu"
+                    >
+                        get started
+                    </RouterLink>
+                </div>
             </div>
         </div>
     </transition>

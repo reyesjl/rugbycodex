@@ -35,8 +35,14 @@
   font-family: "Inter", sans-serif;
 }
 
+/* Marketing layout nav clear */
 .navclear {
   padding-top: var(--marketing-nav-height, 0px);
+}
+
+/* App layout main nav */
+.main-navclear {
+  padding-top: var(--main-nav-height, 0px);
 }
 
 @layer utilities {

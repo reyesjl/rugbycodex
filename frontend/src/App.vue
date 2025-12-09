@@ -5,6 +5,7 @@ import MainLayout from '@/layouts/MainLayout.vue';
 import MinimalLayout from '@/layouts/MinimalLayout.vue';
 import MarketingLayout from '@/layouts/v2/MarketingLayout.vue';
 import AuthLayout from '@/layouts/v2/AuthLayout.vue';
+import AppLayout from '@/layouts/v2/AppLayout.vue';
 
 const isDarkMode = ref(false);
 const legacyStorageKeys = ['betaRequests.csv'];
@@ -19,6 +20,7 @@ const cleanupLegacyLocalStorage = () => {
 };
 
 const layoutComponents = {
+  app: AppLayout,
   main: MainLayout,
   minimal: MinimalLayout,
   marketing: MarketingLayout,
@@ -29,6 +31,7 @@ const resolveLayout = (layout?: string) => {
   if (layout === 'minimal') return layoutComponents.minimal;
   if (layout === 'marketing') return layoutComponents.marketing;
   if (layout === 'auth') return layoutComponents.auth;
+  if (layout === 'app') return layoutComponents.app;
   return layoutComponents.main;
 };
 

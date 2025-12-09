@@ -52,8 +52,8 @@ export const v2Routes: RouteRecordRaw[] = [
   },
   {
     path: '/v2',
-    component: () => import('@/layouts/v2/MainLayout.vue'),
-    meta: { layout: 'minimal', requiresAuth: true },
+    component: () => import('@/layouts/v2/AppLayout.vue'),
+    meta: { layout: 'app', requiresAuth: true },
     children: [
       {
         path: 'dashboard',
