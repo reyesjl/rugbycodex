@@ -1,17 +1,16 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Icon } from '@iconify/vue';
-import { useRouter } from 'vue-router';
 import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
 import BatchActionBar, { type BatchAction } from '@/components/ui/tables/BatchActionBar.vue';
 import { useOrganizationList } from '@/modules/orgs/composables/useOrganizationsList';
 import { orgService } from '@/modules/orgs/services/orgService';
 import { useProfilesList } from '@/modules/profiles/composables/useProfileList';
+import { profileService } from '@/modules/profiles/services/ProfileService';
 import type { Organization } from '@/modules/orgs/types';
 import type { UserProfile } from '@/modules/profiles/types';
 
-const router = useRouter();
 const orgList = useOrganizationList();
 const profileList = useProfilesList();
 
@@ -25,14 +24,57 @@ const disabledOrgMap = ref<Record<string, boolean>>({});
 const isBatchProcessing = ref(false);
 const copyStatus = ref<Record<string, 'idle' | 'copied' | 'error'>>({});
 const copyResetTimers = new Map<string, number>();
+const createSuccessMessage = ref<string | null>(null);
+
+const showCreateModal = ref(false);
+const createOrgName = ref('');
+const createOrgSlug = ref('');
+const slugManuallyEdited = ref(false);
+const createOwnerInput = ref('');
+const ownerIdentifierLock = ref<string | null>(null);
+const storageLimitMb = ref(10240);
+const createOrgError = ref<string | null>(null);
+const createOrgLoading = ref(false);
+const ownerSuggestions = ref<UserProfile[]>([]);
+const ownerSuggestionsLoading = ref(false);
+const ownerSuggestionsError = ref<string | null>(null);
+const ownerSuggestionIndex = ref(-1);
+
+const STORAGE_OPTIONS = [
+  { label: '5 GB', value: 5 * 1024 },
+  { label: '10 GB', value: 10 * 1024 },
+  { label: '20 GB', value: 20 * 1024 },
+];
+
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+let ownerSuggestionDebounce: ReturnType<typeof setTimeout> | null = null;
+let ownerSuggestionRequestId = 0;
 
 const handleRefresh = async () => {
   await Promise.all([orgList.loadOrganizations(), profileList.loadProfiles()]);
 };
 
 const handleCreateOrg = () => {
-  router.push({ name: 'AdminCreateOrg' });
+  resetCreateForm();
+  showCreateModal.value = true;
 };
+
+const closeCreateModal = () => {
+  if (createOrgLoading.value) return;
+  showCreateModal.value = false;
+  resetCreateForm();
+};
+
+function resetCreateForm() {
+  createOrgName.value = '';
+  createOrgSlug.value = '';
+  slugManuallyEdited.value = false;
+  createOwnerInput.value = '';
+  ownerIdentifierLock.value = null;
+  storageLimitMb.value = 10240;
+  createOrgError.value = null;
+  clearOwnerSuggestions();
+}
 
 const filteredOrgs = computed(() => {
   const source = [...orgList.organizations.value];
@@ -170,6 +212,177 @@ const copyLabel = (orgId: string) => {
   return 'Copy ID';
 };
 
+const createSlugFromName = (name: string) =>
+  name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 64);
+
+watch(createOrgName, (name) => {
+  if (slugManuallyEdited.value) return;
+  createOrgSlug.value = createSlugFromName(name);
+});
+
+const ownerSearchTerm = computed(() => createOwnerInput.value.trim().replace(/^@/, ''));
+const ownerSearchEligible = computed(
+  () => showCreateModal.value && ownerSearchTerm.value.length >= 2 && !uuidPattern.test(ownerSearchTerm.value)
+);
+const showOwnerSuggestionsHint = computed(
+  () =>
+    showCreateModal.value &&
+    createOwnerInput.value.trim().length > 0 &&
+    createOwnerInput.value.trim().length < 2 &&
+    !uuidPattern.test(createOwnerInput.value.trim())
+);
+const showOwnerSuggestionDropdown = computed(
+  () =>
+    ownerSearchEligible.value &&
+    (ownerSuggestionsLoading.value || ownerSuggestions.value.length > 0 || !!ownerSuggestionsError.value)
+);
+
+const clearOwnerSuggestions = () => {
+  ownerSuggestions.value = [];
+  ownerSuggestionsLoading.value = false;
+  ownerSuggestionsError.value = null;
+  ownerSuggestionIndex.value = -1;
+};
+
+const fetchOwnerSuggestions = async (term: string) => {
+  ownerSuggestionRequestId += 1;
+  const requestId = ownerSuggestionRequestId;
+  ownerSuggestionsLoading.value = true;
+  ownerSuggestionsError.value = null;
+  try {
+    const results = await profileService.profiles.searchByUsername(term, 6);
+    if (requestId !== ownerSuggestionRequestId) return;
+    ownerSuggestions.value = results;
+  } catch (error) {
+    if (requestId !== ownerSuggestionRequestId) return;
+    ownerSuggestions.value = [];
+    ownerSuggestionsError.value = error instanceof Error ? error.message : 'Unable to search usernames.';
+  } finally {
+    if (requestId === ownerSuggestionRequestId) {
+      ownerSuggestionsLoading.value = false;
+    }
+  }
+};
+
+const scheduleOwnerSuggestionsFetch = (term: string) => {
+  if (ownerSuggestionDebounce) {
+    clearTimeout(ownerSuggestionDebounce);
+  }
+  ownerSuggestionDebounce = setTimeout(() => {
+    fetchOwnerSuggestions(term);
+  }, 220);
+};
+
+watch([ownerSearchTerm, ownerSearchEligible], ([term]) => {
+  ownerSuggestionIndex.value = -1;
+  if (!ownerSearchEligible.value) {
+    clearOwnerSuggestions();
+    return;
+  }
+  scheduleOwnerSuggestionsFetch(term);
+});
+
+watch(createOwnerInput, (value) => {
+  if (value.trim() !== (ownerIdentifierLock.value ?? '')) {
+    ownerIdentifierLock.value = null;
+  }
+});
+
+watch(showCreateModal, (isOpen) => {
+  if (!isOpen && ownerSuggestionDebounce) {
+    clearTimeout(ownerSuggestionDebounce);
+    ownerSuggestionDebounce = null;
+  }
+});
+
+const selectOwnerSuggestion = (profile: UserProfile) => {
+  createOwnerInput.value = `@${profile.username}`;
+  ownerIdentifierLock.value = `@${profile.username}`;
+  clearOwnerSuggestions();
+};
+
+const moveOwnerSuggestionHighlight = (direction: 1 | -1) => {
+  if (!ownerSuggestions.value.length) return;
+  const next =
+    (ownerSuggestionIndex.value + direction + ownerSuggestions.value.length) % ownerSuggestions.value.length;
+  ownerSuggestionIndex.value = next;
+};
+
+const handleOwnerInputKeydown = (event: globalThis.KeyboardEvent) => {
+  if (!showOwnerSuggestionDropdown.value) return;
+  if (event.key === 'ArrowDown') {
+    event.preventDefault();
+    moveOwnerSuggestionHighlight(1);
+  } else if (event.key === 'ArrowUp') {
+    event.preventDefault();
+    moveOwnerSuggestionHighlight(-1);
+  } else if (event.key === 'Enter') {
+    if (ownerSuggestionIndex.value >= 0) {
+      const suggestion = ownerSuggestions.value[ownerSuggestionIndex.value];
+      if (suggestion) {
+        event.preventDefault();
+        selectOwnerSuggestion(suggestion);
+      }
+    }
+  } else if (event.key === 'Escape') {
+    event.preventDefault();
+    clearOwnerSuggestions();
+  }
+};
+
+const resolveOwnerIdentifier = async (identifier: string): Promise<UserProfile> => {
+  const trimmed = identifier.trim();
+  if (!trimmed) {
+    throw new Error('Enter an owner username or UUID.');
+  }
+  const cleaned = trimmed.replace(/^@/, '');
+  if (uuidPattern.test(cleaned)) {
+    return profileService.profiles.getById(cleaned);
+  }
+  return profileService.profiles.getByUsername(cleaned);
+};
+
+const canSubmitCreate = computed(() => {
+  return (
+    Boolean(createOrgName.value.trim()) &&
+    Boolean(createOrgSlug.value.trim()) &&
+    Boolean(createOwnerInput.value.trim()) &&
+    !createOrgLoading.value
+  );
+});
+
+const handleCreateOrgSubmit = async () => {
+  if (!canSubmitCreate.value) return;
+  createOrgLoading.value = true;
+  createOrgError.value = null;
+  try {
+    const ownerProfile = await resolveOwnerIdentifier(createOwnerInput.value);
+    ownerIdentifierLock.value = createOwnerInput.value.trim();
+
+    const payload = {
+      name: createOrgName.value.trim(),
+      slug: createOrgSlug.value.trim().toLowerCase(),
+      owner: ownerProfile.id,
+      storage_limit_mb: storageLimitMb.value,
+    };
+
+    const created = await orgService.organizations.create(payload);
+    await orgList.loadOrganizations();
+    createSuccessMessage.value = `${created.name} created.`;
+    showCreateModal.value = false;
+    resetCreateForm();
+  } catch (error) {
+    createOrgError.value = error instanceof Error ? error.message : 'Unable to create organization right now.';
+  } finally {
+    createOrgLoading.value = false;
+  }
+};
+
 const openDeleteModal = (org: Organization) => {
   orgToDelete.value = org;
   showDeleteModal.value = true;
@@ -272,6 +485,10 @@ onBeforeUnmount(() => {
   if (typeof window === 'undefined') return;
   copyResetTimers.forEach((timer) => window.clearTimeout(timer));
   copyResetTimers.clear();
+  if (ownerSuggestionDebounce) {
+    clearTimeout(ownerSuggestionDebounce);
+    ownerSuggestionDebounce = null;
+  }
 });
 </script>
 
@@ -306,6 +523,10 @@ onBeforeUnmount(() => {
           </button>
           <RefreshButton size="sm" :refresh="handleRefresh" :loading="orgList.loading.value" title="Refresh organizations" />
         </div>
+      </div>
+
+      <div v-if="createSuccessMessage" class="rounded border border-emerald-400/40 bg-emerald-500/10 p-3 text-sm text-emerald-200">
+        {{ createSuccessMessage }}
       </div>
 
       <div v-if="orgList.loading.value" class="rounded border border-white/15 bg-black/30 p-4 text-white/70">
@@ -469,5 +690,155 @@ onBeforeUnmount(() => {
       @cancel="clearOrgSelection"
     />
   </section>
+
+  <teleport to="body">
+    <transition name="create-org-modal">
+      <div
+        v-if="showCreateModal"
+        class="fixed inset-0 z-40 flex items-center justify-center bg-black/70 px-4"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Create organization"
+        @click.self="closeCreateModal"
+      >
+        <div class="w-full max-w-xl overflow-hidden rounded-lg border border-white/10 bg-[#0f1016] text-white shadow-2xl">
+          <header class="border-b border-white/10 px-6 py-4">
+            <p class="text-xs uppercase tracking-wide text-white/50">Create organization</p>
+            <h2 class="text-xl font-semibold">Add a new workspace</h2>
+          </header>
+
+          <div class="space-y-4 px-6 py-5">
+            <div class="space-y-1">
+              <label class="text-xs font-semibold uppercase tracking-wide text-white/60" for="create-org-name">
+                Organization name
+              </label>
+              <input
+                id="create-org-name"
+                v-model="createOrgName"
+                type="text"
+                autocomplete="off"
+                placeholder="Rugby Club"
+                class="w-full rounded border border-white/20 bg-black/40 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-white focus:outline-none"
+              />
+            </div>
+
+            <div class="space-y-1">
+              <label class="text-xs font-semibold uppercase tracking-wide text-white/60" for="create-org-slug">
+                Slug
+              </label>
+              <input
+                id="create-org-slug"
+                v-model="createOrgSlug"
+                type="text"
+                autocomplete="off"
+                placeholder="rugby-club"
+                class="w-full rounded border border-white/20 bg-black/40 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-white focus:outline-none"
+                @input="slugManuallyEdited = true"
+              />
+              <p class="text-xs text-white/50">Used in URLs. We auto-generate it from the name.</p>
+            </div>
+
+            <div class="space-y-1">
+              <label class="text-xs font-semibold uppercase tracking-wide text-white/60" for="create-org-owner">
+                Owner (username or UUID)
+              </label>
+              <div class="relative">
+                <input
+                  id="create-org-owner"
+                  v-model="createOwnerInput"
+                  type="text"
+                  autocomplete="off"
+                  placeholder="@coach"
+                  class="w-full rounded border border-white/20 bg-black/40 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-white focus:outline-none"
+                  @keydown="handleOwnerInputKeydown"
+                />
+                <div
+                  v-if="showOwnerSuggestionDropdown"
+                  class="absolute left-0 right-0 top-full z-40 mt-1 overflow-hidden rounded border border-white/15 bg-black/90 text-sm shadow-2xl"
+                >
+                  <p v-if="ownerSuggestionsLoading" class="px-3 py-2 text-white/60">Searching…</p>
+                  <p v-else-if="ownerSuggestionsError" class="px-3 py-2 text-rose-300">
+                    {{ ownerSuggestionsError }}
+                  </p>
+                  <p v-else-if="!ownerSuggestions.length" class="px-3 py-2 text-white/60">No usernames match.</p>
+                  <button
+                    v-for="(profile, index) in ownerSuggestions"
+                    v-else
+                    :key="profile.id"
+                    type="button"
+                    class="flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition hover:bg-white/10"
+                    :class="ownerSuggestionIndex === index ? 'bg-white/10' : ''"
+                    @mousedown.prevent="selectOwnerSuggestion(profile)"
+                    @mouseenter="ownerSuggestionIndex = index"
+                  >
+                    <span class="font-semibold">@{{ profile.username }}</span>
+                    <span class="text-xs text-white/60">{{ profile.name }}</span>
+                  </button>
+                </div>
+              </div>
+              <p v-if="showOwnerSuggestionsHint" class="text-xs text-white/50">
+                Type at least 2 characters to search usernames.
+              </p>
+            </div>
+
+            <div class="space-y-1">
+              <label class="text-xs font-semibold uppercase tracking-wide text-white/60" for="create-org-storage">
+                Storage limit
+              </label>
+              <select
+                id="create-org-storage"
+                v-model.number="storageLimitMb"
+                class="w-full rounded border border-white/20 bg-black/40 px-3 py-2 text-sm text-white focus:border-white focus:outline-none"
+              >
+                <option v-for="option in STORAGE_OPTIONS" :key="option.value" :value="option.value">
+                  {{ option.label }}
+                </option>
+              </select>
+            </div>
+          </div>
+
+          <div v-if="createOrgError" class="border-t border-white/10 bg-rose-500/10 px-6 py-3 text-sm text-rose-200">
+            {{ createOrgError }}
+          </div>
+
+          <div class="flex justify-end gap-3 border-t border-white/10 bg-black/40 px-6 py-4">
+            <button
+              type="button"
+              class="rounded border border-white/30 px-5 py-2 text-sm font-semibold uppercase tracking-wide text-white transition hover:bg-white/10"
+              :disabled="createOrgLoading"
+              @click="closeCreateModal"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              class="rounded border border-blue-500 bg-blue-600 px-5 py-2 text-sm font-semibold uppercase tracking-wide text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+              :disabled="!canSubmitCreate"
+              @click="handleCreateOrgSubmit"
+            >
+              <span v-if="createOrgLoading" class="flex items-center justify-center gap-2">
+                <span class="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white"></span>
+                Creating…
+              </span>
+              <span v-else>Create org</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </transition>
+  </teleport>
 </template>
+
+<style scoped>
+.create-org-modal-enter-active,
+.create-org-modal-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.create-org-modal-enter-from,
+.create-org-modal-leave-to {
+  opacity: 0;
+  transform: scale(0.98);
+}
+</style>
 
