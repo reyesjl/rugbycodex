@@ -37,6 +37,7 @@ const resolveLayout = (layout?: string) => {
   if (layout === 'auth') return layoutComponents.auth;
   if (layout === 'app') return layoutComponents.app;
   if (layout === 'org') return layoutComponents.org;
+  if (layout === 'admin') return layoutComponents.admin;
   return layoutComponents.main;
 };
 

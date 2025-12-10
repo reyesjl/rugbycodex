@@ -3,6 +3,7 @@ import { Icon } from '@iconify/vue';
 import { storeToRefs } from 'pinia';
 import { computed } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
+import { useAuthStore } from '@/auth/stores/useAuthStore';
 import { useActiveOrgStore } from '@/modules/orgs/stores/useActiveOrgStore';
 import { ROLE_ORDER, type MembershipRole } from '@/modules/profiles/types';
 
@@ -15,7 +16,9 @@ defineProps<{
 }>();
 
 const route = useRoute();
+const authStore = useAuthStore();
 const activeOrgStore = useActiveOrgStore();
+const { isAdmin } = storeToRefs(authStore);
 const { activeOrg, activeMembership, loading } = storeToRefs(activeOrgStore);
 
 const routeSlug = computed(() => {
@@ -37,6 +40,7 @@ const navigationLinks = computed(() => {
 
     const role = activeMembership.value?.org_role ?? null;
     const hasAccess = (minRole?: MembershipRole) => {
+        if (isAdmin.value) return true;
         if (!minRole) return true;
         if (!role) return false;
         return (ROLE_ORDER[role] ?? Infinity) <= (ROLE_ORDER[minRole] ?? Infinity);

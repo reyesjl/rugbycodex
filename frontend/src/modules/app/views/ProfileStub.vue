@@ -1,5 +1,208 @@
+<script setup lang="ts">
+import { computed, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { Icon } from '@iconify/vue';
+import { useAuthStore } from '@/auth/stores/useAuthStore';
+import { profileService } from '@/modules/profiles/services/ProfileService';
+import type { ProfileDetail } from '@/modules/profiles/types';
+
+const route = useRoute();
+const router = useRouter();
+const authStore = useAuthStore();
+
+const profile = ref<ProfileDetail | null>(null);
+const loading = ref(false);
+const error = ref<string | null>(null);
+const lastLoadedId = ref<string | null>(null);
+
+const routeProfileId = computed(() => {
+  const value = route.params.profileId;
+  if (Array.isArray(value)) {
+    return value[0];
+  }
+  return typeof value === 'string' && value.length ? value : null;
+});
+
+const activeProfileId = computed(() => routeProfileId.value ?? authStore.user?.id ?? null);
+
+const canEditProfile = computed(() => {
+  if (!profile.value || !authStore.user) return false;
+  return profile.value.id === authStore.user.id;
+});
+
+const formattedCreatedAt = computed(() => {
+  if (!profile.value) return '';
+  return new Intl.DateTimeFormat(undefined, { month: 'long', day: 'numeric', year: 'numeric' }).format(
+    profile.value.creation_time,
+  );
+});
+
+const orgMembershipCount = computed(() => profile.value?.memberships.length ?? 0);
+
+const formatMembershipRole = (role: string) => {
+  return role.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
+};
+
+const formatDate = (date: Date) => new Intl.DateTimeFormat(undefined, {
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+}).format(date);
+
+const loadProfile = async (profileId: string) => {
+  if (lastLoadedId.value === profileId && profile.value) {
+    return;
+  }
+
+  loading.value = true;
+  error.value = null;
+
+  try {
+    profile.value = await profileService.profiles.getWithMemberships(profileId);
+    lastLoadedId.value = profileId;
+  } catch (err) {
+    profile.value = null;
+    error.value = err instanceof Error ? err.message : 'Unable to load profile right now.';
+  } finally {
+    loading.value = false;
+  }
+};
+
+watch(
+  activeProfileId,
+  (profileId) => {
+    if (!profileId) {
+      profile.value = null;
+      error.value = 'Profile unavailable.';
+      return;
+    }
+    loadProfile(profileId);
+  },
+  { immediate: true },
+);
+
+const jumpToOwnProfile = () => {
+  if (authStore.user?.id) {
+    router.push('/v2/profile');
+  }
+};
+</script>
+
 <template>
-  <div class="p-10 text-center text-gray-700">
-    Stub: Profile
-  </div>
+  <section class="container space-y-8 py-6">
+    <div v-if="loading" class="rounded border border-white/15 bg-black/40 p-6 text-white/70">
+      Loading profile…
+    </div>
+
+    <div v-else-if="error" class="rounded border border-rose-400/40 bg-rose-500/10 p-6 text-white">
+      <p class="font-semibold">{{ error }}</p>
+      <p class="mt-2 text-sm text-white/80">Double-check the profile link or return to your own profile.</p>
+      <button
+        v-if="authStore.user?.id"
+        type="button"
+        class="mt-4 inline-flex items-center rounded border border-white/30 px-4 py-2 text-sm font-medium uppercase tracking-wide hover:bg-white/10"
+        @click="jumpToOwnProfile"
+      >
+        Take me to my profile
+      </button>
+    </div>
+
+    <div v-else-if="profile" class="space-y-8">
+      <header class="rounded border border-white/15 bg-white/5 p-6 text-white">
+        <p class="text-xs uppercase tracking-[0.3em] text-white/60">Profile</p>
+        <div class="mt-2 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h1 class="text-4xl font-semibold">{{ profile.name }}</h1>
+            <p class="text-white/70">
+              {{ profile.role }} · Joined {{ formattedCreatedAt }}
+            </p>
+          </div>
+          <div class="flex flex-wrap gap-3">
+            <RouterLink
+              v-if="canEditProfile"
+              to="/v2/settings"
+              class="inline-flex items-center rounded border border-white/30 px-4 py-2 text-sm font-semibold uppercase tracking-[0.2em] hover:bg-white/10"
+            >
+              <Icon icon="carbon:edit" width="18" height="18" class="mr-2" />
+              Edit profile
+            </RouterLink>
+            <span
+              v-else
+              class="inline-flex items-center rounded border border-white/20 px-4 py-2 text-sm text-white/70"
+            >
+              <Icon icon="carbon:view" width="18" height="18" class="mr-2" />
+              Viewing only
+            </span>
+          </div>
+        </div>
+      </header>
+
+      <section class="rounded border border-white/15 bg-white/5 p-5">
+        <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <article class="rounded border border-white/15 bg-black/40 p-4 text-white">
+            <p class="text-xs uppercase tracking-wide text-white/50">XP</p>
+            <div class="mt-2 text-3xl font-semibold">{{ profile.xp ?? '—' }}</div>
+          </article>
+          <article class="rounded border border-white/15 bg-black/40 p-4 text-white">
+            <p class="text-xs uppercase tracking-wide text-white/50">Platform role</p>
+            <div class="mt-2 text-xl font-semibold">{{ profile.role }}</div>
+          </article>
+          <article class="rounded border border-white/15 bg-black/40 p-4 text-white">
+            <p class="text-xs uppercase tracking-wide text-white/50">Organizations</p>
+            <div class="mt-2 text-3xl font-semibold">{{ orgMembershipCount }}</div>
+          </article>
+          <article class="rounded border border-white/15 bg-black/40 p-4 text-white">
+            <p class="text-xs uppercase tracking-wide text-white/50">Member since</p>
+            <div class="mt-2 text-xl font-semibold">{{ formattedCreatedAt }}</div>
+          </article>
+        </div>
+      </section>
+
+      <section class="rounded border border-white/15 bg-white/5 p-5 space-y-4">
+        <div class="flex items-center justify-between border-b border-white/10 pb-3 text-white">
+          <div>
+            <p class="text-sm uppercase tracking-wide text-white/60">Memberships</p>
+            <h2 class="text-2xl font-semibold">Organizations & roles</h2>
+          </div>
+          <RouterLink
+            v-if="canEditProfile"
+            to="/v2/organizations"
+            class="text-sm font-semibold text-white/70 underline-offset-4 hover:text-white"
+          >
+            Manage memberships
+          </RouterLink>
+        </div>
+
+        <div
+          v-if="profile.memberships.length === 0"
+          class="rounded border border-white/15 bg-black/30 p-6 text-white/70"
+        >
+          Not part of any organizations yet.
+        </div>
+        <ul v-else class="space-y-3">
+          <li
+            v-for="membership in profile.memberships"
+            :key="`${membership.org_id}-${membership.org_role}`"
+            class="rounded border border-white/15 bg-black/30 p-4 text-white"
+          >
+            <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p class="text-lg font-semibold">{{ membership.org_name }}</p>
+                <p class="text-sm text-white/70">
+                  {{ formatMembershipRole(membership.org_role) }} · Joined {{ formatDate(membership.join_date) }}
+                </p>
+              </div>
+              <RouterLink
+                class="inline-flex items-center text-sm uppercase tracking-wide text-white/70 hover:text-white"
+                :to="membership.slug ? `/v2/orgs/${membership.slug}/overview` : `/v2/orgs/${membership.org_id}/overview`"
+              >
+                View org
+                <Icon icon="carbon:chevron-right" width="16" height="16" class="ml-1" />
+              </RouterLink>
+            </div>
+          </li>
+        </ul>
+      </section>
+    </div>
+  </section>
 </template>

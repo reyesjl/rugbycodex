@@ -76,9 +76,10 @@ export const v2Routes: RouteRecordRaw[] = [
         component: () => import('@/modules/app/views/OrganizationsStub.vue'),
       },
       {
-        path: 'profile',
+        path: 'profile/:profileId?',
         name: 'V2Profile',
         component: () => import('@/modules/app/views/ProfileStub.vue'),
+        props: true,
       },
       {
         path: 'settings',
