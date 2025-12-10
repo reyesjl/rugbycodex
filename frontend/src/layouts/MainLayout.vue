@@ -216,7 +216,7 @@ watch(
             :title="authStore.user?.user_metadata?.name ?? authStore.user?.email ?? undefined">
             {{ userDisplayName }}
           </RouterLink>
-          <Icon v-if="authStore.isAdmin" icon="mdi:chess-king"
+          <Icon v-if="authStore.isAdmin" icon="carbon:user-role"
             class="hidden md:block h-6 w-6 text-black dark:text-white" />
 
         </div>
@@ -259,7 +259,7 @@ watch(
               :title="authStore.user?.user_metadata?.name ?? authStore.user?.email ?? undefined" @click="closeSidebar">
               {{ userDisplayName }}
             </RouterLink>
-            <Icon v-if="authStore.isAdmin" icon="mdi:chess-king"
+            <Icon v-if="authStore.isAdmin" icon="carbon:user-role"
               class="block md:hidden h-6 w-6 text-black dark:text-white" />
           </div>
         </div>

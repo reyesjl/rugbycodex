@@ -496,7 +496,7 @@ const memberBatchActions = computed<BatchAction[]>(() => [
   {
     id: 'promote',
     label: 'Promote',
-    icon: 'mdi:arrow-up-bold',
+    icon: 'carbon:arrow-up',
     variant: 'secondary',
     disabled: isBatchProcessing.value || !canManageMembers.value,
     onClick: handleBatchPromote,
@@ -504,7 +504,7 @@ const memberBatchActions = computed<BatchAction[]>(() => [
   {
     id: 'demote',
     label: 'Demote',
-    icon: 'mdi:arrow-down-bold',
+    icon: 'carbon:arrow-down',
     variant: 'secondary',
     disabled: isBatchProcessing.value || !canManageMembers.value,
     onClick: handleBatchDemote,
@@ -512,7 +512,7 @@ const memberBatchActions = computed<BatchAction[]>(() => [
   {
     id: 'remove',
     label: 'Remove',
-    icon: 'mdi:account-remove',
+    icon: 'carbon:user--x',
     variant: 'primary',
     disabled: isBatchProcessing.value || !canManageMembers.value,
     onClick: handleBatchRemove,

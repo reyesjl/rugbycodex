@@ -106,12 +106,12 @@ onMounted(async () => {
           <button v-if="hasExpandedOrgs()" type="button" @click="collapseAll"
             class="rounded-lg p-2 text-neutral-900 transition hover:bg-neutral-200 dark:text-neutral-100 dark:hover:bg-neutral-800"
             title="Collapse all">
-            <Icon icon="mdi:unfold-less-horizontal" class="h-5 w-5" />
+            <Icon icon="carbon:collapse-all" class="h-5 w-5" />
           </button>
           <button type="button" @click="handleCreateOrg"
             class="rounded-lg p-2 text-neutral-900 transition hover:bg-neutral-200 dark:text-neutral-100 dark:hover:bg-neutral-800"
             title="Create organization">
-            <Icon icon="mdi:plus" class="h-5 w-5" />
+            <Icon icon="carbon:add" class="h-5 w-5" />
           </button>
           <RefreshButton :refresh="handleRefresh" :loading="orgList.loading.value" title="Refresh organizations" />
         </div>
@@ -119,7 +119,7 @@ onMounted(async () => {
 
       <div class="mt-6">
         <div class="relative">
-          <Icon icon="mdi:magnify" class="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-neutral-400" />
+          <Icon icon="carbon:search" class="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-neutral-400" />
           <input v-model="searchQuery" type="text" placeholder="Search by organization name..."
             class="w-full rounded-xl border border-neutral-300 bg-white py-3 pl-12 text-neutral-900 transition focus:border-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900/20 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100 dark:focus:border-neutral-100 dark:focus:ring-neutral-100/20" />
         </div>
@@ -146,12 +146,12 @@ onMounted(async () => {
                 <button type="button" @click.stop="handleDelete(org)"
                   class="rounded-lg p-2 text-rose-600 transition hover:bg-rose-100 dark:text-rose-400 dark:hover:bg-rose-900/30"
                   title="Delete organization">
-                  <Icon icon="mdi:trash-can-outline" class="h-5 w-5" />
+                  <Icon icon="carbon:trash-can" class="h-5 w-5" />
                 </button>
                 <button type="button" @click.stop="toggleExpand(org.id)"
                   class="rounded-lg p-2 text-neutral-900 transition hover:bg-neutral-200 dark:text-neutral-100 dark:hover:bg-neutral-800"
                   :title="isExpanded(org.id) ? 'Collapse' : 'Expand'">
-                  <Icon :icon="isExpanded(org.id) ? 'mdi:chevron-up' : 'mdi:chevron-down'" class="h-5 w-5" />
+                  <Icon :icon="isExpanded(org.id) ? 'carbon:chevron-up' : 'carbon:chevron-down'" class="h-5 w-5" />
                 </button>
               </div>
             </div>

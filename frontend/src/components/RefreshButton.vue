@@ -51,7 +51,7 @@ const buttonStateClass = computed(() =>
     : 'text-neutral-900 hover:bg-neutral-200 focus-visible:outline-neutral-900 dark:text-neutral-100 dark:hover:bg-neutral-800 dark:focus-visible:outline-neutral-100'
 );
 
-const currentIcon = computed(() => (showSuccess.value ? 'carbon:checkmark' : 'mdi:refresh'));
+const currentIcon = computed(() => (showSuccess.value ? 'carbon:checkmark' : 'carbon:renew'));
 
 const clearResetTimer = () => {
   if (resetTimer) {

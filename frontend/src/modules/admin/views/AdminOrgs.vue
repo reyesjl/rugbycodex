@@ -240,7 +240,7 @@ const orgBatchActions = computed<BatchAction[]>(() => [
   {
     id: 'export',
     label: 'Export',
-    icon: 'mdi:tray-arrow-down',
+    icon: 'carbon:document-export',
     variant: 'secondary',
     disabled: isBatchProcessing.value,
     onClick: handleBatchExport,
@@ -248,7 +248,7 @@ const orgBatchActions = computed<BatchAction[]>(() => [
   {
     id: 'delete',
     label: 'Delete',
-    icon: 'mdi:trash-can-outline',
+    icon: 'carbon:trash-can',
     variant: 'primary',
     disabled: isBatchProcessing.value,
     onClick: handleBatchDelete,
@@ -287,7 +287,7 @@ onBeforeUnmount(() => {
     <div class="flex flex-col gap-4 rounded border border-white/10 bg-white/5 p-4">
       <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div class="relative w-full md:max-w-md">
-          <Icon icon="mdi:magnify" class="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-white/40" />
+          <Icon icon="carbon:search" class="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-white/40" />
           <input
             v-model="searchQuery"
             type="search"
@@ -301,7 +301,7 @@ onBeforeUnmount(() => {
             class="flex items-center gap-2 rounded border border-white/30 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-white hover:text-black"
             @click="handleCreateOrg"
           >
-            <Icon icon="mdi:plus" class="h-4 w-4" />
+            <Icon icon="carbon:add" class="h-4 w-4" />
             New org
           </button>
           <RefreshButton size="sm" :refresh="handleRefresh" :loading="orgList.loading.value" title="Refresh organizations" />

@@ -290,7 +290,7 @@ async function handleRefreshMembers() {
                     ? 'text-green-600 hover:bg-green-100 dark:text-green-400 dark:hover:bg-green-900/30'
                     : 'text-neutral-900 hover:bg-neutral-200 dark:text-neutral-100 dark:hover:bg-neutral-800'"
                   title="Refresh members">
-                  <Icon :icon="refreshSuccess ? 'mdi:check' : 'mdi:refresh'" class="h-5 w-5"
+                  <Icon :icon="refreshSuccess ? 'carbon:checkmark' : 'carbon:renew'" class="h-5 w-5"
                     :class="{ 'animate-spin': membersLoading }" />
                 </button>
               </div>
@@ -298,7 +298,7 @@ async function handleRefreshMembers() {
 
             <div class="mt-4">
               <div class="relative">
-                <Icon icon="mdi:magnify" class="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-neutral-400" />
+                <Icon icon="carbon:search" class="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-neutral-400" />
                 <input v-model="searchQuery" type="text" placeholder="Search by member name or ID..."
                   class="w-full rounded-xl border border-neutral-300 bg-white py-3 pl-12 text-neutral-900 transition focus:border-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900/20 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100 dark:focus:border-neutral-100 dark:focus:ring-neutral-100/20" />
               </div>

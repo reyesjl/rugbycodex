@@ -121,7 +121,7 @@ onBeforeUnmount(() => {
           </div>
           <div class="flex items-center">
             <Pill variant="success">InDev</Pill>
-            <Icon icon="mdi:dot" class="h-3 w-3 text-black dark:text-white" />
+            <Icon icon="carbon:dot-mark" class="h-3 w-3 text-black dark:text-white" />
             <div class="shrink-0 text-sm text-blue-500 dark:text-blue-300">Feedback</div>
           </div>
         </div>

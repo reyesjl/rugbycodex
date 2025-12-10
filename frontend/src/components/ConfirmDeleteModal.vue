@@ -37,50 +37,58 @@ const handleCancel = () => {
 
 <template>
   <Teleport to="body">
-    <Transition name="modal">
-      <div v-if="show" class="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <!-- Backdrop -->
-        <div class="absolute inset-0 bg-neutral-900/60 backdrop-blur-sm" @click="handleBackdropClick"></div>
-
-        <!-- Modal -->
-        <div
-          class="relative w-full max-w-md rounded-2xl bg-white p-8 shadow-[0_40px_120px_rgba(15,23,42,0.3)] dark:bg-neutral-950 dark:shadow-[0_40px_120px_rgba(0,0,0,0.6)]">
-          <div class="flex items-start gap-4">
-            <div
-              class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-950/50">
-              <Icon icon="mdi:alert-circle-outline" class="h-6 w-6 text-rose-600 dark:text-rose-400" />
+    <Transition name="modal-fade">
+      <div
+        v-if="show"
+        class="fixed inset-0 z-40 flex items-center justify-center bg-black/70 px-4"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Delete confirmation"
+        @click.self="handleBackdropClick"
+      >
+        <div class="w-full max-w-lg overflow-hidden rounded-lg border border-white/10 bg-[#0f1016] text-white shadow-2xl">
+          <header class="flex items-center gap-3 border-b border-white/10 px-6 py-4">
+            <div class="flex h-10 w-10 items-center justify-center rounded-full bg-rose-500/10 text-rose-300">
+              <Icon icon="carbon:warning-alt" class="h-5 w-5" />
             </div>
-
-            <div class="flex-1">
-              <h3 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
-                {{ popupTitle }}
-              </h3>
-              <p class="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
-                Are you sure you want to delete <strong class="font-semibold text-neutral-900 dark:text-neutral-100">{{
-                  itemName }}</strong>?
-                This action cannot be undone and will permanently remove all associated data.
-              </p>
-
-              <div v-if="error" class="mt-4 rounded-xl bg-rose-50 p-3 dark:bg-rose-950/30">
-                <p class="text-sm text-rose-600 dark:text-rose-400">{{ error }}</p>
-              </div>
-
-              <div class="mt-6 flex gap-3">
-                <button type="button" @click="emit('confirm')" :disabled="isDeleting"
-                  class="flex-1 rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-rose-500 dark:hover:bg-rose-600">
-                  <span v-if="isDeleting" class="flex items-center justify-center gap-2">
-                    <span class="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white"></span>
-                    Deleting...
-                  </span>
-                  <span v-else>Delete</span>
-                </button>
-
-                <button type="button" @click="handleCancel" :disabled="isDeleting"
-                  class="flex-1 rounded-xl border border-neutral-300 bg-white px-4 py-2.5 text-sm font-semibold text-neutral-900 transition hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100 dark:hover:bg-neutral-900">
-                  Cancel
-                </button>
-              </div>
+            <div>
+              <p class="text-xs uppercase tracking-wide text-white/50">Confirm delete</p>
+              <h2 class="text-xl font-semibold leading-tight">{{ popupTitle }}</h2>
             </div>
+          </header>
+
+          <div class="space-y-4 px-6 py-5">
+            <p class="text-sm text-white/80">
+              Are you sure you want to delete
+              <strong class="font-semibold text-white">{{ itemName }}</strong>? This action cannot be undone and will
+              permanently remove all associated data.
+            </p>
+            <div v-if="error" class="rounded border border-rose-400/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">
+              {{ error }}
+            </div>
+          </div>
+
+          <div class="flex justify-end gap-3 border-t border-white/10 bg-black/40 px-6 py-4">
+            <button
+              type="button"
+              class="rounded border border-white/30 px-5 py-2 text-sm font-semibold uppercase tracking-wide text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+              :disabled="isDeleting"
+              @click="handleCancel"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              class="rounded border border-rose-500 bg-rose-600 px-5 py-2 text-sm font-semibold uppercase tracking-wide text-white transition hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-60"
+              :disabled="isDeleting"
+              @click="emit('confirm')"
+            >
+              <span v-if="isDeleting" class="flex items-center justify-center gap-2">
+                <span class="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white"></span>
+                Deleting…
+              </span>
+              <span v-else>Delete</span>
+            </button>
           </div>
         </div>
       </div>
@@ -89,24 +97,14 @@ const handleCancel = () => {
 </template>
 
 <style scoped>
-/* Modal animation */
-.modal-enter-active,
-.modal-leave-active {
-  transition: opacity 0.3s ease;
+.modal-fade-enter-active,
+.modal-fade-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
-.modal-enter-active>div:last-child,
-.modal-leave-active>div:last-child {
-  transition: all 0.3s ease;
-}
-
-.modal-enter-from,
-.modal-leave-to {
+.modal-fade-enter-from,
+.modal-fade-leave-to {
   opacity: 0;
-}
-
-.modal-enter-from>div:last-child,
-.modal-leave-to>div:last-child {
-  transform: scale(0.95) translateY(-20px);
+  transform: scale(0.98);
 }
 </style>

@@ -140,9 +140,9 @@ const copyLabel = (profileId: string) => {
   return 'Copy ID';
 };
 
-const handleInviteProfile = () => {
-  console.info('Invite profile action triggered');
-};
+// const handleInviteProfile = () => {
+//   console.info('Invite profile action triggered');
+// };
 
 const openMessageModal = () => {
   if (!selectedProfileIds.value.length) return;
@@ -185,7 +185,7 @@ const profileBatchActions = computed<BatchAction[]>(() => [
   {
     id: 'message',
     label: 'Message',
-    icon: 'mdi:email-outline',
+    icon: 'carbon:email',
     variant: 'primary',
     disabled: isBatchProcessing.value,
     onClick: handleBatchMessage,
@@ -230,7 +230,7 @@ onBeforeUnmount(() => {
     <div class="flex flex-col gap-4 rounded border border-white/10 bg-white/5 p-4">
       <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div class="relative w-full md:max-w-md">
-          <Icon icon="mdi:magnify" class="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-white/40" />
+          <Icon icon="carbon:search" class="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-white/40" />
           <input
             v-model="searchQuery"
             type="search"
@@ -244,7 +244,7 @@ onBeforeUnmount(() => {
             class="flex items-center gap-2 rounded border border-white/30 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-white hover:text-black"
             @click="handleInviteProfile"
           >
-            <Icon icon="mdi:account-plus" class="h-4 w-4" />
+            <Icon icon="carbon:user-follow" class="h-4 w-4" />
             Invite new
           </button> -->
           <RefreshButton size="sm" :refresh="handleRefresh" :loading="profileList.loading.value" title="Refresh profiles" />
