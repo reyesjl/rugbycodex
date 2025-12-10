@@ -7,10 +7,6 @@ import { useAuthStore } from '@/auth/stores/useAuthStore';
 import { useActiveOrgStore } from '@/modules/orgs/stores/useActiveOrgStore';
 import { ROLE_ORDER, type MembershipRole } from '@/modules/profiles/types';
 
-const emit = defineEmits<{
-        (e: 'toggle-sidebar'): void;
-}>();
-
 defineProps<{
         isOpen: boolean;
 }>();
@@ -72,9 +68,6 @@ const currentOrgName = computed(() => {
 
 const currentRole = computed(() => activeMembership.value?.org_role ?? '—');
 
-// const handleSidebarToggle = () => {
-//     emit('toggle-sidebar');
-// };
 </script>
 
 <template>
@@ -84,14 +77,14 @@ const currentRole = computed(() => activeMembership.value?.org_role ?? '—');
         <div class="container-lg h-full py-5">
             <!-- <div class="flex items-center justify-end">
                 <div class="flex">
-                    <Icon @click="handleSidebarToggle" icon="carbon:close" width="25" height="25" class="w-full cursor-pointer"/>
+                    <Icon @click="handleSidebarToggle" icon="carbon:close" width="25" height="25" class="w-full cursor-pointer" />
                 </div>
             </div> -->
             <nav>
                 <ul class="space-y-1">
                     <li>
                         <RouterLink to="/v2/dashboard" class="flex items-center px-4 py-2 hover:bg-white/10 rounded">
-                            <Icon icon="carbon:chevron-left" width="20" height="20" class="mr-5"/>
+                            <Icon icon="carbon:chevron-left" width="20" height="20" class="mr-5" />
                             Dashboard
                         </RouterLink>
                     </li>
@@ -115,7 +108,7 @@ const currentRole = computed(() => activeMembership.value?.org_role ?? '—');
                         :key="link.to"
                     >
                         <RouterLink :to="link.to" class="flex items-center px-4 py-2 hover:bg-white/10 rounded">
-                            <Icon :icon="link.icon" width="20" height="20" class="mr-5"/>
+                            <Icon :icon="link.icon" width="20" height="20" class="mr-5" />
                             {{ link.label }}
                         </RouterLink>
                     </li>

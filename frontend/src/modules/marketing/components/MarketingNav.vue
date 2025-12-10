@@ -155,7 +155,7 @@ watch(isMenuOpen, (isOpen) => {
             <!-- Display profile button if user is logged in -->
             <!-- authStore.isAuthenticated -->
             <RouterLink v-if="authStore.isAuthenticated" class="hidden justify-end md:flex items-center space-x-2 sm:text-sm" :to="`/v2/dashboard`">
-                <Icon icon="carbon:user-avatar"  width="25" height="25" class="h-full w-full p-2 text-white rounded-full cursor-pointer" />    
+                <Icon icon="carbon:user-avatar" width="25" height="25" class="h-full w-full p-2 text-white rounded-full cursor-pointer" />
             </RouterLink> 
             <div v-else class="hidden justify-end space-x-4 md:flex items-center sm:text-sm">
                 <RouterLink class="text-white hover:text-neutral-400 whitespace-nowrap" to="/v2/auth/login">

@@ -10,8 +10,10 @@ interface Props {
   bgClass?: string; // Tailwind utility classes for background (e.g., 'bg-black')
 }
 
+type VideoElement = globalThis.HTMLVideoElement;
+
 const props = defineProps<Props>();
-const videoRef = ref<HTMLVideoElement | null>(null);
+const videoRef = ref<VideoElement | null>(null);
 const isVisible = ref(false);
 
 onMounted(() => {
@@ -67,7 +69,7 @@ onMounted(() => {
 
     try {
       video.currentTime = start;
-    } catch (_) {
+    } catch {
       // Ignore seek errors
     }
 

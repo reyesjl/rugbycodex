@@ -8,13 +8,13 @@ import bgImg2 from '@/assets/modules/marketing/mission3.jpg';
 </script>
 <template>
   <PageHero
-    titleLabel="Mission"
-    titleText="Transforming Rugby Development with Real World Insight."
+    title-label="Mission"
+    title-text="Transforming Rugby Development with Real World Insight."
   />
 
   <section class="text-white">
     <BackgroundHighlightPhoto
-      :imgSrc="bgImg2" 
+      :img-src="bgImg2" 
     />
   </section>
 
@@ -23,7 +23,7 @@ import bgImg2 from '@/assets/modules/marketing/mission3.jpg';
 
   <section class="bg-white text-white px-4 md:px-8">
     <BackgroundHighlightPhoto
-      :imgSrc="bgImg" 
+      :img-src="bgImg" 
     />
   </section>
 

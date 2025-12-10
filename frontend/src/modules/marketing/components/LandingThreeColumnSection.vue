@@ -2,12 +2,16 @@
 import { Icon } from '@iconify/vue';
 import { ref, onMounted, onBeforeUnmount } from 'vue';
 
-const props = defineProps({
-  title: { type: String, required: true },
-  systemTitle: { type: String, required: true },
-  systemCode: { type: String, required: true },
-  description: { type: String, required: true },
-  icon: { type: String, default: null },
+interface Props {
+  title: string;
+  systemTitle: string;
+  systemCode: string;
+  description: string;
+  icon?: string | null;
+}
+
+withDefaults(defineProps<Props>(), {
+  icon: null,
 });
 
 const headline = ref<HTMLElement | null>(null);
@@ -15,7 +19,7 @@ const col1 = ref<HTMLElement | null>(null);
 const col2 = ref<HTMLElement | null>(null);
 const col3 = ref<HTMLElement | null>(null);
 
-let observer: IntersectionObserver | null = null;
+let observer: globalThis.IntersectionObserver | null = null;
 
 onMounted(() => {
   const items = [headline.value, col1.value, col2.value, col3.value].filter(
@@ -25,7 +29,14 @@ onMounted(() => {
   const targetElement = items[0];
   if (!targetElement) return;
 
-  observer = new IntersectionObserver(
+  if (typeof window === 'undefined' || typeof window.IntersectionObserver !== 'function') {
+    items.forEach((el, i) => {
+      setTimeout(() => el.classList.add('visible'), i * 150);
+    });
+    return;
+  }
+
+  observer = new window.IntersectionObserver(
     (entries) => {
       if (entries[0]?.isIntersecting) {
         items.forEach((el, i) => {

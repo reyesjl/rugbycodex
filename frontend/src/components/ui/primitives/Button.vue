@@ -24,6 +24,10 @@ const props = withDefaults(
     size: "sm",
     disabled: false,
     type: "button",
+    to: undefined,
+    href: undefined,
+    target: "_self",
+    rel: undefined,
   }
 );
 

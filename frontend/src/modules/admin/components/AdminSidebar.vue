@@ -2,10 +2,6 @@
 import { Icon } from '@iconify/vue';
 import { RouterLink } from 'vue-router';
 
-const emit = defineEmits<{
-  (e: 'toggle-sidebar'): void;
-}>();
-
 defineProps<{
   isOpen: boolean;
 }>();
@@ -23,9 +19,6 @@ const adminLinks = [
   { to: '/v2/profile', label: 'Profile', icon: 'carbon:user-profile' },
 ];
 
-// const handleSidebarToggle = () => {
-//   emit('toggle-sidebar');
-// };
 </script>
 
 <template>

@@ -102,7 +102,7 @@ import bgImg from '@/assets/modules/marketing/mission1.jpg';
           :bgClass="'bg-tan/40'"
         /> -->
         <BackgroundHighlightPhoto
-          :imgSrc="bgImg" 
+          :img-src="bgImg" 
         />
 
       <div class="grid grid-cols-1 md:grid-cols-2 items-center pt-10">

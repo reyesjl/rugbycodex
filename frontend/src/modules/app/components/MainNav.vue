@@ -8,7 +8,7 @@ const authStore = useAuthStore();
 const navRef = ref<HTMLElement | null>(null);
     let resizeObserver: globalThis.ResizeObserver | null = null;
 const userMenuRef = ref<HTMLElement | null>(null);
-const avatarButtonRef = ref<HTMLButtonElement | null>(null);
+const avatarButtonRef = ref<HTMLElement | null>(null);
 const menuOpen = ref(false);
 const loggingOut = ref(false);
 
@@ -117,7 +117,7 @@ watch(() => route.fullPath, () => {
             <!-- Left -->
             <div class="flex items-center">
                 <div class="flex">
-                    <Icon @click="handleSidebarToggle" icon="carbon:menu" width="25" height="25" class="mr-5 w-full cursor-pointer"/>
+                    <Icon @click="handleSidebarToggle" icon="carbon:menu" width="25" height="25" class="mr-5 w-full cursor-pointer" />
                 </div>
                 <div class="text-xl select-none">RUGBY<span class="font-semibold">CODEX</span></div>
             </div>
@@ -126,10 +126,10 @@ watch(() => route.fullPath, () => {
             <div class="justify-end">
                 <div class="flex flex-row items-center text-white">
                     <div>
-                        <Icon icon="carbon:search"  width="25" height="25" class="h-full w-full p-2 hover:bg-white/10 rounded-full cursor-pointer" />    
+                        <Icon icon="carbon:search" width="25" height="25" class="h-full w-full p-2 hover:bg-white/10 rounded-full cursor-pointer" />
                     </div>
                     <div>
-                        <Icon icon="carbon:notification"  width="25" height="25" class="h-full w-full p-2 hover:bg-white/10 rounded-full cursor-pointer" />    
+                        <Icon icon="carbon:notification" width="25" height="25" class="h-full w-full p-2 hover:bg-white/10 rounded-full cursor-pointer" />
                     </div>
                     <div v-if="authStore.isAuthenticated" class="relative">
                         <button
