@@ -2,8 +2,6 @@
 import { Icon } from '@iconify/vue';
 import { storeToRefs } from 'pinia';
 import { RouterLink } from 'vue-router';
-import { useProfileStore } from '@/modules/profiles/stores/useProfileStore';
-import type { OrgMembership } from '@/modules/profiles/types';
 
 const emit = defineEmits<{
     (e: 'toggle-sidebar'): void;
@@ -12,13 +10,6 @@ const emit = defineEmits<{
 defineProps<{
     isOpen: boolean;
 }>();
-
-const profileStore = useProfileStore();
-const { memberships, loadingProfile } = storeToRefs(profileStore);
-
-const getOrganizationLink = (membership: OrgMembership) => {
-    return membership.slug ? `/v2/orgs/${membership.slug}` : `/v2/orgs/${membership.org_id}`;
-};
 
 // const handleSidebarToggle = () => {
 //     emit('toggle-sidebar');
