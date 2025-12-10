@@ -8,7 +8,7 @@ const profileStore = useProfileStore();
 const { memberships, loadingProfile } = storeToRefs(profileStore);
 
 const getOrganizationLink = (membership: OrgMembership) => {
-  return membership.slug ? `/v2/organizations/${membership.slug}` : `/v2/organizations/${membership.org_id}`;
+  return membership.slug ? `/v2/orgs/${membership.slug}` : `/v2/orgs/${membership.org_id}`;
 };
 </script>
 

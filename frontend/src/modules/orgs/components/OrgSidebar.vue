@@ -4,6 +4,7 @@ import { storeToRefs } from 'pinia';
 import { computed } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
 import { useActiveOrgStore } from '@/modules/orgs/stores/useActiveOrgStore';
+import { ROLE_ORDER, type MembershipRole } from '@/modules/profiles/types';
 
 const emit = defineEmits<{
         (e: 'toggle-sidebar'): void;
@@ -34,14 +35,30 @@ const navigationLinks = computed(() => {
         return [] as Array<{ label: string; icon: string; to: string }>;
     }
 
-    return [
-        { label: 'Overview', icon: 'carbon:dashboard', to: `${orgBasePath.value}/overview` },
-        { label: 'Vaults', icon: 'carbon:data-enrichment', to: `${orgBasePath.value}/vaults` },
-        { label: 'Media', icon: 'carbon:image', to: `${orgBasePath.value}/media` },
-        { label: 'Narrations', icon: 'carbon:microphone', to: `${orgBasePath.value}/narrations` },
-        { label: 'Members', icon: 'carbon:user-multiple', to: `${orgBasePath.value}/members` },
-        { label: 'Settings', icon: 'carbon:settings', to: `${orgBasePath.value}/settings` },
+    const role = activeMembership.value?.org_role ?? null;
+    const hasAccess = (minRole?: MembershipRole) => {
+        if (!minRole) return true;
+        if (!role) return false;
+        return (ROLE_ORDER[role] ?? Infinity) <= (ROLE_ORDER[minRole] ?? Infinity);
+    };
+
+    const config: Array<{ label: string; icon: string; path: string; minRole?: MembershipRole }> = [
+        { label: 'Overview', icon: 'carbon:dashboard', path: 'overview' },
+        { label: 'Vaults', icon: 'carbon:data-enrichment', path: 'vaults', minRole: 'member' },
+        { label: 'Media', icon: 'carbon:image', path: 'media', minRole: 'member' },
+        { label: 'Narrations', icon: 'carbon:microphone', path: 'narrations', minRole: 'member' },
+        { label: 'Members', icon: 'carbon:user-multiple', path: 'members', minRole: 'staff' },
+        { label: 'Settings', icon: 'carbon:settings', path: 'settings', minRole: 'manager' },
+        { label: 'Admin Tools', icon: 'carbon:tool-kit', path: 'admin', minRole: 'owner' },
     ];
+
+    return config
+        .filter((link) => hasAccess(link.minRole))
+        .map((link) => ({
+            label: link.label,
+            icon: link.icon,
+            to: `${orgBasePath.value}/${link.path}`,
+        }));
 });
 
 const currentOrgName = computed(() => {
