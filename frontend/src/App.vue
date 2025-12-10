@@ -4,6 +4,7 @@ import { RouterView } from 'vue-router';
 import MainLayout from '@/layouts/MainLayout.vue';
 import MinimalLayout from '@/layouts/MinimalLayout.vue';
 import MarketingLayout from '@/layouts/v2/MarketingLayout.vue';
+import AdminLayout from '@/layouts/v2/AdminLayout.vue';
 import AuthLayout from '@/layouts/v2/AuthLayout.vue';
 import AppLayout from '@/layouts/v2/AppLayout.vue';
 import OrgLayout from '@/layouts/v2/OrgLayout.vue';
@@ -21,6 +22,7 @@ const cleanupLegacyLocalStorage = () => {
 };
 
 const layoutComponents = {
+  admin: AdminLayout,
   app: AppLayout,
   main: MainLayout,
   minimal: MinimalLayout,

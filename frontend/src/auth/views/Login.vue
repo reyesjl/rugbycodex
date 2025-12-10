@@ -30,7 +30,7 @@ const redirectPath = () => {
   if (typeof redirect === 'string' && redirect.startsWith('/')) {
     return redirect;
   }
-  return '/dashboard';
+  return '/v2/dashboard';
 };
 
 watch(

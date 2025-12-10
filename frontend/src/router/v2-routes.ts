@@ -139,7 +139,7 @@ export const v2Routes: RouteRecordRaw[] = [
   {
     path: '/v2/admin',
     component: () => import('@/layouts/v2/AdminLayout.vue'),
-    meta: { layout: 'minimal', requiresAuth: true, requiresAdmin: true },
+    meta: { layout: 'admin', requiresAuth: true, requiresAdmin: true },
     children: [
       {
         path: '',

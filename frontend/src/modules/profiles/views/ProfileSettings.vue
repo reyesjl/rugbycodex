@@ -1,12 +1,16 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
+import { useRouter } from 'vue-router';
 import { DISPLAY_NAME_MAX_LENGTH, DISPLAY_NAME_MIN_LENGTH, useAuthStore } from '@/auth/stores/useAuthStore';
 
 const authStore = useAuthStore();
+const router = useRouter();
 const displayName = ref('');
 const saving = ref(false);
 const successMessage = ref('');
 const errorMessage = ref<string | null>(null);
+const loggingOut = ref(false);
+const logoutError = ref<string | null>(null);
 
 const syncFromStore = () => {
   const metadataName = authStore.user?.user_metadata?.name as string | undefined;
@@ -77,6 +81,21 @@ const handleSubmit = async () => {
 
   successMessage.value = 'Display name updated successfully.';
 };
+
+const handleLogout = async () => {
+  if (loggingOut.value) return;
+  loggingOut.value = true;
+  logoutError.value = null;
+  const { error } = await authStore.signOut();
+  loggingOut.value = false;
+
+  if (error) {
+    logoutError.value = error.message ?? 'Unable to sign out right now.';
+    return;
+  }
+
+  router.push('/v2/auth/login');
+};
 </script>
 
 <template>
@@ -126,6 +145,20 @@ const handleSubmit = async () => {
           </p>
         </div>
       </form>
+
+      <div class="mt-10 rounded-2xl border border-neutral-200/70 bg-white/70 p-4 text-center dark:border-neutral-800/70 dark:bg-neutral-900/60">
+        <p class="text-sm text-neutral-600 dark:text-neutral-300">Need to switch accounts?</p>
+        <button
+          type="button"
+          class="mt-3 inline-flex items-center justify-center rounded-2xl border border-rose-300/60 px-5 py-2 text-sm font-semibold uppercase tracking-[0.2em] text-rose-600 transition hover:bg-rose-500/10 disabled:cursor-not-allowed disabled:opacity-60 dark:border-rose-400/50 dark:text-rose-200"
+          @click="handleLogout"
+          :disabled="loggingOut"
+        >
+          <span v-if="loggingOut" class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-rose-200 border-t-transparent dark:border-rose-300"></span>
+          <span>{{ loggingOut ? 'Signing out…' : 'Sign out' }}</span>
+        </button>
+        <p v-if="logoutError" class="mt-2 text-sm text-rose-500 dark:text-rose-300">{{ logoutError }}</p>
+      </div>
     </article>
   </section>
 </template>

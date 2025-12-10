@@ -3,6 +3,7 @@ import { Icon } from '@iconify/vue';
 import { storeToRefs } from 'pinia';
 import { RouterLink } from 'vue-router';
 import { useProfileStore } from '@/modules/profiles/stores/useProfileStore';
+import { useAuthStore } from '@/auth/stores/useAuthStore';
 import type { OrgMembership } from '@/modules/profiles/types';
 
 const emit = defineEmits<{
@@ -14,6 +15,7 @@ defineProps<{
 }>();
 
 const profileStore = useProfileStore();
+const authStore = useAuthStore();
 const { memberships, loadingProfile } = storeToRefs(profileStore);
 
 const getOrganizationLink = (membership: OrgMembership) => {
@@ -103,6 +105,12 @@ const getOrganizationLink = (membership: OrgMembership) => {
                         <RouterLink to="/v2/settings" class="flex items-center px-4 py-2 hover:bg-white/10 rounded">
                             <Icon icon="carbon:settings" width="20" height="20" class="mr-5"/>
                             Settings
+                        </RouterLink>
+                    </li>
+                    <li v-if="authStore.isAdmin" class="mt-5">
+                        <RouterLink to="/v2/admin" class="flex items-center px-4 py-2 text-amber-200 hover:bg-white/10 rounded">
+                            <Icon icon="carbon:police" width="20" height="20" class="mr-5"/>
+                            Admin Console
                         </RouterLink>
                     </li>
                 </ul>
