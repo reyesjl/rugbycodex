@@ -14,7 +14,12 @@ const confirmationRedirectUrl =
 const turnstileToken = ref('');
 const turnstileRequired = ref(false);
 
+const USERNAME_PATTERN = /^[a-z0-9._-]+$/;
+const USERNAME_MIN_LENGTH = 3;
+const USERNAME_MAX_LENGTH = 24;
+
 const form = reactive({
+  username: '',
   name: '',
   email: '',
   password: '',
@@ -62,7 +67,25 @@ const handleSubmit = async () => {
   supabaseError.value = null;
   supabaseMessage.value = null;
 
+  const normalizedUsername = form.username.trim().toLowerCase();
+  if (!normalizedUsername) {
+    supabaseError.value = 'Username is required.';
+    signingUp.value = false;
+    return;
+  }
+
+  if (
+    normalizedUsername.length < USERNAME_MIN_LENGTH ||
+    normalizedUsername.length > USERNAME_MAX_LENGTH ||
+    !USERNAME_PATTERN.test(normalizedUsername)
+  ) {
+    supabaseError.value = `Username must be ${USERNAME_MIN_LENGTH}-${USERNAME_MAX_LENGTH} characters and use lowercase letters, numbers, dots, underscores, or hyphens.`;
+    signingUp.value = false;
+    return;
+  }
+
   const metadata = {
+    username: normalizedUsername,
     name: form.name,
     phone: form.phone,
     organization: form.organization,
@@ -135,6 +158,22 @@ const handleSubmit = async () => {
               spellcheck="false"
               inputmode="text"
             />
+          </div>
+
+          <div class="space-y-2">
+            <label for="username" class="text-sm font-medium text-neutral-700 dark:text-neutral-200">Username</label>
+            <input
+              id="username"
+              v-model="form.username"
+              type="text"
+              autocomplete="username"
+              required
+              class="block w-full rounded-2xl border border-neutral-200/70 bg-white/80 px-4 py-3 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/30 dark:border-neutral-700/70 dark:bg-neutral-900/60 dark:text-neutral-50 dark:placeholder:text-neutral-500 dark:focus:ring-neutral-100/30"
+              placeholder="choose-a-handle"
+            />
+            <p class="text-xs text-neutral-500 dark:text-neutral-400">
+              {{ USERNAME_MIN_LENGTH }}-{{ USERNAME_MAX_LENGTH }} characters, lowercase letters, numbers, dots, underscores, or hyphens.
+            </p>
           </div>
 
           <div class="space-y-2">

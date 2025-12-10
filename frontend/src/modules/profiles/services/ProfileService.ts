@@ -31,6 +31,7 @@ import type { ProfileDetail, ProfileWithMembership, UserProfile } from '@/module
 
 type ProfileRow = {
   id: string;
+  username: string;
   name: string;
   xp: number | null;
   creation_time: string | Date | null;
@@ -44,12 +45,12 @@ type MembershipRelationRow = {
   organization: { id: string; name: string | null; slug: string | null } | null;
 };
 
-type ProfileWithMembershipViewRow = ProfileRow & {
+type OrgMemberJoinedRow = {
   org_id: string;
-  org_name: string | null;
-  slug: string | null;
-  org_role: MembershipRole;
-  join_date: string | Date | null;
+  role: MembershipRole;
+  joined_at: string | Date | null;
+  profiles: ProfileRow | null;
+  organizations: { id: string; name: string | null; slug: string | null } | null;
 };
 
 /** Shape used by the XP leaderboard cards and tables. */
@@ -77,6 +78,7 @@ function asDate(value: string | Date | null, context: string): Date {
 function toUserProfile(row: ProfileRow): UserProfile {
   return {
     id: row.id,
+    username: row.username,
     name: row.name,
     xp: row.xp,
     creation_time: asDate(row.creation_time, 'profile creation'),
@@ -94,21 +96,20 @@ function toMembership(row: MembershipRelationRow): OrgMembership {
   };
 }
 
-function toProfileWithMembership(row: any): ProfileWithMembership {
-  return {
-    // UserProfile fields
-    id: row.id,
-    name: row.name,
-    xp: row.xp,
-    creation_time: new Date(row.creation_time),
-    role: row.role,
+function toProfileWithMembership(row: OrgMemberJoinedRow): ProfileWithMembership {
+  if (!row.profiles) {
+    throw new Error('Membership row missing profile data.');
+  }
 
-    // OrgMembership fields
-    org_id: row.org_id,
-    org_name: row.org_name,
-    slug: row.slug,
-    org_role: row.org_role,
-    join_date: new Date(row.join_date),
+  const user = toUserProfile(row.profiles);
+
+  return {
+    ...user,
+    org_id: row.org_id ?? row.organizations?.id ?? 'unknown',
+    org_name: row.organizations?.name ?? 'Unknown',
+    slug: row.organizations?.slug ?? 'unknown',
+    org_role: row.role,
+    join_date: asDate(row.joined_at, 'membership join'),
   };
 }
 
@@ -162,6 +163,23 @@ export const profileService = {
     },
 
     /**
+     * Retrieves a profile using the globally unique username.
+     * @param username Handle provided by the profile owner.
+     */
+    async getByUsername(username: string): Promise<UserProfile> {
+      const normalized = username.trim().toLowerCase();
+      if (!normalized) {
+        throw new Error('Username is required.');
+      }
+
+      const row = await getSingle<ProfileRow>(
+        supabase.from('profiles').select('*').eq('username', normalized).single(),
+        `Profile not found with username: ${normalized}`
+      );
+      return toUserProfile(row);
+    },
+
+    /**
      * Returns a profile along with all organization memberships.
      * @param profileId Profile UUID.
      * @throws Error when profile is missing.
@@ -173,6 +191,7 @@ export const profileService = {
           .select(
             `
             id,
+            username,
             name,
             xp,
             creation_time,
@@ -192,6 +211,52 @@ export const profileService = {
           .eq('id', profileId)
           .single(),
         `Profile not found with id: ${profileId}`
+      );
+
+      const memberships = (row.memberships ?? []).map((membership) => toMembership(membership));
+
+      return {
+        ...toUserProfile(row),
+        memberships,
+      };
+    },
+
+    /**
+     * Returns a profile plus memberships using the username handle.
+     * @param username Handle provided by the profile owner.
+     */
+    async getWithMembershipsByUsername(username: string): Promise<ProfileDetail> {
+      const normalized = username.trim().toLowerCase();
+      if (!normalized) {
+        throw new Error('Username is required.');
+      }
+
+      const row = await getSingle<ProfileRow & { memberships?: MembershipRelationRow[] }>(
+        supabase
+          .from('profiles')
+          .select(
+            `
+            id,
+            username,
+            name,
+            xp,
+            creation_time,
+            role,
+            memberships:org_members (
+              org_id,
+              role,
+              joined_at,
+              organization:organizations (
+                id,
+                name,
+                slug
+              )
+            )
+          `
+          )
+          .eq('username', normalized)
+          .single(),
+        `Profile not found with username: ${normalized}`
       );
 
       const memberships = (row.memberships ?? []).map((membership) => toMembership(membership));
@@ -232,8 +297,30 @@ export const profileService = {
      * @param orgId Organization UUID.
      */
     async listByOrganization(orgId: string): Promise<ProfileWithMembership[]> {
-      const rows = await getList<ProfileWithMembershipViewRow>(
-        supabase.from('profile_with_membership').select('*').eq('org_id', orgId)
+      const rows = await getList<OrgMemberJoinedRow>(
+        supabase
+          .from('org_members')
+          .select(
+            `
+            org_id,
+            role,
+            joined_at,
+            profiles:profiles (
+              id,
+              username,
+              name,
+              xp,
+              creation_time,
+              role
+            ),
+            organizations:organizations (
+              id,
+              name,
+              slug
+            )
+          `
+          )
+          .eq('org_id', orgId)
       );
       return rows.map(toProfileWithMembership);
     },

@@ -15,7 +15,11 @@ const filteredProfiles = computed(() => {
   let result = [...profileList.profiles.value];
   if (searchQuery.value.trim()) {
     const query = searchQuery.value.toLowerCase();
-    result = result.filter((profile) => profile.name.toLowerCase().includes(query));
+    result = result.filter((profile) => {
+      const username = profile.username?.toLowerCase() ?? '';
+      const display = profile.name?.toLowerCase() ?? '';
+      return username.includes(query) || display.includes(query);
+    });
   }
   return result;
 });
@@ -72,14 +76,14 @@ onMounted(async () => {
         >
           <RouterLink
             class="group flex items-center justify-between py-3 px-4 transition hover:bg-white hover:text-black"
-            :to="`/v2/profile/${profile.id}`"
+               :to="profile.username ? `/v2/profile/${profile.username}` : `/v2/profile/${profile.id}`"
           >
             <div>
               <p class="font-semibold group-hover:text-black">
-                {{ profile.name }}
+                {{ profile.username ? `@${profile.username}` : profile.name }}
               </p>
               <p class="text-sm text-white/70 group-hover:text-black/70">
-                {{ profile.role }} · XP {{ profile.xp ?? '—' }} · Joined {{ formatDate(profile.creation_time) }}
+                {{ profile.name }} · {{ profile.role }} · XP {{ profile.xp ?? '—' }} · Joined {{ formatDate(profile.creation_time) }}
               </p>
             </div>
             <span class="text-xs uppercase tracking-wide group-hover:text-black">View profile</span>

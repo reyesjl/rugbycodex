@@ -11,6 +11,8 @@ export type ProfileRole = 'admin' | 'moderator' | 'user';
 export type UserProfile = {
   /** Unique identifier for the profile record. */
   id: string;
+  /** Globally unique username/handle. */
+  username: string;
   /** Display name chosen by the user. */
   name: string;
   /** Accumulated experience points, if any. */

@@ -13,17 +13,41 @@ const authStore = useAuthStore();
 const profile = ref<ProfileDetail | null>(null);
 const loading = ref(false);
 const error = ref<string | null>(null);
-const lastLoadedId = ref<string | null>(null);
+const lastLoadedKey = ref<string | null>(null);
 
-const routeProfileId = computed(() => {
-  const value = route.params.profileId;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const rawRouteKey = computed(() => {
+  const value = route.params.username;
   if (Array.isArray(value)) {
     return value[0];
   }
-  return typeof value === 'string' && value.length ? value : null;
+  return typeof value === 'string' && value.length ? value.trim() : null;
 });
 
-const activeProfileId = computed(() => routeProfileId.value ?? authStore.user?.id ?? null);
+const routeUsername = computed(() => {
+  const value = rawRouteKey.value;
+  if (!value) return null;
+  if (UUID_PATTERN.test(value)) return null;
+  return value.toLowerCase();
+});
+
+const routeProfileId = computed(() => {
+  const value = rawRouteKey.value;
+  if (!value) return null;
+  if (UUID_PATTERN.test(value)) {
+    return value;
+  }
+  return null;
+});
+
+const authUsername = computed(() => {
+  const metadata = authStore.user?.user_metadata as { username?: string } | undefined;
+  const handle = metadata?.username;
+  return typeof handle === 'string' && handle.length ? handle.toLowerCase() : null;
+});
+
+const authProfileId = computed(() => authStore.user?.id ?? null);
 
 const canEditProfile = computed(() => {
   if (!profile.value || !authStore.user) return false;
@@ -35,6 +59,11 @@ const formattedCreatedAt = computed(() => {
   return new Intl.DateTimeFormat(undefined, { month: 'long', day: 'numeric', year: 'numeric' }).format(
     profile.value.creation_time,
   );
+});
+
+const profileHandle = computed(() => {
+  if (!profile.value?.username) return null;
+  return `@${profile.value.username}`;
 });
 
 const orgMembershipCount = computed(() => profile.value?.memberships.length ?? 0);
@@ -49,8 +78,13 @@ const formatDate = (date: Date) => new Intl.DateTimeFormat(undefined, {
   year: 'numeric',
 }).format(date);
 
-const loadProfile = async (profileId: string) => {
-  if (lastLoadedId.value === profileId && profile.value) {
+type ProfileSource =
+  | { type: 'username'; value: string }
+  | { type: 'id'; value: string };
+
+const loadProfile = async (source: ProfileSource) => {
+  const cacheKey = `${source.type}:${source.value}`;
+  if (lastLoadedKey.value === cacheKey && profile.value) {
     return;
   }
 
@@ -58,8 +92,11 @@ const loadProfile = async (profileId: string) => {
   error.value = null;
 
   try {
-    profile.value = await profileService.profiles.getWithMemberships(profileId);
-    lastLoadedId.value = profileId;
+    profile.value =
+      source.type === 'username'
+        ? await profileService.profiles.getWithMembershipsByUsername(source.value)
+        : await profileService.profiles.getWithMemberships(source.value);
+    lastLoadedKey.value = cacheKey;
   } catch (err) {
     profile.value = null;
     error.value = err instanceof Error ? err.message : 'Unable to load profile right now.';
@@ -69,19 +106,35 @@ const loadProfile = async (profileId: string) => {
 };
 
 watch(
-  activeProfileId,
-  (profileId) => {
-    if (!profileId) {
-      profile.value = null;
-      error.value = 'Profile unavailable.';
+  [routeUsername, routeProfileId, authProfileId],
+  ([username, profileId, fallbackId]) => {
+    if (username) {
+      loadProfile({ type: 'username', value: username });
       return;
     }
-    loadProfile(profileId);
+
+    if (profileId) {
+      loadProfile({ type: 'id', value: profileId });
+      return;
+    }
+
+    if (fallbackId) {
+      loadProfile({ type: 'id', value: fallbackId });
+      return;
+    }
+
+    profile.value = null;
+    error.value = 'Profile unavailable.';
   },
   { immediate: true },
 );
 
 const jumpToOwnProfile = () => {
+  if (authUsername.value) {
+    router.push(`/v2/profile/${authUsername.value}`);
+    return;
+  }
+
   if (authStore.user?.id) {
     router.push('/v2/profile');
   }
@@ -112,9 +165,11 @@ const jumpToOwnProfile = () => {
         <p class="text-xs uppercase tracking-[0.3em] text-white/60">Profile</p>
         <div class="mt-2 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 class="text-4xl font-semibold">{{ profile.name }}</h1>
+            <h1 class="text-4xl font-semibold">
+              {{ profileHandle ?? profile.name }}
+            </h1>
             <p class="text-white/70">
-              {{ profile.role }} · Joined {{ formattedCreatedAt }}
+              {{ profile.name }} · {{ profile.role }} · Joined {{ formattedCreatedAt }}
             </p>
           </div>
           <div class="flex flex-wrap gap-3">

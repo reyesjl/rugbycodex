@@ -21,7 +21,7 @@ const profileStore = useProfileStore();
 const { profile } = storeToRefs(profileStore);
 const { variant, primaryMembership, membershipCount } = useDashboardVariant();
 
-const profileName = computed(() => profile.value?.name ?? 'there');
+const profileName = computed(() => profile.value?.username ?? profile.value?.name ?? 'there');
 
 const orgLinks = computed<OrgLinks | null>(() => {
   const membership = primaryMembership.value;

@@ -35,6 +35,7 @@ const formatJoinDate = (date: Date) => new Intl.DateTimeFormat(undefined, {
   day: 'numeric',
   year: 'numeric',
 }).format(date);
+const memberHandle = (member: ProfileWithMembership) => member.username ? `@${member.username}` : member.name;
 
 const canManageMembers = computed(() => {
   if (isAdmin.value) return true;
@@ -75,7 +76,7 @@ const handleRoleUpdate = async (member: ProfileWithMembership, nextRole: Members
   try {
     await profileService.memberships.setRole(member.id, orgId.value, nextRole);
     member.org_role = nextRole;
-    roleSuccess.value = `${member.name} is now ${formatRole(nextRole)}.`;
+    roleSuccess.value = `${memberHandle(member)} is now ${formatRole(nextRole)}.`;
   } catch (err) {
     roleError.value = err instanceof Error ? err.message : 'Unable to update role right now.';
   } finally {
@@ -83,9 +84,9 @@ const handleRoleUpdate = async (member: ProfileWithMembership, nextRole: Members
   }
 };
 
-const handleRoleSelect = (member: ProfileWithMembership, event: Event) => {
-  const target = event.target as HTMLSelectElement | null;
-  if (!target) return;
+const handleRoleSelect = (member: ProfileWithMembership, event: unknown) => {
+  const target = (event as { target?: { value?: string } } | null)?.target;
+  if (!target || typeof target.value !== 'string') return;
   handleRoleUpdate(member, target.value as MembershipRole);
 };
 
@@ -144,15 +145,19 @@ watch(
         >
           <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <p class="font-semibold">{{ member.name }}</p>
+              <p class="font-semibold">{{ memberHandle(member) }}</p>
               <p class="text-sm text-white/70">
-                {{ formatRole(member.org_role) }} · Joined {{ formatJoinDate(member.join_date) }}
+                {{ member.name }} · {{ formatRole(member.org_role) }} · Joined {{ formatJoinDate(member.join_date) }}
               </p>
             </div>
             <div class="flex flex-wrap items-center gap-3">
               <RouterLink
                 class="text-xs uppercase tracking-wide text-white/70 transition hover:text-white"
-                :to="member.id ? `/v2/profile/${member.id}` : '/v2/profile'"
+                :to="member.username
+                  ? `/v2/profile/${member.username}`
+                  : member.id
+                    ? `/v2/profile/${member.id}`
+                    : '/v2/profile'"
               >
                 View profile
               </RouterLink>
