@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { Icon } from '@iconify/vue';
 import { storeToRefs } from 'pinia';
 import { RouterLink } from 'vue-router';
 import { useAuthStore } from '@/auth/stores/useAuthStore';
@@ -7,7 +8,7 @@ import { useActiveOrgStore } from '@/modules/orgs/stores/useActiveOrgStore';
 import { orgService } from '@/modules/orgs/services/orgService';
 import { profileService } from '@/modules/profiles/services/ProfileService';
 import BatchActionBar, { type BatchAction } from '@/components/ui/tables/BatchActionBar.vue';
-import { MEMBERSHIP_ROLES, ROLE_ORDER, type MembershipRole, type ProfileWithMembership } from '@/modules/profiles/types';
+import { MEMBERSHIP_ROLES, ROLE_ORDER, type MembershipRole, type ProfileWithMembership, type UserProfile } from '@/modules/profiles/types';
 
 const props = defineProps<{ slug?: string | string[] }>();
 
@@ -34,6 +35,41 @@ const selectedMemberIds = ref<string[]>([]);
 const disabledMemberMap = ref<Record<string, boolean>>({});
 const isBatchProcessing = ref(false);
 const roleLadder = MEMBERSHIP_ROLES.map((role) => role.value);
+const showRoleFilter = ref(false);
+const activeRoleFilters = ref<MembershipRole[]>([]);
+const roleFilterDraft = ref<Set<MembershipRole>>(new Set());
+const roleFilterContainer = ref<HTMLElement | null>(null);
+const showInviteModal = ref(false);
+const inviteIdentifier = ref('');
+const inviteRole = ref<MembershipRole>('member');
+const inviteError = ref<string | null>(null);
+const inviteLoading = ref(false);
+const inviteSuggestions = ref<UserProfile[]>([]);
+const inviteSuggestionsLoading = ref(false);
+const inviteSuggestionIndex = ref(-1);
+const inviteSuggestionsError = ref<string | null>(null);
+
+const inviteSearchTerm = computed(() => {
+  const trimmed = inviteIdentifier.value.trim();
+  return trimmed.startsWith('@') ? trimmed.slice(1) : trimmed;
+});
+const inviteSearchTermNormalized = computed(() => inviteSearchTerm.value.toLowerCase());
+const inviteSearchTermIsUuid = computed(() => uuidPattern.test(inviteSearchTerm.value));
+const inviteSearchEligible = computed(
+  () => showInviteModal.value && inviteSearchTerm.value.length >= 2 && !inviteSearchTermIsUuid.value
+);
+const showInviteSuggestionsHint = computed(
+  () => showInviteModal.value && inviteSearchTerm.value.length > 0 && inviteSearchTerm.value.length < 2 && !inviteSearchTermIsUuid.value
+);
+const showInviteSuggestionDropdown = computed(
+  () => inviteSearchEligible.value && (inviteSuggestionsLoading.value || inviteSuggestions.value.length > 0 || !!inviteSuggestionsError.value)
+);
+const suggestionStatusMessage = computed(() => {
+  if (inviteSuggestionsLoading.value) return 'Searching…';
+  if (inviteSuggestionsError.value) return inviteSuggestionsError.value;
+  if (!inviteSuggestions.value.length) return 'No usernames match.';
+  return '';
+});
 
 const formatRole = (role: string) => role.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
 const formatJoinDate = (date: Date) => new Intl.DateTimeFormat(undefined, {
@@ -72,14 +108,19 @@ const loadMembers = async (slug: string) => {
 
 const filteredMembers = computed(() => {
   if (!memberSearch.value.trim()) {
-    return [...members.value];
+    return members.value.filter((member) => {
+      if (!activeRoleFilters.value.length) return true;
+      return activeRoleFilters.value.includes(member.org_role);
+    });
   }
   const query = memberSearch.value.toLowerCase();
   return members.value.filter((member) => {
     const handle = memberHandle(member).toLowerCase();
     const name = member.name.toLowerCase();
     const role = member.org_role.toLowerCase();
-    return handle.includes(query) || name.includes(query) || role.includes(query);
+    const matchesSearch = handle.includes(query) || name.includes(query) || role.includes(query);
+    const matchesRole = !activeRoleFilters.value.length || activeRoleFilters.value.includes(member.org_role);
+    return matchesSearch && matchesRole;
   });
 });
 
@@ -91,6 +132,221 @@ const allSelectableSelected = computed(
   () => selectableMembers.value.length > 0 && selectableMembers.value.every((member) => isMemberSelected(member.id))
 );
 const selectionCount = computed(() => selectedMemberIds.value.length);
+const roleFilterActive = computed(() => activeRoleFilters.value.length > 0);
+const roleFilterButtonLabel = computed(() => {
+  if (!roleFilterActive.value) {
+    return 'Filter roles';
+  }
+  if (activeRoleFilters.value.length === 1) {
+    const role = MEMBERSHIP_ROLES.find((option) => option.value === activeRoleFilters.value[0]);
+    return role ? `Filter: ${role.label}` : 'Filter roles';
+  }
+  return `Filter (${activeRoleFilters.value.length})`;
+});
+const canSubmitInvite = computed(() => Boolean(inviteIdentifier.value.trim()) && !inviteLoading.value);
+
+const syncRoleFilterDraft = () => {
+  roleFilterDraft.value = new Set(activeRoleFilters.value);
+};
+
+const toggleRoleFilterPanel = () => {
+  if (showRoleFilter.value) {
+    syncRoleFilterDraft();
+    showRoleFilter.value = false;
+  } else {
+    syncRoleFilterDraft();
+    showRoleFilter.value = true;
+  }
+};
+
+const closeRoleFilter = () => {
+  showRoleFilter.value = false;
+  syncRoleFilterDraft();
+};
+
+const toggleDraftRole = (role: MembershipRole) => {
+  const draft = new Set(roleFilterDraft.value);
+  if (draft.has(role)) {
+    draft.delete(role);
+  } else {
+    draft.add(role);
+  }
+  roleFilterDraft.value = draft;
+};
+
+const resetRoleFilters = () => {
+  activeRoleFilters.value = [];
+  roleFilterDraft.value = new Set();
+  showRoleFilter.value = false;
+};
+
+const applyRoleFilters = () => {
+  activeRoleFilters.value = Array.from(roleFilterDraft.value);
+  showRoleFilter.value = false;
+};
+
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+let inviteSuggestionDebounce: ReturnType<typeof setTimeout> | null = null;
+let inviteSuggestionRequestId = 0;
+
+const clearInviteSuggestions = () => {
+  inviteSuggestions.value = [];
+  inviteSuggestionsLoading.value = false;
+  inviteSuggestionsError.value = null;
+  inviteSuggestionIndex.value = -1;
+};
+
+const fetchInviteSuggestions = async (term: string) => {
+  inviteSuggestionRequestId += 1;
+  const requestId = inviteSuggestionRequestId;
+  inviteSuggestionsLoading.value = true;
+  inviteSuggestionsError.value = null;
+  try {
+    const results = await profileService.profiles.searchByUsername(term, 6);
+    if (requestId !== inviteSuggestionRequestId) return;
+    inviteSuggestions.value = results;
+  } catch (err) {
+    if (requestId !== inviteSuggestionRequestId) return;
+    inviteSuggestions.value = [];
+    inviteSuggestionsError.value = err instanceof Error ? err.message : 'Unable to search usernames.';
+  } finally {
+    if (requestId === inviteSuggestionRequestId) {
+      inviteSuggestionsLoading.value = false;
+    }
+  }
+};
+
+const scheduleInviteSuggestionsFetch = (term: string) => {
+  if (inviteSuggestionDebounce) {
+    clearTimeout(inviteSuggestionDebounce);
+  }
+  inviteSuggestionDebounce = setTimeout(() => {
+    fetchInviteSuggestions(term);
+  }, 220);
+};
+
+watch([inviteSearchTermNormalized, inviteSearchEligible], ([term]) => {
+  inviteSuggestionIndex.value = -1;
+  if (!inviteSearchEligible.value) {
+    clearInviteSuggestions();
+    return;
+  }
+  scheduleInviteSuggestionsFetch(term);
+});
+
+watch(showInviteModal, (isOpen) => {
+  if (!isOpen && inviteSuggestionDebounce) {
+    clearTimeout(inviteSuggestionDebounce);
+    inviteSuggestionDebounce = null;
+  }
+});
+
+const resetInviteForm = () => {
+  inviteIdentifier.value = '';
+  inviteRole.value = 'member';
+  inviteError.value = null;
+  clearInviteSuggestions();
+};
+
+const handleInviteMember = () => {
+  if (!canManageMembers.value) return;
+  resetInviteForm();
+  showInviteModal.value = true;
+};
+
+const closeInviteModal = () => {
+  if (inviteLoading.value) return;
+  showInviteModal.value = false;
+  clearInviteSuggestions();
+};
+
+const resolveInviteProfile = async (identifier: string) => {
+  const trimmed = identifier.trim();
+  if (!trimmed) {
+    throw new Error('Enter a username or UUID.');
+  }
+  const cleaned = trimmed.startsWith('@') ? trimmed.slice(1) : trimmed;
+  if (uuidPattern.test(cleaned)) {
+    return profileService.profiles.getById(cleaned);
+  }
+  return profileService.profiles.getByUsername(cleaned);
+};
+
+const handleInviteSubmit = async () => {
+  if (!normalizedSlug.value) {
+    inviteError.value = 'Organization slug is missing.';
+    return;
+  }
+  inviteLoading.value = true;
+  inviteError.value = null;
+  try {
+    const profile = await resolveInviteProfile(inviteIdentifier.value);
+    await profileService.memberships.addByOrgSlug(profile.id, normalizedSlug.value, inviteRole.value);
+    await loadMembers(normalizedSlug.value);
+    roleSuccess.value = `${profile.name} added as ${formatRole(inviteRole.value)}.`;
+    showInviteModal.value = false;
+    resetInviteForm();
+    clearInviteSuggestions();
+  } catch (err) {
+    inviteError.value = err instanceof Error ? err.message : 'Unable to invite member right now.';
+  } finally {
+    inviteLoading.value = false;
+  }
+};
+
+const selectInviteSuggestion = (profile: UserProfile) => {
+  inviteIdentifier.value = `@${profile.username}`;
+  clearInviteSuggestions();
+};
+
+const moveInviteSuggestionHighlight = (direction: 1 | -1) => {
+  if (!inviteSuggestions.value.length) return;
+  const nextIndex = (inviteSuggestionIndex.value + direction + inviteSuggestions.value.length) % inviteSuggestions.value.length;
+  inviteSuggestionIndex.value = nextIndex;
+};
+
+const handleInviteInputKeydown = (event: globalThis.KeyboardEvent) => {
+  if (!showInviteSuggestionDropdown.value) return;
+  if (event.key === 'ArrowDown') {
+    event.preventDefault();
+    moveInviteSuggestionHighlight(1);
+  } else if (event.key === 'ArrowUp') {
+    event.preventDefault();
+    moveInviteSuggestionHighlight(-1);
+  } else if (event.key === 'Enter') {
+    if (inviteSuggestionIndex.value >= 0) {
+      const suggestion = inviteSuggestions.value[inviteSuggestionIndex.value];
+      if (suggestion) {
+        event.preventDefault();
+        selectInviteSuggestion(suggestion);
+      }
+    }
+  } else if (event.key === 'Escape') {
+    event.preventDefault();
+    clearInviteSuggestions();
+  }
+};
+
+const handleGlobalClick = (event: MouseEvent) => {
+  if (!showRoleFilter.value) return;
+  const container = roleFilterContainer.value;
+  if (container && !container.contains(event.target as Node)) {
+    closeRoleFilter();
+  }
+};
+
+onMounted(() => {
+  document.addEventListener('click', handleGlobalClick);
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleGlobalClick);
+  if (inviteSuggestionDebounce) {
+    clearTimeout(inviteSuggestionDebounce);
+    inviteSuggestionDebounce = null;
+  }
+});
 
 const toggleMemberSelection = (memberId: string) => {
   if (!canSelectMembers.value || isMemberDisabled(memberId)) return;
@@ -121,10 +377,6 @@ const toggleMemberDisable = (memberId: string) => {
   if (nextState) {
     selectedMemberIds.value = selectedMemberIds.value.filter((id) => id !== memberId);
   }
-};
-
-const handleInviteMember = () => {
-  console.info('Invite member');
 };
 
 const handleRoleUpdate = async (member: ProfileWithMembership, nextRole: MembershipRole) => {
@@ -320,14 +572,72 @@ watch(
               class="w-full rounded border border-white/20 bg-black/40 py-3 pl-4 pr-4 text-white placeholder:text-white/40 focus:border-white focus:outline-none"
             />
           </div>
-          <button
-            v-if="canManageMembers"
-            type="button"
-            class="flex items-center gap-2 rounded border border-white/30 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-white hover:text-black"
-            @click="handleInviteMember"
-          >
-            Invite member
-          </button>
+          <div class="flex flex-wrap items-center justify-end gap-2">
+            <div class="relative" ref="roleFilterContainer">
+              <button
+                type="button"
+                class="flex items-center gap-2 rounded border px-4 py-2 text-xs font-semibold uppercase tracking-wide transition"
+                :class="roleFilterActive
+                  ? 'border-white bg-white text-black'
+                  : 'border-white/30 text-white hover:bg-white hover:text-black'"
+                aria-haspopup="true"
+                :aria-expanded="showRoleFilter"
+                @click="toggleRoleFilterPanel"
+              >
+                <Icon icon="carbon:filter" class="h-4 w-4" />
+                {{ roleFilterButtonLabel }}
+              </button>
+              <transition name="filter-panel">
+                <div
+                  v-if="showRoleFilter"
+                  class="absolute right-0 top-full z-30 mt-2 w-64 rounded border border-white/15 bg-black/90 p-4 text-sm text-white shadow-2xl"
+                  @click.stop
+                >
+                  <p class="text-xs uppercase tracking-wide text-white/60">Filter options</p>
+                  <div class="mt-3 space-y-2">
+                    <label
+                      v-for="role in MEMBERSHIP_ROLES"
+                      :key="role.value"
+                      class="flex items-center gap-2 text-sm text-white"
+                    >
+                      <input
+                        type="checkbox"
+                        class="h-4 w-4 rounded border-white/40 bg-transparent"
+                        :checked="roleFilterDraft.has(role.value)"
+                        @change="() => toggleDraftRole(role.value)"
+                      />
+                      {{ role.label }}
+                    </label>
+                  </div>
+                  <div class="mt-4 flex items-center gap-2">
+                    <button
+                      type="button"
+                      class="flex-1 rounded border border-white/30 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-white/10"
+                      @click="resetRoleFilters"
+                    >
+                      Reset filters
+                    </button>
+                    <button
+                      type="button"
+                      class="flex-1 rounded border border-blue-500 bg-blue-600 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-blue-500"
+                      @click="applyRoleFilters"
+                    >
+                      Apply filter
+                    </button>
+                  </div>
+                </div>
+              </transition>
+            </div>
+
+            <button
+              v-if="canManageMembers"
+              type="button"
+              class="flex items-center gap-2 rounded border border-white/30 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-white hover:text-black"
+              @click="handleInviteMember"
+            >
+              Invite member
+            </button>
+          </div>
         </div>
 
         <div v-if="roleSuccess || roleError" class="space-y-2">
@@ -465,4 +775,129 @@ watch(
       />
     </section>
   </div>
+
+  <teleport to="body">
+    <transition name="invite-modal">
+      <div
+        v-if="showInviteModal"
+        class="fixed inset-0 z-40 flex items-center justify-center bg-black/70 px-4"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Invite member to organization"
+        @click.self="closeInviteModal"
+      >
+        <div class="w-full max-w-lg overflow-hidden rounded-lg border border-white/10 bg-[#0f1016] text-white shadow-2xl">
+          <header class="border-b border-white/10 px-6 py-4">
+            <p class="text-xs uppercase tracking-wide text-white/50">Invite member</p>
+            <h2 class="text-xl font-semibold">Add someone to {{ orgName || 'this org' }}</h2>
+          </header>
+          <div class="space-y-4 px-6 py-5">
+            <div class="space-y-1">
+              <label class="text-xs font-semibold uppercase tracking-wide text-white/60" for="invite-identifier">
+                Username or UUID
+              </label>
+              <div class="relative">
+                <input
+                  id="invite-identifier"
+                  v-model="inviteIdentifier"
+                  type="text"
+                  autocomplete="off"
+                  placeholder="@handle or 00000000-0000-0000-0000-000000000000"
+                  class="w-full rounded border border-white/20 bg-black/40 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-white focus:outline-none"
+                  @keydown="handleInviteInputKeydown"
+                />
+                <div
+                  v-if="showInviteSuggestionDropdown"
+                  class="absolute left-0 right-0 top-full z-40 mt-1 overflow-hidden rounded border border-white/15 bg-black/90 text-sm shadow-2xl"
+                >
+                  <p v-if="suggestionStatusMessage" class="px-3 py-2 text-white/60">
+                    {{ suggestionStatusMessage }}
+                  </p>
+                  <button
+                    v-for="(profile, index) in inviteSuggestions"
+                    v-else
+                    :key="profile.id"
+                    type="button"
+                    class="flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition hover:bg-white/10"
+                    :class="inviteSuggestionIndex === index ? 'bg-white/10' : ''"
+                    @mousedown.prevent="selectInviteSuggestion(profile)"
+                    @mouseenter="inviteSuggestionIndex = index"
+                  >
+                    <span class="font-semibold">@{{ profile.username }}</span>
+                    <span class="text-xs text-white/60">{{ profile.name }}</span>
+                  </button>
+                </div>
+              </div>
+              <p v-if="showInviteSuggestionsHint" class="text-xs text-white/50">
+                Type at least 2 characters to search usernames.
+              </p>
+            </div>
+            <div class="space-y-1">
+              <label class="text-xs font-semibold uppercase tracking-wide text-white/60" for="invite-role">
+                Role
+              </label>
+              <select
+                id="invite-role"
+                v-model="inviteRole"
+                class="w-full rounded border border-white/20 bg-black/40 px-3 py-2 text-sm text-white focus:border-white focus:outline-none"
+              >
+                <option
+                  v-for="role in MEMBERSHIP_ROLES"
+                  :key="role.value"
+                  :value="role.value"
+                >
+                  {{ role.label }}
+                </option>
+              </select>
+            </div>
+            <p v-if="inviteError" class="text-sm text-rose-300">
+              {{ inviteError }}
+            </p>
+          </div>
+          <div class="flex justify-end gap-3 border-t border-white/10 bg-black/40 px-6 py-4">
+            <button
+              type="button"
+              class="rounded border border-white/30 px-5 py-2 text-sm font-semibold uppercase tracking-wide text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+              :disabled="inviteLoading"
+              @click="closeInviteModal"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              class="rounded border border-blue-500 bg-blue-600 px-5 py-2 text-sm font-semibold uppercase tracking-wide text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+              :disabled="!canSubmitInvite"
+              @click="handleInviteSubmit"
+            >
+              Add member
+            </button>
+          </div>
+        </div>
+      </div>
+    </transition>
+  </teleport>
 </template>
+
+<style scoped>
+.filter-panel-enter-active,
+.filter-panel-leave-active {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.filter-panel-enter-from,
+.filter-panel-leave-to {
+  opacity: 0;
+  transform: translateY(-4px) scale(0.98);
+}
+
+.invite-modal-enter-active,
+.invite-modal-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.invite-modal-enter-from,
+.invite-modal-leave-to {
+  opacity: 0;
+  transform: scale(0.98);
+}
+</style>

@@ -238,15 +238,15 @@ onBeforeUnmount(() => {
             class="w-full rounded border border-white/20 bg-black/40 py-3 pl-12 pr-4 text-white placeholder:text-white/40 focus:border-white focus:outline-none"
           />
         </div>
-        <div class="flex flex-wrap items-center gap-2">
-          <button
+        <div class="flex flex-wrap items-center justify-end gap-2">
+          <!-- <button
             type="button"
             class="flex items-center gap-2 rounded border border-white/30 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-white hover:text-black"
             @click="handleInviteProfile"
           >
             <Icon icon="mdi:account-plus" class="h-4 w-4" />
-            Invite profile
-          </button>
+            Invite new
+          </button> -->
           <RefreshButton size="sm" :refresh="handleRefresh" :loading="profileList.loading.value" title="Refresh profiles" />
         </div>
       </div>
