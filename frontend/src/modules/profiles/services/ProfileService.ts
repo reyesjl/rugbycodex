@@ -46,11 +46,11 @@ type MembershipRelationRow = {
 };
 
 type OrgMemberJoinedRow = {
-  org_id: string;
+  org_id: string | null;
   role: MembershipRole;
   joined_at: string | Date | null;
-  profiles: ProfileRow | null;
-  organizations: { id: string; name: string | null; slug: string | null } | null;
+  profiles: ProfileRow | ProfileRow[] | null;
+  organizations: { id: string; name: string | null; slug: string | null } | { id: string; name: string | null; slug: string | null }[] | null;
 };
 
 /** Shape used by the XP leaderboard cards and tables. */
@@ -96,18 +96,30 @@ function toMembership(row: MembershipRelationRow): OrgMembership {
   };
 }
 
+function normalizeProfile(row: OrgMemberJoinedRow['profiles']): ProfileRow | null {
+  if (!row) return null;
+  return Array.isArray(row) ? row[0] ?? null : row;
+}
+
+function normalizeOrganization(row: OrgMemberJoinedRow['organizations']) {
+  if (!row) return null;
+  return Array.isArray(row) ? row[0] ?? null : row;
+}
+
 function toProfileWithMembership(row: OrgMemberJoinedRow): ProfileWithMembership {
-  if (!row.profiles) {
+  const profileRow = normalizeProfile(row.profiles);
+  if (!profileRow) {
     throw new Error('Membership row missing profile data.');
   }
 
-  const user = toUserProfile(row.profiles);
+  const user = toUserProfile(profileRow);
+  const organization = normalizeOrganization(row.organizations);
 
   return {
     ...user,
-    org_id: row.org_id ?? row.organizations?.id ?? 'unknown',
-    org_name: row.organizations?.name ?? 'Unknown',
-    slug: row.organizations?.slug ?? 'unknown',
+    org_id: row.org_id ?? organization?.id ?? 'unknown',
+    org_name: organization?.name ?? 'Unknown',
+    slug: organization?.slug ?? 'unknown',
     org_role: row.role,
     join_date: asDate(row.joined_at, 'membership join'),
   };
