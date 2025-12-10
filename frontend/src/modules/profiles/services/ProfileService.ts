@@ -106,6 +106,10 @@ function normalizeOrganization(row: OrgMemberJoinedRow['organizations']) {
   return Array.isArray(row) ? row[0] ?? null : row;
 }
 
+function normalizeUsername(username: string | null | undefined): string {
+  return username?.trim().toLowerCase() ?? '';
+}
+
 function toProfileWithMembership(row: OrgMemberJoinedRow): ProfileWithMembership {
   const profileRow = normalizeProfile(row.profiles);
   if (!profileRow) {
@@ -279,6 +283,37 @@ export const profileService = {
       };
     },
 
+    async updateProfile(profileId: string, updates: { name?: string; username?: string }): Promise<UserProfile> {
+      if (!profileId) {
+        throw new Error('Profile id is required.');
+      }
+
+      const payload: Partial<Pick<ProfileRow, 'name' | 'username'>> = {};
+
+      if (typeof updates.name === 'string') {
+        payload.name = updates.name;
+      }
+
+      if (typeof updates.username === 'string') {
+        const normalized = normalizeUsername(updates.username);
+        if (!normalized) {
+          throw new Error('Username is required.');
+        }
+        payload.username = normalized;
+      }
+
+      if (Object.keys(payload).length === 0) {
+        throw new Error('No profile fields were provided for update.');
+      }
+
+      const row = await getSingle<ProfileRow>(
+        supabase.from('profiles').update(payload).eq('id', profileId).select('*').single(),
+        `Profile not found with id: ${profileId}`
+      );
+
+      return toUserProfile(row);
+    },
+
     /**
      * Searches profiles by username prefix for typeahead experiences.
      * Requires at least two characters to avoid full table scans.
@@ -299,6 +334,33 @@ export const profileService = {
       );
 
       return rows.map(toUserProfile);
+    },
+
+    /**
+     * Checks if a username is available, optionally excluding a given profile id.
+     */
+    async isUsernameAvailable(username: string, excludeProfileId?: string): Promise<boolean> {
+      const normalized = normalizeUsername(username);
+      if (!normalized) {
+        throw new Error('Username is required.');
+      }
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('username', normalized)
+        .limit(1);
+
+      if (error) {
+        throw error;
+      }
+
+      const match = data?.[0];
+      if (!match) {
+        return true;
+      }
+
+      return excludeProfileId ? match.id === excludeProfileId : false;
     },
   },
 
