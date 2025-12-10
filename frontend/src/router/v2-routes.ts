@@ -90,7 +90,7 @@ export const v2Routes: RouteRecordRaw[] = [
   {
     path: '/v2/orgs/:slug',
     component: () => import('@/layouts/v2/OrgLayout.vue'),
-    meta: { layout: 'minimal', requiresAuth: true },
+    meta: { layout: 'org', requiresAuth: true },
     children: [
       {
         path: 'overview',

@@ -3,6 +3,7 @@ import { Icon } from '@iconify/vue';
 import { onBeforeUnmount, onMounted, ref } from 'vue';
 import { useAuthStore } from '@/auth/stores/useAuthStore';
 
+const authStore = useAuthStore();
 const navRef = ref<HTMLElement | null>(null);
     let resizeObserver: globalThis.ResizeObserver | null = null;
 
@@ -80,9 +81,9 @@ onBeforeUnmount(() => {
                     <div>
                         <Icon icon="carbon:notification"  width="25" height="25" class="h-full w-full p-2 hover:bg-white/10 rounded-full cursor-pointer" />    
                     </div>
-                    <div>
+                    <RouterLink v-if="authStore.isAuthenticated" :to="`/v2/dashboard`">
                         <Icon icon="carbon:user-avatar"  width="25" height="25" class="h-full w-full p-2 hover:bg-white/10 rounded-full cursor-pointer" />    
-                    </div>      
+                    </RouterLink>
                 </div>
             </div>
         </div>

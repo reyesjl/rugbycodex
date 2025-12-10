@@ -6,6 +6,7 @@ import MinimalLayout from '@/layouts/MinimalLayout.vue';
 import MarketingLayout from '@/layouts/v2/MarketingLayout.vue';
 import AuthLayout from '@/layouts/v2/AuthLayout.vue';
 import AppLayout from '@/layouts/v2/AppLayout.vue';
+import OrgLayout from '@/layouts/v2/OrgLayout.vue';
 
 const isDarkMode = ref(false);
 const legacyStorageKeys = ['betaRequests.csv'];
@@ -25,6 +26,7 @@ const layoutComponents = {
   minimal: MinimalLayout,
   marketing: MarketingLayout,
   auth: AuthLayout,
+  org: OrgLayout,
 } as const;
 
 const resolveLayout = (layout?: string) => {
@@ -32,6 +34,7 @@ const resolveLayout = (layout?: string) => {
   if (layout === 'marketing') return layoutComponents.marketing;
   if (layout === 'auth') return layoutComponents.auth;
   if (layout === 'app') return layoutComponents.app;
+  if (layout === 'org') return layoutComponents.org;
   return layoutComponents.main;
 };
 
