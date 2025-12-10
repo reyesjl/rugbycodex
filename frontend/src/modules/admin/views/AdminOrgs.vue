@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Icon } from '@iconify/vue';
 import { useRouter } from 'vue-router';
 import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
@@ -7,10 +7,13 @@ import RefreshButton from '@/components/RefreshButton.vue';
 import BatchActionBar, { type BatchAction } from '@/components/ui/tables/BatchActionBar.vue';
 import { useOrganizationList } from '@/modules/orgs/composables/useOrganizationsList';
 import { orgService } from '@/modules/orgs/services/orgService';
+import { useProfilesList } from '@/modules/profiles/composables/useProfileList';
 import type { Organization } from '@/modules/orgs/types';
+import type { UserProfile } from '@/modules/profiles/types';
 
 const router = useRouter();
 const orgList = useOrganizationList();
+const profileList = useProfilesList();
 
 const orgDeleteError = ref<string | null>(null);
 const searchQuery = ref('');
@@ -20,9 +23,11 @@ const isDeleting = ref(false);
 const selectedOrgIds = ref<string[]>([]);
 const disabledOrgMap = ref<Record<string, boolean>>({});
 const isBatchProcessing = ref(false);
+const copyStatus = ref<Record<string, 'idle' | 'copied' | 'error'>>({});
+const copyResetTimers = new Map<string, number>();
 
 const handleRefresh = async () => {
-  await orgList.loadOrganizations();
+  await Promise.all([orgList.loadOrganizations(), profileList.loadProfiles()]);
 };
 
 const handleCreateOrg = () => {
@@ -46,6 +51,39 @@ const allSelectableSelected = computed(
   () => selectableOrgs.value.length > 0 && selectableOrgs.value.every((org) => isOrgSelected(org.id))
 );
 const selectionCount = computed(() => selectedOrgIds.value.length);
+
+const ownerProfilesById = computed<Record<string, UserProfile>>(() =>
+  profileList.profiles.value.reduce<Record<string, UserProfile>>((acc, profile) => {
+    acc[profile.id] = profile;
+    return acc;
+  }, {})
+);
+
+const getOwnerProfile = (ownerId: string | null) => {
+  if (!ownerId) return null;
+  return ownerProfilesById.value[ownerId] ?? null;
+};
+
+const ownerProfilePath = (ownerId: string | null) => {
+  if (!ownerId) return null;
+  const profile = getOwnerProfile(ownerId);
+  return profile?.username ? `/v2/profile/${profile.username}` : `/v2/profile/${ownerId}`;
+};
+
+const ownerPrimaryLabel = (ownerId: string | null) => {
+  const profile = getOwnerProfile(ownerId);
+  if (profile?.name) return profile.name;
+  if (profile?.username) return `@${profile.username}`;
+  return ownerId ?? '—';
+};
+
+const ownerSecondaryLabel = (ownerId: string | null) => {
+  const profile = getOwnerProfile(ownerId);
+  if (profile?.name && profile?.username) {
+    return `@${profile.username}`;
+  }
+  return null;
+};
 
 const handleSelectAll = (checked: boolean) => {
   selectedOrgIds.value = checked ? selectableOrgs.value.map((org) => org.id) : [];
@@ -75,6 +113,61 @@ const toggleOrgDisable = (orgId: string) => {
   if (nextState) {
     selectedOrgIds.value = selectedOrgIds.value.filter((id) => id !== orgId);
   }
+};
+
+const updateCopyStatus = (orgId: string, status: 'idle' | 'copied' | 'error') => {
+  copyStatus.value = { ...copyStatus.value, [orgId]: status };
+  if (typeof window === 'undefined') return;
+  if (status === 'idle') {
+    const timer = copyResetTimers.get(orgId);
+    if (timer) {
+      window.clearTimeout(timer);
+      copyResetTimers.delete(orgId);
+    }
+    return;
+  }
+  const duration = status === 'copied' ? 1800 : 3000;
+  const existing = copyResetTimers.get(orgId);
+  if (existing) {
+    window.clearTimeout(existing);
+  }
+  const timer = window.setTimeout(() => {
+    copyResetTimers.delete(orgId);
+    copyStatus.value = { ...copyStatus.value, [orgId]: 'idle' };
+  }, duration);
+  copyResetTimers.set(orgId, timer);
+};
+
+const copyOrgIdToClipboard = async (orgId: string) => {
+  try {
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(orgId);
+    } else if (typeof document !== 'undefined') {
+      const textarea = document.createElement('textarea');
+      textarea.value = orgId;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+    } else {
+      throw new Error('Clipboard API is unavailable.');
+    }
+    updateCopyStatus(orgId, 'copied');
+    console.info('Copied organization ID:', orgId);
+  } catch (error) {
+    console.error('Unable to copy organization ID', error);
+    updateCopyStatus(orgId, 'error');
+  }
+};
+
+const copyLabel = (orgId: string) => {
+  const status = copyStatus.value[orgId];
+  if (status === 'copied') return 'Copied';
+  if (status === 'error') return 'Retry copy';
+  return 'Copy ID';
 };
 
 const openDeleteModal = (org: Organization) => {
@@ -172,14 +265,19 @@ watch(
 );
 
 onMounted(async () => {
-  await orgList.loadOrganizations();
+  await Promise.all([orgList.loadOrganizations(), profileList.loadProfiles()]);
+});
+
+onBeforeUnmount(() => {
+  if (typeof window === 'undefined') return;
+  copyResetTimers.forEach((timer) => window.clearTimeout(timer));
+  copyResetTimers.clear();
 });
 </script>
 
 <template>
   <section class="container-lg space-y-6 py-5 text-white">
     <header class="space-y-1">
-      <p class="text-sm uppercase tracking-wide text-white/60">Admin · Organizations</p>
       <div>
         <h1 class="text-3xl font-semibold">Organization Directory</h1>
         <p class="text-white/70">Browse, create, or clean up org workspaces.</p>
@@ -206,7 +304,7 @@ onMounted(async () => {
             <Icon icon="mdi:plus" class="h-4 w-4" />
             New org
           </button>
-          <RefreshButton :refresh="handleRefresh" :loading="orgList.loading.value" title="Refresh organizations" />
+          <RefreshButton size="sm" :refresh="handleRefresh" :loading="orgList.loading.value" title="Refresh organizations" />
         </div>
       </div>
 
@@ -274,7 +372,21 @@ onMounted(async () => {
                 </td>
                 <td class="px-4 py-3">
                   <p class="font-semibold">{{ org.name }}</p>
-                  <p class="text-xs text-white/60">Owner: {{ org.owner ?? '—' }}</p>
+                  <p class="text-xs text-white/60">
+                    Owner:
+                    <RouterLink
+                      v-if="ownerProfilePath(org.owner)"
+                      :to="ownerProfilePath(org.owner)!"
+                      class="ml-1 font-semibold text-white/80 underline-offset-2 hover:text-white"
+                      @click.stop
+                    >
+                      {{ ownerPrimaryLabel(org.owner) }}
+                    </RouterLink>
+                    <span v-else class="ml-1">{{ ownerPrimaryLabel(org.owner) }}</span>
+                    <span v-if="ownerSecondaryLabel(org.owner)" class="ml-1 text-white/40">
+                      {{ ownerSecondaryLabel(org.owner) }}
+                    </span>
+                  </p>
                 </td>
                 <td class="px-4 py-3 font-mono text-sm">
                   {{ org.slug }}
@@ -301,6 +413,22 @@ onMounted(async () => {
                     >
                       View
                     </RouterLink>
+                    <RouterLink
+                      v-if="ownerProfilePath(org.owner)"
+                      :to="ownerProfilePath(org.owner)!"
+                      class="text-xs font-semibold uppercase tracking-wide text-white/70 transition hover:text-white"
+                      @click.stop
+                    >
+                      Owner
+                    </RouterLink>
+                    <button
+                      type="button"
+                      class="text-xs font-semibold uppercase tracking-wide text-white/70 transition hover:text-white"
+                      :title="`Copy ID ${org.id}`"
+                      @click.stop="() => copyOrgIdToClipboard(org.id)"
+                    >
+                      {{ copyLabel(org.id) }}
+                    </button>
                     <button
                       type="button"
                       class="text-xs font-semibold uppercase tracking-wide text-white/70 transition hover:text-white"

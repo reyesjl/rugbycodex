@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Icon } from '@iconify/vue';
 import RefreshButton from '@/components/RefreshButton.vue';
 import BatchActionBar, { type BatchAction } from '@/components/ui/tables/BatchActionBar.vue';
@@ -15,6 +15,8 @@ const showMessageModal = ref(false);
 const messageBody = ref('');
 const messageError = ref<string | null>(null);
 const canSendMessage = computed(() => Boolean(messageBody.value.trim()) && !isBatchProcessing.value);
+const copyStatus = ref<Record<string, 'idle' | 'copied' | 'error'>>({});
+const copyResetTimers = new Map<string, number>();
 
 const formatDate = (date?: Date | null) => {
   if (!date) return '—';
@@ -34,7 +36,8 @@ const filteredProfiles = computed<UserProfile[]>(() => {
   return source.filter((profile) => {
     const username = profile.username?.toLowerCase() ?? '';
     const display = profile.name?.toLowerCase() ?? '';
-    return username.includes(query) || display.includes(query);
+    const id = profile.id.toLowerCase();
+    return username.includes(query) || display.includes(query) || id.includes(query);
   });
 });
 
@@ -79,6 +82,62 @@ const toggleProfileDisable = (profileId: string) => {
   if (nextState) {
     selectedProfileIds.value = selectedProfileIds.value.filter((id) => id !== profileId);
   }
+};
+
+const updateCopyStatus = (profileId: string, status: 'idle' | 'copied' | 'error') => {
+  copyStatus.value = { ...copyStatus.value, [profileId]: status };
+  if (typeof window === 'undefined') return;
+  if (status === 'idle') {
+    const timer = copyResetTimers.get(profileId);
+    if (timer) {
+      window.clearTimeout(timer);
+      copyResetTimers.delete(profileId);
+    }
+    return;
+  }
+  const duration = status === 'copied' ? 1800 : 3000;
+  const existing = copyResetTimers.get(profileId);
+  if (existing) {
+    window.clearTimeout(existing);
+  }
+  const timer = window.setTimeout(() => {
+    copyResetTimers.delete(profileId);
+    copyStatus.value = { ...copyStatus.value, [profileId]: 'idle' };
+  }, duration);
+  copyResetTimers.set(profileId, timer);
+};
+
+const copyProfileIdToClipboard = async (profileId: string) => {
+  const text = profileId;
+  try {
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+    } else if (typeof document !== 'undefined') {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+    } else {
+      throw new Error('Clipboard API is not available in this environment.');
+    }
+    updateCopyStatus(profileId, 'copied');
+    console.info('Copied profile ID to clipboard:', profileId);
+  } catch (error) {
+    console.error('Unable to copy profile ID', error);
+    updateCopyStatus(profileId, 'error');
+  }
+};
+
+const copyLabel = (profileId: string) => {
+  const state = copyStatus.value[profileId];
+  if (state === 'copied') return 'Copied';
+  if (state === 'error') return 'Retry copy';
+  return 'Copy ID';
 };
 
 const handleInviteProfile = () => {
@@ -151,11 +210,16 @@ watch(selectionCount, (count) => {
 onMounted(async () => {
   await profileList.loadProfiles();
 });
+
+onBeforeUnmount(() => {
+  if (typeof window === 'undefined') return;
+  copyResetTimers.forEach((timer) => window.clearTimeout(timer));
+  copyResetTimers.clear();
+});
 </script>
 
 <template>
   <section class="container-lg space-y-6 py-5 text-white">
-      <p class="text-xs uppercase tracking-wide text-white/60">Admin / Directory</p>
     <header class="space-y-1">
       <div>
         <h1 class="text-3xl font-semibold">Profiles</h1>
@@ -183,7 +247,7 @@ onMounted(async () => {
             <Icon icon="mdi:account-plus" class="h-4 w-4" />
             Invite profile
           </button>
-          <RefreshButton :refresh="handleRefresh" :loading="profileList.loading.value" title="Refresh profiles" />
+          <RefreshButton size="sm" :refresh="handleRefresh" :loading="profileList.loading.value" title="Refresh profiles" />
         </div>
       </div>
 
@@ -281,6 +345,14 @@ onMounted(async () => {
                     >
                       View
                     </RouterLink>
+                    <button
+                      type="button"
+                      class="text-xs font-semibold uppercase tracking-wide text-white/70 transition hover:text-white"
+                      :title="`Copy ID ${profile.id}`"
+                      @click.stop="() => copyProfileIdToClipboard(profile.id)"
+                    >
+                      {{ copyLabel(profile.id) }}
+                    </button>
                     <button
                       type="button"
                       class="text-xs font-semibold uppercase tracking-wide text-white/70 transition hover:text-white"
