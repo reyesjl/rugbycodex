@@ -2,7 +2,7 @@
 import { ref, onMounted, watch } from 'vue';
 import { RouterView } from 'vue-router';
 import MainLayout from '@/layouts/MainLayout.vue';
-import MinimalLayout from '@/layouts/MinimalLayout.vue';
+import NullLayout from '@/layouts/v2/NullLayout.vue';
 import MarketingLayout from '@/layouts/v2/MarketingLayout.vue';
 import AdminLayout from '@/layouts/v2/AdminLayout.vue';
 import AuthLayout from '@/layouts/v2/AuthLayout.vue';
@@ -25,14 +25,14 @@ const layoutComponents = {
   admin: AdminLayout,
   app: AppLayout,
   main: MainLayout,
-  minimal: MinimalLayout,
+  null: NullLayout,
   marketing: MarketingLayout,
   auth: AuthLayout,
   org: OrgLayout,
 } as const;
 
 const resolveLayout = (layout?: string) => {
-  if (layout === 'minimal') return layoutComponents.minimal;
+  if (layout === 'null') return layoutComponents.null;
   if (layout === 'marketing') return layoutComponents.marketing;
   if (layout === 'auth') return layoutComponents.auth;
   if (layout === 'app') return layoutComponents.app;

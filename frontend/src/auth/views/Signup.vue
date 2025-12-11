@@ -3,6 +3,7 @@ import { reactive, ref, computed, watch, nextTick } from 'vue';
 import { RouterLink, useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
 import { useAuthStore } from '@/auth/stores/useAuthStore';
+import { profileService } from '@/modules/profiles/services/ProfileService';
 import TurnstileVerification from '@/components/TurnstileVerification.vue';
 const authStore = useAuthStore();
 const router = useRouter();
@@ -84,6 +85,20 @@ const handleSubmit = async () => {
     return;
   }
 
+  try {
+    const available = await profileService.profiles.isUsernameAvailable(normalizedUsername);
+    if (!available) {
+      supabaseError.value = 'That username is already taken. Please choose another.';
+      signingUp.value = false;
+      return;
+    }
+  } catch (error) {
+    console.error('Failed to verify username availability', error);
+    supabaseError.value = 'Unable to verify username availability. Please try again.';
+    signingUp.value = false;
+    return;
+  }
+
   const metadata = {
     username: normalizedUsername,
     name: form.name,
@@ -112,7 +127,7 @@ const handleSubmit = async () => {
     supabaseMessage.value = 'Your account is ready. We will redirect you to the dashboard.';
     submissionLogged.value = true;
     await nextTick();
-    await router.push({ name: 'DashboardOverview' });
+    await router.push({ name: 'V2Dashboard' });
     signingUp.value = false;
     return;
   }

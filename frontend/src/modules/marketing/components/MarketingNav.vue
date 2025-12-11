@@ -127,27 +127,27 @@ watch(isMenuOpen, (isOpen) => {
         ref="navRef"
     >
         <div class="container-lg grid grid-cols-[auto_1fr_auto] items-center py-5">
-            <RouterLink class="brand-name text-xl text-white hover:text-neutral-400" to="/v2/marketing">
+            <RouterLink class="brand-name text-xl text-white hover:text-neutral-400" to="/">
                 RUGBY<span class="font-semibold">CODEX</span>
             </RouterLink>
 
             <div class="hidden justify-center md:flex md:gap-8 sm:text-sm">
-                <NavLink to="/v2/marketing">
+                <NavLink to="/">
                     Home
                 </NavLink>
-                <NavLink to="/v2/marketing/coaches">
+                <NavLink to="/coaches">
                     Coaches
                 </NavLink>
-                <NavLink to="/v2/marketing/players">
+                <NavLink to="/players">
                     Players
                 </NavLink>
-                <NavLink to="/v2/marketing/unions">
+                <NavLink to="/unions">
                     Unions
                 </NavLink>
                 <!-- <NavLink to="/v2/marketing/inside">
                     Inside the Codex
                 </NavLink> -->
-                <NavLink to="/v2/marketing/mission">
+                <NavLink to="/mission">
                     Mission
                 </NavLink>
             </div>
@@ -183,7 +183,7 @@ watch(isMenuOpen, (isOpen) => {
             @click.self="closeMenu"
         >
             <div class="container-lg grid grid-cols-[auto_1fr_auto] items-center w-full py-5">
-                <RouterLink class="brand-name text-xl dark:text-white" to="/v2/marketing">
+                <RouterLink class="brand-name text-xl dark:text-white" to="/">
                     RUGBY<span class="font-semibold">CODEX</span>
                 </RouterLink>
 
@@ -202,28 +202,28 @@ watch(isMenuOpen, (isOpen) => {
             <div class="flex flex-col pt-10 space-y-6 px-5 text-2xl capitalize">
                 <RouterLink
                     class="hover:text-neutral-500 text-white w-fit"
-                    to="/v2/marketing"
+                    to="/"
                     @click="closeMenu"
                 >
                     Home
                 </RouterLink>
                 <RouterLink
                     class="hover:text-neutral-500 text-white w-fit"
-                    to="/v2/marketing/coaches"
+                    to="/coaches"
                     @click="closeMenu"
                 >
                     Coaches
                 </RouterLink>
                 <RouterLink
                     class="hover:text-neutral-500 text-white w-fit"
-                    to="/v2/marketing/players"
+                    to="/players"
                     @click="closeMenu"
                 >
                     Players
                 </RouterLink>
                 <RouterLink
                     class="hover:text-neutral-500 text-white w-fit"
-                    to="/v2/marketing/unions"
+                    to="/unions"
                     @click="closeMenu"
                 >
                     Unions
@@ -237,7 +237,7 @@ watch(isMenuOpen, (isOpen) => {
                 </RouterLink> -->
                 <RouterLink
                     class="hover:text-neutral-500 text-white w-fit"
-                    to="/v2/marketing/mission"
+                    to="/mission"
                     @click="closeMenu"
                 >mission</RouterLink>
 

@@ -1,7 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import pinia from '@/lib/pinia';
 import { useAuthStore } from '@/auth/stores/useAuthStore';
-import { adminRoutes } from '@/router/admin';
 import { v2Routes } from '@/router/v2-routes';
 
 const router = createRouter({
@@ -24,127 +23,59 @@ const router = createRouter({
     return { top: 0, left: 0 }
   },
   routes: [
-    {
-      path: '/',
-      name: 'Overview',
-      component: () => import('@/views/Overview.vue'),
-    },
-    {
-      path: '/narrations',
-      name: 'Narrations',
-      component: () => import('@/views/Narrations.vue'),
-    },
-    {
-      path: '/releases',
-      name: 'Releases',
-      component: () => import('@/views/Releases.vue'),
-    },
-    {
-      path: '/inside',
-      name: 'InsideTheCodex',
-      component: () => import('@/views/Inside.vue'),
-    },
-    {
-      path: '/codexui',
-      name: 'CodexUI',
-      component: () => import('@/views/CodexUI.vue'),
-    },
-    {
-      path: '/inside/:slug',
-      name: 'InsideArticle',
-      component: () => import('@/views/InsideArticle.vue'),
-    },
-    {
-      path: '/vaults',
-      name: 'Vaults',
-      component: () => import('@/views/Vaults.vue'),
-    },
-    {
-      path: '/about',
-      name: 'About',
-      component: () => import('@/views/About.vue'),
-    },
+    ...v2Routes,
     {
       path: '/login',
-      name: 'Login',
-      component: () => import('@/auth/views/Login.vue'),
-      meta: { layout: 'minimal', guestOnly: true },
-    },
-    {
-      path: '/reset-password',
-      name: 'ResetPassword',
-      component: () => import('@/auth/views/ResetPassword.vue'),
-      meta: { layout: 'minimal', guestOnly: true },
-    },
-    {
-      path: '/reset-password/update',
-      name: 'ResetPasswordUpdate',
-      component: () => import('@/auth/views/UpdatePassword.vue'),
-      meta: { layout: 'minimal' },
+      redirect: { name: 'V2Login' },
     },
     {
       path: '/signup',
-      name: 'Signup',
-      component: () => import('@/auth/views/Signup.vue'),
-      meta: { layout: 'minimal', guestOnly: true },
+      redirect: { name: 'V2Signup' },
+    },
+    {
+      path: '/dashboard',
+      redirect: { name: 'V2Dashboard' },
+    },
+    {
+      path: '/organizations/:orgSlug',
+      redirect: (to) => ({
+        name: 'V2OrgOverview',
+        params: { slug: String(to.params.orgSlug) },
+      }),
+    },
+    {
+      path: '/admin',
+      redirect: { name: 'V2AdminOverview' },
     },
     {
       path: '/confirm-email',
       name: 'ConfirmEmail',
       component: () => import('@/auth/views/ConfirmEmail.vue'),
-      meta: { layout: 'minimal' },
+      meta: { layout: 'null' },
     },
     {
-      path: '/dashboard',
-      component: () => import('@/modules/profiles/views/v1/Dashboard.vue'),
-      meta: { requiresAuth: true },
-      name: 'Dashboard',
-      children: [
-        {
-          path: '',
-          name: 'DashboardOverview',
-          component: () => import('@/modules/profiles/views/v1/dashboard/Overview.vue'),
-        },
-        {
-          path: 'account',
-          name: 'DashboardAccount',
-          component: () => import('@/modules/profiles/views/v1/dashboard/Account.vue'),
-        },
-        {
-          path: 'memberships',
-          name: 'DashboardMemberships',
-          component: () => import('@/modules/profiles/views/v1/dashboard/OrgMemberships.vue'),
-        },
-      ],
+      path: '/reset-password',
+      name: 'ResetPassword',
+      component: () => import('@/auth/views/ResetPassword.vue'),
+      meta: { layout: 'null', guestOnly: true },
     },
     {
-      path: '/settings',
-      name: 'Settings',
-      component: () => import('@/views/Settings.vue'),
-      meta: { requiresAuth: true },
+      path: '/reset-password/update',
+      name: 'ResetPasswordUpdate',
+      component: () => import('@/auth/views/UpdatePassword.vue'),
+      meta: { layout: 'null' },
     },
-    ...adminRoutes,
-    {
-      path: '/organizations/:orgSlug',
-      name: 'OrganizationDetail',
-      component: () => import('@/modules/orgs/views/v1/OrganizationDashboard.vue'),
-      meta: { requiresAuth: true },
-      props: true,
-    },
-    ...v2Routes,
     {
       path: '/:pathMatch(.*)*',
       name: 'NotFound',
       component: () => import('@/views/404.vue'),
-      meta: { layout: 'minimal' },
+      meta: { layout: 'null' },
     },
   ],
 });
 
 router.beforeEach(async (to) => {
   const authStore = useAuthStore(pinia);
-
-  const userDashboardRoutes = ['Dashboard', 'DashboardOverview', 'DashboardAccount'];
 
   if ((to.meta.requiresAuth || to.meta.requiresAdmin) && !authStore.isAuthenticated) {
     return {
@@ -157,24 +88,14 @@ router.beforeEach(async (to) => {
 
   if (to.meta.guestOnly && authStore.isAuthenticated) {
     return {
-      name: 'DashboardOverview',
+      name: 'V2Dashboard',
     };
   }
 
   if (to.meta.requiresAdmin && !authStore.isAdmin) {
     return {
-      name: 'DashboardOverview',
+      name: 'V2Dashboard',
     };
-  }
-
-  // Redirect admins away from the user dashboard routes
-  if (
-    authStore.isAuthenticated &&
-    authStore.isAdmin &&
-    typeof to.name === 'string' &&
-    userDashboardRoutes.includes(to.name)
-  ) {
-    return { name: 'AdminOverview' };
   }
 
   return true;

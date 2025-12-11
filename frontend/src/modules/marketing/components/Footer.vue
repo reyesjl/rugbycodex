@@ -7,12 +7,11 @@
         <div class="space-y-4">
           <h2 class="tracking-wide text-neutral-100">Explore</h2>
           <nav class="flex flex-col gap-2 text-neutral-300">
-            <RouterLink class="transition-colors hover:text-white" to="/v2/marketing">Home</RouterLink>
-            <RouterLink class="transition-colors hover:text-white" to="/v2/marketing/coaches">Coaches</RouterLink>
-            <RouterLink class="transition-colors hover:text-white" to="/v2/marketing/players">Players</RouterLink>
-            <RouterLink class="transition-colors hover:text-white" to="/v2/marketing/unions">Unions</RouterLink>
-            <RouterLink class="transition-colors hover:text-white" to="/v2/marketing/unions">Inside the Codex</RouterLink>
-            <RouterLink class="transition-colors hover:text-white" to="/v2/marketing/unions">Mission</RouterLink>
+            <RouterLink class="transition-colors hover:text-white" to="/">Home</RouterLink>
+            <RouterLink class="transition-colors hover:text-white" to="/coaches">Coaches</RouterLink>
+            <RouterLink class="transition-colors hover:text-white" to="/players">Players</RouterLink>
+            <RouterLink class="transition-colors hover:text-white" to="/unions">Unions</RouterLink>
+            <RouterLink class="transition-colors hover:text-white" to="/mission">Mission</RouterLink>
           </nav>
         </div>
 

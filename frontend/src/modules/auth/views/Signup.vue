@@ -3,6 +3,7 @@ import { reactive, ref, computed, watch, nextTick } from 'vue';
 import { RouterLink, useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
 import { useAuthStore } from '@/auth/stores/useAuthStore';
+import { profileService } from '@/modules/profiles/services/ProfileService';
 import TurnstileVerification from '@/components/TurnstileVerification.vue';
 import bgImg from '@/assets/modules/auth/headingley.jpg';
 import { useStaggeredFade } from '@/composables/useStaggeredFade';
@@ -18,7 +19,12 @@ const turnstileRequired = ref(false);
 const { register: registerFadeItem } = useStaggeredFade();
 import AuthNav from '../components/AuthNav.vue';
 
+const USERNAME_PATTERN = /^[a-z0-9._-]+$/;
+const USERNAME_MIN_LENGTH = 3;
+const USERNAME_MAX_LENGTH = 24;
+
 const form = reactive({
+  username: '',
   name: '',
   email: '',
   password: '',
@@ -36,6 +42,14 @@ const passwordMismatch = computed(
   () => Boolean(form.password) && Boolean(form.confirmPassword) && form.password !== form.confirmPassword,
 );
 const showPasswordMismatch = computed(() => Boolean(form.confirmPassword?.trim()) && passwordMismatch.value);
+const usernameStatus = reactive({
+  checking: false,
+  available: false,
+  message: '',
+  dirty: false,
+});
+const usernameCheckToken = ref(0);
+let usernameCheckTimeout: ReturnType<typeof setTimeout> | null = null;
 
 watch(
   () => [form.password, form.confirmPassword],
@@ -43,6 +57,68 @@ watch(
     if (supabaseError.value === 'Passwords do not match.' && !passwordMismatch.value) {
       supabaseError.value = null;
     }
+  },
+);
+
+const normalizedUsername = computed(() => form.username.trim().toLowerCase());
+const usernamePatternValid = computed(() => {
+  const value = normalizedUsername.value;
+  if (!value) return false;
+  return (
+    value.length >= USERNAME_MIN_LENGTH &&
+    value.length <= USERNAME_MAX_LENGTH &&
+    USERNAME_PATTERN.test(value)
+  );
+});
+
+watch(
+  () => normalizedUsername.value,
+  (next) => {
+    usernameStatus.dirty = Boolean(next);
+    usernameStatus.available = false;
+    usernameStatus.message = '';
+
+    if (!next) {
+      usernameStatus.checking = false;
+      usernameCheckToken.value++;
+      if (usernameCheckTimeout) {
+        clearTimeout(usernameCheckTimeout);
+        usernameCheckTimeout = null;
+      }
+      return;
+    }
+
+    if (!usernamePatternValid.value) {
+      usernameStatus.checking = false;
+      usernameStatus.message = `Use ${USERNAME_MIN_LENGTH}-${USERNAME_MAX_LENGTH} lowercase letters, numbers, dots, underscores, or hyphens.`;
+      return;
+    }
+
+    const token = ++usernameCheckToken.value;
+    usernameStatus.checking = true;
+    if (usernameCheckTimeout) {
+      clearTimeout(usernameCheckTimeout);
+    }
+    usernameCheckTimeout = setTimeout(async () => {
+      try {
+        const available = await profileService.profiles.isUsernameAvailable(next);
+        if (token !== usernameCheckToken.value) return;
+        usernameStatus.available = available;
+        usernameStatus.message = available
+          ? 'Username is available.'
+          : 'That username is already taken.';
+      } catch (error) {
+        if (token !== usernameCheckToken.value) return;
+        console.error('Failed to verify username availability', error);
+        usernameStatus.message = 'Unable to verify availability.';
+        usernameStatus.available = false;
+      } finally {
+        if (token === usernameCheckToken.value) {
+          usernameStatus.checking = false;
+        }
+        usernameCheckTimeout = null;
+      }
+    }, 400);
   },
 );
 
@@ -66,7 +142,38 @@ const handleSubmit = async () => {
   supabaseError.value = null;
   supabaseMessage.value = null;
 
+  if (!normalizedUsername.value) {
+    supabaseError.value = 'Username is required.';
+    signingUp.value = false;
+    return;
+  }
+
+  if (!usernamePatternValid.value) {
+    supabaseError.value = `Username must be ${USERNAME_MIN_LENGTH}-${USERNAME_MAX_LENGTH} characters and use lowercase letters, numbers, dots, underscores, or hyphens.`;
+    signingUp.value = false;
+    return;
+  }
+
+  try {
+    const available = await profileService.profiles.isUsernameAvailable(normalizedUsername.value);
+    usernameStatus.available = available;
+    usernameStatus.message = available
+      ? 'Username is available.'
+      : 'That username is already taken.';
+    if (!available) {
+      supabaseError.value = 'That username is already taken. Please choose another.';
+      signingUp.value = false;
+      return;
+    }
+  } catch (error) {
+    console.error('Failed to verify username availability', error);
+    supabaseError.value = 'Unable to verify username availability. Please try again.';
+    signingUp.value = false;
+    return;
+  }
+
   const metadata = {
+    username: normalizedUsername.value,
     name: form.name,
     phone: form.phone,
     organization: form.organization,
@@ -93,7 +200,7 @@ const handleSubmit = async () => {
     supabaseMessage.value = 'Your account is ready. We will redirect you to the dashboard.';
     submissionLogged.value = true;
     await nextTick();
-    await router.push({ name: 'DashboardOverview' });
+    await router.push({ name: 'V2Dashboard' });
     signingUp.value = false;
     return;
   }
@@ -143,8 +250,28 @@ const handleSubmit = async () => {
 
               <div class="flex flex-col space-y-2" :ref="registerFadeItem">
                 <label for="name" class="text-xs uppercase text-white">Name</label>
-                <input id="name" v-model="form.name" type="text" autocomplete="name" placeholder="displayname" required
+                <input id="name" v-model="form.name" type="text" autocomplete="name" placeholder="Jon Doe" required
                   class="block w-full backdrop-blur bg-black/10 text-white border-b-2 border-white placeholder-white/30 px-2 py-1 outline-none" />
+              </div>
+
+              <div class="flex flex-col space-y-2" :ref="registerFadeItem">
+                <label for="username" class="text-xs uppercase text-white">Username</label>
+                <input
+                  id="username"
+                  v-model="form.username"
+                  type="text"
+                  autocomplete="username"
+                  placeholder="choose-a-handle"
+                  required
+                  class="block w-full backdrop-blur bg-black/10 text-white border-b-2 border-white placeholder-white/30 px-2 py-1 outline-none"
+                />
+                <p class="text-xs text-white/70">
+                  {{ USERNAME_MIN_LENGTH }}-{{ USERNAME_MAX_LENGTH }} lowercase letters, numbers, dots, underscores, or hyphens.
+                </p>
+                <p v-if="usernameStatus.message || usernameStatus.checking" class="text-xs" :class="usernameStatus.available ? 'text-emerald-300' : 'text-rose-300'">
+                  <span v-if="usernameStatus.checking">Checking availability…</span>
+                  <span v-else>{{ usernameStatus.message }}</span>
+                </p>
               </div>
 
               <div class="flex flex-col space-y-2" :ref="registerFadeItem">

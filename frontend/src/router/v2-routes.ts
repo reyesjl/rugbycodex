@@ -2,7 +2,8 @@ import type { RouteRecordRaw } from 'vue-router';
 
 export const v2Routes: RouteRecordRaw[] = [
   {
-    path: '/v2/marketing',
+    path: '/',
+    alias: '/v2/marketing',
     component: () => import('@/layouts/v2/MarketingLayout.vue'),
     meta: { layout: 'marketing' },
     children: [
@@ -36,7 +37,7 @@ export const v2Routes: RouteRecordRaw[] = [
   { 
     path: '/v2/auth',
     component: () => import('@/layouts/v2/AuthLayout.vue'),
-    meta: { layout: 'auth' },
+    meta: { layout: 'auth', guestOnly: true },
     children: [
       {
         path: 'login',

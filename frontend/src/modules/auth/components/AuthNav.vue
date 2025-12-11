@@ -9,7 +9,7 @@ const isSignup = computed (() => route.path === '/v2/auth/signup');
 </script>
 <template>
 <div class="flex justify-between py-4">
-    <RouterLink to="/v2/marketing" class="navclear">
+    <RouterLink to="/" class="navclear">
         <p class="text-white">RUGBY<span class="font-semibold">CODEX</span></p>
     </RouterLink>
     

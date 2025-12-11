@@ -5,6 +5,9 @@ import { RouterLink } from 'vue-router';
 defineProps<{
   isOpen: boolean;
 }>();
+const emit = defineEmits<{
+  (e: 'toggle-sidebar'): void;
+}>();
 
 const adminLinks = [
   { to: '/v2/admin', label: 'System Overview', icon: 'carbon:analytics' },
@@ -19,6 +22,8 @@ const adminLinks = [
   { to: '/v2/profile', label: 'Profile', icon: 'carbon:user-profile' },
 ];
 
+const handleSidebarToggle = () => emit('toggle-sidebar');
+
 </script>
 
 <template>
@@ -30,10 +35,23 @@ const adminLinks = [
       <nav>
         <ul class="space-y-1">
           <li>
-            <RouterLink to="/v2/dashboard" class="flex items-center px-4 py-2 hover:bg-white/10 rounded">
+            <RouterLink
+              to="/v2/dashboard"
+              class="flex w-full items-center rounded px-4 py-2 hover:bg-white/10"
+            >
               <Icon icon="carbon:chevron-left" width="20" height="20" class="mr-5" />
               Back to Dashboard
             </RouterLink>
+          </li>
+          <li>
+            <button
+              type="button"
+              class="flex w-full items-center rounded px-4 py-2 hover:bg-white/10"
+              @click="handleSidebarToggle"
+            >
+              <Icon icon="carbon:side-panel-close" width="20" height="20" class="mr-5" />
+              Collapse
+            </button>
           </li>
           <li class="pt-4 pb-2 px-4 text-xs uppercase tracking-wide text-white/60">
             Admin Console

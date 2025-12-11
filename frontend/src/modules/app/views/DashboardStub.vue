@@ -86,7 +86,7 @@ const variantProps = computed(() => ({
         />
       </form>
       <div class="mt-4 flex items-center justify-between gap-3 px-1">
-        <RouterLink to="/v2/marketing" class="rounded-sm bg-white/10 p-2 text-xs font-medium text-white hover:bg-white/20">
+        <RouterLink to="/" class="rounded-sm bg-white/10 p-2 text-xs font-medium text-white hover:bg-white/20">
           Learn how to find rugby players, actions, & events.
         </RouterLink>
         <button

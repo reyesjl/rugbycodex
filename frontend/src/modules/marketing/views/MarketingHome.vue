@@ -68,7 +68,7 @@ import bgImg from '@/assets/modules/marketing/mission1.jpg';
         <div class="button-set flex gap-5 mt-6 items-center">
           <Button size="md" variant="base" color="primary" to="/v2/auth/signup">GET STARTED</Button>
           <RouterLink
-            to="/v2/marketing/mission"
+            to="/mission"
             class="hover:underline underline-offset-4"
           >Learn more</RouterLink>
         </div>
@@ -79,9 +79,9 @@ import bgImg from '@/assets/modules/marketing/mission1.jpg';
   <!-- Three Columns grid -->
   <section class="bg-black p-5">
     <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
-      <ImageCell :src="simonImg" title="Coaches" description="Break down film in minutes, not hours." :to="'/v2/marketing/coaches'" />
-      <ImageCell :src="coreyImg" title="Players" description="Find your strengths. Fix your weaknesses." :to="'/v2/marketing/players'" />
-      <ImageCell :src="usawImg" title="Unions" description="Build a shared rugby knowledge system." :to="'/v2/marketing/unions'" />
+      <ImageCell :src="simonImg" title="Coaches" description="Break down film in minutes, not hours." :to="'/coaches'" />
+      <ImageCell :src="coreyImg" title="Players" description="Find your strengths. Fix your weaknesses." :to="'/players'" />
+      <ImageCell :src="usawImg" title="Unions" description="Build a shared rugby knowledge system." :to="'/unions'" />
     </div>
   </section>
 
@@ -91,7 +91,7 @@ import bgImg from '@/assets/modules/marketing/mission1.jpg';
         <h1 class="text-2xl font-semibold">Rugbycodex-1 : Origins</h1>
         <!-- Make this a link with an underline -->
          <RouterLink
-            to="/v2/marketing/mission"
+            to="/mission"
             class="w-fit flex text-sm gap-1 items-center underline underline-offset-4"
           >The Rugby Knowledge Engine <Icon icon="carbon:arrow-up-right" /></RouterLink>
       </div>

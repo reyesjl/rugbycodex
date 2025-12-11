@@ -9,6 +9,9 @@ import type { OrgMembership } from '@/modules/profiles/types';
 defineProps<{
     isOpen: boolean;
 }>();
+const emit = defineEmits<{
+    (e: 'toggle-sidebar'): void;
+}>();
 
 const profileStore = useProfileStore();
 const authStore = useAuthStore();
@@ -18,6 +21,8 @@ const getOrganizationLink = (membership: OrgMembership) => {
     return membership.slug ? `/v2/orgs/${membership.slug}` : `/v2/orgs/${membership.org_id}`;
 };
 
+const handleSidebarToggle = () => emit('toggle-sidebar');
+
 </script>
 
 <template>
@@ -25,15 +30,20 @@ const getOrganizationLink = (membership: OrgMembership) => {
         :class="[ isOpen ? 'translate-x-0' : '-translate-x-full' ]"
     >
         <div class="container-lg h-full py-5">
-            <!-- <div class="flex items-center justify-end">
-                <div class="flex">
-                    <Icon @click="handleSidebarToggle" icon="carbon:close" width="25" height="25" class="w-full cursor-pointer" />
-                </div>
-            </div> -->
             <nav class="">
                 <ul class="">
+                    <li class="mb-2">
+                        <button
+                            type="button"
+                            class="flex w-full items-center px-4 py-2 rounded hover:bg-white/10"
+                            @click="handleSidebarToggle"
+                        >
+                            <Icon icon="carbon:side-panel-close" width="20" height="20" class="mr-5" />
+                            Collapse
+                        </button>
+                    </li>
                     <li>
-                        <RouterLink to="/v2/marketing" class="flex items-center px-4 py-2 hover:bg-white/10 rounded">
+                        <RouterLink to="/" class="flex items-center px-4 py-2 hover:bg-white/10 rounded">
                             <Icon icon="carbon:home" width="20" height="20" class="mr-5" />
                             Home
                         </RouterLink>

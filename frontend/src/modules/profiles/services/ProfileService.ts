@@ -1,5 +1,6 @@
 import type { PostgrestError } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabaseClient';
+import { isUsernameAvailableRpc } from './supabase/profileRpc';
 import {
   type OrgMembership,
   type MembershipRole,
@@ -108,6 +109,10 @@ function normalizeOrganization(row: OrgMemberJoinedRow['organizations']) {
 
 function normalizeUsername(username: string | null | undefined): string {
   return username?.trim().toLowerCase() ?? '';
+}
+
+function escapeForILike(value: string): string {
+  return value.replace(/([_%\\])/g, '\\$1');
 }
 
 function toProfileWithMembership(row: OrgMemberJoinedRow): ProfileWithMembership {
@@ -337,7 +342,22 @@ export const profileService = {
     },
 
     /**
-     * Checks if a username is available, optionally excluding a given profile id.
+     * Checks if a username is available.
+     *
+     * Usage from unauthenticated contexts (e.g., marketing signup):
+     * ```ts
+     * const available = await profileService.profiles.isUsernameAvailable('new-handle');
+     * ```
+     *
+     * Usage from authenticated contexts when editing your own profile:
+     * ```ts
+     * const available = await profileService.profiles.isUsernameAvailable('new-handle', currentProfileId);
+     * ```
+     *
+     * When no `excludeProfileId` is provided, this method calls the RPC `is_username_available`
+     * Supabase function (which bypasses RLS) to support anonymous availability checks.
+     * When `excludeProfileId` is provided, it falls back to the direct table query that respects
+     * existing RLS policies—useful when a logged-in user wants to keep their current username.
      */
     async isUsernameAvailable(username: string, excludeProfileId?: string): Promise<boolean> {
       const normalized = normalizeUsername(username);
@@ -345,10 +365,15 @@ export const profileService = {
         throw new Error('Username is required.');
       }
 
+      if (!excludeProfileId) {
+        return isUsernameAvailableRpc(normalized);
+      }
+
+      const escaped = escapeForILike(normalized);
       const { data, error } = await supabase
         .from('profiles')
         .select('id')
-        .eq('username', normalized)
+        .ilike('username', escaped)
         .limit(1);
 
       if (error) {
@@ -460,4 +485,3 @@ export const profileService = {
     },
   },
 };
-

@@ -50,7 +50,7 @@ const steps = [
     </div>
 
     <div class="rounded border border-white/10 bg-black/30 p-5 text-sm text-white/70">
-      Need help provisioning your org? Email <a href="mailto:hello@rugbycodex.com" class="text-white underline">hello@rugbycodex.com</a> and we’ll carve a launch path with you.
+      Need help provisioning your org? Email <a href="mailto:contact@biasware.com" class="text-white underline">contact@biasware.com</a> and we’ll carve a launch path with you.
     </div>
   </section>
 </template>

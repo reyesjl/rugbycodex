@@ -10,6 +10,9 @@ import { ROLE_ORDER, type MembershipRole } from '@/modules/profiles/types';
 defineProps<{
         isOpen: boolean;
 }>();
+const emit = defineEmits<{
+    (e: 'toggle-sidebar'): void;
+}>();
 
 const route = useRoute();
 const authStore = useAuthStore();
@@ -68,6 +71,8 @@ const currentOrgName = computed(() => {
 
 const currentRole = computed(() => activeMembership.value?.org_role ?? '—');
 
+const handleSidebarToggle = () => emit('toggle-sidebar');
+
 </script>
 
 <template>
@@ -75,18 +80,26 @@ const currentRole = computed(() => activeMembership.value?.org_role ?? '—');
         :class="[ isOpen ? 'translate-x-0' : '-translate-x-full' ]"
     >
         <div class="container-lg h-full py-5">
-            <!-- <div class="flex items-center justify-end">
-                <div class="flex">
-                    <Icon @click="handleSidebarToggle" icon="carbon:close" width="25" height="25" class="w-full cursor-pointer" />
-                </div>
-            </div> -->
             <nav>
                 <ul class="space-y-1">
                     <li>
-                        <RouterLink to="/v2/dashboard" class="flex items-center px-4 py-2 hover:bg-white/10 rounded">
+                        <RouterLink
+                            to="/v2/dashboard"
+                            class="flex w-full items-center px-4 py-2 rounded hover:bg-white/10"
+                        >
                             <Icon icon="carbon:chevron-left" width="20" height="20" class="mr-5" />
-                            Dashboard
+                            Back to Dashboard
                         </RouterLink>
+                    </li>
+                    <li>
+                        <button
+                            type="button"
+                            class="flex w-full items-center px-4 py-2 rounded hover:bg-white/10"
+                            @click="handleSidebarToggle"
+                        >
+                            <Icon icon="carbon:side-panel-close" width="20" height="20" class="mr-5" />
+                            Collapse
+                        </button>
                     </li>
 
                     <!-- this org -->

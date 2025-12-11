@@ -1,7 +1,6 @@
 <script setup lang="ts">
+import { ref } from 'vue';
 import { RouterLink } from 'vue-router';
-import DarkNotFoundImage from '@/assets/404/404-dark.png';
-import LightNotFoundImage from '@/assets/404/404-light.png';
 
 type RugbyPenalty = {
   title: string;
@@ -33,12 +32,12 @@ const penalties: RugbyPenalty[] = [
   {
     title: 'Early push',
     description: 'You engaged before the page was ready.',
-    guidance: 'Reset the scrum. Refresh the page.',
+    guidance: 'Reset the scrum. Back to home.',
   },
   {
     title: 'Side Entry',
     description: 'You tried to enter this route from the side.',
-    guidance: 'Use the gate (aka the navbar) properly this time.',
+    guidance: 'Use the gate properly this time.',
   },
   {
     title: 'Not Straight',
@@ -62,42 +61,32 @@ const penalties: RugbyPenalty[] = [
   },
 ];
 
-const randomPenalty = penalties[Math.floor(Math.random() * penalties.length)];
+const randomPenalty = ref(getRandomPenalty());
+
+function getRandomPenalty() {
+  return penalties[Math.floor(Math.random() * penalties.length)];
+}
+
+function refreshPenalty() {
+  randomPenalty.value = getRandomPenalty();
+}
 </script>
 
 <template>
-  <section class="relative min-h-screen text-black dark:text-white px-2">
-    <div
-      class="absolute inset-0 bg-cover bg-center bg-no-repeat"
-      :style="{ backgroundImage: `url(${LightNotFoundImage})` }"
-      aria-hidden="true"
-    />
-    <div
-      class="absolute inset-0 hidden bg-cover bg-center bg-no-repeat dark:block"
-      :style="{ backgroundImage: `url(${DarkNotFoundImage})` }"
-      aria-hidden="true"
-    />
+  <section class="bg-black h-screen">
+    <div class="w-full lg:w-1/4 md:w-1/2 px-8 mx-auto h-full flex flex-col space-y-10 justify-center items-center text-white">
+      <div class="text-3xl font-semibold tracking-widest">404 Sinbin</div>
+      
+      <div class="flex flex-col w-full space-y-2">
+        <div class="text-xl">{{ randomPenalty?.title }}</div>
+        <div>{{ randomPenalty?.description }}</div>
+        <div class="text-xs text-yellow-300">{{ randomPenalty?.guidance }}</div>
+      </div>
 
-    <div class="relative flex min-h-screen items-center justify-center">
-      <div class="mb-50 mx-5 w-full max-w-lg border border-black p-4 text-center backdrop-blur-xs dark:border-white">
-        <div class="flex justify-between items-center md:tracking-wide">
-          <p>{{ randomPenalty?.title }}</p>
-          <p>404 Not Found</p>
-        </div>
-        <div class="mt-6 space-y-3 text-center dark:text-white text-black">
-          <p class="text-base">
-            {{ randomPenalty?.description }}
-          </p>
-          <!-- <p class="text-base">
-            {{ randomPenalty?.guidance }}
-          </p> -->
-        </div>
-        <RouterLink
-          :to="{ name: 'Overview' }"
-          class="mt-6 inline-block font-medium dark:text-amber-500 text-red-600 hover:underline"
-        >
-          home
-        </RouterLink>
+      <div class="flex w-full items-center justify-between">
+        <RouterLink to="/" class="underline text-xs text-gray-300">Return Home</RouterLink>
+        <button type="button" class="underline text-xs text-gray-300" @click="refreshPenalty">Another Penalty</button>
+        <a href="mailto:contact@biasware.com" class="underline text-xs text-gray-300">Contact support</a>
       </div>
     </div>
   </section>
