@@ -94,6 +94,11 @@ export const v2Routes: RouteRecordRaw[] = [
     meta: { layout: 'org', requiresAuth: true },
     children: [
       {
+        path: '',
+        name: 'V2OrgHome',
+        redirect: { name: 'V2OrgOverview' },
+      },
+      {
         path: 'overview',
         name: 'V2OrgOverview',
         component: () => import('@/modules/orgs/views/OrgOverviewStub.vue'),

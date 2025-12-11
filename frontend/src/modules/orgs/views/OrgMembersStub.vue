@@ -635,7 +635,7 @@ watch(
               class="flex items-center gap-2 rounded border border-white/30 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-white hover:text-black"
               @click="handleInviteMember"
             >
-              Invite member
+              Add member
             </button>
           </div>
         </div>
@@ -788,7 +788,7 @@ watch(
       >
         <div class="w-full max-w-lg overflow-hidden rounded-lg border border-white/10 bg-[#0f1016] text-white shadow-2xl">
           <header class="border-b border-white/10 px-6 py-4">
-            <p class="text-xs uppercase tracking-wide text-white/50">Invite member</p>
+            <p class="text-xs uppercase tracking-wide text-white/50">Add member</p>
             <h2 class="text-xl font-semibold">Add someone to {{ orgName || 'this org' }}</h2>
           </header>
           <div class="space-y-4 px-6 py-5">
