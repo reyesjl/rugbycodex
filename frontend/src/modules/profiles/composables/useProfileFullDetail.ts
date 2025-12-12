@@ -10,6 +10,7 @@ export function useProfileFullDetail() {
 
   const loadProfile = async (id: string) => {
     clearProfile();
+    loading.value = true;
     try {
       profile.value = await profileService.profiles.getWithMemberships(id);
     } catch (e) {

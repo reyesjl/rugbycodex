@@ -45,6 +45,8 @@ export const useAuthStore = defineStore('auth', () => {
           console.info('[auth] Supabase JWT claims', claims);
         }
       }
+    } else {
+      isAdmin.value = false;
     }
   };
 

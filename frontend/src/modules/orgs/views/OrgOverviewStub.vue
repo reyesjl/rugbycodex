@@ -3,13 +3,17 @@ import { Icon } from '@iconify/vue';
 import { computed, ref, watch } from 'vue';
 import { RouterLink } from 'vue-router';
 import { storeToRefs } from 'pinia';
+import { useAuthStore } from '@/auth/stores/useAuthStore';
+import { useOrgCapabilities } from '@/modules/orgs/composables/useOrgCapabilities';
 import { useActiveOrgStore } from '@/modules/orgs/stores/useActiveOrgStore';
 import { profileService } from '@/modules/profiles/services/ProfileService';
 import type { MembershipRole, UserProfile } from '@/modules/profiles/types';
-import { ROLE_ORDER } from '@/modules/profiles/types';
 
 const activeOrgStore = useActiveOrgStore();
 const { activeOrg, activeMembership, loading, error } = storeToRefs(activeOrgStore);
+
+const authStore = useAuthStore();
+const { isAdmin } = storeToRefs(authStore);
 
 const ownerProfile = ref<UserProfile | null>(null);
 let ownerRequestId = 0;
@@ -17,6 +21,8 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3
 
 const org = computed(() => activeOrg.value);
 const membershipRole = computed(() => activeMembership.value?.org_role ?? null);
+
+const { hasAccess } = useOrgCapabilities(membershipRole, isAdmin);
 
 const formatDate = (date: Date | null | undefined, options?: Intl.DateTimeFormatOptions) => {
   if (!date) return '—';
@@ -40,12 +46,6 @@ const ownerProfileLink = computed(() => {
   }
   return null;
 });
-
-const canAccess = (minRole?: MembershipRole) => {
-  if (!minRole) return true;
-  if (!membershipRole.value) return false;
-  return (ROLE_ORDER[membershipRole.value] ?? Infinity) <= (ROLE_ORDER[minRole] ?? Infinity);
-};
 
 const quickLinks = computed(() => {
   if (!org.value) return [];
@@ -87,7 +87,7 @@ const quickLinks = computed(() => {
       minRole: 'manager',
     },
   ];
-  return entries.filter((entry) => canAccess(entry.minRole));
+  return entries.filter((entry) => hasAccess(entry.minRole));
 });
 
 const stubStats = {

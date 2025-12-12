@@ -5,7 +5,8 @@ import { computed } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
 import { useAuthStore } from '@/auth/stores/useAuthStore';
 import { useActiveOrgStore } from '@/modules/orgs/stores/useActiveOrgStore';
-import { ROLE_ORDER, type MembershipRole } from '@/modules/profiles/types';
+import { useOrgCapabilities } from '@/modules/orgs/composables/useOrgCapabilities';
+import type { MembershipRole } from '@/modules/profiles/types';
 
 defineProps<{
         isOpen: boolean;
@@ -19,6 +20,9 @@ const authStore = useAuthStore();
 const activeOrgStore = useActiveOrgStore();
 const { isAdmin } = storeToRefs(authStore);
 const { activeOrg, activeMembership, loading } = storeToRefs(activeOrgStore);
+
+const membershipRole = computed(() => activeMembership.value?.org_role ?? null);
+const { hasAccess } = useOrgCapabilities(membershipRole, isAdmin);
 
 const routeSlug = computed(() => {
     const slugParam = route.params.slug;
@@ -36,14 +40,6 @@ const navigationLinks = computed(() => {
     if (!orgSlug.value) {
         return [] as Array<{ label: string; icon: string; to: string }>;
     }
-
-    const role = activeMembership.value?.org_role ?? null;
-    const hasAccess = (minRole?: MembershipRole) => {
-        if (isAdmin.value) return true;
-        if (!minRole) return true;
-        if (!role) return false;
-        return (ROLE_ORDER[role] ?? Infinity) <= (ROLE_ORDER[minRole] ?? Infinity);
-    };
 
     const config: Array<{ label: string; icon: string; path: string; minRole?: MembershipRole }> = [
         { label: 'Overview', icon: 'carbon:dashboard', path: 'overview' },

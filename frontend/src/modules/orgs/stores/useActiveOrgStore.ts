@@ -1,11 +1,16 @@
 import { defineStore, storeToRefs } from 'pinia';
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
+import { useAuthStore } from '@/auth/stores/useAuthStore';
+import { useOrgCapabilities } from '@/modules/orgs/composables/useOrgCapabilities';
 import { orgService } from '@/modules/orgs/services/orgService';
-import type { Organization } from '@/modules/orgs/types';
+import type { OrgCapabilities, Organization } from '@/modules/orgs/types';
 import type { OrgMembership } from '@/modules/profiles/types';
 import { useProfileStore } from '@/modules/profiles/stores/useProfileStore';
 
 export const useActiveOrgStore = defineStore('activeOrg', () => {
+  const authStore = useAuthStore();
+  const { isAdmin } = storeToRefs(authStore);
+
   const profileStore = useProfileStore();
   const { memberships } = storeToRefs(profileStore);
 
@@ -14,6 +19,8 @@ export const useActiveOrgStore = defineStore('activeOrg', () => {
   const loading = ref(false);
   const error = ref<string | null>(null);
   const currentSlug = ref<string | null>(null);
+
+  const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
   const syncMembership = () => {
     if (!activeOrg.value) {
@@ -33,7 +40,9 @@ export const useActiveOrgStore = defineStore('activeOrg', () => {
     error.value = null;
 
     try {
-      const org = await orgService.organizations.getBySlug(slug);
+      const org = UUID_PATTERN.test(slug)
+        ? await orgService.organizations.getById(slug)
+        : await orgService.organizations.getBySlug(slug);
       activeOrg.value = org;
       currentSlug.value = slug;
       syncMembership();
@@ -45,6 +54,10 @@ export const useActiveOrgStore = defineStore('activeOrg', () => {
       loading.value = false;
     }
   };
+
+  const membershipRole = computed(() => activeMembership.value?.org_role ?? null);
+  const { capabilities: computedCapabilities } = useOrgCapabilities(membershipRole, isAdmin);
+  const capabilities = computed<OrgCapabilities>(() => computedCapabilities.value);
 
   const ensureLoaded = async (slug: string | null | undefined) => {
     if (!slug) {
@@ -75,6 +88,7 @@ export const useActiveOrgStore = defineStore('activeOrg', () => {
   return {
     activeOrg,
     activeMembership,
+    capabilities,
     loading,
     error,
     ensureLoaded,
