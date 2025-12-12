@@ -41,7 +41,7 @@ const steps = [
         :to="step.to"
         class="rounded border border-white/10 bg-white/5 p-4 text-white hover:border-white/40"
       >
-        <div class="rounded-full border border-white/20 p-2">
+        <div class="rounded-full border border-white/20 p-2 w-fit">
           <Icon :icon="step.icon" width="22" height="22" />
         </div>
         <p class="mt-3 text-lg font-semibold">{{ step.title }}</p>

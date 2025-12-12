@@ -93,7 +93,7 @@ const handleSidebarToggle = () => emit('toggle-sidebar');
 
                     <!-- profile stuff -->
                      <li class="mt-5">
-                        <RouterLink to="/v2/organizations" class="flex items-center px-4 py-2 font-semibold hover:bg-white/10 rounded">
+                        <RouterLink to="/v2/profile" class="flex items-center px-4 py-2 font-semibold hover:bg-white/10 rounded">
                             You
                             <Icon icon="carbon:chevron-right" width="20" height="20" class="ml-5" />
                         </RouterLink>
