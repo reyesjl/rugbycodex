@@ -1,5 +1,258 @@
+<script setup lang="ts">
+import { Icon } from '@iconify/vue';
+import { computed, ref, watch } from 'vue';
+import { RouterLink } from 'vue-router';
+import { storeToRefs } from 'pinia';
+import { useActiveOrgStore } from '@/modules/orgs/stores/useActiveOrgStore';
+import { profileService } from '@/modules/profiles/services/ProfileService';
+import type { MembershipRole, UserProfile } from '@/modules/profiles/types';
+import { ROLE_ORDER } from '@/modules/profiles/types';
+
+const activeOrgStore = useActiveOrgStore();
+const { activeOrg, activeMembership, loading, error } = storeToRefs(activeOrgStore);
+
+const ownerProfile = ref<UserProfile | null>(null);
+let ownerRequestId = 0;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const org = computed(() => activeOrg.value);
+const membershipRole = computed(() => activeMembership.value?.org_role ?? null);
+const isMember = computed(() => Boolean(membershipRole.value));
+
+const formatDate = (date: Date | null | undefined, options?: Intl.DateTimeFormatOptions) => {
+  if (!date) return '—';
+  return new Intl.DateTimeFormat(undefined, options ?? { month: 'long', day: 'numeric', year: 'numeric' }).format(date);
+};
+
+const formatRole = (role: string) => role.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
+
+const formattedCreatedAt = computed(() => formatDate(org.value?.created_at));
+const membershipBadgeLabel = computed(() => {
+  if (!membershipRole.value) return 'Not a member';
+  return `You are a ${formatRole(membershipRole.value)}`;
+});
+
+const membershipDescription = computed(() => {
+  if (!membershipRole.value) {
+    return 'Join this workspace to unlock its vaults, media, and roster.';
+  }
+  return 'You already have access to this workspace.';
+});
+
+const membershipBadgeClasses = computed(() =>
+  isMember.value
+    ? 'bg-emerald-500/10 border border-emerald-300/40 text-emerald-100'
+    : 'bg-white/5 border border-white/20 text-white/70'
+);
+
+const ownerHandle = computed(() =>
+  ownerProfile.value?.username ? `@${ownerProfile.value.username}` : null
+);
+const ownerDisplayName = computed(() => {
+  if (ownerHandle.value) return ownerHandle.value;
+  if (ownerProfile.value?.name) return ownerProfile.value.name;
+  return 'Not assigned';
+});
+const ownerProfileLink = computed(() => {
+  if (ownerProfile.value?.username) {
+    return `/v2/profile/${ownerProfile.value.username}`;
+  }
+  return null;
+});
+
+const canAccess = (minRole?: MembershipRole) => {
+  if (!minRole) return true;
+  if (!membershipRole.value) return false;
+  return (ROLE_ORDER[membershipRole.value] ?? Infinity) <= (ROLE_ORDER[minRole] ?? Infinity);
+};
+
+const quickLinks = computed(() => {
+  if (!org.value) return [];
+  const base = `/v2/orgs/${org.value.slug}`;
+  const entries: Array<{ label: string; description: string; icon: string; to: string; minRole?: MembershipRole }> = [
+    {
+      label: 'Vaults',
+      description: 'Access shared documents and data rooms.',
+      icon: 'carbon:data-enrichment',
+      to: `${base}/vaults`,
+      minRole: 'member',
+    },
+    {
+      label: 'Media',
+      description: 'Review uploaded film, clips, and assets.',
+      icon: 'carbon:image',
+      to: `${base}/media`,
+      minRole: 'member',
+    },
+    {
+      label: 'Narrations',
+      description: 'Listen to callouts and tactical briefs.',
+      icon: 'carbon:microphone',
+      to: `${base}/narrations`,
+      minRole: 'member',
+    },
+    {
+      label: 'Members',
+      description: 'See everyone in this workspace.',
+      icon: 'carbon:user-multiple',
+      to: `${base}/members`,
+      minRole: 'staff',
+    },
+    {
+      label: 'Settings',
+      description: 'Update branding, storage, and permissions.',
+      icon: 'carbon:settings',
+      to: `${base}/settings`,
+      minRole: 'manager',
+    },
+  ];
+  return entries.filter((entry) => canAccess(entry.minRole));
+});
+
+const stubStats = {
+  members: '—',
+  media: '—',
+  narrations: '—',
+};
+
+watch(
+  () => org.value?.owner ?? null,
+  async (ownerIdentifier) => {
+    ownerRequestId += 1;
+    const requestId = ownerRequestId;
+    ownerProfile.value = null;
+    if (!ownerIdentifier) {
+      return;
+    }
+    try {
+      const trimmed = ownerIdentifier.trim();
+      if (!trimmed) return;
+      const profile = UUID_PATTERN.test(trimmed)
+        ? await profileService.profiles.getById(trimmed)
+        : await profileService.profiles.getByUsername(trimmed);
+      if (requestId === ownerRequestId) {
+        ownerProfile.value = profile;
+      }
+    } catch (err) {
+      if (requestId === ownerRequestId) {
+        console.error(err);
+      }
+    }
+  },
+  { immediate: true }
+);
+</script>
+
 <template>
-  <div class="p-10 text-center text-gray-700">
-    Stub: Org Overview
-  </div>
+  <section class="container space-y-8 py-6 text-white">
+    <div v-if="loading" class="rounded border border-white/15 bg-black/40 p-6 text-white/70">
+      Loading organization…
+    </div>
+
+    <div v-else-if="error" class="rounded border border-rose-400/40 bg-rose-500/10 p-6 text-white">
+      <p class="font-semibold">{{ error }}</p>
+      <p class="mt-2 text-sm text-white/80">Double-check the organization link or go back to the directory.</p>
+      <RouterLink
+        to="/v2/organizations"
+        class="mt-4 inline-flex items-center rounded border border-white/30 px-4 py-2 text-sm font-semibold uppercase tracking-wide hover:bg-white/10"
+      >
+        Return to organizations
+      </RouterLink>
+    </div>
+
+    <div v-else-if="org" class="space-y-8">
+      <header class="rounded border border-white/15 bg-white/5 p-6 text-white">
+        <p class="text-xs uppercase tracking-[0.3em] text-white/60">Organization</p>
+        <div class="mt-3 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h1 class="text-4xl font-semibold">{{ org.name }}</h1>
+            <p class="flex flex-wrap flex-col gap-x-2 text-white/70">
+              <span>Founded {{ formattedCreatedAt }}</span>
+              <template v-if="ownerProfileLink">
+                <div class="flex gap-1">
+                  <div>By </div>
+                  <RouterLink
+                  :to="ownerProfileLink"
+                  class="font-semibold text-white underline-offset-4 hover:underline"
+                >
+                  {{ ownerDisplayName }}
+                </RouterLink>
+                </div>
+              </template>
+              <span v-else>· Owner {{ ownerDisplayName }}</span>
+            </p>
+          </div>
+        </div>
+      </header>
+
+      <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <article class="rounded border border-white/15 bg-black/40 p-4">
+          <p class="text-xs uppercase tracking-wide text-white/50">Members</p>
+          <div class="mt-2 text-4xl font-semibold">
+            {{ stubStats.members }}
+          </div>
+          <p class="mt-1 text-sm text-white/60">People with roles inside this workspace.</p>
+        </article>
+
+        <article class="rounded border border-white/15 bg-black/40 p-4">
+          <p class="text-xs uppercase tracking-wide text-white/50">Media minutes</p>
+          <div class="mt-2 text-4xl font-semibold">
+            {{ stubStats.media }}
+          </div>
+          <p class="mt-1 text-sm text-white/60">Total minutes of film uploaded.</p>
+        </article>
+
+        <article class="rounded border border-white/15 bg-black/40 p-4">
+          <p class="text-xs uppercase tracking-wide text-white/50">Narrations</p>
+          <div class="mt-2 text-4xl font-semibold">
+            {{ stubStats.narrations }}
+          </div>
+          <p class="mt-1 text-sm text-white/60">Clips narrated by members of this org.</p>
+        </article>
+      </section>
+
+      <section class="rounded border border-white/15 bg-white/5 p-6">
+        <header class="flex items-center justify-between gap-3">
+          <div>
+            <h2 class="text-2xl font-semibold">Bio</h2>
+          </div>
+        </header>
+        <p class="mt-4 whitespace-pre-line text-white/80">
+          {{ org.bio ?? 'No bio yet. Add one from the organization settings to help members understand the mission and goals.' }}
+        </p>
+      </section>
+
+      <section class="rounded border border-white/15 bg-white/5 p-6">
+        <header class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h2 class="text-2xl font-semibold">Workspace quick links</h2>
+            <p class="text-sm text-white/60">Jump straight into the most visited areas of this org.</p>
+          </div>
+          <RouterLink
+            to="/v2/organizations"
+            class="inline-flex items-center rounded border border-white/30 px-4 py-2 text-xs font-semibold uppercase tracking-wide hover:bg-white/10"
+          >
+            Browse directory
+          </RouterLink>
+        </header>
+        <div v-if="quickLinks.length" class="mt-5 grid gap-4 md:grid-cols-2">
+          <RouterLink
+            v-for="link in quickLinks"
+            :key="link.to"
+            :to="link.to"
+            class="flex items-start gap-4 rounded border border-white/15 bg-black/30 p-4 transition hover:border-white/40 hover:bg-white/10"
+          >
+            <Icon :icon="link.icon" class="h-6 w-6 text-white/70" />
+            <div>
+              <p class="text-lg font-semibold">{{ link.label }}</p>
+              <p class="text-sm text-white/60">{{ link.description }}</p>
+            </div>
+          </RouterLink>
+        </div>
+        <p v-else class="mt-5 rounded border border-white/15 bg-black/30 p-4 text-sm text-white/70">
+          Join this organization to unlock workspace links and tools.
+        </p>
+      </section>
+    </div>
+  </section>
 </template>
