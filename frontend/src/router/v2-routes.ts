@@ -124,6 +124,12 @@ export const v2Routes: RouteRecordRaw[] = [
         props: true,
       },
       {
+        path: 'media/:assetId',
+        name: 'V2OrgMediaAsset',
+        component: () => import('@/modules/orgs/views/OrgMediaAssetView.vue'),
+        props: true,
+      },
+      {
         path: 'members',
         name: 'V2OrgMembers',
         component: () => import('@/modules/orgs/views/OrgMembersStub.vue'),

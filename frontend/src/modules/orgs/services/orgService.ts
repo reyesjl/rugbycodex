@@ -275,6 +275,44 @@ export const orgService = {
 
   mediaAssets: {
     /**
+     * Creates a media_assets row. Intended to be called after the file is uploaded to storage.
+     */
+    async create(input: {
+      orgId: string;
+      uploaderId: string;
+      bucket: string;
+      storagePath: string;
+      fileSizeBytes: number;
+      mimeType: string;
+      durationSeconds: number;
+      checksum: string;
+      source?: string;
+      fileName: string;
+      status?: string;
+    }): Promise<OrgMediaAsset> {
+      const payload = {
+        org_id: input.orgId,
+        uploader_id: input.uploaderId,
+        bucket: input.bucket,
+        storage_path: input.storagePath,
+        file_size_bytes: input.fileSizeBytes,
+        mime_type: input.mimeType,
+        duration_seconds: input.durationSeconds,
+        checksum: input.checksum,
+        source: input.source ?? 'upload',
+        file_name: input.fileName,
+        status: input.status,
+      };
+
+      const row = await getSingle<MediaAssetRow>(
+        supabase.from('media_assets').insert(payload).select('*').single(),
+        'Media asset creation failed.'
+      );
+
+      return toOrgMediaAsset(row);
+    },
+
+    /**
      * Returns media assets for an organization, optionally filtered.
      */
     async listByOrganization(
@@ -299,6 +337,25 @@ export const orgService = {
 
       const rows = await getList<MediaAssetRow>(query);
       return rows.map(toOrgMediaAsset);
+    },
+
+    /**
+     * Retrieves a single media asset by id, scoped to an organization.
+     */
+    async getById(orgId: string, id: string): Promise<OrgMediaAsset> {
+      const row = await getSingle<MediaAssetRow>(
+        supabase.from('media_assets').select('*').eq('org_id', orgId).eq('id', id).single(),
+        `Media asset not found with id: ${id}`
+      );
+      return toOrgMediaAsset(row);
+    },
+
+    /**
+     * Deletes a media_assets row by id.
+     */
+    async deleteById(id: string): Promise<void> {
+      const { error } = await supabase.from('media_assets').delete().eq('id', id);
+      if (error) throw error;
     },
   },
 };
