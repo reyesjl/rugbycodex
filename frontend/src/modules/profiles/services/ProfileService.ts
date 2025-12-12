@@ -171,6 +171,15 @@ export const profileService = {
     },
 
     /**
+    * Returns total number of profiles.
+    */
+    async countAll(): Promise<number> {
+      const { error, count } = await supabase.from('profiles').select('id', { head: true, count: 'exact' });
+      if (error) throw error;
+      return count ?? 0;
+    },
+
+    /**
      * Retrieves a single profile by identifier.
      * @param profileId Profile UUID.
      * @throws Error when the profile does not exist.

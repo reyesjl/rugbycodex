@@ -174,6 +174,15 @@ export const orgService = {
     },
 
     /**
+     * Returns total number of organizations.
+     */
+    async countAll(): Promise<number> {
+      const { error, count } = await supabase.from('organizations').select('id', { head: true, count: 'exact' });
+      if (error) throw error;
+      return count ?? 0;
+    },
+
+    /**
      * Looks up an organization by ID.
      * @throws Error if the organization does not exist.
      */
@@ -345,6 +354,16 @@ export const orgService = {
     async getTotalDurationSeconds(orgId: string): Promise<number> {
       const rows = await getList<{ duration_seconds: number | null }>(
         supabase.from('media_assets').select('duration_seconds').eq('org_id', orgId)
+      );
+      return rows.reduce((total, row) => total + (row.duration_seconds ?? 0), 0);
+    },
+
+    /**
+     * Returns the total media duration (seconds) across all organizations.
+     */
+    async getTotalDurationSecondsAll(): Promise<number> {
+      const rows = await getList<{ duration_seconds: number | null }>(
+        supabase.from('media_assets').select('duration_seconds')
       );
       return rows.reduce((total, row) => total + (row.duration_seconds ?? 0), 0);
     },

@@ -596,16 +596,14 @@ const toggleClipMute = (clipId: string) => {
 // };
 
 const signUrl = async (nextAsset: OrgMediaAsset) => {
-  const { data, error: signedError } = await supabase.functions.invoke('wasabi', {
-    body: {
-      action: 'signGet',
-      key: nextAsset.storage_path,
-      expiresIn: 60 * 60,
-    },
-  });
+  // Prefer Supabase Storage signed URLs directly. Assumes bucket policies allow signed-url creation
+  // for the current user (anon/session key).
+  const { data, error: signedError } = await supabase.storage
+    .from(nextAsset.bucket)
+    .createSignedUrl(nextAsset.storage_path, 60 * 60);
 
   if (signedError) throw signedError;
-  const url = (data as { url?: string }).url;
+  const url = data?.signedUrl;
   if (!url) throw new Error('Unable to create a signed URL.');
   signedUrl.value = url;
 };
