@@ -300,7 +300,7 @@ watch(createOrgName, (name) => {
               </p>
             </RouterLink>
             <div class="mt-4 flex items-center justify-between border-t border-white/10 pt-3">
-              <span class="text-sm text-white/70">Explore workspace</span>
+              <span class="text-sm text-white/70">Explore club</span>
               <template v-if="!isMember(org.id)">
                 <button
                   type="button"
