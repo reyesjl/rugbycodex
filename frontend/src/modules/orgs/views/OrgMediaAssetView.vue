@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { RouterLink } from 'vue-router';
 import { Icon } from '@iconify/vue';
@@ -42,7 +42,6 @@ const videoEl = ref<HTMLVideoElement | null>(null);
 const isPlaying = ref(false);
 const durationSeconds = ref(0);
 const currentSeconds = ref(0);
-const volume = ref(1);
 const isMuted = ref(false);
 
 const formatDurationClock = (seconds?: number | null) => {
@@ -77,6 +76,22 @@ const recordChunks = ref<BlobPart[]>([]);
 const preRecordMuted = ref<boolean | null>(null);
 const preRecordVolume = ref<number | null>(null);
 const isRequestingMic = ref(false);
+const isFinalizingRecording = ref(false);
+const finalizeTimeoutHandle = ref<ReturnType<typeof globalThis.setTimeout> | null>(null);
+
+const debugRecording = (() => {
+  try {
+    return Boolean(import.meta.env.DEV) || new URLSearchParams(globalThis.location?.search ?? '').has('debugRecording');
+  } catch {
+    return false;
+  }
+})();
+
+const logRec = (...args: unknown[]) => {
+  if (!debugRecording) return;
+  // eslint-disable-next-line no-console
+  console.log('[OrgMediaAssetView][rec]', ...args);
+};
 
 const assertMicrophoneAvailable = async () => {
   // `localhost` is treated as a secure context even over http.
@@ -167,7 +182,6 @@ const syncFromVideo = () => {
   durationSeconds.value = Number.isFinite(el.duration) ? el.duration : 0;
   currentSeconds.value = Number.isFinite(el.currentTime) ? el.currentTime : 0;
   isPlaying.value = !el.paused && !el.ended;
-  volume.value = el.volume;
   isMuted.value = el.muted;
 };
 
@@ -194,19 +208,15 @@ const seekTo = (nextSeconds: number) => {
   syncFromVideo();
 };
 
-const setVolume = (nextVolume: number) => {
-  const el = videoEl.value;
-  if (!el) return;
-  const v = Math.max(0, Math.min(nextVolume, 1));
-  el.volume = v;
-  if (v > 0 && el.muted) el.muted = false;
-  syncFromVideo();
-};
-
 const toggleMute = () => {
   const el = videoEl.value;
   if (!el) return;
-  el.muted = !el.muted;
+  if (el.muted) {
+    el.muted = false;
+    if (el.volume === 0) el.volume = 1;
+  } else {
+    el.muted = true;
+  }
   syncFromVideo();
 };
 
@@ -235,9 +245,20 @@ const cleanupRecorderResources = () => {
   recorderStream.value = null;
 };
 
+const clearFinalizeTimeout = () => {
+  if (finalizeTimeoutHandle.value != null) {
+    try {
+      globalThis.clearTimeout(finalizeTimeoutHandle.value);
+    } catch {
+      // no-op
+    }
+  }
+  finalizeTimeoutHandle.value = null;
+};
+
 const startRecording = async () => {
   audioError.value = null;
-  if (isRecording.value || isRequestingMic.value) return;
+  if (isRecording.value || isRequestingMic.value || isFinalizingRecording.value) return;
   const video = videoEl.value;
   if (!video) {
     audioError.value = 'Video player not ready.';
@@ -261,6 +282,12 @@ const startRecording = async () => {
 
     await assertMicrophoneAvailable();
 
+    logRec('startRecording()', {
+      secureContext: globalThis.isSecureContext,
+      origin: globalThis.location?.origin,
+      videoTime: Number.isFinite(video.currentTime) ? video.currentTime : null,
+    });
+
     // In production, permission prompts can occasionally appear “stuck” (blocked popups,
     // strict policies, embedded contexts). Add a timeout so the UI doesn’t look frozen.
     const stream = await getUserMediaWithTimeout(10_000);
@@ -283,14 +310,30 @@ const startRecording = async () => {
     const mr = supportedMimeType ? new MediaRecorder(stream, { mimeType: supportedMimeType }) : new MediaRecorder(stream);
     recorder.value = mr;
 
+    mr.onstart = () => {
+      logRec('MediaRecorder onstart', { state: mr.state, mimeType: mr.mimeType });
+    };
+
+    mr.onpause = () => {
+      logRec('MediaRecorder onpause', { state: mr.state });
+    };
+
+    mr.onresume = () => {
+      logRec('MediaRecorder onresume', { state: mr.state });
+    };
+
     mr.ondataavailable = (evt: BlobEvent) => {
+      logRec('MediaRecorder ondataavailable', { size: evt.data?.size ?? 0 });
       if (evt.data && evt.data.size > 0) {
         recordChunks.value = [...recordChunks.value, evt.data];
       }
     };
 
     mr.onstop = () => {
+      logRec('MediaRecorder onstop', { state: mr.state, chunks: recordChunks.value.length });
       try {
+        isFinalizingRecording.value = false;
+        clearFinalizeTimeout();
         isRecording.value = false;
         const startAt = recordStartAtSeconds.value ?? 0;
         const currentVideoTime = videoEl.value?.currentTime;
@@ -321,6 +364,7 @@ const startRecording = async () => {
     };
 
     mr.onerror = () => {
+      logRec('MediaRecorder onerror');
       audioError.value = 'Audio recording error. Please try again.';
       stopRecording();
     };
@@ -329,6 +373,7 @@ const startRecording = async () => {
     mr.start(250);
     isRecording.value = true;
   } catch (e: unknown) {
+    logRec('startRecording error', e);
     audioError.value = e instanceof Error ? e.message : 'Unable to start recording.';
     cleanupRecorderResources();
     restoreVideoAudioAfterRecording();
@@ -346,8 +391,31 @@ const stopRecording = () => {
 
   const mr = recorder.value;
   if (mr && mr.state !== 'inactive') {
-    isRecording.value = false;
     try {
+      // Some browsers can stall briefly while finalizing/encoding on stop.
+      // Show a "finalizing" state and ensure we recover if onstop never fires.
+      isRecording.value = false;
+      isFinalizingRecording.value = true;
+      logRec('stopRecording()', { state: mr.state, chunks: recordChunks.value.length });
+      clearFinalizeTimeout();
+      finalizeTimeoutHandle.value = globalThis.setTimeout(() => {
+        // If stop finalization never resolves, clean up and let the user retry.
+        if (!isFinalizingRecording.value) return;
+        logRec('finalize timeout fired', { state: mr.state, chunks: recordChunks.value.length });
+        audioError.value = 'Recording finalization timed out. Please try again.';
+        isFinalizingRecording.value = false;
+        cleanupRecorderResources();
+        restoreVideoAudioAfterRecording();
+        recordChunks.value = [];
+        recordStartAtSeconds.value = null;
+      }, 7_500);
+
+      // Ask for any buffered data before stopping (helps some Safari builds).
+      try {
+        mr.requestData();
+      } catch {
+        // no-op
+      }
       mr.stop();
       return;
     } catch {
@@ -356,6 +424,8 @@ const stopRecording = () => {
   }
 
   isRecording.value = false;
+  isFinalizingRecording.value = false;
+  clearFinalizeTimeout();
   cleanupRecorderResources();
   restoreVideoAudioAfterRecording();
   recordChunks.value = [];
@@ -418,24 +488,45 @@ const setClipAudioEl = (clipId: string, el: HTMLAudioElement | null) => {
     clipAudioEls.delete(clipId);
     return;
   }
+  const prevEl = clipAudioEls.get(clipId);
   clipAudioEls.set(clipId, el);
-  syncClipFromAudio(clipId);
+
+  // IMPORTANT: don't mutate reactive state during render.
+  // This ref callback runs during patch/render; syncing state immediately can cause
+  // "Maximum recursive updates exceeded".
+  if (prevEl !== el) {
+    void nextTick(() => syncClipFromAudio(clipId));
+  }
 };
 
 const syncClipFromAudio = (clipId: string) => {
   const el = clipAudioEls.get(clipId);
   if (!el) return;
   const prev = clipStates.value[clipId] ?? defaultClipState();
+
+  const next: ClipPlayerState = {
+    ...prev,
+    isPlaying: !el.paused && !el.ended,
+    currentSeconds: Number.isFinite(el.currentTime) ? el.currentTime : 0,
+    durationSeconds: Number.isFinite(el.duration) ? el.duration : 0,
+    volume: el.volume,
+    isMuted: el.muted,
+  };
+
+  // Avoid needless reactive writes (and render loops).
+  if (
+    next.isPlaying === prev.isPlaying &&
+    next.currentSeconds === prev.currentSeconds &&
+    next.durationSeconds === prev.durationSeconds &&
+    next.volume === prev.volume &&
+    next.isMuted === prev.isMuted
+  ) {
+    return;
+  }
+
   clipStates.value = {
     ...clipStates.value,
-    [clipId]: {
-      ...prev,
-      isPlaying: !el.paused && !el.ended,
-      currentSeconds: Number.isFinite(el.currentTime) ? el.currentTime : 0,
-      durationSeconds: Number.isFinite(el.duration) ? el.duration : 0,
-      volume: el.volume,
-      isMuted: el.muted,
-    },
+    [clipId]: next,
   };
 };
 
@@ -473,12 +564,15 @@ const seekClipTo = (clipId: string, nextSeconds: number) => {
   syncClipFromAudio(clipId);
 };
 
-const setClipVolume = (clipId: string, nextVolume: number) => {
+const toggleClipMute = (clipId: string) => {
   const el = clipAudioEls.get(clipId);
   if (!el) return;
-  const v = Math.max(0, Math.min(nextVolume, 1));
-  el.volume = v;
-  if (v > 0 && el.muted) el.muted = false;
+  if (el.muted) {
+    el.muted = false;
+    if (el.volume === 0) el.volume = 1;
+  } else {
+    el.muted = true;
+  }
   syncClipFromAudio(clipId);
 };
 
@@ -546,6 +640,7 @@ watch(
 
 onBeforeUnmount(() => {
   stopRecording();
+  clearFinalizeTimeout();
   audioClips.value.forEach((clip) => {
     try {
       URL.revokeObjectURL(clip.url);
@@ -607,7 +702,8 @@ onBeforeUnmount(() => {
             type="button"
             class="absolute right-3 top-3 inline-flex h-10 w-10 items-center justify-center rounded-full border bg-black/40 text-white backdrop-blur-sm transition"
             :class="isRecording ? 'border-rose-300/60' : 'border-white/30 hover:bg-white hover:text-black'"
-            :title="isRecording ? 'Stop recording' : 'Record voice note'"
+            :disabled="isRequestingMic || isFinalizingRecording"
+            :title="isRequestingMic ? 'Requesting microphone permission…' : isFinalizingRecording ? 'Finalizing recording…' : isRecording ? 'Stop recording' : 'Record voice note'"
             @click.stop="isRecording ? stopRecording() : startRecording()"
           >
             <Icon
@@ -662,20 +758,9 @@ onBeforeUnmount(() => {
                     @click="toggleMute"
                     :title="isMuted ? 'Unmute' : 'Mute'"
                   >
-                    <Icon :icon="isMuted || volume === 0 ? 'carbon:volume-mute' : 'carbon:volume-up'" class="h-4 w-4" />
+                    <Icon :icon="isMuted ? 'carbon:volume-mute' : 'carbon:volume-up'" class="h-4 w-4" />
                     <span class="sr-only">Toggle mute</span>
                   </button>
-
-                  <input
-                    type="range"
-                    class="h-1 w-24 cursor-pointer accent-white"
-                    min="0"
-                    max="1"
-                    step="0.01"
-                    :value="isMuted ? 0 : volume"
-                    @input="(e) => setVolume(Number((e.target as HTMLInputElement).value))"
-                    aria-label="Volume"
-                  />
                 </div>
               </div>
             </div>
@@ -710,6 +795,14 @@ onBeforeUnmount(() => {
 
         <div v-if="audioError" class="rounded border border-rose-400/40 bg-rose-500/10 p-2 text-xs text-white">
           {{ audioError }}
+        </div>
+
+        <div v-if="isRequestingMic" class="rounded border border-white/10 bg-black/20 p-2 text-xs text-white/80">
+          Waiting for microphone permission…
+        </div>
+
+        <div v-else-if="isFinalizingRecording" class="rounded border border-white/10 bg-black/20 p-2 text-xs text-white/80">
+          Finalizing recording…
         </div>
 
         <div v-if="isRecording" class="rounded border border-white/10 bg-black/20 p-2 text-xs text-white/80">
@@ -798,21 +891,19 @@ onBeforeUnmount(() => {
                 </div>
 
                 <div class="flex items-center gap-2">
-                  <Icon
-                    :icon="getClipState(clip.id).isMuted || getClipState(clip.id).volume === 0 ? 'carbon:volume-mute' : 'carbon:volume-up'"
-                    class="h-3.5 w-3.5 text-white/70"
-                    aria-hidden="true"
-                  />
-                  <input
-                    type="range"
-                    class="h-1 w-24 cursor-pointer accent-white"
-                    min="0"
-                    max="1"
-                    step="0.01"
-                    :value="getClipState(clip.id).isMuted ? 0 : getClipState(clip.id).volume"
-                    @input="(e) => setClipVolume(clip.id, Number((e.target as HTMLInputElement).value))"
-                    aria-label="Clip volume"
-                  />
+                  <button
+                    type="button"
+                    class="inline-flex h-6 w-6 items-center justify-center rounded-full border border-white/20 text-white/80 transition hover:border-white/40 hover:text-white"
+                    @click="toggleClipMute(clip.id)"
+                    :title="getClipState(clip.id).isMuted ? 'Unmute clip' : 'Mute clip'"
+                  >
+                    <Icon
+                      :icon="getClipState(clip.id).isMuted ? 'carbon:volume-mute' : 'carbon:volume-up'"
+                      class="h-3.5 w-3.5"
+                      aria-hidden="true"
+                    />
+                    <span class="sr-only">Toggle clip mute</span>
+                  </button>
                 </div>
               </div>
             </div>
