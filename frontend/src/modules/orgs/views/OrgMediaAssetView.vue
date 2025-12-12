@@ -78,6 +78,83 @@ const preRecordMuted = ref<boolean | null>(null);
 const preRecordVolume = ref<number | null>(null);
 const isRequestingMic = ref(false);
 
+const assertMicrophoneAvailable = async () => {
+  // `localhost` is treated as a secure context even over http.
+  // A deployed site must be HTTPS (or equivalent secure context) for mic access.
+  if (!globalThis.isSecureContext) {
+    throw new Error('Microphone access requires HTTPS. Open this site over https:// (not http://).');
+  }
+
+  // If the app is embedded (iframe), the host page must allow mic usage.
+  try {
+    if (globalThis.window && window.top !== window.self) {
+      // Not always blocked, but common in embedded contexts.
+      // We keep it as a helpful hint.
+      // eslint-disable-next-line no-console
+      console.warn('[OrgMediaAssetView] Embedded context detected; microphone may be blocked by iframe allow/Permissions-Policy.');
+    }
+  } catch {
+    // Cross-origin frame access can throw; ignore.
+  }
+
+  // Permissions-Policy can disable microphone on production (common with reverse proxies / CDNs).
+  try {
+    const doc = document as unknown as {
+      permissionsPolicy?: { allowsFeature?: (feature: string) => boolean };
+      featurePolicy?: { allowsFeature?: (feature: string) => boolean };
+    };
+    const policy = doc.permissionsPolicy ?? doc.featurePolicy;
+    if (policy?.allowsFeature && !policy.allowsFeature('microphone')) {
+      throw new Error('Microphone access is disabled by server Permissions-Policy.');
+    }
+  } catch (e) {
+    // If we threw an Error above, rethrow it; otherwise ignore API/typing issues.
+    if (e instanceof Error) throw e;
+  }
+
+  // If supported, proactively detect a hard deny so we can show a clear message.
+  try {
+    const nav = globalThis.navigator;
+    if (nav?.permissions?.query) {
+      const status = await nav.permissions.query({ name: 'microphone' as PermissionName });
+      if (status.state === 'denied') {
+        throw new Error('Microphone permission is blocked in your browser settings for this site.');
+      }
+    }
+  } catch (e) {
+    // Some browsers throw for unknown permission names; ignore unless it was our explicit deny.
+    if (e instanceof Error && e.message.includes('Microphone permission is blocked')) throw e;
+  }
+};
+
+const getUserMediaWithTimeout = async (timeoutMs: number): Promise<MediaStream> => {
+  const nav = globalThis.navigator;
+  if (!nav?.mediaDevices?.getUserMedia) {
+    throw new Error('Audio recording is not supported in this browser.');
+  }
+
+  let resolved = false;
+  return await new Promise<MediaStream>((resolve, reject) => {
+    const timer = globalThis.setTimeout(() => {
+      if (resolved) return;
+      reject(new Error('Timed out requesting microphone permission. Check browser prompts / site permissions.'));
+    }, timeoutMs);
+
+    nav.mediaDevices
+      .getUserMedia({ audio: true })
+      .then((stream) => {
+        resolved = true;
+        globalThis.clearTimeout(timer);
+        resolve(stream);
+      })
+      .catch((err) => {
+        resolved = true;
+        globalThis.clearTimeout(timer);
+        reject(err);
+      });
+  });
+};
+
 const createTempId = () => {
   const cryptoObj = globalThis.crypto;
   if (cryptoObj?.randomUUID) return cryptoObj.randomUUID();
@@ -174,12 +251,6 @@ const startRecording = async () => {
   video.muted = true;
   syncFromVideo();
 
-  const nav = globalThis.navigator;
-  if (!nav?.mediaDevices?.getUserMedia) {
-    audioError.value = 'Audio recording is not supported in this browser.';
-    return;
-  }
-
   if (!('MediaRecorder' in globalThis)) {
     audioError.value = 'MediaRecorder is not available in this browser.';
     return;
@@ -187,7 +258,12 @@ const startRecording = async () => {
 
   try {
     isRequestingMic.value = true;
-    const stream = await nav.mediaDevices.getUserMedia({ audio: true });
+
+    await assertMicrophoneAvailable();
+
+    // In production, permission prompts can occasionally appear “stuck” (blocked popups,
+    // strict policies, embedded contexts). Add a timeout so the UI doesn’t look frozen.
+    const stream = await getUserMediaWithTimeout(10_000);
     recorderStream.value = stream;
 
     recordChunks.value = [];
