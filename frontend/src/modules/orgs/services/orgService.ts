@@ -340,6 +340,16 @@ export const orgService = {
     },
 
     /**
+     * Returns the total duration (seconds) for an organization by summing `media_assets.duration_seconds`.
+     */
+    async getTotalDurationSeconds(orgId: string): Promise<number> {
+      const rows = await getList<{ duration_seconds: number | null }>(
+        supabase.from('media_assets').select('duration_seconds').eq('org_id', orgId)
+      );
+      return rows.reduce((total, row) => total + (row.duration_seconds ?? 0), 0);
+    },
+
+    /**
      * Retrieves a single media asset by id, scoped to an organization.
      */
     async getById(orgId: string, id: string): Promise<OrgMediaAsset> {
@@ -359,4 +369,3 @@ export const orgService = {
     },
   },
 };
-

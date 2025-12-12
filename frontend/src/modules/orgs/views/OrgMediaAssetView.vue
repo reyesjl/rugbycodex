@@ -38,7 +38,7 @@ const canRenderPlayer = computed(() => {
   return asset.value.mime_type.startsWith('video/') || asset.value.mime_type === 'application/mp4' || asset.value.mime_type === 'video/mp4';
 });
 
-const videoEl = ref<HTMLVideoElement | null>(null);
+const videoEl = ref<globalThis.HTMLVideoElement | null>(null);
 const isPlaying = ref(false);
 const durationSeconds = ref(0);
 const currentSeconds = ref(0);
@@ -69,10 +69,10 @@ type AudioClip = {
 const audioClips = ref<AudioClip[]>([]);
 const isRecording = ref(false);
 const audioError = ref<string | null>(null);
-const recorder = ref<MediaRecorder | null>(null);
-const recorderStream = ref<MediaStream | null>(null);
+const recorder = ref<globalThis.MediaRecorder | null>(null);
+const recorderStream = ref<globalThis.MediaStream | null>(null);
 const recordStartAtSeconds = ref<number | null>(null);
-const recordChunks = ref<BlobPart[]>([]);
+const recordChunks = ref<globalThis.BlobPart[]>([]);
 const preRecordMuted = ref<boolean | null>(null);
 const preRecordVolume = ref<number | null>(null);
 const isRequestingMic = ref(false);
@@ -89,7 +89,6 @@ const debugRecording = (() => {
 
 const logRec = (...args: unknown[]) => {
   if (!debugRecording) return;
-  // eslint-disable-next-line no-console
   console.log('[OrgMediaAssetView][rec]', ...args);
 };
 
@@ -105,7 +104,6 @@ const assertMicrophoneAvailable = async () => {
     if (globalThis.window && window.top !== window.self) {
       // Not always blocked, but common in embedded contexts.
       // We keep it as a helpful hint.
-      // eslint-disable-next-line no-console
       console.warn('[OrgMediaAssetView] Embedded context detected; microphone may be blocked by iframe allow/Permissions-Policy.');
     }
   } catch {
@@ -131,7 +129,7 @@ const assertMicrophoneAvailable = async () => {
   try {
     const nav = globalThis.navigator;
     if (nav?.permissions?.query) {
-      const status = await nav.permissions.query({ name: 'microphone' as PermissionName });
+      const status = await nav.permissions.query({ name: 'microphone' as globalThis.PermissionName });
       if (status.state === 'denied') {
         throw new Error('Microphone permission is blocked in your browser settings for this site.');
       }
@@ -142,14 +140,14 @@ const assertMicrophoneAvailable = async () => {
   }
 };
 
-const getUserMediaWithTimeout = async (timeoutMs: number): Promise<MediaStream> => {
+const getUserMediaWithTimeout = async (timeoutMs: number): Promise<globalThis.MediaStream> => {
   const nav = globalThis.navigator;
   if (!nav?.mediaDevices?.getUserMedia) {
     throw new Error('Audio recording is not supported in this browser.');
   }
 
   let resolved = false;
-  return await new Promise<MediaStream>((resolve, reject) => {
+  return await new Promise<globalThis.MediaStream>((resolve, reject) => {
     const timer = globalThis.setTimeout(() => {
       if (resolved) return;
       reject(new Error('Timed out requesting microphone permission. Check browser prompts / site permissions.'));
@@ -307,7 +305,9 @@ const startRecording = async () => {
       }
     });
 
-    const mr = supportedMimeType ? new MediaRecorder(stream, { mimeType: supportedMimeType }) : new MediaRecorder(stream);
+    const mr = supportedMimeType
+      ? new globalThis.MediaRecorder(stream, { mimeType: supportedMimeType })
+      : new globalThis.MediaRecorder(stream);
     recorder.value = mr;
 
     mr.onstart = () => {
@@ -322,7 +322,7 @@ const startRecording = async () => {
       logRec('MediaRecorder onresume', { state: mr.state });
     };
 
-    mr.ondataavailable = (evt: BlobEvent) => {
+    mr.ondataavailable = (evt: globalThis.BlobEvent) => {
       logRec('MediaRecorder ondataavailable', { size: evt.data?.size ?? 0 });
       if (evt.data && evt.data.size > 0) {
         recordChunks.value = [...recordChunks.value, evt.data];
@@ -338,7 +338,7 @@ const startRecording = async () => {
         const startAt = recordStartAtSeconds.value ?? 0;
         const currentVideoTime = videoEl.value?.currentTime;
         const endAt = Number.isFinite(currentVideoTime) ? (currentVideoTime ?? startAt) : startAt;
-        const blob = new Blob(recordChunks.value, { type: mr.mimeType || supportedMimeType || 'audio/webm' });
+        const blob = new globalThis.Blob(recordChunks.value, { type: mr.mimeType || supportedMimeType || 'audio/webm' });
         if (blob.size === 0) {
           audioError.value = 'No audio data was captured. Please try again.';
           return;
@@ -456,7 +456,8 @@ const removeClip = (clipId: string) => {
     }
   }
   audioClips.value = audioClips.value.filter((c) => c.id !== clipId);
-  const { [clipId]: _, ...rest } = clipStates.value;
+  const rest = { ...clipStates.value };
+  delete rest[clipId];
   clipStates.value = rest;
 };
 
@@ -468,7 +469,7 @@ type ClipPlayerState = {
   isMuted: boolean;
 };
 
-const clipAudioEls = new Map<string, HTMLAudioElement>();
+const clipAudioEls = new Map<string, globalThis.HTMLAudioElement>();
 const clipStates = ref<Record<string, ClipPlayerState>>({});
 
 const defaultClipState = (): ClipPlayerState => ({
@@ -483,7 +484,7 @@ const getClipState = (clipId: string): ClipPlayerState => {
   return clipStates.value[clipId] ?? defaultClipState();
 };
 
-const setClipAudioEl = (clipId: string, el: HTMLAudioElement | null) => {
+const setClipAudioEl = (clipId: string, el: globalThis.HTMLAudioElement | null) => {
   if (!el) {
     clipAudioEls.delete(clipId);
     return;
@@ -595,13 +596,18 @@ const toggleClipMute = (clipId: string) => {
 // };
 
 const signUrl = async (nextAsset: OrgMediaAsset) => {
-  const { data, error: signedError } = await supabase.storage
-    .from(nextAsset.bucket)
-    .createSignedUrl(nextAsset.storage_path, 60 * 60);
+  const { data, error: signedError } = await supabase.functions.invoke('wasabi', {
+    body: {
+      action: 'signGet',
+      key: nextAsset.storage_path,
+      expiresIn: 60 * 60,
+    },
+  });
 
   if (signedError) throw signedError;
-  if (!data?.signedUrl) throw new Error('Unable to create a signed URL.');
-  signedUrl.value = data.signedUrl;
+  const url = (data as { url?: string }).url;
+  if (!url) throw new Error('Unable to create a signed URL.');
+  signedUrl.value = url;
 };
 
 const load = async () => {
@@ -849,7 +855,7 @@ onBeforeUnmount(() => {
             <div class="mt-1">
               <audio
                 :src="clip.url"
-                :ref="(el) => setClipAudioEl(clip.id, el as HTMLAudioElement | null)"
+                :ref="(el) => setClipAudioEl(clip.id, el as globalThis.HTMLAudioElement | null)"
                 class="hidden"
                 preload="metadata"
                 @loadedmetadata="() => syncClipFromAudio(clip.id)"

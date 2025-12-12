@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue';
-import { computed, ref, watch } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
 import { RouterLink } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import { useAuthStore } from '@/auth/stores/useAuthStore';
 import { useOrgCapabilities } from '@/modules/orgs/composables/useOrgCapabilities';
 import { useActiveOrgStore } from '@/modules/orgs/stores/useActiveOrgStore';
 import { profileService } from '@/modules/profiles/services/ProfileService';
+import { orgService } from '@/modules/orgs/services/orgService';
 import type { MembershipRole, UserProfile } from '@/modules/profiles/types';
 
 const activeOrgStore = useActiveOrgStore();
@@ -90,11 +91,82 @@ const quickLinks = computed(() => {
   return entries.filter((entry) => hasAccess(entry.minRole));
 });
 
-const stubStats = {
+const stubStats = reactive({
   members: '—',
   media: '—',
   narrations: '—',
+});
+
+const formatMediaMinutes = (totalSeconds: number) => {
+  if (!Number.isFinite(totalSeconds) || totalSeconds <= 0) {
+    return '0';
+  }
+  const minutes = totalSeconds / 60;
+  if (minutes < 1) {
+    return '< 1';
+  }
+  return new Intl.NumberFormat().format(Math.round(minutes));
 };
+
+let mediaMinutesRequestId = 0;
+let memberCountRequestId = 0;
+
+const loadMediaMinutes = async (orgId: string) => {
+  mediaMinutesRequestId += 1;
+  const requestId = mediaMinutesRequestId;
+  try {
+    const totalSeconds = await orgService.mediaAssets.getTotalDurationSeconds(orgId);
+    if (requestId === mediaMinutesRequestId) {
+      stubStats.media = formatMediaMinutes(totalSeconds);
+    }
+  } catch (err) {
+    console.error(err);
+    if (requestId === mediaMinutesRequestId) {
+      stubStats.media = '—';
+    }
+  }
+};
+
+const formatMemberCount = (count: number) => {
+  if (!Number.isFinite(count) || count < 0) {
+    return '—';
+  }
+  return new Intl.NumberFormat().format(count);
+};
+
+const loadMemberCount = async (orgId: string) => {
+  memberCountRequestId += 1;
+  const requestId = memberCountRequestId;
+  try {
+    const members = await profileService.memberships.listByOrganization(orgId);
+    if (requestId === memberCountRequestId) {
+      stubStats.members = formatMemberCount(members.length);
+    }
+  } catch (err) {
+    console.error(err);
+    if (requestId === memberCountRequestId) {
+      stubStats.members = '—';
+    }
+  }
+};
+
+watch(
+  () => org.value?.id ?? null,
+  (orgId) => {
+    if (!orgId) {
+      mediaMinutesRequestId += 1;
+      memberCountRequestId += 1;
+      stubStats.media = '—';
+      stubStats.members = '—';
+      return;
+    }
+    stubStats.media = '—';
+    stubStats.members = '—';
+    loadMediaMinutes(orgId);
+    loadMemberCount(orgId);
+  },
+  { immediate: true }
+);
 
 watch(
   () => org.value?.owner ?? null,
@@ -143,25 +215,27 @@ watch(
 
     <div v-else-if="org" class="space-y-8">
       <header class="rounded border border-white/15 bg-white/5 p-6 text-white">
-        <p class="text-xs uppercase tracking-[0.3em] text-white/60">Organization</p>
+        <div class="flex justify-between text-xs">
+          <span>Founded {{ formattedCreatedAt }}</span>
+          <template v-if="ownerProfileLink">
+            <div class="flex gap-1">
+              <div>Owner </div>
+              <RouterLink
+              :to="ownerProfileLink"
+              class="font-semibold text-white underline-offset-4 hover:underline"
+            >
+              {{ ownerDisplayName }}
+            </RouterLink>
+            </div>
+          </template>
+          <span v-else>Owner {{ ownerDisplayName }}</span>
+        </div>
         <div class="mt-3 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 class="text-4xl font-semibold">{{ org.name }}</h1>
-            <p class="flex flex-wrap flex-col gap-x-2 text-white/70">
-              <span>Founded {{ formattedCreatedAt }}</span>
-              <template v-if="ownerProfileLink">
-                <div class="flex gap-1">
-                  <div>By </div>
-                  <RouterLink
-                  :to="ownerProfileLink"
-                  class="font-semibold text-white underline-offset-4 hover:underline"
-                >
-                  {{ ownerDisplayName }}
-                </RouterLink>
-                </div>
-              </template>
-              <span v-else>· Owner {{ ownerDisplayName }}</span>
-            </p>
+              <p class="text-xs w-full md:w-3/4 mt-4 whitespace-pre-line text-white/80">
+                {{ org.bio ?? 'No bio yet. Add one from the organization settings to help members understand the mission and goals.' }}
+              </p>
           </div>
         </div>
       </header>
@@ -190,17 +264,6 @@ watch(
           </div>
           <p class="mt-1 text-sm text-white/60">Clips narrated by members of this org.</p>
         </article>
-      </section>
-
-      <section class="rounded border border-white/15 bg-white/5 p-6">
-        <header class="flex items-center justify-between gap-3">
-          <div>
-            <h2 class="text-2xl font-semibold">Bio</h2>
-          </div>
-        </header>
-        <p class="mt-4 whitespace-pre-line text-white/80">
-          {{ org.bio ?? 'No bio yet. Add one from the organization settings to help members understand the mission and goals.' }}
-        </p>
       </section>
 
       <section class="rounded border border-white/15 bg-white/5 p-6">

@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Icon } from '@iconify/vue';
+import { sha256 } from '@noble/hashes/sha2.js';
+import { bytesToHex } from '@noble/hashes/utils.js';
 import { storeToRefs } from 'pinia';
 import { RouterLink } from 'vue-router';
 import RefreshButton from '@/components/RefreshButton.vue';
@@ -40,9 +42,12 @@ const disabledAssetMap = ref<Record<string, boolean>>({});
 const isBatchProcessing = ref(false);
 
 const showUploadModal = ref(false);
-const uploadFile = ref<globalThis.File | null>(null);
+const uploadFiles = ref<globalThis.File[]>([]);
 const uploadError = ref<string | null>(null);
 const uploadProcessing = ref(false);
+const HASH_CHUNK_SIZE = 8 * 1024 * 1024; // 8MB chunks keeps memory usage reasonable for huge files.
+// Supabase's TUS endpoint currently requires 6MB chunks.
+const TUS_CHUNK_SIZE = 6 * 1024 * 1024;
 
 type PendingUpload = {
   /**
@@ -60,11 +65,17 @@ type PendingUpload = {
   fileSizeBytes: number;
   startedAt: Date;
   progress: number; // 0..1
-  state: 'uploading' | 'finalizing' | 'failed';
+  uploadedBytes?: number;
+  uploadBps?: number;
+  state: 'queued' | 'preparing' | 'uploading' | 'finalizing' | 'failed';
   errorMessage?: string;
 };
 
 const pendingUploads = ref<PendingUpload[]>([]);
+
+const hasInFlightUploads = computed(() =>
+  pendingUploads.value.some((u) => u.state !== 'failed')
+);
 
 const showDeleteModal = ref(false);
 const deleteError = ref<string | null>(null);
@@ -85,6 +96,11 @@ const formatBytes = (bytes?: number | null) => {
   const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
   const value = bytes / Math.pow(1024, i);
   return `${value.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
+};
+
+const formatSpeed = (bps?: number | null) => {
+  if (!bps || !Number.isFinite(bps) || bps <= 0) return '—';
+  return `${formatBytes(bps)}/s`;
 };
 
 const formatDuration = (seconds?: number | null) => {
@@ -162,6 +178,16 @@ const uploadProgressPercent = (assetId: string) => {
   const upload = pendingUploadById.value.get(assetId);
   if (!upload) return null;
   return Math.round(Math.min(1, Math.max(0, upload.progress)) * 100);
+};
+
+const pendingUploadStatusText = (assetId: string) => {
+  const upload = pendingUploadById.value.get(assetId);
+  if (!upload) return null;
+  if (upload.state === 'queued') return 'Queued…';
+  if (upload.state === 'preparing') return 'Preparing…';
+  if (upload.state === 'finalizing') return 'Finalizing…';
+  if (upload.state === 'failed') return 'Failed';
+  return 'Uploading…';
 };
 
 const isAssetDisabled = (assetId: string) => Boolean(disabledAssetMap.value[assetId]);
@@ -243,9 +269,112 @@ const createTempUploadId = () => {
   return `upload-${uuid}`;
 };
 
-const encodeStorageObjectPath = (path: string) => {
-  // Keep slashes, encode segments.
-  return path.split('/').map((segment) => encodeURIComponent(segment)).join('/');
+const resolveSupabaseStorageBaseUrl = (supabaseUrl: string) => {
+  // For large uploads, Supabase recommends using the direct storage hostname:
+  // `https://<project-ref>.storage.supabase.co` instead of `https://<project-ref>.supabase.co`.
+  // This avoids gateway limits and improves reliability/performance.
+  try {
+    const url = new URL(supabaseUrl);
+    const host = url.hostname;
+    if (host.endsWith('.storage.supabase.co')) {
+      url.pathname = '';
+      url.search = '';
+      url.hash = '';
+      return url.toString().replace(/\/$/, '');
+    }
+    if (host.endsWith('.supabase.co') && !host.includes('.storage.')) {
+      const projectRef = host.split('.')[0];
+      url.hostname = `${projectRef}.storage.supabase.co`;
+      url.pathname = '';
+      url.search = '';
+      url.hash = '';
+      return url.toString().replace(/\/$/, '');
+    }
+    return supabaseUrl.replace(/\/$/, '');
+  } catch {
+    return supabaseUrl.replace(/\/$/, '');
+  }
+};
+
+type ResumableUploadMeta = {
+  orgId: string;
+  bucket: string;
+  fileName: string;
+  fileSizeBytes: number;
+  lastModified: number;
+  storagePath: string;
+};
+
+const resumableUploadMetaStorageKey = (input: {
+  orgId: string;
+  bucket: string;
+  file: globalThis.File;
+}) => {
+  const name = input.file.name;
+  const size = input.file.size;
+  const lastModified = input.file.lastModified || 0;
+  return `rugbycodex:resumable-upload:${input.orgId}:${input.bucket}:${name}:${size}:${lastModified}`;
+};
+
+const readResumableUploadMeta = (key: string): ResumableUploadMeta | null => {
+  if (typeof localStorage === 'undefined') return null;
+  const raw = localStorage.getItem(key);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as ResumableUploadMeta;
+    if (!parsed || typeof parsed.storagePath !== 'string' || parsed.storagePath.length === 0) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+};
+
+const writeResumableUploadMeta = (key: string, meta: ResumableUploadMeta) => {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(key, JSON.stringify(meta));
+  } catch {
+    // ignore quota / privacy mode
+  }
+};
+
+const clearResumableUploadMeta = (key: string) => {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    // ignore
+  }
+};
+
+const getOrCreateResumableStoragePath = (input: {
+  orgId: string;
+  bucket: string;
+  file: globalThis.File;
+}) => {
+  const key = resumableUploadMetaStorageKey(input);
+  const existing = readResumableUploadMeta(key);
+  if (
+    existing &&
+    existing.orgId === input.orgId &&
+    existing.bucket === input.bucket &&
+    existing.fileName === input.file.name &&
+    existing.fileSizeBytes === input.file.size &&
+    existing.lastModified === (input.file.lastModified || 0)
+  ) {
+    return { key, storagePath: existing.storagePath };
+  }
+
+  const storagePath = createStoragePath(input.orgId, input.file.name);
+  writeResumableUploadMeta(key, {
+    orgId: input.orgId,
+    bucket: input.bucket,
+    fileName: input.file.name,
+    fileSizeBytes: input.file.size,
+    lastModified: input.file.lastModified || 0,
+    storagePath,
+  });
+  return { key, storagePath };
 };
 
 const uploadToSupabaseStorageWithProgress = async (input: {
@@ -253,6 +382,7 @@ const uploadToSupabaseStorageWithProgress = async (input: {
   storagePath: string;
   file: globalThis.File;
   onProgress: (progress: number) => void;
+  onBytesProgress?: (bytesUploaded: number, bytesTotal: number) => void;
 }): Promise<void> => {
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL ?? '';
   const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY ?? '';
@@ -267,56 +397,131 @@ const uploadToSupabaseStorageWithProgress = async (input: {
     throw new Error('You must be signed in to upload.');
   }
 
-  const objectPath = encodeStorageObjectPath(input.storagePath);
-  const url = `${supabaseUrl.replace(/\/$/, '')}/storage/v1/object/${encodeURIComponent(input.bucket)}/${objectPath}`;
+  const storageBaseUrl = resolveSupabaseStorageBaseUrl(supabaseUrl);
+
+  // Supabase Storage TUS endpoint (resumable uploads)
+  const endpoint = `${storageBaseUrl}/storage/v1/upload/resumable`;
+  const fingerprint = `rugbycodex:media:${input.bucket}:${input.storagePath}`;
 
   await new Promise<void>((resolve, reject) => {
-    if (typeof globalThis.XMLHttpRequest === 'undefined') {
-      reject(new Error('Upload progress is not supported in this environment.'));
-      return;
-    }
-
-    const xhr = new globalThis.XMLHttpRequest();
-    xhr.open('POST', url);
-    xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-    xhr.setRequestHeader('apikey', supabaseAnonKey);
-    xhr.setRequestHeader('x-upsert', 'false');
-    if (input.file.type) {
-      xhr.setRequestHeader('Content-Type', input.file.type);
-    }
-
-    xhr.upload.onprogress = (event: globalThis.ProgressEvent) => {
-      if (!event.lengthComputable) return;
-      const progress = event.total > 0 ? event.loaded / event.total : 0;
-      input.onProgress(Math.min(1, Math.max(0, progress)));
-    };
-
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
+    const upload = new tus.Upload(input.file, {
+      endpoint,
+      retryDelays: [0, 3000, 5000, 10000, 20000],
+      chunkSize: TUS_CHUNK_SIZE,
+      uploadDataDuringCreation: true,
+      removeFingerprintOnSuccess: true,
+      fingerprint: () => Promise.resolve(fingerprint),
+      headers: {
+        authorization: `Bearer ${token}`,
+        apikey: supabaseAnonKey,
+        'x-upsert': 'false',
+      },
+      metadata: {
+        bucketName: input.bucket,
+        objectName: input.storagePath,
+        contentType: input.file.type || 'application/octet-stream',
+        cacheControl: '3600',
+      },
+      onError: (error) => {
+        reject(error instanceof Error ? error : new Error(String(error)));
+      },
+      onProgress: (bytesUploaded, bytesTotal) => {
+        const total = bytesTotal && bytesTotal > 0 ? bytesTotal : input.file.size;
+        const progress = total > 0 ? bytesUploaded / total : 0;
+        input.onProgress(Math.min(1, Math.max(0, progress)));
+        input.onBytesProgress?.(bytesUploaded, total);
+      },
+      onSuccess: () => {
         input.onProgress(1);
         resolve();
-        return;
-      }
-      const message = xhr.responseText || `Storage upload failed (HTTP ${xhr.status}).`;
-      reject(new Error(message));
-    };
+      },
+    });
 
-    xhr.onerror = () => {
-      reject(new Error('Network error while uploading.'));
-    };
-
-    xhr.send(input.file);
+    upload
+      .findPreviousUploads()
+      .then((previousUploads) => {
+        if (previousUploads.length > 0) {
+          upload.resumeFromPreviousUpload(previousUploads[0]);
+        }
+        upload.start();
+      })
+      .catch((err) => {
+        reject(err instanceof Error ? err : new Error(String(err)));
+      });
   });
 };
 
-const sha256Hex = async (file: globalThis.File) => {
-  if (typeof globalThis.crypto === 'undefined' || !globalThis.crypto.subtle?.digest) {
-    throw new Error('Your browser does not support secure hashing (crypto.subtle).');
+const sha256Hex = async (
+  file: globalThis.File,
+  options: { onProgress?: (progress: number) => void } = {}
+) => {
+  if (file.size === 0) {
+    options.onProgress?.(1);
+    return bytesToHex(sha256.create().digest());
   }
-  const buffer = await file.arrayBuffer();
-  const digest = await globalThis.crypto.subtle.digest('SHA-256', buffer);
-  const bytes = new Uint8Array(digest);
-  return Array.from(bytes).map((b) => b.toString(16).padStart(2, '0')).join('');
+
+  const chunkSize = HASH_CHUNK_SIZE;
+  const totalBytes = file.size;
+  let hashedBytes = 0;
+  const hash = sha256.create();
+
+  while (hashedBytes < totalBytes) {
+    const chunk = file.slice(hashedBytes, hashedBytes + chunkSize);
+    const buffer = await chunk.arrayBuffer();
+    hash.update(new Uint8Array(buffer));
+    hashedBytes += buffer.byteLength;
+    if (options.onProgress && totalBytes > 0) {
+      options.onProgress(Math.min(1, hashedBytes / totalBytes));
+    }
+    // Allow the UI thread to breathe for extremely large files.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+
+  options.onProgress?.(1);
+  return bytesToHex(hash.digest());
+};
+
+const patchPendingUpload = (tempId: string, patch: Partial<PendingUpload>) => {
+  pendingUploads.value = pendingUploads.value.map((upload) =>
+    upload.tempId === tempId ? { ...upload, ...patch } : upload
+  );
+};
+
+const uploadTelemetry = new Map<
+  string,
+  {
+    lastAtMs: number;
+    lastBytes: number;
+    emaBps: number | null;
+  }
+>();
+
+const updateUploadSpeed = (tempId: string, bytesUploaded: number, bytesTotal: number) => {
+  const now = Date.now();
+  const prev = uploadTelemetry.get(tempId);
+  if (!prev) {
+    uploadTelemetry.set(tempId, { lastAtMs: now, lastBytes: bytesUploaded, emaBps: null });
+    patchPendingUpload(tempId, { uploadedBytes: bytesUploaded });
+    return;
+  }
+
+  const dtMs = now - prev.lastAtMs;
+  const deltaBytes = bytesUploaded - prev.lastBytes;
+  if (dtMs <= 0 || deltaBytes < 0) {
+    prev.lastAtMs = now;
+    prev.lastBytes = bytesUploaded;
+    patchPendingUpload(tempId, { uploadedBytes: bytesUploaded });
+    return;
+  }
+
+  const instantBps = (deltaBytes / dtMs) * 1000;
+  const alpha = 0.2; // EMA smoothing factor
+  const emaBps = prev.emaBps == null ? instantBps : prev.emaBps * (1 - alpha) + instantBps * alpha;
+  uploadTelemetry.set(tempId, { lastAtMs: now, lastBytes: bytesUploaded, emaBps });
+  patchPendingUpload(tempId, { uploadedBytes: bytesUploaded, uploadBps: emaBps });
+
+  // Keep bytesTotal referenced so TS doesn't consider it unused if used later.
+  void bytesTotal;
 };
 
 const getMediaDurationSeconds = async (file: globalThis.File) => {
@@ -342,15 +547,14 @@ const getMediaDurationSeconds = async (file: globalThis.File) => {
 };
 
 const openUploadModal = () => {
-  uploadFile.value = null;
+  uploadFiles.value = [];
   uploadError.value = null;
   showUploadModal.value = true;
 };
 
 const closeUploadModal = () => {
-  if (uploadProcessing.value) return;
   showUploadModal.value = false;
-  uploadFile.value = null;
+  uploadFiles.value = [];
   uploadError.value = null;
 };
 
@@ -365,25 +569,129 @@ const isMp4File = (file: globalThis.File) => {
 
 const handleFileChange = (event: globalThis.Event) => {
   const target = event.target as globalThis.HTMLInputElement | null;
-  const file = target?.files?.[0] ?? null;
-  if (!file) {
-    uploadFile.value = null;
+  const files = target?.files ? Array.from(target.files) : [];
+  if (files.length === 0) {
+    uploadFiles.value = [];
     uploadError.value = null;
     return;
   }
 
-  if (!isMp4File(file)) {
-    uploadFile.value = null;
+  const invalid = files.filter((file) => !isMp4File(file));
+  if (invalid.length > 0) {
+    uploadFiles.value = [];
     uploadError.value = 'Only MP4 files are supported right now.';
     if (target) target.value = '';
     return;
   }
 
-  uploadFile.value = file;
+  uploadFiles.value = files;
   uploadError.value = null;
 };
 
-const canUpload = computed(() => Boolean(uploadFile.value) && !uploadProcessing.value);
+const canUpload = computed(() => uploadFiles.value.length > 0 && !uploadProcessing.value);
+
+type UploadJob = {
+  tempId: string;
+  resumableKey: string;
+  orgId: string;
+  uploaderId: string;
+  bucket: string;
+  storagePath: string;
+  file: globalThis.File;
+  fileName: string;
+  mimeType: string;
+  fileSizeBytes: number;
+  startedAt: Date;
+};
+
+const uploadQueue: UploadJob[] = [];
+let uploadWorkerRunning = false;
+
+const processUploadQueue = async () => {
+  if (uploadWorkerRunning) return;
+  uploadWorkerRunning = true;
+
+  try {
+    while (uploadQueue.length > 0) {
+      const job = uploadQueue.shift();
+      if (!job) break;
+
+      // If the row was removed (e.g., page refresh), skip work.
+      if (!pendingUploads.value.some((u) => u.tempId === job.tempId)) {
+        uploadTelemetry.delete(job.tempId);
+        continue;
+      }
+
+      patchPendingUpload(job.tempId, { state: 'preparing', progress: 0, uploadedBytes: 0, uploadBps: undefined });
+
+      try {
+        const [checksum, durationSeconds] = await Promise.all([
+          sha256Hex(job.file, {
+            onProgress: (progress) => {
+              patchPendingUpload(job.tempId, { progress });
+            },
+          }),
+          getMediaDurationSeconds(job.file),
+        ]);
+
+        patchPendingUpload(job.tempId, { state: 'uploading', progress: 0, uploadedBytes: 0, uploadBps: undefined });
+        uploadTelemetry.delete(job.tempId);
+
+        await uploadToSupabaseStorageWithProgress({
+          bucket: job.bucket,
+          storagePath: job.storagePath,
+          file: job.file,
+          onProgress: (progress) => {
+            patchPendingUpload(job.tempId, { progress });
+          },
+          onBytesProgress: (bytesUploaded, bytesTotal) => {
+            updateUploadSpeed(job.tempId, bytesUploaded, bytesTotal);
+          },
+        });
+
+        patchPendingUpload(job.tempId, { state: 'finalizing' });
+        uploadTelemetry.delete(job.tempId);
+
+        await orgService.mediaAssets.create({
+          orgId: job.orgId,
+          uploaderId: job.uploaderId,
+          bucket: job.bucket,
+          storagePath: job.storagePath,
+          fileSizeBytes: job.fileSizeBytes,
+          mimeType: job.mimeType,
+          durationSeconds,
+          checksum,
+          source: 'upload',
+          fileName: job.fileName,
+        });
+
+        if (activeOrg.value?.id === job.orgId) {
+          await loadAssets();
+        }
+
+        pendingUploads.value = pendingUploads.value.filter((u) => u.tempId !== job.tempId);
+        clearResumableUploadMeta(job.resumableKey);
+        uploadTelemetry.delete(job.tempId);
+      } catch (err) {
+        // Best-effort cleanup: avoid orphaned files when quota/RLS prevents inserting the DB row.
+        try {
+          await supabase.storage.from(job.bucket).remove([job.storagePath]);
+        } catch {
+          // ignore cleanup failures
+        }
+
+        patchPendingUpload(job.tempId, {
+          state: 'failed',
+          errorMessage: err instanceof Error ? err.message : 'Upload failed.',
+        });
+
+        uploadTelemetry.delete(job.tempId);
+      }
+    }
+  } finally {
+    uploadWorkerRunning = false;
+  }
+};
 
 const handleUpload = async () => {
   if (!activeOrg.value?.id) {
@@ -394,88 +702,66 @@ const handleUpload = async () => {
     uploadError.value = 'You must be signed in to upload.';
     return;
   }
-  if (!uploadFile.value) {
+  if (uploadFiles.value.length === 0) {
     uploadError.value = 'Choose a file first.';
     return;
   }
 
+  // `uploadProcessing` is only for the modal submit UX; the queue can continue in the background.
   uploadProcessing.value = true;
   uploadError.value = null;
 
   const bucket = 'matches';
-  const storagePath = createStoragePath(activeOrg.value.id, uploadFile.value.name);
-  const tempId = createTempUploadId();
+  const orgId = activeOrg.value.id;
+  const uploaderId = profile.value.id;
   const startedAt = new Date();
 
-  const pending: PendingUpload = {
-    tempId,
-    orgId: activeOrg.value.id,
-    bucket,
-    storagePath,
-    fileName: uploadFile.value.name,
-    mimeType: uploadFile.value.type || 'application/octet-stream',
-    fileSizeBytes: uploadFile.value.size,
-    startedAt,
+  // Queue all selected files.
+  const jobs: UploadJob[] = uploadFiles.value.map((file) => {
+    const { key: resumableKey, storagePath } = getOrCreateResumableStoragePath({ orgId, bucket, file });
+    const tempId = createTempUploadId();
+    return {
+      tempId,
+      resumableKey,
+      orgId,
+      uploaderId,
+      bucket,
+      storagePath,
+      file,
+      fileName: file.name,
+      mimeType: file.type || 'application/octet-stream',
+      fileSizeBytes: file.size,
+      startedAt,
+    };
+  });
+
+  // Show queued rows immediately.
+  const pendingRows: PendingUpload[] = jobs.map((job) => ({
+    tempId: job.tempId,
+    orgId: job.orgId,
+    bucket: job.bucket,
+    storagePath: job.storagePath,
+    fileName: job.fileName,
+    mimeType: job.mimeType,
+    fileSizeBytes: job.fileSizeBytes,
+    startedAt: job.startedAt,
     progress: 0,
-    state: 'uploading',
-  };
+    uploadedBytes: 0,
+    state: 'queued',
+  }));
 
-  pendingUploads.value = [pending, ...pendingUploads.value];
+  pendingUploads.value = [...pendingRows, ...pendingUploads.value];
+  uploadQueue.push(...jobs);
 
-  // Close modal immediately so the upload can continue “in the background” while the table shows progress.
+  // Close modal immediately; uploads will process sequentially in the background.
   showUploadModal.value = false;
+  uploadFiles.value = [];
 
   try {
-    const [checksum, durationSeconds] = await Promise.all([
-      sha256Hex(uploadFile.value),
-      getMediaDurationSeconds(uploadFile.value),
-    ]);
-
-    await uploadToSupabaseStorageWithProgress({
-      bucket,
-      storagePath,
-      file: uploadFile.value,
-      onProgress: (progress) => {
-        pendingUploads.value = pendingUploads.value.map((u) => (u.tempId === tempId ? { ...u, progress } : u));
-      },
-    });
-
-    pendingUploads.value = pendingUploads.value.map((u) => (u.tempId === tempId ? { ...u, state: 'finalizing' } : u));
-
-    await orgService.mediaAssets.create({
-      orgId: activeOrg.value.id,
-      uploaderId: profile.value.id,
-      bucket,
-      storagePath,
-      fileSizeBytes: uploadFile.value.size,
-      mimeType: uploadFile.value.type || 'application/octet-stream',
-      durationSeconds,
-      checksum,
-      source: 'upload',
-      fileName: uploadFile.value.name,
-    });
-
-    await loadAssets();
-    pendingUploads.value = pendingUploads.value.filter((u) => u.tempId !== tempId);
-    closeUploadModal();
+    // Don't await the entire queue here; allow the user to keep using the UI and queue more.
+    void processUploadQueue();
   } catch (err) {
-    // Best-effort cleanup: avoid orphaned files when quota/RLS prevents inserting the DB row.
-    try {
-      await supabase.storage.from(bucket).remove([storagePath]);
-    } catch {
-      // ignore cleanup failures
-    }
-
-    pendingUploads.value = pendingUploads.value.map((u) =>
-      u.tempId === tempId
-        ? {
-          ...u,
-          state: 'failed',
-          errorMessage: err instanceof Error ? err.message : 'Upload failed.',
-        }
-        : u
-    );
-
+    // Should be rare: processUploadQueue handles per-job failures.
     uploadError.value = err instanceof Error ? err.message : 'Upload failed.';
   } finally {
     uploadProcessing.value = false;
@@ -642,7 +928,7 @@ onBeforeUnmount(() => {
   <section class="container-lg space-y-6 py-5 text-white">
     <header class="space-y-1">
       <div>
-        <h1 class="text-3xl font-semibold">Org Media</h1>
+        <h1 class="text-3xl font-semibold">Footage</h1>
         <p class="text-white/70">Upload and manage footage for this organization.</p>
       </div>
     </header>
@@ -666,10 +952,21 @@ onBeforeUnmount(() => {
             @click="openUploadModal"
           >
             <Icon icon="carbon:upload" class="h-4 w-4" />
-            Add media
+            Upload
           </button>
           <RefreshButton size="sm" :refresh="handleRefresh" :loading="loading" title="Refresh media" />
         </div>
+      </div>
+
+      <div
+        v-if="hasInFlightUploads"
+        class="mt-4 rounded border border-amber-400/40 bg-amber-500/10 p-4 text-white"
+      >
+        <p class="font-semibold">Upload in progress</p>
+        <p class="text-sm text-white/80">
+          Please keep this tab open until uploads finish. Large match footage can take a while,
+          and closing the tab/browser will stop the transfer.
+        </p>
       </div>
 
       <div v-if="loading" class="rounded border border-white/15 bg-black/30 p-4 text-white/70">
@@ -741,16 +1038,33 @@ onBeforeUnmount(() => {
                   <p class="text-xs text-white/60 font-mono">{{ asset.bucket }}/{{ asset.storage_path }}</p>
                   <div v-if="pendingUploadById.get(asset.id)" class="mt-2">
                     <div class="flex items-center justify-between text-xs text-white/60">
-                      <span>
-                        {{ pendingUploadById.get(asset.id)?.state === 'finalizing' ? 'Finalizing…' : 'Uploading…' }}
+                      <span class="flex items-center gap-2">
+                        <span
+                          v-if="pendingUploadById.get(asset.id)?.state !== 'failed'"
+                          class="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white"
+                          aria-hidden="true"
+                        ></span>
+                        {{ pendingUploadStatusText(asset.id) }}
                       </span>
-                      <span>{{ uploadProgressPercent(asset.id) }}%</span>
+                      <span class="whitespace-nowrap">
+                        {{ uploadProgressPercent(asset.id) }}%
+                        <span
+                          v-if="pendingUploadById.get(asset.id)?.state === 'uploading' && pendingUploadById.get(asset.id)?.uploadBps"
+                        >
+                          • {{ formatSpeed(pendingUploadById.get(asset.id)?.uploadBps) }}
+                        </span>
+                      </span>
                     </div>
-                    <div class="mt-1 h-1.5 w-full rounded-full bg-white/10">
+                    <div class="relative mt-1 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
                       <div
                         class="h-1.5 rounded-full bg-blue-500"
                         :style="{ width: `${uploadProgressPercent(asset.id) ?? 0}%` }"
                       />
+                      <div
+                        v-if="pendingUploadById.get(asset.id)?.state !== 'failed'"
+                        class="upload-shimmer bg-gradient-to-r from-transparent via-white/30 to-transparent"
+                        aria-hidden="true"
+                      ></div>
                     </div>
                   </div>
                 </td>
@@ -828,8 +1142,7 @@ onBeforeUnmount(() => {
         >
           <div class="w-full max-w-lg overflow-hidden rounded-lg border border-white/10 bg-[#0f1016] text-white shadow-2xl">
             <header class="border-b border-white/10 px-6 py-4">
-              <p class="text-xs uppercase tracking-wide text-white/50">Org media</p>
-              <h2 class="text-xl font-semibold">Add media</h2>
+              <h2 class="text-xl font-semibold">Upload</h2>
             </header>
             <div class="space-y-4 px-6 py-5">
               <p class="text-sm text-white/70">
@@ -842,17 +1155,22 @@ onBeforeUnmount(() => {
               <input
                 id="org-media-file"
                 type="file"
+                multiple
                 accept="video/mp4,.mp4"
                 class="w-full rounded border border-white/20 bg-black/40 p-3 text-sm text-white file:mr-4 file:rounded file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-white/15"
                 :disabled="uploadProcessing"
                 @change="handleFileChange"
               />
-              <p class="text-xs text-white/50">Supported format: MP4 only.</p>
+              <p class="text-xs text-white/50">Supported format: MP4 only. You can select multiple files; they will upload one at a time.</p>
 
-              <div v-if="uploadFile" class="rounded border border-white/10 bg-black/30 p-3 text-sm text-white/80">
-                <p><span class="text-white/60">Name:</span> {{ uploadFile.name }}</p>
-                <p><span class="text-white/60">Type:</span> {{ uploadFile.type || 'application/octet-stream' }}</p>
-                <p><span class="text-white/60">Size:</span> {{ formatBytes(uploadFile.size) }}</p>
+              <div v-if="uploadFiles.length" class="rounded border border-white/10 bg-black/30 p-3 text-sm text-white/80">
+                <p class="text-white/60">Selected:</p>
+                <ul class="mt-2 space-y-1">
+                  <li v-for="file in uploadFiles" :key="file.name" class="flex items-center justify-between gap-3">
+                    <span class="truncate">{{ file.name }}</span>
+                    <span class="shrink-0 text-white/60">{{ formatBytes(file.size) }}</span>
+                  </li>
+                </ul>
               </div>
 
               <p v-if="uploadError" class="text-sm text-rose-300">{{ uploadError }}</p>
@@ -907,5 +1225,22 @@ onBeforeUnmount(() => {
 .upload-modal-leave-to {
   opacity: 0;
   transform: scale(0.98);
+}
+
+.upload-shimmer {
+  position: absolute;
+  inset: 0;
+  width: 35%;
+  transform: translateX(-120%);
+  animation: uploadShimmer 1.1s linear infinite;
+}
+
+@keyframes uploadShimmer {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(320%);
+  }
 }
 </style>
