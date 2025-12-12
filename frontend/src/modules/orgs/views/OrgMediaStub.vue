@@ -5,6 +5,7 @@ import { sha256 } from '@noble/hashes/sha2.js';
 import { bytesToHex } from '@noble/hashes/utils.js';
 import { storeToRefs } from 'pinia';
 import { RouterLink } from 'vue-router';
+import { Upload } from 'tus-js-client';
 import RefreshButton from '@/components/RefreshButton.vue';
 import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
 import BatchActionBar, { type BatchAction } from '@/components/ui/tables/BatchActionBar.vue';
@@ -404,7 +405,7 @@ const uploadToSupabaseStorageWithProgress = async (input: {
   const fingerprint = `rugbycodex:media:${input.bucket}:${input.storagePath}`;
 
   await new Promise<void>((resolve, reject) => {
-    const upload = new tus.Upload(input.file, {
+    const upload = new Upload(input.file, {
       endpoint,
       retryDelays: [0, 3000, 5000, 10000, 20000],
       chunkSize: TUS_CHUNK_SIZE,
@@ -441,7 +442,7 @@ const uploadToSupabaseStorageWithProgress = async (input: {
       .findPreviousUploads()
       .then((previousUploads) => {
         if (previousUploads.length > 0) {
-          upload.resumeFromPreviousUpload(previousUploads[0]);
+          upload.resumeFromPreviousUpload(previousUploads[0]!);
         }
         upload.start();
       })
@@ -1005,7 +1006,7 @@ onBeforeUnmount(() => {
               </tr>
             </thead>
             <tbody>
-              <tr v-if="filteredAssets.length === 0">
+              <tr v-if="displayAssets.length === 0">
                 <td colspan="8" class="px-4 py-6 text-center text-white/70">
                   {{ searchQuery ? 'No media matches your search.' : 'No media uploaded yet.' }}
                 </td>
