@@ -3,7 +3,6 @@ import { computed, ref, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { RouterLink } from 'vue-router';
 import { Icon } from '@iconify/vue';
-import RefreshButton from '@/components/RefreshButton.vue';
 import { supabase } from '@/lib/supabaseClient';
 import { useActiveOrgStore } from '@/modules/orgs/stores/useActiveOrgStore';
 import { orgService } from '@/modules/orgs/services/orgService';
@@ -38,6 +37,29 @@ const canRenderPlayer = computed(() => {
   if (!asset.value) return false;
   return asset.value.mime_type.startsWith('video/') || asset.value.mime_type === 'application/mp4' || asset.value.mime_type === 'video/mp4';
 });
+
+const formatDate = (date?: Date | null) => {
+  if (!date) return '—';
+  return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(date);
+};
+
+// const formatBytes = (bytes?: number | null) => {
+//   if (bytes == null) return '—';
+//   if (bytes === 0) return '0 B';
+//   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+//   const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+//   const value = bytes / Math.pow(1024, i);
+//   return `${value.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
+// };
+
+// const formatDuration = (seconds?: number | null) => {
+//   if (seconds == null) return '—';
+//   if (!Number.isFinite(seconds)) return '—';
+//   const total = Math.max(0, Math.floor(seconds));
+//   const m = Math.floor(total / 60);
+//   const s = total % 60;
+//   return `${m}:${String(s).padStart(2, '0')}`;
+// };
 
 const signUrl = async (nextAsset: OrgMediaAsset) => {
   const { data, error: signedError } = await supabase.storage
@@ -75,10 +97,6 @@ const load = async () => {
   }
 };
 
-const handleRefresh = async () => {
-  await load();
-};
-
 watch(
   [normalizedSlug, normalizedAssetId],
   async () => {
@@ -89,21 +107,15 @@ watch(
 </script>
 
 <template>
-  <section class="container-lg space-y-6 py-5 text-white">
-    <header class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <div class="space-y-1">
-        <RouterLink
-          :to="orgMediaLink"
-          class="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-white/70 transition hover:text-white"
-        >
-          <Icon icon="carbon:arrow-left" class="h-4 w-4" />
-          Back to media
-        </RouterLink>
-        <h1 class="text-3xl font-semibold">Media Viewer</h1>
-        <p class="text-white/70">Stream and review the selected upload.</p>
-      </div>
-
-      <RefreshButton size="sm" :refresh="handleRefresh" :loading="loading" title="Refresh media" />
+  <section class="container space-y-6 py-5 text-white">
+    <header>
+      <RouterLink
+        :to="orgMediaLink"
+        class="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-white/70 transition hover:text-white"
+      >
+        <Icon icon="carbon:arrow-left" class="h-4 w-4" />
+        Back to media
+      </RouterLink>
     </header>
 
     <div v-if="loading" class="rounded border border-white/15 bg-black/30 p-4 text-white/70">
@@ -116,26 +128,6 @@ watch(
     </div>
 
     <div v-else-if="asset" class="space-y-4">
-      <div class="rounded border border-white/10 bg-white/5 p-4">
-        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p class="text-xs uppercase tracking-wide text-white/50">File</p>
-            <p class="text-lg font-semibold">{{ asset.file_name }}</p>
-            <p class="mt-1 font-mono text-xs text-white/60">{{ asset.bucket }}/{{ asset.storage_path }}</p>
-          </div>
-          <a
-            v-if="signedUrl"
-            :href="signedUrl"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="inline-flex items-center gap-2 rounded border border-white/30 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-white hover:text-black"
-          >
-            <Icon icon="carbon:launch" class="h-4 w-4" />
-            Open in new tab
-          </a>
-        </div>
-      </div>
-
       <div class="overflow-hidden rounded border border-white/10 bg-black/30">
         <div v-if="signedUrl && canRenderPlayer" class="aspect-video bg-black">
           <video
@@ -148,6 +140,20 @@ watch(
         <div v-else class="p-4 text-white/70">
           This file type can’t be previewed in the browser right now.
         </div>
+      </div>
+
+      <div class="space-y-2">
+        <h2 class="text-xl font-semibold leading-snug">
+          {{ asset.file_name }}
+        </h2>
+        <div class="flex flex-wrap gap-x-3 gap-y-1 text-sm text-white/70">
+          <span>{{ formatDate(asset.created_at) }}</span>
+          <span class="uppercase">{{ asset.status }}</span>
+        </div>
+        <!-- <div class="rounded border border-white/10 bg-white/5 p-3">
+          <p class="text-xs uppercase tracking-wide text-white/50">Storage</p>
+          <p class="mt-1 font-mono text-xs text-white/70">{{ asset.bucket }}/{{ asset.storage_path }}</p>
+        </div> -->
       </div>
     </div>
   </section>
