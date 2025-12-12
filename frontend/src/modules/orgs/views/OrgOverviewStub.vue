@@ -17,33 +17,14 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3
 
 const org = computed(() => activeOrg.value);
 const membershipRole = computed(() => activeMembership.value?.org_role ?? null);
-const isMember = computed(() => Boolean(membershipRole.value));
 
 const formatDate = (date: Date | null | undefined, options?: Intl.DateTimeFormatOptions) => {
   if (!date) return '—';
   return new Intl.DateTimeFormat(undefined, options ?? { month: 'long', day: 'numeric', year: 'numeric' }).format(date);
 };
 
-const formatRole = (role: string) => role.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
-
 const formattedCreatedAt = computed(() => formatDate(org.value?.created_at));
-const membershipBadgeLabel = computed(() => {
-  if (!membershipRole.value) return 'Not a member';
-  return `You are a ${formatRole(membershipRole.value)}`;
-});
 
-const membershipDescription = computed(() => {
-  if (!membershipRole.value) {
-    return 'Join this workspace to unlock its vaults, media, and roster.';
-  }
-  return 'You already have access to this workspace.';
-});
-
-const membershipBadgeClasses = computed(() =>
-  isMember.value
-    ? 'bg-emerald-500/10 border border-emerald-300/40 text-emerald-100'
-    : 'bg-white/5 border border-white/20 text-white/70'
-);
 
 const ownerHandle = computed(() =>
   ownerProfile.value?.username ? `@${ownerProfile.value.username}` : null
