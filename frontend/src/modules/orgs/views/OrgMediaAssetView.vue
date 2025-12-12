@@ -74,6 +74,8 @@ const recorder = ref<MediaRecorder | null>(null);
 const recorderStream = ref<MediaStream | null>(null);
 const recordStartAtSeconds = ref<number | null>(null);
 const recordChunks = ref<BlobPart[]>([]);
+const preRecordMuted = ref<boolean | null>(null);
+const preRecordVolume = ref<number | null>(null);
 
 const createTempId = () => {
   const cryptoObj = globalThis.crypto;
@@ -104,14 +106,6 @@ const togglePlay = async () => {
   } else {
     el.pause();
   }
-  syncFromVideo();
-};
-
-const stopPlayback = () => {
-  const el = videoEl.value;
-  if (!el) return;
-  el.pause();
-  el.currentTime = 0;
   syncFromVideo();
 };
 
@@ -146,6 +140,14 @@ const startRecording = async () => {
     audioError.value = 'Video player not ready.';
     return;
   }
+
+  // Avoid feedback / recording bugs by muting playback while recording.
+  if (preRecordMuted.value == null) {
+    preRecordMuted.value = el.muted;
+    preRecordVolume.value = el.volume;
+  }
+  el.muted = true;
+  syncFromVideo();
 
   const nav = globalThis.navigator;
   if (!nav?.mediaDevices?.getUserMedia) {
@@ -224,10 +226,138 @@ const stopRecording = () => {
     stream.getTracks().forEach((t) => t.stop());
   }
   recorderStream.value = null;
+
+  // Restore previous playback mute/volume state.
+  const el = videoEl.value;
+  if (el && preRecordMuted.value != null) {
+    el.muted = preRecordMuted.value;
+    if (preRecordVolume.value != null) {
+      el.volume = preRecordVolume.value;
+    }
+    preRecordMuted.value = null;
+    preRecordVolume.value = null;
+    syncFromVideo();
+  }
 };
 
 const seekToClip = (clip: AudioClip) => {
   seekTo(clip.startAtSeconds);
+};
+
+const removeClip = (clipId: string) => {
+  const clipEl = clipAudioEls.get(clipId);
+  if (clipEl) {
+    try {
+      clipEl.pause();
+    } catch {
+      // no-op
+    }
+  }
+  clipAudioEls.delete(clipId);
+
+  const clip = audioClips.value.find((c) => c.id === clipId);
+  if (clip) {
+    try {
+      URL.revokeObjectURL(clip.url);
+    } catch {
+      // no-op
+    }
+  }
+  audioClips.value = audioClips.value.filter((c) => c.id !== clipId);
+  const { [clipId]: _, ...rest } = clipStates.value;
+  clipStates.value = rest;
+};
+
+type ClipPlayerState = {
+  isPlaying: boolean;
+  currentSeconds: number;
+  durationSeconds: number;
+  volume: number;
+  isMuted: boolean;
+};
+
+const clipAudioEls = new Map<string, HTMLAudioElement>();
+const clipStates = ref<Record<string, ClipPlayerState>>({});
+
+const defaultClipState = (): ClipPlayerState => ({
+  isPlaying: false,
+  currentSeconds: 0,
+  durationSeconds: 0,
+  volume: 1,
+  isMuted: false,
+});
+
+const getClipState = (clipId: string): ClipPlayerState => {
+  return clipStates.value[clipId] ?? defaultClipState();
+};
+
+const setClipAudioEl = (clipId: string, el: HTMLAudioElement | null) => {
+  if (!el) {
+    clipAudioEls.delete(clipId);
+    return;
+  }
+  clipAudioEls.set(clipId, el);
+  syncClipFromAudio(clipId);
+};
+
+const syncClipFromAudio = (clipId: string) => {
+  const el = clipAudioEls.get(clipId);
+  if (!el) return;
+  const prev = clipStates.value[clipId] ?? defaultClipState();
+  clipStates.value = {
+    ...clipStates.value,
+    [clipId]: {
+      ...prev,
+      isPlaying: !el.paused && !el.ended,
+      currentSeconds: Number.isFinite(el.currentTime) ? el.currentTime : 0,
+      durationSeconds: Number.isFinite(el.duration) ? el.duration : 0,
+      volume: el.volume,
+      isMuted: el.muted,
+    },
+  };
+};
+
+const toggleClipPlay = async (clipId: string) => {
+  const el = clipAudioEls.get(clipId);
+  if (!el) return;
+
+  if (el.paused || el.ended) {
+    // Keep it simple: only one clip playing at a time.
+    clipAudioEls.forEach((other, otherId) => {
+      if (otherId === clipId) return;
+      try {
+        other.pause();
+      } catch {
+        // no-op
+      }
+    });
+
+    try {
+      await el.play();
+    } catch {
+      // no-op
+    }
+  } else {
+    el.pause();
+  }
+  syncClipFromAudio(clipId);
+};
+
+const seekClipTo = (clipId: string, nextSeconds: number) => {
+  const el = clipAudioEls.get(clipId);
+  if (!el) return;
+  const duration = Number.isFinite(el.duration) ? el.duration : nextSeconds;
+  el.currentTime = Math.max(0, Math.min(nextSeconds, duration));
+  syncClipFromAudio(clipId);
+};
+
+const setClipVolume = (clipId: string, nextVolume: number) => {
+  const el = clipAudioEls.get(clipId);
+  if (!el) return;
+  const v = Math.max(0, Math.min(nextVolume, 1));
+  el.volume = v;
+  if (v > 0 && el.muted) el.muted = false;
+  syncClipFromAudio(clipId);
 };
 
 // const formatBytes = (bytes?: number | null) => {
@@ -301,6 +431,14 @@ onBeforeUnmount(() => {
       // no-op
     }
   });
+  clipAudioEls.forEach((el) => {
+    try {
+      el.pause();
+    } catch {
+      // no-op
+    }
+  });
+  clipAudioEls.clear();
 });
 </script>
 
@@ -327,12 +465,13 @@ onBeforeUnmount(() => {
 
     <div v-else-if="asset" class="space-y-4">
       <div class="overflow-hidden rounded border border-white/10 bg-black/30">
-        <div v-if="signedUrl && canRenderPlayer" class="aspect-video bg-black">
+        <div v-if="signedUrl && canRenderPlayer" class="relative aspect-video bg-black">
           <video
             ref="videoEl"
             :src="signedUrl"
             class="h-full w-full"
             playsinline
+            @click="togglePlay"
             @loadedmetadata="syncFromVideo"
             @timeupdate="syncFromVideo"
             @durationchange="syncFromVideo"
@@ -340,73 +479,88 @@ onBeforeUnmount(() => {
             @pause="syncFromVideo"
             @volumechange="syncFromVideo"
           />
+
+          <!-- Record (top-right) -->
+          <button
+            type="button"
+            class="absolute right-3 top-3 inline-flex h-10 w-10 items-center justify-center rounded-full border bg-black/40 text-white backdrop-blur-sm transition"
+            :class="isRecording ? 'border-rose-300/60' : 'border-white/30 hover:bg-white hover:text-black'"
+            :title="isRecording ? 'Stop recording' : 'Record voice note'"
+            @click.stop="isRecording ? stopRecording() : startRecording()"
+          >
+            <Icon
+              v-if="isRecording"
+              icon="carbon:pause"
+              class="h-5 w-5"
+              aria-hidden="true"
+            />
+            <span
+              v-else
+              class="h-3 w-3 rounded-full bg-rose-500"
+              aria-hidden="true"
+            />
+            <span class="sr-only">{{ isRecording ? 'Stop recording' : 'Record voice note' }}</span>
+          </button>
+
+          <!-- Minimal overlay controls (no native controls) -->
+          <div class="pointer-events-none absolute inset-0 flex flex-col justify-end">
+            <div class="pointer-events-auto bg-gradient-to-t from-black/70 via-black/30 to-transparent p-3">
+              <input
+                type="range"
+                class="h-1 w-full cursor-pointer accent-white"
+                min="0"
+                :max="Math.max(0, durationSeconds)"
+                step="0.1"
+                :value="currentSeconds"
+                @input="(e) => seekTo(Number((e.target as HTMLInputElement).value))"
+                aria-label="Seek"
+              />
+
+              <div class="mt-2 flex items-center justify-between gap-3">
+                <div class="flex items-center gap-2">
+                  <button
+                    type="button"
+                    class="inline-flex h-6 w-6 items-center justify-center rounded-full border border-white/30 text-white transition hover:bg-white hover:text-black"
+                    @click="togglePlay"
+                    :title="isPlaying ? 'Pause' : 'Play'"
+                  >
+                    <Icon :icon="isPlaying ? 'carbon:pause' : 'carbon:play'" class="h-4 w-4" />
+                    <span class="sr-only">{{ isPlaying ? 'Pause' : 'Play' }}</span>
+                  </button>
+
+                  <div class="text-xs text-white/80 tabular-nums">
+                    {{ formatDurationClock(currentSeconds) }} / {{ formatDurationClock(durationSeconds) }}
+                  </div>
+                </div>
+
+                <div class="flex items-center gap-2">
+                  <button
+                    type="button"
+                    class="inline-flex h-6 w-6 items-center justify-center rounded-full border border-white/30 text-white transition hover:bg-white hover:text-black"
+                    @click="toggleMute"
+                    :title="isMuted ? 'Unmute' : 'Mute'"
+                  >
+                    <Icon :icon="isMuted || volume === 0 ? 'carbon:volume-mute' : 'carbon:volume-up'" class="h-4 w-4" />
+                    <span class="sr-only">Toggle mute</span>
+                  </button>
+
+                  <input
+                    type="range"
+                    class="h-1 w-24 cursor-pointer accent-white"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    :value="isMuted ? 0 : volume"
+                    @input="(e) => setVolume(Number((e.target as HTMLInputElement).value))"
+                    aria-label="Volume"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
         <div v-else class="p-4 text-white/70">
           This file type can’t be previewed in the browser right now.
-        </div>
-      </div>
-
-      <div v-if="signedUrl && canRenderPlayer" class="space-y-3 rounded border border-white/10 bg-white/5 p-4">
-        <div class="space-y-1">
-          <input
-            type="range"
-            class="w-full"
-            min="0"
-            :max="Math.max(0, durationSeconds)"
-            step="0.1"
-            :value="currentSeconds"
-            @input="(e) => seekTo(Number((e.target as HTMLInputElement).value))"
-            aria-label="Seek"
-          />
-          <div class="flex items-center justify-between text-xs text-white/70">
-            <span>{{ formatDurationClock(currentSeconds) }}</span>
-            <span>{{ formatDurationClock(durationSeconds) }}</span>
-          </div>
-        </div>
-
-        <div class="flex flex-wrap items-center justify-between gap-3">
-          <div class="flex items-center gap-2">
-            <button
-              type="button"
-              class="inline-flex items-center gap-2 rounded border border-white/30 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-white hover:text-black"
-              @click="togglePlay"
-            >
-              <Icon :icon="isPlaying ? 'carbon:pause' : 'carbon:play'" class="h-4 w-4" />
-              {{ isPlaying ? 'Pause' : 'Play' }}
-            </button>
-
-            <button
-              type="button"
-              class="inline-flex items-center gap-2 rounded border border-white/30 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-white hover:text-black"
-              @click="stopPlayback"
-            >
-              <Icon icon="carbon:stop" class="h-4 w-4" />
-              Stop
-            </button>
-          </div>
-
-          <div class="flex items-center gap-2">
-            <button
-              type="button"
-              class="inline-flex items-center gap-2 rounded border border-white/30 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-white hover:text-black"
-              @click="toggleMute"
-              :title="isMuted ? 'Unmute' : 'Mute'"
-            >
-              <Icon :icon="isMuted || volume === 0 ? 'carbon:volume-mute' : 'carbon:volume-up'" class="h-4 w-4" />
-              <span class="sr-only">Toggle mute</span>
-            </button>
-
-            <input
-              type="range"
-              class="w-32"
-              min="0"
-              max="1"
-              step="0.01"
-              :value="isMuted ? 0 : volume"
-              @input="(e) => setVolume(Number((e.target as HTMLInputElement).value))"
-              aria-label="Volume"
-            />
-          </div>
         </div>
       </div>
 
@@ -424,73 +578,126 @@ onBeforeUnmount(() => {
         </div> -->
       </div>
 
-      <div v-if="signedUrl && canRenderPlayer" class="space-y-3 rounded border border-white/10 bg-white/5 p-4">
+      <div v-if="signedUrl && canRenderPlayer" class="space-y-2 rounded border border-white/10 bg-white/5 p-3">
         <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p class="text-xs font-semibold uppercase tracking-wide text-white/70">Audio track</p>
-            <p class="text-xs text-white/60">Record voice notes synced to the current video time.</p>
-          </div>
-
-          <div class="flex items-center gap-2">
-            <button
-              v-if="!isRecording"
-              type="button"
-              class="inline-flex items-center gap-2 rounded border border-white/30 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-white hover:text-black"
-              @click="startRecording"
-            >
-              <Icon icon="carbon:microphone" class="h-4 w-4" />
-              Record
-            </button>
-            <button
-              v-else
-              type="button"
-              class="inline-flex items-center gap-2 rounded border border-white/30 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-white hover:text-black"
-              @click="stopRecording"
-            >
-              <Icon icon="carbon:stop" class="h-4 w-4" />
-              Stop recording
-            </button>
+            <p class="text-xs text-white/60">Voice notes synced to video time.</p>
           </div>
         </div>
 
-        <div v-if="audioError" class="rounded border border-rose-400/40 bg-rose-500/10 p-3 text-sm text-white">
+        <div v-if="audioError" class="rounded border border-rose-400/40 bg-rose-500/10 p-2 text-xs text-white">
           {{ audioError }}
         </div>
 
-        <div v-if="isRecording" class="rounded border border-white/10 bg-black/20 p-3 text-sm text-white/80">
+        <div v-if="isRecording" class="rounded border border-white/10 bg-black/20 p-2 text-xs text-white/80">
           Recording… start at {{ formatDurationClock(recordStartAtSeconds ?? currentSeconds) }}
         </div>
 
-        <div v-if="audioClips.length" class="space-y-2">
+        <div v-if="audioClips.length" class="space-y-1.5">
           <div
             v-for="clip in audioClips"
             :key="clip.id"
-            class="rounded border border-white/10 bg-black/20 p-3"
+            class="rounded border border-white/10 bg-black/20 p-2"
           >
             <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div class="text-sm">
-                <div class="font-semibold">
-                  Clip @ {{ formatDurationClock(clip.startAtSeconds) }}
+              <div class="min-w-0 text-xs">
+                <div class="truncate font-semibold">
+                  {{ formatDurationClock(clip.startAtSeconds) }}
                   <span class="text-white/50">→</span>
                   {{ formatDurationClock(clip.endAtSeconds) }}
+                  <span class="text-white/50">•</span>
+                  <span class="font-normal text-white/60">{{ clip.createdAt.toLocaleString() }}</span>
                 </div>
-                <div class="text-xs text-white/60">Recorded {{ clip.createdAt.toLocaleString() }}</div>
               </div>
-              <button
-                type="button"
-                class="text-xs font-semibold uppercase tracking-wide text-white/70 transition hover:text-white"
-                @click="seekToClip(clip)"
-              >
-                Jump
-              </button>
+              <div class="flex items-center gap-2">
+                <button
+                  type="button"
+                  class="inline-flex h-7 w-7 items-center justify-center rounded-full border border-white/20 text-white/80 transition hover:border-white/40 hover:text-white"
+                  @click="seekToClip(clip)"
+                  title="Jump to clip"
+                >
+                  <Icon icon="carbon:skip-back" class="h-4 w-4" />
+                  <span class="sr-only">Jump</span>
+                </button>
+                <button
+                  type="button"
+                  class="inline-flex h-7 w-7 items-center justify-center rounded-full border border-white/20 text-white/80 transition hover:border-white/40 hover:text-white"
+                  @click="removeClip(clip.id)"
+                  title="Remove clip"
+                >
+                  <Icon icon="carbon:trash-can" class="h-4 w-4" />
+                  <span class="sr-only">Remove</span>
+                </button>
+              </div>
             </div>
-            <div class="mt-2">
-              <audio :src="clip.url" controls class="w-full" />
+            <div class="mt-1">
+              <audio
+                :src="clip.url"
+                :ref="(el) => setClipAudioEl(clip.id, el as HTMLAudioElement | null)"
+                class="hidden"
+                preload="metadata"
+                @loadedmetadata="() => syncClipFromAudio(clip.id)"
+                @timeupdate="() => syncClipFromAudio(clip.id)"
+                @play="() => syncClipFromAudio(clip.id)"
+                @pause="() => syncClipFromAudio(clip.id)"
+                @volumechange="() => syncClipFromAudio(clip.id)"
+              />
+
+              <div class="mt-1 space-y-1">
+                <div class="flex items-center gap-2">
+                  <button
+                    type="button"
+                    class="inline-flex h-6 w-6 items-center justify-center rounded-full border border-white/20 text-white/80 transition hover:border-white/40 hover:text-white"
+                    @click="toggleClipPlay(clip.id)"
+                    :title="getClipState(clip.id).isPlaying ? 'Pause clip' : 'Play clip'"
+                  >
+                    <Icon
+                      :icon="getClipState(clip.id).isPlaying ? 'carbon:pause' : 'carbon:play'"
+                      class="h-4 w-4"
+                    />
+                    <span class="sr-only">{{ getClipState(clip.id).isPlaying ? 'Pause' : 'Play' }}</span>
+                  </button>
+
+                  <input
+                    type="range"
+                    class="h-1 flex-1 cursor-pointer accent-white"
+                    min="0"
+                    :max="Math.max(0, getClipState(clip.id).durationSeconds)"
+                    step="0.1"
+                    :value="getClipState(clip.id).currentSeconds"
+                    @input="(e) => seekClipTo(clip.id, Number((e.target as HTMLInputElement).value))"
+                    aria-label="Clip seek"
+                  />
+
+                  <div class="text-[10px] text-white/70 tabular-nums">
+                    {{ formatDurationClock(getClipState(clip.id).currentSeconds) }}
+                  </div>
+                </div>
+
+                <div class="flex items-center gap-2">
+                  <Icon
+                    :icon="getClipState(clip.id).isMuted || getClipState(clip.id).volume === 0 ? 'carbon:volume-mute' : 'carbon:volume-up'"
+                    class="h-3.5 w-3.5 text-white/70"
+                    aria-hidden="true"
+                  />
+                  <input
+                    type="range"
+                    class="h-1 w-24 cursor-pointer accent-white"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    :value="getClipState(clip.id).isMuted ? 0 : getClipState(clip.id).volume"
+                    @input="(e) => setClipVolume(clip.id, Number((e.target as HTMLInputElement).value))"
+                    aria-label="Clip volume"
+                  />
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
-        <div v-else class="text-sm text-white/60">
+        <div v-else class="text-xs text-white/60">
           No recordings yet.
         </div>
       </div>
