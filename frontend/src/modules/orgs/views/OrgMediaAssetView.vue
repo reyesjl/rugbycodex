@@ -76,6 +76,7 @@ const recordStartAtSeconds = ref<number | null>(null);
 const recordChunks = ref<BlobPart[]>([]);
 const preRecordMuted = ref<boolean | null>(null);
 const preRecordVolume = ref<number | null>(null);
+const isRequestingMic = ref(false);
 
 const createTempId = () => {
   const cryptoObj = globalThis.crypto;
@@ -132,21 +133,45 @@ const toggleMute = () => {
   syncFromVideo();
 };
 
+const restoreVideoAudioAfterRecording = () => {
+  const el = videoEl.value;
+  if (!el) return;
+  if (preRecordMuted.value == null) return;
+
+  el.muted = preRecordMuted.value;
+  if (preRecordVolume.value != null) {
+    el.volume = preRecordVolume.value;
+  }
+  preRecordMuted.value = null;
+  preRecordVolume.value = null;
+  syncFromVideo();
+};
+
+const cleanupRecorderResources = () => {
+  // Does not call recorder.stop(); onstop finalizes the recording.
+  recorder.value = null;
+
+  const stream = recorderStream.value;
+  if (stream) {
+    stream.getTracks().forEach((t) => t.stop());
+  }
+  recorderStream.value = null;
+};
+
 const startRecording = async () => {
   audioError.value = null;
-  if (isRecording.value) return;
-  const el = videoEl.value;
-  if (!el) {
+  if (isRecording.value || isRequestingMic.value) return;
+  const video = videoEl.value;
+  if (!video) {
     audioError.value = 'Video player not ready.';
     return;
   }
-
   // Avoid feedback / recording bugs by muting playback while recording.
   if (preRecordMuted.value == null) {
-    preRecordMuted.value = el.muted;
-    preRecordVolume.value = el.volume;
+    preRecordMuted.value = video.muted;
+    preRecordVolume.value = video.volume;
   }
-  el.muted = true;
+  video.muted = true;
   syncFromVideo();
 
   const nav = globalThis.navigator;
@@ -161,13 +186,25 @@ const startRecording = async () => {
   }
 
   try {
+    isRequestingMic.value = true;
     const stream = await nav.mediaDevices.getUserMedia({ audio: true });
     recorderStream.value = stream;
 
     recordChunks.value = [];
-    recordStartAtSeconds.value = Number.isFinite(el.currentTime) ? el.currentTime : 0;
+    recordStartAtSeconds.value = Number.isFinite(video.currentTime) ? video.currentTime : 0;
 
-    const mr = new MediaRecorder(stream);
+    // Safari can be picky about mime types; choose the first supported one.
+    const MediaRecorderCtor = globalThis.MediaRecorder;
+    const preferredMimeTypes = ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm'];
+    const supportedMimeType = preferredMimeTypes.find((t) => {
+      try {
+        return typeof MediaRecorderCtor?.isTypeSupported === 'function' ? MediaRecorderCtor.isTypeSupported(t) : false;
+      } catch {
+        return false;
+      }
+    });
+
+    const mr = supportedMimeType ? new MediaRecorder(stream, { mimeType: supportedMimeType }) : new MediaRecorder(stream);
     recorder.value = mr;
 
     mr.ondataavailable = (evt: BlobEvent) => {
@@ -178,9 +215,15 @@ const startRecording = async () => {
 
     mr.onstop = () => {
       try {
+        isRecording.value = false;
         const startAt = recordStartAtSeconds.value ?? 0;
-        const endAt = Number.isFinite(el.currentTime) ? el.currentTime : startAt;
-        const blob = new Blob(recordChunks.value, { type: mr.mimeType || 'audio/webm' });
+        const currentVideoTime = videoEl.value?.currentTime;
+        const endAt = Number.isFinite(currentVideoTime) ? (currentVideoTime ?? startAt) : startAt;
+        const blob = new Blob(recordChunks.value, { type: mr.mimeType || supportedMimeType || 'audio/webm' });
+        if (blob.size === 0) {
+          audioError.value = 'No audio data was captured. Please try again.';
+          return;
+        }
         const url = URL.createObjectURL(blob);
 
         audioClips.value = [
@@ -194,50 +237,53 @@ const startRecording = async () => {
           ...audioClips.value,
         ];
       } finally {
+        cleanupRecorderResources();
+        restoreVideoAudioAfterRecording();
         recordChunks.value = [];
         recordStartAtSeconds.value = null;
       }
     };
 
-    mr.start();
+    mr.onerror = () => {
+      audioError.value = 'Audio recording error. Please try again.';
+      stopRecording();
+    };
+
+    // Emit chunks while recording to reduce memory pressure on Safari.
+    mr.start(250);
     isRecording.value = true;
-  } catch (e) {
+  } catch (e: unknown) {
     audioError.value = e instanceof Error ? e.message : 'Unable to start recording.';
-    stopRecording();
+    cleanupRecorderResources();
+    restoreVideoAudioAfterRecording();
+    recordChunks.value = [];
+    recordStartAtSeconds.value = null;
+    isRecording.value = false;
+  } finally {
+    isRequestingMic.value = false;
   }
 };
 
 const stopRecording = () => {
-  if (!isRecording.value) return;
-  isRecording.value = false;
+  // Make this idempotent; Safari can throw in odd states.
+  isRequestingMic.value = false;
 
   const mr = recorder.value;
   if (mr && mr.state !== 'inactive') {
+    isRecording.value = false;
     try {
       mr.stop();
+      return;
     } catch {
-      // no-op
+      // fall through
     }
   }
-  recorder.value = null;
 
-  const stream = recorderStream.value;
-  if (stream) {
-    stream.getTracks().forEach((t) => t.stop());
-  }
-  recorderStream.value = null;
-
-  // Restore previous playback mute/volume state.
-  const el = videoEl.value;
-  if (el && preRecordMuted.value != null) {
-    el.muted = preRecordMuted.value;
-    if (preRecordVolume.value != null) {
-      el.volume = preRecordVolume.value;
-    }
-    preRecordMuted.value = null;
-    preRecordVolume.value = null;
-    syncFromVideo();
-  }
+  isRecording.value = false;
+  cleanupRecorderResources();
+  restoreVideoAudioAfterRecording();
+  recordChunks.value = [];
+  recordStartAtSeconds.value = null;
 };
 
 const seekToClip = (clip: AudioClip) => {
