@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Icon } from '@iconify/vue';
-import { sha256 } from '@noble/hashes/sha2.js';
-import { bytesToHex } from '@noble/hashes/utils.js';
 import { storeToRefs } from 'pinia';
 import { RouterLink } from 'vue-router';
 import { Upload } from 'tus-js-client';
@@ -46,7 +44,6 @@ const showUploadModal = ref(false);
 const uploadFiles = ref<globalThis.File[]>([]);
 const uploadError = ref<string | null>(null);
 const uploadProcessing = ref(false);
-const HASH_CHUNK_SIZE = 8 * 1024 * 1024; // 8MB chunks keeps memory usage reasonable for huge files.
 // Supabase's TUS endpoint currently requires 6MB chunks.
 const TUS_CHUNK_SIZE = 6 * 1024 * 1024;
 
@@ -68,14 +65,14 @@ type PendingUpload = {
   progress: number; // 0..1
   uploadedBytes?: number;
   uploadBps?: number;
-  state: 'queued' | 'preparing' | 'uploading' | 'finalizing' | 'failed';
+  state: 'queued' | 'preparing' | 'uploading' | 'finalizing' | 'failed' | 'canceled';
   errorMessage?: string;
 };
 
 const pendingUploads = ref<PendingUpload[]>([]);
 
 const hasInFlightUploads = computed(() =>
-  pendingUploads.value.some((u) => u.state !== 'failed')
+  pendingUploads.value.some((u) => u.state !== 'failed' && u.state !== 'canceled')
 );
 
 const showDeleteModal = ref(false);
@@ -135,7 +132,7 @@ const filteredAssets = computed(() => {
 
 const pendingAssets = computed<OrgMediaAsset[]>(() => {
   return pendingUploads.value
-    .filter((upload) => !upload.errorMessage)
+    .filter((upload) => upload.state !== 'failed' && upload.state !== 'canceled')
     .map((upload) => ({
       id: upload.tempId,
       org_id: upload.orgId,
@@ -148,7 +145,7 @@ const pendingAssets = computed<OrgMediaAsset[]>(() => {
       checksum: '',
       source: 'upload',
       file_name: upload.fileName,
-      status: upload.state === 'failed' ? 'failed' : 'uploading',
+      status: upload.state === 'failed' ? 'failed' : upload.state === 'canceled' ? 'canceled' : 'uploading',
       created_at: upload.startedAt,
     }));
 });
@@ -187,6 +184,7 @@ const pendingUploadStatusText = (assetId: string) => {
   if (upload.state === 'queued') return 'Queued…';
   if (upload.state === 'preparing') return 'Preparing…';
   if (upload.state === 'finalizing') return 'Finalizing…';
+  if (upload.state === 'canceled') return 'Canceled';
   if (upload.state === 'failed') return 'Failed';
   return 'Uploading…';
 };
@@ -384,6 +382,7 @@ const uploadToSupabaseStorageWithProgress = async (input: {
   file: globalThis.File;
   onProgress: (progress: number) => void;
   onBytesProgress?: (bytesUploaded: number, bytesTotal: number) => void;
+  onUploadCreated?: (upload: Upload) => void;
 }): Promise<void> => {
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL ?? '';
   const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY ?? '';
@@ -438,6 +437,8 @@ const uploadToSupabaseStorageWithProgress = async (input: {
       },
     });
 
+    input.onUploadCreated?.(upload);
+
     upload
       .findPreviousUploads()
       .then((previousUploads) => {
@@ -450,36 +451,6 @@ const uploadToSupabaseStorageWithProgress = async (input: {
         reject(err instanceof Error ? err : new Error(String(err)));
       });
   });
-};
-
-const sha256Hex = async (
-  file: globalThis.File,
-  options: { onProgress?: (progress: number) => void } = {}
-) => {
-  if (file.size === 0) {
-    options.onProgress?.(1);
-    return bytesToHex(sha256.create().digest());
-  }
-
-  const chunkSize = HASH_CHUNK_SIZE;
-  const totalBytes = file.size;
-  let hashedBytes = 0;
-  const hash = sha256.create();
-
-  while (hashedBytes < totalBytes) {
-    const chunk = file.slice(hashedBytes, hashedBytes + chunkSize);
-    const buffer = await chunk.arrayBuffer();
-    hash.update(new Uint8Array(buffer));
-    hashedBytes += buffer.byteLength;
-    if (options.onProgress && totalBytes > 0) {
-      options.onProgress(Math.min(1, hashedBytes / totalBytes));
-    }
-    // Allow the UI thread to breathe for extremely large files.
-    await new Promise((resolve) => setTimeout(resolve, 0));
-  }
-
-  options.onProgress?.(1);
-  return bytesToHex(hash.digest());
 };
 
 const patchPendingUpload = (tempId: string, patch: Partial<PendingUpload>) => {
@@ -496,6 +467,19 @@ const uploadTelemetry = new Map<
     emaBps: number | null;
   }
 >();
+
+const uploadCancelTokens = new Map<
+  string,
+  {
+    canceled: boolean;
+    tus?: Upload;
+  }
+>();
+
+const isUploadCancelable = (upload?: PendingUpload | null) => {
+  if (!upload) return false;
+  return upload.state === 'queued' || upload.state === 'preparing' || upload.state === 'uploading';
+};
 
 const updateUploadSpeed = (tempId: string, bytesUploaded: number, bytesTotal: number) => {
   const now = Date.now();
@@ -620,20 +604,29 @@ const processUploadQueue = async () => {
       // If the row was removed (e.g., page refresh), skip work.
       if (!pendingUploads.value.some((u) => u.tempId === job.tempId)) {
         uploadTelemetry.delete(job.tempId);
+        uploadCancelTokens.delete(job.tempId);
         continue;
       }
 
       patchPendingUpload(job.tempId, { state: 'preparing', progress: 0, uploadedBytes: 0, uploadBps: undefined });
 
+      const cancelToken =
+        uploadCancelTokens.get(job.tempId) ?? {
+          canceled: false,
+          tus: undefined,
+        };
+      uploadCancelTokens.set(job.tempId, cancelToken);
+
+      const ensureNotCanceled = () => {
+        if (cancelToken.canceled) {
+          throw new Error('Upload canceled by user.');
+        }
+      };
+
       try {
-        const [checksum, durationSeconds] = await Promise.all([
-          sha256Hex(job.file, {
-            onProgress: (progress) => {
-              patchPendingUpload(job.tempId, { progress });
-            },
-          }),
-          getMediaDurationSeconds(job.file),
-        ]);
+        ensureNotCanceled();
+        const durationSeconds = await getMediaDurationSeconds(job.file);
+        ensureNotCanceled();
 
         patchPendingUpload(job.tempId, { state: 'uploading', progress: 0, uploadedBytes: 0, uploadBps: undefined });
         uploadTelemetry.delete(job.tempId);
@@ -648,11 +641,19 @@ const processUploadQueue = async () => {
           onBytesProgress: (bytesUploaded, bytesTotal) => {
             updateUploadSpeed(job.tempId, bytesUploaded, bytesTotal);
           },
+          onUploadCreated: (upload) => {
+            cancelToken.tus = upload;
+            if (cancelToken.canceled) {
+              upload.abort(true);
+            }
+          },
         });
+        ensureNotCanceled();
 
         patchPendingUpload(job.tempId, { state: 'finalizing' });
         uploadTelemetry.delete(job.tempId);
 
+        ensureNotCanceled();
         await orgService.mediaAssets.create({
           orgId: job.orgId,
           uploaderId: job.uploaderId,
@@ -661,7 +662,7 @@ const processUploadQueue = async () => {
           fileSizeBytes: job.fileSizeBytes,
           mimeType: job.mimeType,
           durationSeconds,
-          checksum,
+          checksum: '',
           source: 'upload',
           fileName: job.fileName,
         });
@@ -673,8 +674,11 @@ const processUploadQueue = async () => {
         pendingUploads.value = pendingUploads.value.filter((u) => u.tempId !== job.tempId);
         clearResumableUploadMeta(job.resumableKey);
         uploadTelemetry.delete(job.tempId);
+        uploadCancelTokens.delete(job.tempId);
       } catch (err) {
-        // Best-effort cleanup: avoid orphaned files when quota/RLS prevents inserting the DB row.
+        const canceled = uploadCancelTokens.get(job.tempId)?.canceled;
+        // Best-effort cleanup: avoid orphaned files when quota/RLS prevents inserting the DB row
+        // or when the user cancels mid-transfer.
         try {
           await supabase.storage.from(job.bucket).remove([job.storagePath]);
         } catch {
@@ -682,16 +686,37 @@ const processUploadQueue = async () => {
         }
 
         patchPendingUpload(job.tempId, {
-          state: 'failed',
-          errorMessage: err instanceof Error ? err.message : 'Upload failed.',
+          state: canceled ? 'canceled' : 'failed',
+          errorMessage: canceled ? 'Upload canceled.' : err instanceof Error ? err.message : 'Upload failed.',
+          uploadBps: undefined,
         });
 
         uploadTelemetry.delete(job.tempId);
+        uploadCancelTokens.delete(job.tempId);
       }
     }
   } finally {
     uploadWorkerRunning = false;
   }
+};
+
+const cancelUpload = (tempId: string) => {
+  const token = uploadCancelTokens.get(tempId);
+  if (token) {
+    token.canceled = true;
+    token.tus?.abort(true);
+  }
+
+  // Remove from queue if it hasn't started yet.
+  const queuedIndex = uploadQueue.findIndex((job) => job.tempId === tempId);
+  if (queuedIndex !== -1) {
+    uploadQueue.splice(queuedIndex, 1);
+    uploadCancelTokens.delete(tempId);
+  }
+
+  patchPendingUpload(tempId, { state: 'canceled', progress: 0, uploadBps: undefined, errorMessage: 'Upload canceled.' });
+  uploadTelemetry.delete(tempId);
+  pendingUploads.value = pendingUploads.value.filter((u) => u.tempId !== tempId);
 };
 
 const handleUpload = async () => {
@@ -721,6 +746,7 @@ const handleUpload = async () => {
   const jobs: UploadJob[] = uploadFiles.value.map((file) => {
     const { key: resumableKey, storagePath } = getOrCreateResumableStoragePath({ orgId, bucket, file });
     const tempId = createTempUploadId();
+    uploadCancelTokens.set(tempId, { canceled: false });
     return {
       tempId,
       resumableKey,
@@ -1077,12 +1103,22 @@ onBeforeUnmount(() => {
                   <span
                     class="rounded-full border px-2 py-0.5 text-xs font-medium uppercase tracking-wide"
                     :class="pendingUploadById.get(asset.id)
-                      ? 'border-blue-300/50 text-blue-200'
+                      ? pendingUploadById.get(asset.id)?.state === 'canceled'
+                        ? 'border-white/40 text-white/70'
+                        : pendingUploadById.get(asset.id)?.state === 'failed'
+                          ? 'border-rose-300/50 text-rose-200'
+                          : 'border-blue-300/50 text-blue-200'
                       : asset.status === 'ready'
                         ? 'border-emerald-300/50 text-emerald-200'
-                        : 'border-amber-300/50 text-amber-200'"
+                        : asset.status === 'canceled'
+                          ? 'border-white/40 text-white/70'
+                          : 'border-amber-300/50 text-amber-200'"
                   >
-                    {{ pendingUploadById.get(asset.id) ? 'uploading' : asset.status }}
+                    {{
+                      pendingUploadById.get(asset.id)
+                        ? pendingUploadById.get(asset.id)?.state
+                        : asset.status
+                    }}
                   </span>
                 </td>
                 <td class="px-4 py-3 text-right">
@@ -1107,6 +1143,14 @@ onBeforeUnmount(() => {
                     >
                       View
                     </span>
+                    <button
+                      v-if="pendingUploadById.get(asset.id) && isUploadCancelable(pendingUploadById.get(asset.id))"
+                      type="button"
+                      class="text-xs font-semibold uppercase tracking-wide text-rose-200 transition hover:text-white"
+                      @click.stop="() => cancelUpload(asset.id)"
+                    >
+                      Cancel
+                    </button>
                     <button
                       type="button"
                       class="text-xs font-semibold uppercase tracking-wide text-white/70 transition hover:text-white"
