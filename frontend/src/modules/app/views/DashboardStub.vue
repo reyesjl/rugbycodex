@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { Icon } from '@iconify/vue';
 import { computed } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useProfileStore } from '@/modules/profiles/stores/useProfileStore';
@@ -37,19 +36,6 @@ const orgLinks = computed<OrgLinks | null>(() => {
   } satisfies OrgLinks;
 });
 
-const welcomeCopy = computed(() => {
-  switch (variant.value) {
-    case 'admin':
-      return 'System health, moderation, and cross-org actions in one place.';
-    case 'orgLeader':
-      return 'Review your org pulse, unblock staff, and monitor storage + sessions.';
-    case 'orgContributor':
-      return 'Pick up your next assignment or review recently shared footage.';
-    default:
-      return 'Spin up an organization to unlock tagging, narrations, and vaults.';
-  }
-});
-
 const componentRegistry: Record<DashboardVariant, unknown> = {
   admin: DashboardAdminPanel,
   orgLeader: DashboardOrgLeaderPanel,
@@ -74,29 +60,7 @@ const variantProps = computed(() => ({
       <div class="text-white text-2xl font-semibold">
         Welcome back, {{ profileName }}
       </div>
-      <p class="mt-1 text-white/70">{{ welcomeCopy }}</p>
     </header>
-
-    <div class="rounded border border-white/20 bg-black/30 p-4">
-      <form class="h-12">
-        <input
-          type="text"
-          placeholder="Find anything"
-          class="w-full rounded border border-white/20 bg-black/20 p-2 text-white placeholder:text-white/40 focus:outline-none"
-        />
-      </form>
-      <div class="mt-4 flex items-center justify-between gap-3 px-1">
-        <RouterLink to="/" class="rounded-sm bg-white/10 p-2 text-xs font-medium text-white hover:bg-white/20">
-          Learn how to find rugby players, actions, & events.
-        </RouterLink>
-        <button
-          type="button"
-          class="flex shrink-0 items-center justify-center rounded-full p-2 transition hover:bg-white/10"
-        >
-          <Icon icon="carbon:send" width="20" height="20" class="text-white" />
-        </button>
-      </div>
-    </div>
 
     <component
       v-if="variantComponent"

@@ -33,6 +33,28 @@ const quickLinks = computed(() => {
 </script>
 
 <template>
+  <article class="rounded border border-white/15 bg-black/40 p-6">
+    <p class="text-xs uppercase tracking-wide text-white/50">
+      What coaches are seeing
+    </p>
+
+  <ul class="mt-4 space-y-3 text-sm">
+    <li class="text-white">
+      Arriving late to the breakdown
+    </li>
+    <li class="text-white">
+      Strong scan before contact
+    </li>
+    <li class="text-white">
+      Tackle height drops in final 20mins
+    </li>
+  </ul>
+
+  <p class="mt-4 text-xs text-white/50">
+    Based on recent review and narration
+  </p>
+</article>
+
   <section class="space-y-8 text-white">
     <div class="rounded border border-white/15 bg-white/5 p-6">
       <p class="text-xs uppercase tracking-wide text-white/50">You're contributing as</p>
