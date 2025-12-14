@@ -19,13 +19,23 @@ export function useDashboardVariant() {
   const profileStore = useProfileStore();
 
   const { isAdmin } = storeToRefs(authStore);
-  const { memberships } = storeToRefs(profileStore);
+  const { profile, memberships } = storeToRefs(profileStore);
 
   const primaryMembership = computed<OrgMembership | null>(() => {
     if (!memberships.value.length) {
       return null;
     }
 
+    // Prefer the user's explicitly set primary_org if it exists
+    const primaryOrgId = profile.value?.primary_org;
+    if (primaryOrgId) {
+      const primaryOrg = memberships.value.find(m => m.org_id === primaryOrgId);
+      if (primaryOrg) {
+        return primaryOrg;
+      }
+    }
+
+    // Fallback to highest role if no primary_org is set or found
     return sortMembershipsByRank(memberships.value)[0] ?? null;
   });
 

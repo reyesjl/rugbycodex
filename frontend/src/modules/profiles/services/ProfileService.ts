@@ -37,6 +37,7 @@ type ProfileRow = {
   xp: number | null;
   creation_time: string | Date | null;
   role: UserProfile['role'];
+  primary_org: string | null;
 };
 
 type MembershipRelationRow = {
@@ -84,6 +85,7 @@ function toUserProfile(row: ProfileRow): UserProfile {
     xp: row.xp,
     creation_time: asDate(row.creation_time, 'profile creation'),
     role: row.role,
+    primary_org: row.primary_org,
   };
 }
 
@@ -297,12 +299,12 @@ export const profileService = {
       };
     },
 
-    async updateProfile(profileId: string, updates: { name?: string; username?: string }): Promise<UserProfile> {
+    async updateProfile(profileId: string, updates: { name?: string; username?: string; primary_org?: string | null }): Promise<UserProfile> {
       if (!profileId) {
         throw new Error('Profile id is required.');
       }
 
-      const payload: Partial<Pick<ProfileRow, 'name' | 'username'>> = {};
+      const payload: Partial<Pick<ProfileRow, 'name' | 'username' | 'primary_org'>> = {};
 
       if (typeof updates.name === 'string') {
         payload.name = updates.name;
@@ -314,6 +316,10 @@ export const profileService = {
           throw new Error('Username is required.');
         }
         payload.username = normalized;
+      }
+
+      if ('primary_org' in updates) {
+        payload.primary_org = updates.primary_org;
       }
 
       if (Object.keys(payload).length === 0) {
@@ -441,7 +447,8 @@ export const profileService = {
               name,
               xp,
               creation_time,
-              role
+              role,
+              primary_org
             ),
             organizations:organizations (
               id,

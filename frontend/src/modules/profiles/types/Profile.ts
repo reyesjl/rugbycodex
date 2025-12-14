@@ -21,6 +21,8 @@ export type UserProfile = {
   creation_time: Date;
   /** Access level granted to the profile. */
   role: ProfileRole;
+  /** Primary organization ID for this profile, if set. */
+  primary_org: string | null;
 };
 
 /** Normalized profile information coupled with all organization memberships. */
