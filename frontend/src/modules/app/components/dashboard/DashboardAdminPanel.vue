@@ -2,6 +2,7 @@
 import { Icon } from '@iconify/vue';
 import { computed, onMounted, ref } from 'vue';
 import { RouterLink } from 'vue-router';
+import ComputeDevicesWidget from '../ComputeDevicesWidget.vue';
 import { profileService } from '@/modules/profiles/services/ProfileService';
 import { orgService } from '@/modules/orgs/services/orgService';
 
@@ -119,6 +120,8 @@ const adminLinks = [
         </article>
       </div>
     </div>
+
+    <ComputeDevicesWidget />
 
     <div class="rounded border border-white/15 bg-white/5">
       <header class="flex items-center justify-between border-b border-white/10 px-4 py-3">

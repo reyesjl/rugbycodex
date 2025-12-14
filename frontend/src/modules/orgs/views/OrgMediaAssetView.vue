@@ -43,6 +43,11 @@ const isPlaying = ref(false);
 const durationSeconds = ref(0);
 const currentSeconds = ref(0);
 const isMuted = ref(false);
+const isBuffering = ref(false);
+const videoRenderKey = ref(0);
+const streamWarning = ref<string | null>(null);
+const isCheckingStream = ref(false);
+let streamCheckCounter = 0;
 
 const formatDurationClock = (seconds?: number | null) => {
   if (seconds == null) return '0:00';
@@ -183,6 +188,12 @@ const syncFromVideo = () => {
   isMuted.value = el.muted;
 };
 
+const setBuffering = (next: boolean) => {
+  if (isBuffering.value !== next) {
+    isBuffering.value = next;
+  }
+};
+
 const togglePlay = async () => {
   const el = videoEl.value;
   if (!el) return;
@@ -203,6 +214,7 @@ const seekTo = (nextSeconds: number) => {
   const el = videoEl.value;
   if (!el) return;
   el.currentTime = Math.max(0, Math.min(nextSeconds, Number.isFinite(el.duration) ? el.duration : nextSeconds));
+  setBuffering(true);
   syncFromVideo();
 };
 
@@ -606,6 +618,29 @@ const signUrl = async (nextAsset: OrgMediaAsset) => {
   const url = data?.signedUrl;
   if (!url) throw new Error('Unable to create a signed URL.');
   signedUrl.value = url;
+  videoRenderKey.value += 1;
+  setBuffering(true);
+  const currentCheck = ++streamCheckCounter;
+  isCheckingStream.value = true;
+  streamWarning.value = null;
+  // Probe for byte-range / 206 support so large files can seek without freezing.
+  void (async () => {
+    try {
+      const res = await fetch(url, { method: 'GET', headers: { Range: 'bytes=0-0' } });
+      const acceptRanges = res.headers.get('accept-ranges')?.toLowerCase() ?? '';
+      if (res.status !== 206 || !acceptRanges.includes('bytes')) {
+        streamWarning.value =
+          'Streaming check failed: storage is not returning 206 byte-range responses. Enable range requests or upload an HLS version for smooth scrubbing.';
+      }
+    } catch {
+      streamWarning.value =
+        'Streaming check failed: unable to verify byte-range support. Large files may stall if the server blocks range requests.';
+    } finally {
+      if (currentCheck === streamCheckCounter) {
+        isCheckingStream.value = false;
+      }
+    }
+  })();
 };
 
 const load = async () => {
@@ -617,6 +652,9 @@ const load = async () => {
   error.value = null;
   asset.value = null;
   signedUrl.value = null;
+  streamWarning.value = null;
+  isCheckingStream.value = false;
+  setBuffering(false);
 
   try {
     await activeOrgStore.ensureLoaded(slug);
@@ -641,6 +679,38 @@ watch(
   },
   { immediate: true }
 );
+
+const onVideoLoadedMetadata = () => {
+  syncFromVideo();
+  setBuffering(false);
+};
+
+const onVideoCanPlay = () => {
+  syncFromVideo();
+  setBuffering(false);
+};
+
+const onVideoPlaying = () => {
+  syncFromVideo();
+  setBuffering(false);
+};
+
+const onVideoBuffering = () => {
+  setBuffering(true);
+};
+
+const onVideoSeeked = () => {
+  syncFromVideo();
+  setBuffering(false);
+};
+
+const onVideoError = () => {
+  setBuffering(false);
+  if (!streamWarning.value) {
+    streamWarning.value =
+      'The video hit an error while loading. If this is a large file, ensure storage/CDN allows byte-range streaming or re-encode to a streaming format (e.g., HLS).';
+  }
+};
 
 onBeforeUnmount(() => {
   stopRecording();
@@ -689,17 +759,35 @@ onBeforeUnmount(() => {
         <div v-if="signedUrl && canRenderPlayer" class="relative aspect-video bg-black">
           <video
             ref="videoEl"
+            :key="videoRenderKey"
             :src="signedUrl"
             class="h-full w-full"
+            preload="metadata"
             playsinline
             @click="togglePlay"
-            @loadedmetadata="syncFromVideo"
+            @loadedmetadata="onVideoLoadedMetadata"
+            @loadeddata="onVideoLoadedMetadata"
             @timeupdate="syncFromVideo"
             @durationchange="syncFromVideo"
-            @play="syncFromVideo"
+            @play="onVideoPlaying"
             @pause="syncFromVideo"
             @volumechange="syncFromVideo"
+            @waiting="onVideoBuffering"
+            @seeking="onVideoBuffering"
+            @stalled="onVideoBuffering"
+            @canplay="onVideoCanPlay"
+            @seeked="onVideoSeeked"
+            @playing="onVideoPlaying"
+            @error="onVideoError"
           />
+
+          <div
+            v-if="isBuffering"
+            class="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          >
+            <Icon icon="carbon:circle-dash" class="h-10 w-10 animate-spin text-white/80" aria-hidden="true" />
+            <span class="sr-only">Buffering video</span>
+          </div>
 
           <!-- Record (top-right) -->
           <button
@@ -773,6 +861,13 @@ onBeforeUnmount(() => {
         <div v-else class="p-4 text-white/70">
           This file type can’t be previewed in the browser right now.
         </div>
+      </div>
+
+      <div v-if="isCheckingStream" class="rounded border border-white/10 bg-white/5 p-3 text-sm text-white/70">
+        Checking storage for streaming (byte-range) support…
+      </div>
+      <div v-else-if="streamWarning" class="rounded border border-amber-300/50 bg-amber-500/10 p-3 text-sm text-amber-100">
+        {{ streamWarning }}
       </div>
 
       <div class="space-y-2">
