@@ -4,7 +4,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { computeDeviceService } from '@/modules/admin/services/computeDeviceService';
 import type { ComputeDevice } from '@/modules/admin/types';
 
-const HEARTBEAT_OFFLINE_THRESHOLD_MS = 30_000;
+const HEARTBEAT_OFFLINE_THRESHOLD_MS = 60_000;
 type DeviceHealth = 'online' | 'offline' | 'degraded';
 
 const computeDevices = ref<ComputeDevice[]>([]);
