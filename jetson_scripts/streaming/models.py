@@ -49,9 +49,9 @@ class MediaAsset:
     def bucketless_input_path(self) -> str:
         return f"{self.storage_path}/{self.file_name}"
     def full_output_path(self) -> str:
-        return f"{self.bucket}/{self.storage_path.replace("input", "output")}/{self.file_name.replace(".mp4", "/")}"
+        return f"{self.bucket}/{self.storage_path.replace('input', 'output')}/{self.file_name.replace('.mp4', '/')}"
     def bucketless_output_path(self) -> str:
-        return f"{self.storage_path.replace("input", "output")}/{self.file_name.replace(".mp4", "/")}"
+        return f"{self.storage_path.replace('input', 'output')}/{self.file_name.replace('.mp4', '/')}"
 
 
 

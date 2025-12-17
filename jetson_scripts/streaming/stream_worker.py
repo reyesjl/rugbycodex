@@ -170,7 +170,8 @@ class StreamWorker(threading.Thread):
             Catches and prints any exceptions that occur during the upload process.
         """
         try:
-            for files in Path(output_hls_path).iterdir():
+            files_list = sorted(Path(output_hls_path).iterdir(), key=lambda x: x.name)
+            for files in files_list:
                 print("Generated file:", files.name)
                 full_path = os.path.join(output_hls_path, files.name)
                 print("Uploading to wasabi:", f"{self.job.media_asset.bucketless_output_path()}{files.name}")
