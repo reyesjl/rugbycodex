@@ -2,9 +2,12 @@
 import { Icon } from '@iconify/vue';
 import { computed, onMounted, ref } from 'vue';
 import { RouterLink } from 'vue-router';
-import ComputeDevicesWidget from '../ComputeDevicesWidget.vue';
 import { profileService } from '@/modules/profiles/services/ProfileService';
 import { orgService } from '@/modules/orgs/services/orgService';
+import CoachGuide from '@/modules/app/components/CoachGuide.vue';
+import OrganizationsSection from './admin/OrganizationsSection.vue';
+import OperationsSection from './admin/OperationsSection.vue';
+import PeopleSection from './admin/PeopleSection.vue';
 
 const props = defineProps<{ profileName: string; membershipCount: number }>();
 
@@ -83,73 +86,23 @@ const adminLinks = [
 </script>
 
 <template>
-  <section class="space-y-8">
-    <div class="rounded border border-white/15 bg-white/5 p-6 text-white">
-      <p class="text-sm uppercase tracking-wide text-white/60">Platform pulse</p>
-      <div class="mt-3 text-xs text-rose-200" v-if="pulseError">
-        {{ pulseError }}
-      </div>
-      <div class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <article class="rounded border border-white/10 bg-black/30 p-4">
-          <p class="text-xs uppercase tracking-wide text-white/40">Organizations</p>
-          <div class="mt-2 text-3xl font-semibold">
-            {{ formatNumber(orgCountDisplay) }}
-            <span v-if="pulseLoading" class="ml-2 align-middle text-sm text-white/60">…</span>
-          </div>
-        </article>
-        <article class="rounded border border-white/10 bg-black/30 p-4">
-          <p class="text-xs uppercase tracking-wide text-white/40">Users</p>
-          <div class="mt-2 text-3xl font-semibold">
-            {{ formatNumber(userCount) }}
-            <span v-if="pulseLoading" class="ml-2 align-middle text-sm text-white/60">…</span>
-          </div>
-        </article>
-        <article class="rounded border border-white/10 bg-black/30 p-4">
-          <p class="text-xs uppercase tracking-wide text-white/40">mins uploaded</p>
-          <div class="mt-2 text-3xl font-semibold">
-            {{ formatMediaMinutes(mediaSeconds) }}
-            <span v-if="pulseLoading" class="ml-2 align-middle text-sm text-white/60">…</span>
-          </div>
-        </article>
-        <article class="rounded border border-white/10 bg-black/30 p-4">
-          <p class="text-xs uppercase tracking-wide text-white/40">Narrations</p>
-          <div class="mt-2 text-3xl font-semibold">
-            —
-            <span v-if="pulseLoading" class="ml-2 align-middle text-sm text-white/60">…</span>
-          </div>
-        </article>
-      </div>
-    </div>
-
-    <ComputeDevicesWidget />
-
-    <div class="rounded border border-white/15 bg-white/5">
-      <header class="flex items-center justify-between border-b border-white/10 px-4 py-3">
-        <div>
-          <p class="text-xs uppercase tracking-wide text-white/40">Control room</p>
-          <p class="text-lg font-semibold text-white">Where to next, {{ shortName }}?</p>
+  <section class="space-y-20 text-white">
+    <div class="header space-y-5">
+      <div class="text-2xl">Platform status</div>
+      <CoachGuide>
+        <div class="space-y-1">
+          <p class="text-lg font-semibold text-white/90">All system operational.</p>
+          <p class="text-sm text-white/70">TMO looks good from all angles.</p>
         </div>
-      </header>
-      <ul>
-        <li
-          v-for="link in adminLinks"
-          :key="link.label"
-          class="border-b border-white/10 last:border-b-0"
-        >
-          <RouterLink
-            class="flex items-start gap-4 px-4 py-4 hover:bg-white/10"
-            :to="link.to"
-          >
-            <div class="rounded-full border border-white/20 p-2">
-              <Icon :icon="link.icon" width="20" height="20" class="text-white" />
-            </div>
-            <div class="text-white">
-              <p class="font-medium">{{ link.label }}</p>
-              <p class="text-sm text-white/70">{{ link.description }}</p>
-            </div>
-          </RouterLink>
-        </li>
-      </ul>
+      </CoachGuide>
     </div>
+
+
+    <OrganizationsSection />
+
+    <OperationsSection />
+    
+    <PeopleSection />
+      
   </section>
 </template>

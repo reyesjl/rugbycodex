@@ -10,8 +10,7 @@ const emit = defineEmits<{
 }>();
 
 const adminLinks = [
-  { to: '/v2/admin', label: 'System Overview', icon: 'carbon:analytics' },
-  { to: '/v2/admin/orgs', label: 'Organizations', icon: 'carbon:group-presentation' },
+  { to: '/v2/admin/', label: 'Organizations', icon: 'carbon:group-presentation' },
   { to: '/v2/admin/users', label: 'Users', icon: 'carbon:user-multiple' },
   { to: '/v2/admin/narrations', label: 'Narrations Moderation', icon: 'carbon:microphone' },
   { to: '/v2/admin/media', label: 'Media Review', icon: 'carbon:image-search' },

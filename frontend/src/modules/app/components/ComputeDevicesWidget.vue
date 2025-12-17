@@ -165,15 +165,9 @@ const isDeviceExpanded = (deviceKey: string) => expandedDeviceId.value === devic
 </script>
 
 <template>
-  <div class="rounded border border-white/15 bg-black/40 text-white">
-    <header
-      class="flex flex-col gap-2 border-b border-white/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
-    >
-      <div>
-        <p class="text-xs uppercase tracking-wide text-white/40">Compute fleet</p>
-        <p class="text-lg font-semibold text-white">Platform-owned devices</p>
-        <p class="text-xs text-white/60">Heartbeat-driven health across infrastructure nodes.</p>
-      </div>
+  <div class="space-y-2">
+    <div class="flex justify-between">
+      <div class="text-lg">Platform Devices</div>
       <button
         type="button"
         class="inline-flex items-center gap-2 self-start rounded border border-white/20 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white transition hover:border-white/50 disabled:cursor-not-allowed disabled:opacity-60"
@@ -183,10 +177,10 @@ const isDeviceExpanded = (deviceKey: string) => expandedDeviceId.value === devic
         <Icon icon="carbon:renew" width="16" height="16" />
         Refresh
       </button>
-    </header>
+    </div>
 
-    <div class="px-4 pb-4 pt-3">
-      <div v-if="computeDevicesError" class="text-sm text-rose-200">
+    <!-- Devices list -->
+     <div v-if="computeDevicesError" class="text-sm text-rose-200">
         {{ computeDevicesError }}
       </div>
       <div v-else-if="computeDevicesLoading && computeDeviceCards.length === 0" class="text-sm text-white/70">
@@ -283,7 +277,7 @@ const isDeviceExpanded = (deviceKey: string) => expandedDeviceId.value === devic
           </transition>
         </article>
       </div>
-    </div>
+
   </div>
 </template>
 
