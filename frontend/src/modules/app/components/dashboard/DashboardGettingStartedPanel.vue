@@ -1,26 +1,27 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue';
 import { RouterLink } from 'vue-router';
+import CoachGuide from '@/modules/app/components/CoachGuide.vue';
 
 const props = defineProps<{ profileName: string }>();
 
 const steps = [
   {
-    title: 'Create an organization',
-    description: 'Claim your club name, drop in branding, and invite collaborators.',
-    icon: 'carbon:add',
+    title: 'Join a team or workspace',
+    description: 'Join an existing team or organization you’ve been invited to.',
+    icon: 'carbon:add-child-node',
     to: '/v2/organizations',
   },
   {
-    title: 'Upload first media',
-    description: 'Send us a match file or training capture and we will transcode it for tagging.',
-    icon: 'carbon:cloud-upload',
-    to: '/v2/media',
+    title: 'Create a workspace',
+    description: 'Set up a new workspace for team, club, or personal analysis.',
+    icon: 'carbon:intent-request-create',
+    to: '/v2/organizations',
   },
   {
-    title: 'Invite your staff',
-    description: 'Analysts, players, and coaches can all share notes once inside an org.',
-    icon: 'carbon:user-follow',
+    title: 'See a real example',
+    description: 'Walk through a real example of footage, narration, and tagging.',
+    icon: 'carbon:help',
     to: '/v2/organizations',
   },
 ];
@@ -28,11 +29,13 @@ const steps = [
 
 <template>
   <section class="space-y-8 text-white">
-    <div class="rounded border border-blue-400/40 bg-blue-500/10 p-6">
-      <p class="text-xs uppercase tracking-wide text-blue-200/70">Welcome, {{ props.profileName || 'friend' }}</p>
-      <p class="mt-3 text-2xl font-semibold">Let’s stand up your rugby workspace</p>
-      <p class="mt-2 text-sm text-white/80">You’re not linked to an organization yet. Start with the checklist below or ping support for a concierge onboarding.</p>
-    </div>
+    <div class="text-2xl">Welcome, {{ props.profileName || 'friend' }}</div>
+    <CoachGuide>
+      <div class="space-y-1">
+        <p class="text-lg font-semibold text-white/90">What do you want to do first?</p>
+        <p class="text-sm text-white/70">Pick a place to begin, you can always change this later.</p>
+      </div>
+    </CoachGuide>
 
     <div class="grid gap-4 md:grid-cols-3">
       <RouterLink
@@ -50,7 +53,7 @@ const steps = [
     </div>
 
     <div class="rounded border border-white/10 bg-black/30 p-5 text-sm text-white/70">
-      Need help provisioning your org? Email <a href="mailto:contact@biasware.com" class="text-white underline">contact@biasware.com</a> and we’ll carve a launch path with you.
+      If you're stuck, we are here to help. Email <a href="mailto:contact@biasware.com" class="text-white underline">contact@biasware.com</a>
     </div>
   </section>
 </template>

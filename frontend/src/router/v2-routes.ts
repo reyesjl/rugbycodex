@@ -156,11 +156,6 @@ export const v2Routes: RouteRecordRaw[] = [
     children: [
       {
         path: '',
-        name: 'V2AdminOverview',
-        component: () => import('@/modules/admin/views/AdminOverview.vue'),
-      },
-      {
-        path: 'orgs',
         name: 'V2AdminOrgs',
         component: () => import('@/modules/admin/views/AdminOrgs.vue'),
       },

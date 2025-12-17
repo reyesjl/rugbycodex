@@ -4,7 +4,7 @@ import { useAuthStore } from '@/auth/stores/useAuthStore';
 import { useProfileStore } from '@/modules/profiles/stores/useProfileStore';
 import { ROLE_ORDER, type OrgMembership } from '@/modules/profiles/types';
 
-export type DashboardVariant = 'admin' | 'orgLeader' | 'orgContributor' | 'noOrg';
+export type DashboardVariant = 'admin' | 'orgLeader' | 'orgContributor' | 'entry';
 
 function sortMembershipsByRank(memberships: OrgMembership[]): OrgMembership[] {
   return [...memberships].sort((a, b) => {
@@ -45,7 +45,7 @@ export function useDashboardVariant() {
     }
 
     if (!primaryMembership.value) {
-      return 'noOrg';
+      return 'entry';
     }
 
     const elevatedRoles: OrgMembership['org_role'][] = ['owner', 'manager'];

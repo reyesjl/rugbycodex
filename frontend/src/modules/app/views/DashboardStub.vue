@@ -40,7 +40,7 @@ const componentRegistry: Record<DashboardVariant, unknown> = {
   admin: DashboardAdminPanel,
   orgLeader: DashboardOrgLeaderPanel,
   orgContributor: DashboardOrgMemberPanel,
-  noOrg: DashboardGettingStartedPanel,
+  entry: DashboardGettingStartedPanel,
 };
 
 const variantComponent = computed(() => componentRegistry[variant.value]);
@@ -55,13 +55,6 @@ const variantProps = computed(() => ({
 
 <template>
   <div class="container space-y-8 py-6 pb-50">
-    <header>
-      <!-- <p class="text-sm uppercase tracking-wide text-white/50">Dashboard</p> -->
-      <div class="text-white text-2xl font-semibold">
-        Welcome back, {{ profileName }}
-      </div>
-    </header>
-
     <component
       v-if="variantComponent"
       :is="variantComponent"
