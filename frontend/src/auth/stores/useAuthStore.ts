@@ -3,6 +3,7 @@ import { computed, ref } from 'vue';
 import type { AuthError, Session, Subscription, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabaseClient';
 import { decodeSupabaseAccessToken } from '@/lib/jwt';
+import { useMyOrganizationsStore } from '@/modules/orgs/stores/useMyOrganizationsStore';
 
 export const DISPLAY_NAME_MIN_LENGTH = 2;
 export const DISPLAY_NAME_MAX_LENGTH = 60;
@@ -10,6 +11,7 @@ const SESSION_EXPIRED_MESSAGE = 'Your session has expired. Please sign in again.
 const FRIENDLY_CAPTCHA_ERROR = 'Verification failed. Please complete the security check and try again.';
 
 export const useAuthStore = defineStore('auth', () => {
+  const myOrgs = useMyOrganizationsStore();
   const user = ref<User | null>(null);
   const session = ref<Session | null>(null);
   const initializing = ref(false);
@@ -232,6 +234,7 @@ export const useAuthStore = defineStore('auth', () => {
       return { error: null };
     }
     clearAuthState();
+    myOrgs.clear();
     return { error: null };
   };
 

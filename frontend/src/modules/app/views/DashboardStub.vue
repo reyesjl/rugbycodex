@@ -1,67 +1,52 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import { storeToRefs } from 'pinia';
-import { useProfileStore } from '@/modules/profiles/stores/useProfileStore';
-import type { OrgMembership } from '@/modules/profiles/types';
-import { useDashboardVariant, type DashboardVariant } from '@/modules/app/composables/useDashboardVariant';
+import { onMounted } from 'vue';
+import { useMyOrganizationsStore } from '@/modules/orgs/stores/useMyOrganizationsStore';
+import { useDashboardState } from '@/modules/app/composables/useDashboardState';
+
+import DashboardSkeleton from '@/modules/app/components/dashboard/DashboardSkeleton.vue';
 import DashboardAdminPanel from '@/modules/app/components/dashboard/DashboardAdminPanel.vue';
 import DashboardOrgLeaderPanel from '@/modules/app/components/dashboard/DashboardOrgLeaderPanel.vue';
 import DashboardOrgMemberPanel from '@/modules/app/components/dashboard/DashboardOrgMemberPanel.vue';
 import DashboardGettingStartedPanel from '@/modules/app/components/dashboard/DashboardGettingStartedPanel.vue';
 
-type OrgLinks = {
-  overview: string;
-  media: string;
-  members: string;
-  settings: string;
-};
-
-const profileStore = useProfileStore();
-const { profile } = storeToRefs(profileStore);
-const { variant, primaryMembership, membershipCount } = useDashboardVariant();
-
-const profileName = computed(() => profile.value?.username ?? profile.value?.name ?? 'there');
-
-const orgLinks = computed<OrgLinks | null>(() => {
-  const membership = primaryMembership.value;
-  if (!membership) {
-    return null;
-  }
-  const base = membership.slug ? `/v2/orgs/${membership.slug}` : `/v2/orgs/${membership.org_id}`;
-  return {
-    overview: `${base}/overview`,
-    media: `${base}/media`,
-    members: `${base}/members`,
-    settings: `${base}/settings`,
-  } satisfies OrgLinks;
+// Load user org state
+const myOrgs = useMyOrganizationsStore();
+onMounted(() => {
+  myOrgs.load();
 });
 
-const componentRegistry: Record<DashboardVariant, unknown> = {
-  admin: DashboardAdminPanel,
-  orgLeader: DashboardOrgLeaderPanel,
-  orgContributor: DashboardOrgMemberPanel,
-  entry: DashboardGettingStartedPanel,
-};
+// Derive dashboard meaning
+const { variant, primaryOrg, orgCount } = useDashboardState();
+console.log('Dashboard variant:', variant.value);
+console.log('Primary org:', primaryOrg);
+console.log('Org count:', orgCount);
 
-const variantComponent = computed(() => componentRegistry[variant.value]);
-
-const variantProps = computed(() => ({
-  profileName: profileName.value,
-  membership: primaryMembership.value as OrgMembership | null,
-  orgLinks: orgLinks.value,
-  membershipCount: membershipCount.value,
-}));
 </script>
 
 <template>
   <div class="container space-y-8 py-6 pb-50">
-    <component
-      v-if="variantComponent"
-      :is="variantComponent"
-      v-bind="variantProps"
+    <DashboardSkeleton v-if="variant === 'booting'" />
+
+    <DashboardAdminPanel
+      v-else-if="variant === 'admin'"
+      :primary-org="primaryOrg"
+      :org-count="orgCount"
     />
-    <div v-else class="rounded border border-white/20 bg-black/30 p-6 text-white/70">
-      Loading personalized dashboard...
-    </div>
+
+    <DashboardGettingStartedPanel
+      v-else-if="variant === 'onboarding'"
+      :primary-org="primaryOrg"
+      :org-count="orgCount"
+    />
+
+    <DashboardOrgLeaderPanel
+      v-else-if="variant === 'orgLeader'"
+      
+    />
+
+    <DashboardOrgMemberPanel
+      v-else-if="variant === 'orgContributor'"
+      
+    />
   </div>
 </template>
