@@ -1,22 +1,17 @@
-/** Single organization row returned to consumers. */
+import type { Megabytes } from "./Megabytes";
+import type { OrgId } from "./OrgId";
+import type { OrganizationType } from "./OrganizationType";
+import type { OrganizationVisibility } from "./OrganizationVisibility";
+import type { UserId } from "./UserId";
+
 export type Organization = {
-  id: string;
-  owner: string | null;
+  id: OrgId;
+  owner: UserId | null;
   slug: string;
   name: string;
   created_at: Date;
-  storage_limit_mb: number;
+  storage_limit_mb: Megabytes;
   bio: string | null;
+  visibility: OrganizationVisibility;
+  type: OrganizationType | null;
 };
-
-export type OrganizationUpdateFields = 'name' | 'slug' | 'owner' | 'storage_limit_mb' | 'bio';
-
-/** DTO for creating organizations programmatically. */
-export type CreateOrganizationInput = {
-  name: string;
-  slug: string;
-  owner?: string | null;
-  storage_limit_mb?: number;
-  bio?: string | null;
-};
-

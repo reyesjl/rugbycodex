@@ -1,43 +1,66 @@
 import { defineStore } from 'pinia';
-import { watch } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { useAuthStore } from '@/auth/stores/useAuthStore';
-import { useProfileFullDetail } from '../composables/useProfileFullDetail';
-
+import { profileService } from '../services/profileServiceV2';
+import type { Profile } from '../types/Profile';
 
 export const useProfileStore = defineStore('profile', () => {
-  const {
-    profile,
-    loading: loadingProfile,
-    error: lastError,
-    memberships,
-    loadProfile,
-    canManageOrg,
-    clearProfile,
-  } = useProfileFullDetail();
-
   const authStore = useAuthStore();
 
-  const fetchProfile = async (userId: string) => {
-    // TODO: Interrupt ongoing fetch?
-    if (profile.value?.id === userId) {
-      return;
+  const profile = ref<Profile | null>(null);
+  const loading = ref(false);
+  const error = ref<string | null>(null);
+  const loaded = ref(false);
+
+  const isAdmin = computed(() => profile.value?.role === 'admin');
+
+  const load = async (opts?: { force?: boolean }) => {
+    const force = opts?.force ?? false;
+    if (loaded.value && !force) return;
+
+    loading.value = true;
+    error.value = null;
+
+    try {
+      profile.value = await profileService.getMyProfile();
+      loaded.value = true;
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : 'Failed to load profile.';
+      profile.value = null;
+      loaded.value = false;
+    } finally {
+      loading.value = false;
     }
-    await loadProfile(userId);
   };
 
-  watch(() => authStore.user, (newUser) => {
-    if (newUser !== null) {
-      if (!loadingProfile.value) fetchProfile(newUser.id);
-    } else {
-      clearProfile();
-    }
-  }, { immediate: true });
+  const clear = () => {
+    profile.value = null;
+    loading.value = false;
+    error.value = null;
+    loaded.value = false;
+  };
+
+  // react to auth lifecycle
+  watch(
+    () => authStore.user,
+    (user) => {
+      if (user) {
+        void load({ force: true });
+      } else {
+        clear();
+      }
+    },
+    { immediate: true }
+  );
 
   return {
     profile,
-    loadingProfile,
-    lastError,
-    memberships,
-    canManageOrg,
+    loading,
+    error,
+    loaded,
+    isAdmin,
+    load,
+    clear,
   };
 });
+

@@ -2,8 +2,9 @@
 import { Icon } from '@iconify/vue';
 import { RouterLink } from 'vue-router';
 import CoachGuide from '@/modules/app/components/CoachGuide.vue';
+import { useProfileDisplay } from '@/modules/profiles/composables/useProfileDisplay';
 
-const props = defineProps<{ profileName: string }>();
+const profile = useProfileDisplay();
 
 const steps = [
   {
@@ -29,7 +30,7 @@ const steps = [
 
 <template>
   <section class="space-y-8 text-white">
-    <div class="text-2xl">Welcome, {{ props.profileName || 'friend' }}</div>
+    <div class="text-2xl">Welcome, {{ profile.displayName }}</div>
     <CoachGuide>
       <div class="space-y-1">
         <p class="text-lg font-semibold text-white/90">What do you want to do first?</p>

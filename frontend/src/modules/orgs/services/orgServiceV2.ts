@@ -1,450 +1,40 @@
 import { supabase } from "@/lib/supabaseClient";
-import { requireUserId, isPlatformAdmin } from "@/modules/auth/identity";
+import { requireUserId } from "@/modules/auth/identity";
+import type {
+  ActiveOrgContext,
+  ApproveAndCreateOrgResult,
+  CreateOrgPayload,
+  OrgEditableFields,
+  OrgHealth,
+  OrgJoinRequest,
+  OrgJobSummary,
+  OrgMediaAssetSummary,
+  OrgMember,
+  OrgMembership,
+  OrgNearLimit,
+  OrgOverview,
+  OrgRequest,
+  OrgRequestAdminFilters,
+  OrgRequestAdminView,
+  OrgRole,
+  OrgStats,
+  OrgStorageLimit,
+  OrgStorageRemaining,
+  OrgStorageUsage,
+  Organization,
+  OrganizationAdminFilters,
+  OrganizationAdminListItem,
+  ResolvedOrgContext,
+  SubmitOrgRequestPayload,
+  UploadEligibility,
+  UserOrganizationSummary,
+} from "@/modules/orgs/types";
 
 /**
  * orgServiceV2
  * -----------
  * Orchestration for all organization-related workflows.
- *
- * IMPORTANT:
- * - This file defines CONTRACT + INTENT only.
- * Every method is intentionally stubbed and must throw until implemented.
  */
-
-type UUID = string;
-
-type OrgId = UUID;
-type UserId = UUID;
-type OrgRequestId = UUID;
-
-type Bytes = number;
-type Megabytes = number;
-
-/**
- * Mirrors the `org_role` enum conceptually, while allowing future expansion.
- * Source of truth: Postgres type `org_role` used by `org_members.role`.
- */
-type OrgRole = "owner" | "manager" | "staff" | "member" | "viewer" | (string & {});
-
-/**
- * Mirrors the `organization_visibility` enum conceptually, while allowing future expansion.
- * Source of truth: Postgres type `organization_visibility` used by `organizations.visibility`.
- */
-type OrganizationVisibility = "private" | "public" | "unlisted" | (string & {});
-
-/**
- * Mirrors the `organization_type` enum conceptually, while allowing future expansion.
- * Source of truth: Postgres type `organization_type` used by `organizations.type`.
- */
-type OrganizationType = "team" | (string & {});
-
-/**
- * Mirrors the `organization_request_status` enum conceptually, while allowing future expansion.
- * Source of truth: Postgres type `organization_request_status` used by `organization_requests.status`.
- */
-type OrganizationRequestStatus = "pending" | "approved" | "rejected" | "contacted" | (string & {});
-
-/**
- * Mirrors the `media_asset_status` enum conceptually, while allowing future expansion.
- * Source of truth: Postgres type `media_asset_status` used by `media_assets.status`.
- */
-type MediaAssetStatus = "ready" | "processing" | "failed" | (string & {});
-
-/**
- * Mirrors the `job_state` enum conceptually, while allowing future expansion.
- * Source of truth: Postgres type `job_state` used by `jobs.state`.
- */
-type JobState = "queued" | "running" | "succeeded" | "failed" | "canceled" | (string & {});
-
-/**
- * Mirrors the `jobs.type` enum conceptually.
- * Source of truth: Postgres user-defined enum used by `jobs.type`.
- */
-type JobType = string & {};
-
-/**
- * Mirrors the `profiles.role` enum conceptually, while allowing future expansion.
- * Source of truth: Postgres type `profile_role` used by `profiles.role`.
- */
-type ProfileRole = "admin" | "moderator" | "user" | (string & {});
-
-/**
- * Domain representation of an organization.
- *
- * Conceptually sourced from:
- * - `organizations`
- * - Related membership/ownership context from `org_members` and `profiles.primary_org` when needed.
- */
-interface Organization {
-  id: OrgId;
-  owner: UserId | null;
-  slug: string;
-  name: string;
-  created_at: Date;
-  storage_limit_mb: Megabytes;
-  bio: string | null;
-  visibility: OrganizationVisibility;
-  type: OrganizationType | null;
-}
-
-/**
- * Subset of editable organization fields.
- */
-type OrgEditableFields = {
-  name?: string;
-  bio?: string | null;
-  visibility?: OrganizationVisibility;
-  type?: OrganizationType | null;
-};
-
-/**
- * Domain representation of a user's membership within an organization.
- *
- * Conceptually sourced from:
- * - `org_members`
- */
-interface OrgMembership {
-  org_id: OrgId;
-  user_id: UserId;
-  role: OrgRole;
-  joined_at: Date | null;
-}
-
-/**
- * Lightweight profile fields commonly needed in org admin/member views.
- *
- * Conceptually sourced from:
- * - `profiles`
- */
-interface ProfileSummary {
-  id: UserId;
-  username: string;
-  name: string;
-  role: ProfileRole;
-}
-
-/**
- * Aggregated member view combining membership + minimal profile information.
- *
- * Conceptually sourced from:
- * - `org_members`
- * - `profiles`
- */
-interface OrgMember {
-  membership: OrgMembership;
-  profile: ProfileSummary;
-}
-
-/**
- * List entry for "organizations the current user belongs to".
- *
- * Conceptually sourced from:
- * - `org_members`
- * - `organizations`
- * - (optional) `profiles.primary_org` for UI selection
- */
-interface UserOrganizationSummary {
-  organization: Organization;
-  membership: OrgMembership;
-}
-
-/**
- * Result of resolving an organization identifier into canonical org context.
- */
-interface ResolvedOrgContext {
-  organization: Organization;
-  membership: OrgMembership | null;
-  matched_by: "id" | "slug";
-}
-
-/**
- * Current active org context for the logged-in user (if any).
- */
-interface ActiveOrgContext {
-  organization: Organization;
-  membership: OrgMembership | null;
-  source: "profile.primary_org" | "client_state" | "explicit";
-}
-
-/**
- * Payload for a user-submitted organization creation request.
- *
- * Conceptually inserts into:
- * - `organization_requests`
- */
-interface SubmitOrgRequestPayload {
-  requested_name: string;
-  requested_slug: string;
-  requested_type?: OrganizationType;
-  message?: string | null;
-}
-
-/**
- * Domain representation of an organization request.
- *
- * Conceptually sourced from:
- * - `organization_requests`
- */
-interface OrgRequest {
-  id: OrgRequestId;
-  requester_id: UserId;
-  requested_name: string;
-  requested_slug: string;
-  requested_type: OrganizationType;
-  message: string | null;
-  status: OrganizationRequestStatus;
-  reviewed_by: UserId | null;
-  reviewed_at: Date | null;
-  review_notes: string | null;
-  organization_id: OrgId | null;
-  created_at: Date;
-  updated_at: Date;
-}
-
-/**
- * Admin view of an organization request with optional denormalized actor profiles.
- *
- * Conceptually sourced from:
- * - `organization_requests`
- * - `profiles` (requester/reviewer display)
- */
-interface OrgRequestAdminView extends OrgRequest {
-  requester?: ProfileSummary;
-  reviewer?: ProfileSummary;
-}
-
-/**
- * Filtering options for admin review of organization requests.
- */
-interface OrgRequestAdminFilters {
-  status?: OrganizationRequestStatus;
-  requested_type?: OrganizationType;
-  requester_id?: UserId;
-  reviewed_by?: UserId;
-  created_after?: Date;
-  created_before?: Date;
-  search?: string;
-  limit?: number;
-  offset?: number;
-}
-
-/**
- * Payload for creating an organization record (privileged).
- *
- * Conceptually touches:
- * - `organizations`
- * - `org_members` (owner bootstrap membership, if applicable)
- * - `profiles.primary_org` (optional, if setting default org for owner)
- */
-interface CreateOrgPayload {
-  name: string;
-  slug: string;
-  owner_id?: UserId | null;
-  type?: OrganizationType;
-  visibility?: OrganizationVisibility;
-  bio?: string | null;
-  storage_limit_mb?: Megabytes;
-}
-
-/**
- * Result of approving a request and creating the organization it represents.
- */
-interface ApproveAndCreateOrgResult {
-  request: OrgRequestAdminView;
-  organization: Organization;
-}
-
-/**
- * Storage usage snapshot for an organization.
- *
- * Conceptually sourced from:
- * - `media_assets` (sum of `file_size_bytes` scoped by `org_id`)
- */
-interface OrgStorageUsage {
-  org_id: OrgId;
-  used_bytes: Bytes;
-  calculated_at: Date;
-}
-
-/**
- * Storage limit for an organization.
- *
- * Conceptually sourced from:
- * - `organizations.storage_limit_mb`
- */
-interface OrgStorageLimit {
-  org_id: OrgId;
-  limit_mb: Megabytes;
-}
-
-/**
- * Remaining storage snapshot for an organization.
- */
-interface OrgStorageRemaining {
-  org_id: OrgId;
-  used_bytes: Bytes;
-  limit_mb: Megabytes;
-  remaining_bytes: Bytes;
-  calculated_at: Date;
-}
-
-/**
- * Upload eligibility result for capacity-aware UI flows.
- */
-interface UploadEligibility {
-  allowed: boolean;
-  reason?: string;
-  org_id: OrgId;
-  file_size_bytes: Bytes;
-  remaining_bytes?: Bytes;
-  limit_mb?: Megabytes;
-  used_bytes?: Bytes;
-}
-
-/**
- * Summary view of a media upload for activity feeds.
- *
- * Conceptually sourced from:
- * - `media_assets`
- */
-interface OrgMediaAssetSummary {
-  id: UUID;
-  org_id: OrgId;
-  uploader_id: UserId;
-  bucket: string;
-  storage_path: string;
-  file_name: string;
-  file_size_bytes: Bytes;
-  mime_type: string;
-  duration_seconds: number;
-  status: MediaAssetStatus;
-  created_at: Date;
-}
-
-/**
- * Job row projection for org health/activity surfaces.
- *
- * Conceptually sourced from:
- * - `jobs`
- */
-interface OrgJob {
-  id: UUID;
-  org_id: OrgId;
-  type: JobType;
-  state: JobState;
-  progress: number;
-  error_code: string | null;
-  error_message: string | null;
-  created_by: UserId | null;
-  created_at: Date;
-  started_at: Date | null;
-  finished_at: Date | null;
-}
-
-/**
- * Aggregated job summary for an organization.
- */
-interface OrgJobSummary {
-  org_id: OrgId;
-  total: number;
-  by_state: Record<string, number>;
-  recent: OrgJob[];
-  computed_at: Date;
-}
-
-/**
- * Core stats used across dashboards and admin views.
- */
-interface OrgStats {
-  org_id: OrgId;
-  member_count: number;
-  media_asset_count: number;
-  total_storage_bytes: Bytes;
-  jobs_count: number;
-  last_upload_at: Date | null;
-  last_job_at: Date | null;
-  computed_at: Date;
-}
-
-/**
- * High-level org overview intended for dashboard surfaces.
- */
-interface OrgOverview {
-  organization: Organization;
-  membership: OrgMembership | null;
-  stats: OrgStats;
-  storage: {
-    usage: OrgStorageUsage;
-    limit: OrgStorageLimit;
-    remaining: OrgStorageRemaining;
-    near_limit: boolean;
-  };
-  recent_uploads: OrgMediaAssetSummary[];
-  jobs: OrgJobSummary;
-  computed_at: Date;
-}
-
-type OrgHealthStatus = "healthy" | "warning" | "critical" | "unknown" | (string & {});
-
-/**
- * Health evaluation for an organization (admin-oriented).
- */
-interface OrgHealth {
-  org_id: OrgId;
-  status: OrgHealthStatus;
-  signals: {
-    storage?: {
-      used_bytes: Bytes;
-      limit_mb: Megabytes;
-      near_limit: boolean;
-    };
-    jobs?: {
-      failing_recently: boolean;
-      last_error_at?: Date | null;
-    };
-    activity?: {
-      last_upload_at?: Date | null;
-      last_job_at?: Date | null;
-    };
-  };
-  computed_at: Date;
-}
-
-/**
- * Admin listing row for organizations with optional computed metrics.
- */
-interface OrganizationAdminListItem {
-  organization: Organization;
-  member_count?: number;
-  storage_used_bytes?: Bytes;
-  last_activity_at?: Date | null;
-  health_status?: OrgHealthStatus;
-}
-
-/**
- * Filters for admin-level org searches and reporting.
- */
-interface OrganizationAdminFilters {
-  search?: string;
-  owner_id?: UserId;
-  visibility?: OrganizationVisibility;
-  type?: OrganizationType;
-  created_after?: Date;
-  created_before?: Date;
-  limit?: number;
-  offset?: number;
-}
-
-/**
- * Admin view for orgs approaching or exceeding capacity limits.
- */
-interface OrgNearLimit {
-  organization: Organization;
-  used_bytes: Bytes;
-  limit_mb: Megabytes;
-  utilization_ratio: number;
-  computed_at: Date;
-}
 
 export const orgServiceV2 = {
   // ===========================================================================
@@ -751,6 +341,7 @@ export const orgServiceV2 = {
    * @returns Updated organization metadata.
    */
   async updateOrg(orgId: string, patch: OrgEditableFields): Promise<Organization> {
+    // TODO: Make into edge function for security reasons
     const { data, error } = await supabase
       .from("organizations")
       .update(patch)
@@ -861,6 +452,38 @@ export const orgServiceV2 = {
       .select("org_id, user_id, role, joined_at")
       .eq("org_id", orgId)
       .eq("user_id", userId)
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    return data;
+  },
+
+  /**
+   * Send a request to join an organization.
+   * 
+   * Problem it solves:
+   * - User-initiated join requests for organizations that require approval.
+   * 
+   * Conceptual tables:
+   * - `org_join_requests`
+   * 
+   * Allowed caller:
+   * - Authenticated user; can only create requests for themselves (enforced by RLS).
+   * 
+   * Implementation:
+   * - Direct Supabase insert under RLS.
+   * @param orgId - Organization ID.
+   * @returns The created join request record.
+   */
+  async sendJoinRequest(orgId: string): Promise<OrgJoinRequest> {
+    const userId = requireUserId();
+
+    const { data, error } = await supabase
+      .from("org_join_requests")
+      .insert({ org_id: orgId, user_id: userId })
       .single();
 
     if (error) {
@@ -1472,7 +1095,20 @@ export const orgServiceV2 = {
    * @returns Storage limit.
    */
   async getStorageLimit(orgId: string): Promise<OrgStorageLimit> {
-    throw new Error("Not implemented");
+    const { data, error } = await supabase
+      .from("organizations")
+      .select("id, storage_limit_mb")
+      .eq("id", orgId)
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    return {
+      org_id: data.id,
+      limit_mb: data.storage_limit_mb,
+    };
   },
 
   /**
@@ -1495,7 +1131,19 @@ export const orgServiceV2 = {
    * @returns Remaining storage snapshot (derived server-side).
    */
   async getRemainingStorage(orgId: string): Promise<OrgStorageRemaining> {
-    throw new Error("Not implemented");
+    const storageLimit = await this.getStorageLimit(orgId);
+    const storageUsage = await this.getStorageUsage(orgId);
+
+    const limitBytes = storageLimit.limit_mb * 1024 * 1024;
+    const remainingBytes = limitBytes - storageUsage.used_bytes;
+
+    return {
+      org_id: orgId,
+      used_bytes: storageUsage.used_bytes,
+      limit_mb: storageLimit.limit_mb,
+      remaining_bytes: remainingBytes,
+      calculated_at: new Date(),
+    };
   },
 
   /**
@@ -1512,13 +1160,23 @@ export const orgServiceV2 = {
    * - Org members (or anyone allowed by visibility policy) as enforced by RLS.
    *
    * Implementation:
+   * - Direct Supabase with threshold kept in service file.
    * - Edge Function preferred to keep threshold policy server-authoritative.
    *
    * @param orgId - Organization ID.
    * @returns `true` if near-limit per server-defined threshold.
    */
   async isNearStorageLimit(orgId: string): Promise<boolean> {
-    throw new Error("Not implemented");
+    // threshold percentage can be adjusted as needed
+    const THRESHOLD_PERCENTAGE = 0.75;
+
+    const storageLimit = await this.getStorageLimit(orgId);
+    const storageUsage = await this.getStorageUsage(orgId);
+
+    const limitBytes = storageLimit.limit_mb * 1024 * 1024;
+    const usageRatio = storageUsage.used_bytes / limitBytes;
+    
+    return usageRatio >= THRESHOLD_PERCENTAGE;
   },
 
   /**
@@ -1543,7 +1201,18 @@ export const orgServiceV2 = {
    * @returns Eligibility result including optional remaining/limit context.
    */
   async canUpload(orgId: string, fileSizeBytes: number): Promise<UploadEligibility> {
-    throw new Error("Not implemented");
+    const {data, error} = await supabase.functions.invoke(
+      "check-upload-eligibility",
+      {
+        body: { orgId, fileSizeBytes },
+      }
+    );
+
+    if (error) {
+      throw error;
+    }
+
+    return data;
   },
 
   // ===========================================================================
@@ -1572,7 +1241,18 @@ export const orgServiceV2 = {
    * @returns Dashboard-ready overview payload.
    */
   async getOrgOverview(orgId: string): Promise<OrgOverview> {
-    throw new Error("Not implemented");
+    const { data, error } = await supabase.functions.invoke(
+      "get-organization-overview",
+      {
+        body: { orgId },
+      }
+    );
+
+    if (error) {
+      throw error;
+    }
+    
+    return data;
   },
 
   /**
@@ -1596,7 +1276,18 @@ export const orgServiceV2 = {
    * @returns Computed org stats.
    */
   async getOrgStats(orgId: string): Promise<OrgStats> {
-    throw new Error("Not implemented");
+    const { data, error } = await supabase.functions.invoke(
+      "get-organization-stats",
+      {
+        body: { orgId },
+      }
+    );
+
+    if (error) {
+      throw error;
+    }
+
+    return data;
   },
 
   /**
@@ -1618,7 +1309,18 @@ export const orgServiceV2 = {
    * @returns Recent uploads ordered by creation time.
    */
   async getRecentUploads(orgId: string): Promise<OrgMediaAssetSummary[]> {
-    throw new Error("Not implemented");
+    const { data, error } = await supabase
+      .from("media_assets")
+      .select("id, org_id, uploader_id, bucket, storage_path, file_name, file_size_bytes, mime_type, duration_seconds, status, created_at")
+      .eq("org_id", orgId)
+      .order("created_at", { ascending: false })
+      .limit(10);
+      
+    if (error) {
+      throw error;
+    }
+
+    return data;
   },
 
   /**
@@ -1641,7 +1343,18 @@ export const orgServiceV2 = {
    * @returns Aggregated job summary.
    */
   async getJobSummary(orgId: string): Promise<OrgJobSummary> {
-    throw new Error("Not implemented");
+    const { data, error } = await supabase.functions.invoke(
+      "get-organization-job-summary",
+      {
+        body: { orgId },
+      }
+    );
+
+    if (error) {
+      throw error;
+    }
+
+    return data;
   },
 
   // ===========================================================================
@@ -1670,7 +1383,18 @@ export const orgServiceV2 = {
    * @returns Admin-oriented org list rows.
    */
   async listOrganizations(filters?: OrganizationAdminFilters): Promise<OrganizationAdminListItem[]> {
-    throw new Error("Not implemented");
+    const { data, error } = await supabase.functions.invoke(
+      "list-organizations-admin",
+      {
+        body: filters ?? {},
+      }
+    );
+
+    if (error) {
+      throw error;
+    }
+
+    return data;
   },
 
   /**
@@ -1695,7 +1419,18 @@ export const orgServiceV2 = {
    * @returns Health payload with signals.
    */
   async getOrgHealth(orgId: string): Promise<OrgHealth> {
-    throw new Error("Not implemented");
+    const { data, error } = await supabase.functions.invoke(
+      "get-organization-health",
+      {
+        body: { orgId },
+      }
+    );
+
+    if (error) {
+      throw error;
+    }
+
+    return data;
   },
 
   /**
@@ -1717,7 +1452,16 @@ export const orgServiceV2 = {
    * @returns Orgs with computed utilization ratios.
    */
   async getOrgsNearLimits(): Promise<OrgNearLimit[]> {
-    throw new Error("Not implemented");
+    const { data, error } = await supabase.functions.invoke(
+      "get-organizations-near-limits",
+      {}
+    );
+
+    if (error) {
+      throw error;
+    }
+
+    return data;
   },
 
   /**
@@ -1738,7 +1482,16 @@ export const orgServiceV2 = {
    * @returns Recently created organizations.
    */
   async getRecentlyCreatedOrgs(): Promise<OrganizationAdminListItem[]> {
-    throw new Error("Not implemented");
+    const { data, error } = await supabase.functions.invoke(
+      "get-recently-created-organizations",
+      {}
+    );
+
+    if (error) {
+      throw error;
+    }
+
+    return data;
   },
 
   /**
@@ -1761,6 +1514,15 @@ export const orgServiceV2 = {
    * @returns Organizations flagged as inactive.
    */
   async getInactiveOrgs(): Promise<OrganizationAdminListItem[]> {
-    throw new Error("Not implemented");
+    const { data, error } = await supabase.functions.invoke(
+      "get-inactive-organizations",
+      {}
+    );
+
+    if (error) {
+      throw error;
+    }
+
+    return data;
   },
 };

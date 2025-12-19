@@ -74,7 +74,7 @@ export const v2Routes: RouteRecordRaw[] = [
       {
         path: 'organizations',
         name: 'V2Organizations',
-        component: () => import('@/modules/app/views/OrganizationsStub.vue'),
+        component: () => import('@/modules/app/views/Organizations.vue'),
       },
       {
         path: 'profile/:username?',

@@ -32,6 +32,8 @@ type OrganizationRow = {
   created_at: string | Date | null;
   storage_limit_mb: number;
   bio: string | null;
+  visibility: string;
+  type: string | null;
 };
 
 /**
@@ -94,6 +96,8 @@ function toOrganization(row: OrganizationRow): Organization {
     created_at: asDate(row.created_at, 'organization creation'),
     storage_limit_mb: row.storage_limit_mb,
     bio: row.bio,
+    visibility: row.visibility,
+    type: row.type,
   };
 }
 
