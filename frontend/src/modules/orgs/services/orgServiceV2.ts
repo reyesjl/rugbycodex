@@ -341,6 +341,7 @@ export const orgServiceV2 = {
    * @returns Updated organization metadata.
    */
   async updateOrg(orgId: string, patch: OrgEditableFields): Promise<Organization> {
+    // TODO: Make into edge function for security reasons
     const { data, error } = await supabase
       .from("organizations")
       .update(patch)

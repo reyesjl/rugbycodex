@@ -77,6 +77,11 @@ const router = createRouter({
 router.beforeEach(async (to) => {
   const authStore = useAuthStore(pinia);
 
+  // hydrate first if not done yet
+  if (!authStore.hydrated) {
+    await authStore.initialize();
+  }
+
   if ((to.meta.requiresAuth || to.meta.requiresAdmin) && !authStore.isAuthenticated) {
     return {
       name: 'V2Login',
