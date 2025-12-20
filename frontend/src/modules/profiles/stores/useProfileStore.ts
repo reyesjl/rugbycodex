@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue';
 import { useAuthStore } from '@/auth/stores/useAuthStore';
 import { profileService } from '../services/profileServiceV2';
 import type { Profile } from '../types/Profile';
+import type { OrgMembership } from '@/modules/profiles/types';
 
 export const useProfileStore = defineStore('profile', () => {
   const authStore = useAuthStore();
@@ -14,6 +15,8 @@ export const useProfileStore = defineStore('profile', () => {
 
   const isAdmin = computed(() => profile.value?.role === 'admin');
 
+  const memberships = ref<OrgMembership[]>([]);
+
   const load = async (opts?: { force?: boolean }) => {
     const force = opts?.force ?? false;
     if (loaded.value && !force) return;
@@ -23,11 +26,13 @@ export const useProfileStore = defineStore('profile', () => {
 
     try {
       profile.value = await profileService.getMyProfile();
+      memberships.value = await profileService.getMyMemberships();
       loaded.value = true;
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to load profile.';
       profile.value = null;
       loaded.value = false;
+      memberships.value = [];
     } finally {
       loading.value = false;
     }
@@ -59,6 +64,7 @@ export const useProfileStore = defineStore('profile', () => {
     error,
     loaded,
     isAdmin,
+    memberships,
     load,
     clear,
   };

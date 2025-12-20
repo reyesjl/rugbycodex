@@ -2,6 +2,7 @@ import { supabase } from "@/lib/supabaseClient";
 import type { User } from "@supabase/supabase-js";
 import { isPlatformAdmin, requireAuthUser, requireUserId } from "@/modules/auth/identity";
 import type { ActiveProfileContext, Profile, PublicProfileView, XPHistoryEntry } from "../types";
+import type { OrgMembership } from "@/modules/profiles/types/OrgMembership";
 
 /**
  * Service layer for profile data access and mutation.
@@ -310,6 +311,23 @@ export const profileService = {
         }
 
         return data;
+    },
+
+    async getMyMemberships(): Promise<OrgMembership[]> {
+        const userId = requireUserId();
+        const { data, error } = await supabase
+            .from("org_memberships")
+            .select("*")
+            .eq("profile_id", userId);
+
+        if (error) {
+            // PGRST116 = "No rows returned"
+            if (error.code === "PGRST116") return [];
+
+            throw error;
+        }
+
+        return data ?? [];
     },
 
     // ===========================================================================
