@@ -3,16 +3,17 @@ import { computed, ref, watch } from 'vue';
 import { useAuthStore } from '@/auth/stores/useAuthStore';
 import { useOrgCapabilities } from '@/modules/orgs/composables/useOrgCapabilities';
 import { orgService } from '@/modules/orgs/services/orgService';
-import type { OrgCapabilities, Organization } from '@/modules/orgs/types';
-import type { OrgMembership } from '@/modules/profiles/types';
-import { useProfileStore } from '@/modules/profiles/stores/useProfileStore';
+import type { OrgMembership, OrgCapabilities, Organization } from '@/modules/orgs/types';
+import { useMyOrganizationsStore } from './useMyOrganizationsStore';
 
 export const useActiveOrgStore = defineStore('activeOrg', () => {
   const authStore = useAuthStore();
   const { isAdmin } = storeToRefs(authStore);
 
-  const profileStore = useProfileStore();
-  const { memberships } = storeToRefs(profileStore);
+  const myOrgStore = useMyOrganizationsStore();
+  const { items: membershipItems } = storeToRefs(myOrgStore);
+  const memberships = computed(() => membershipItems.value.map(item => item.membership));
+
 
   const activeOrg = ref<Organization | null>(null);
   const activeMembership = ref<OrgMembership | null>(null);
@@ -29,7 +30,7 @@ export const useActiveOrgStore = defineStore('activeOrg', () => {
     }
 
     const match = memberships.value.find((membership: OrgMembership) => {
-      return membership.slug === activeOrg.value?.slug || membership.org_id === activeOrg.value?.id;
+      return membership.org_id === activeOrg.value?.id;
     });
 
     activeMembership.value = match ?? null;
@@ -55,7 +56,7 @@ export const useActiveOrgStore = defineStore('activeOrg', () => {
     }
   };
 
-  const membershipRole = computed(() => activeMembership.value?.org_role ?? null);
+  const membershipRole = computed(() => activeMembership.value?.role ?? null);
   const { capabilities: computedCapabilities } = useOrgCapabilities(membershipRole, isAdmin);
   const capabilities = computed<OrgCapabilities>(() => computedCapabilities.value);
 
