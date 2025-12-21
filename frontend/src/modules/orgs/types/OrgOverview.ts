@@ -1,5 +1,5 @@
 import type { OrgJobSummary } from "./OrgJobSummary";
-import type { OrgMediaAssetSummary } from "./OrgMediaAssetSummary";
+import type { OrgMediaAssetSummary } from "../../media/types/OrgMediaAssetSummary";
 import type { OrgMembership } from "./OrgMembership";
 import type { OrgStats } from "./OrgStats";
 import type { OrgStorageLimit } from "./OrgStorageLimit";

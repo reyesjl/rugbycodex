@@ -1,8 +1,8 @@
-import type { Bytes } from "./Bytes";
+import type { Bytes } from "../../orgs/types/Bytes";
 import type { MediaAssetStatus } from "./MediaAssetStatus";
-import type { OrgId } from "./OrgId";
-import type { UUID } from "./UUID";
-import type { UserId } from "./UserId";
+import type { OrgId } from "../../orgs/types/OrgId";
+import type { UUID } from "../../orgs/types/UUID";
+import type { UserId } from "../../orgs/types/UserId";
 
 export type OrgMediaAssetSummary = {
   id: UUID;
