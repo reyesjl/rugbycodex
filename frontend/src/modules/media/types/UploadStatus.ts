@@ -28,6 +28,10 @@ export interface UploadJob {
   state: UploadState;
   progress: number;
 
+  // Speed tracking
+  bytesUploaded?: number;
+  uploadSpeedBps?: number; // bytes per second
+
   credentials: S3Credentials;
 
   // Runtime-only (NEVER persisted)

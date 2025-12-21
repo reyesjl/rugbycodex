@@ -174,9 +174,20 @@ async function startUpload(job: UploadJob) {
 
   job._uploader = new_uploader;
 
+  // Track upload start time
+  const uploadStartTime = Date.now();
+
   new_uploader.on("httpUploadProgress", (e) => {
-    if (e.total) {
-      job.progress = Math.round((e.loaded! / e.total) * 100);
+    if (e.total && e.loaded) {
+      job.progress = Math.round((e.loaded / e.total) * 100);
+      job.bytesUploaded = e.loaded;
+
+      // Calculate average upload speed from start
+      const elapsedSeconds = (Date.now() - uploadStartTime) / 1000;
+      if (elapsedSeconds > 0) {
+        job.uploadSpeedBps = e.loaded / elapsedSeconds; // bytes per second
+      }
+
       triggerRef(uploads);
     }
   });

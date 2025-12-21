@@ -59,11 +59,6 @@ const isAssetUploading = (assetId: string) => {
   return Boolean(getUploadJobForAsset(assetId));
 };
 
-const uploadsWithoutMatchingAssets = computed(() => {
-  const assetIds = new Set(assets.value.map((a) => a.id));
-  return uploadManager.activeUploads.value.filter((upload) => !assetIds.has(upload.id));
-});
-
 const handleUploadFiles = (files: globalThis.File[]) => {
   if (activeOrg.value === null) {
     console.error('No active organization to upload media to.');
@@ -109,9 +104,10 @@ watch(
 )
 
 const handleCancelUpload = (id: string) => {
-  // TODO: Implement cancel logic
-  console.log('Cancel upload:', id);
   uploadManager.cancel(id);
+  mediaService.deleteById(id).catch((err) => {
+    console.error('Failed to delete cancelled upload asset:', err);
+  });
 };
 
 
@@ -136,9 +132,10 @@ const formatBytes = (bytes?: number | null) => {
   return `${value.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
 };
 
-const formatSpeed = (bps?: number | null) => {
-  if (!bps || !Number.isFinite(bps) || bps <= 0) return '—';
-  return `${formatBytes(bps)}/s`;
+const formatSpeed = (bytesPerSecond?: number) => {
+  if (!bytesPerSecond || !Number.isFinite(bytesPerSecond) || bytesPerSecond <= 0) return '';
+  const mbps = (bytesPerSecond * 8) / (1024 * 1024);
+  return `${mbps.toFixed(1)} Mbps`;
 };
 
 const formatDuration = (seconds?: number | null) => {
@@ -172,17 +169,33 @@ const filteredAssets = computed(() => {
 
 
 const displayAssets = computed(() => {
-  // Pending uploads first, then persisted assets.
-  const all = [...filteredAssets.value];
-  // Optional search filtering for pending uploads too.
-  if (!searchQuery.value.trim()) return all;
-  const q = searchQuery.value.toLowerCase();
-  return all.filter((asset) => {
-    const name = asset.file_name?.toLowerCase() ?? '';
-    const path = asset.storage_path?.toLowerCase() ?? '';
-    const mime = asset.mime_type?.toLowerCase() ?? '';
-    return name.includes(q) || path.includes(q) || mime.includes(q) || asset.id.toLowerCase().includes(q);
-  });
+  // Convert active uploads to asset-like objects and place them first
+  const uploadAssets = uploadManager.activeUploads.value.map((upload): Partial<OrgMediaAsset> & { id: string } => ({
+    id: upload.id,
+    file_name: upload.file?.name || 'Unknown',
+    storage_path: upload.storage_path || '',
+    bucket: upload.bucket,
+    mime_type: upload.file?.type || '',
+    file_size_bytes: upload.file?.size ?? undefined,
+    duration_seconds: undefined,
+    status: 'uploading',
+    created_at: undefined,
+  }));
+
+  // Filter assets based on search query
+  const q = searchQuery.value.trim().toLowerCase();
+
+  const filteredUploads = q
+    ? uploadAssets.filter((asset) => {
+      const name = asset.file_name?.toLowerCase() ?? '';
+      const path = asset.storage_path?.toLowerCase() ?? '';
+      const mime = asset.mime_type?.toLowerCase() ?? '';
+      return name.includes(q) || path.includes(q) || mime.includes(q) || asset.id.toLowerCase().includes(q);
+    })
+    : uploadAssets;
+
+  // Place uploads first, then filtered persisted assets
+  return [...filteredUploads, ...filteredAssets.value] as OrgMediaAsset[];
 });
 
 const isAssetDisabled = (assetId: string) => Boolean(disabledAssetMap.value[assetId]);
@@ -415,11 +428,10 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div v-if="hasInFlightUploads" class="mt-4 rounded border border-amber-400/40 bg-amber-500/10 p-4 text-white">
-        <p class="font-semibold">Upload in progress</p>
-        <p class="text-sm text-white/80">
-          Please keep this tab open until uploads finish. Large match footage can take a while,
-          and closing the tab/browser will stop the transfer.
+      <div v-if="hasInFlightUploads" class="rounded border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-white">
+        <p class="text-xs text-white/80">
+          <Icon icon="carbon:information" class="mr-1 inline h-3.5 w-3.5" />
+          Keep this tab open until uploads finish. Closing will stop the transfer.
         </p>
       </div>
 
@@ -434,46 +446,6 @@ onBeforeUnmount(() => {
             @click="uploadError = null" title="Dismiss">
             <Icon icon="carbon:close" class="h-5 w-5" />
           </button>
-        </div>
-      </div>
-
-      <!-- Uploads in Progress Section (only for uploads without matching assets) -->
-      <div v-if="uploadsWithoutMatchingAssets.length > 0" class="space-y-3">
-        <h3 class="text-sm font-semibold uppercase tracking-wide text-white/70">Uploads in Progress</h3>
-        <div class="space-y-2">
-          <div v-for="upload in uploadsWithoutMatchingAssets" :key="upload.id"
-            class="rounded border border-white/10 bg-black/30 p-4">
-            <div class="mb-2 flex items-center justify-between">
-              <div class="min-w-0 flex-1">
-                <p class="truncate text-sm font-medium text-white">{{ upload.file?.name || 'Unknown file' }}</p>
-                <p class="text-xs text-white/60">
-                  {{ formatBytes(upload.file?.size) }} •
-                  <span :class="{
-                    'text-blue-400': upload.state === 'uploading',
-                    'text-green-400': upload.state === 'completed',
-                    'text-amber-400': upload.state === 'paused' || upload.state === 'queued',
-                    'text-rose-400': upload.state === 'failed' || upload.state === 'cancelled',
-                  }">{{ upload.state }}</span>
-                </p>
-              </div>
-              <button type="button"
-                class="ml-4 flex items-center gap-1 rounded border border-white/30 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-white hover:text-black disabled:cursor-not-allowed disabled:opacity-60"
-                :disabled="upload.state === 'completed' || upload.state === 'cancelled'"
-                @click="handleCancelUpload(upload.id)">
-                <Icon icon="carbon:close" class="h-3.5 w-3.5" />
-                Cancel
-              </button>
-            </div>
-            <div class="relative h-2 overflow-hidden rounded bg-white/10">
-              <div class="h-full transition-all duration-300" :class="{
-                'bg-blue-500': upload.state === 'uploading',
-                'bg-green-500': upload.state === 'completed',
-                'bg-amber-500': upload.state === 'paused' || upload.state === 'queued',
-                'bg-rose-500': upload.state === 'failed' || upload.state === 'cancelled',
-              }" :style="{ width: `${upload.progress}%` }"></div>
-            </div>
-            <p class="mt-1 text-right text-xs text-white/60">{{ upload.progress }}%</p>
-          </div>
         </div>
       </div>
 
@@ -500,13 +472,13 @@ onBeforeUnmount(() => {
                     <span class="sr-only">Select all media</span>
                   </label>
                 </th>
-                <th scope="col" class="px-4 py-3">File</th>
-                <th scope="col" class="px-4 py-3">Type</th>
-                <th scope="col" class="px-4 py-3">Size</th>
-                <th scope="col" class="px-4 py-3">Duration</th>
-                <th scope="col" class="px-4 py-3">Uploaded</th>
-                <th scope="col" class="px-4 py-3">Status</th>
-                <th scope="col" class="px-4 py-3 text-right">Actions</th>
+                <th scope="col" class="px-4 py-3 min-w-[200px]">File</th>
+                <th scope="col" class="px-4 py-3 w-32">Status</th>
+                <th scope="col" class="px-4 py-3 w-48">Type</th>
+                <th scope="col" class="px-4 py-3 w-24 text-right">Size</th>
+                <th scope="col" class="px-4 py-3 w-24 text-right">Duration</th>
+                <th scope="col" class="px-4 py-3 w-32">Uploaded</th>
+                <th scope="col" class="px-4 py-3 w-32 text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -532,7 +504,6 @@ onBeforeUnmount(() => {
                 </td>
                 <td class="px-4 py-3">
                   <p class="font-semibold">{{ asset.file_name }}</p>
-                  <p class="text-xs text-white/60 font-mono">{{ asset.bucket }}/{{ asset.storage_path }}</p>
                   <!-- Inline upload progress bar -->
                   <div v-if="isAssetUploading(asset.id)" class="mt-2 space-y-1">
                     <div class="relative h-2 overflow-hidden rounded bg-white/10">
@@ -552,6 +523,9 @@ onBeforeUnmount(() => {
                       }">
                         {{ getUploadJobForAsset(asset.id)?.state }} • {{ getUploadJobForAsset(asset.id)?.progress || 0
                         }}%
+                        <span v-if="getUploadJobForAsset(asset.id)?.uploadSpeedBps" class="ml-1 text-white/60">
+                          • {{ formatSpeed(getUploadJobForAsset(asset.id)?.uploadSpeedBps) }}
+                        </span>
                       </p>
                       <button type="button"
                         class="flex items-center gap-1 rounded border border-white/30 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-white hover:text-black disabled:cursor-not-allowed disabled:opacity-60"
@@ -563,10 +537,6 @@ onBeforeUnmount(() => {
                     </div>
                   </div>
                 </td>
-                <td class="px-4 py-3">{{ asset.mime_type }}</td>
-                <td class="px-4 py-3">{{ formatBytes(asset.file_size_bytes) }}</td>
-                <td class="px-4 py-3">{{ formatDuration(asset.duration_seconds) }}</td>
-                <td class="px-4 py-3">{{ formatDate(asset.created_at) }}</td>
                 <td class="px-4 py-3">
                   <span v-if="isAssetUploading(asset.id)"
                     class="rounded-full border px-2 py-0.5 text-xs font-medium uppercase tracking-wide border-blue-300/50 text-blue-200">
@@ -581,6 +551,10 @@ onBeforeUnmount(() => {
                     {{ asset.status }}
                   </span>
                 </td>
+                <td class="px-4 py-3">{{ asset.mime_type }}</td>
+                <td class="px-4 py-3 text-right">{{ formatBytes(asset.file_size_bytes) }}</td>
+                <td class="px-4 py-3 text-right">{{ formatDuration(asset.duration_seconds) }}</td>
+                <td class="px-4 py-3">{{ formatDate(asset.created_at) }}</td>
                 <td class="px-4 py-3 text-right">
                   <div v-if="!isAssetUploading(asset.id)" class="flex items-center justify-end gap-2">
                     <RouterLink v-if="normalizedSlug"
