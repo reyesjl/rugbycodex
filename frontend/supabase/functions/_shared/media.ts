@@ -13,6 +13,7 @@ export interface MediaAssetFields {
   source?: string;
   file_name: string;
   status?: string;
+  base_org_storage_path: string;
 }
 
 export async function insertMediaAsset(
@@ -33,6 +34,7 @@ export async function insertMediaAsset(
       source: fields.source ?? 'upload',
       file_name: fields.file_name,
       status: fields.status ?? 'ready',
+      base_org_storage_path: fields.base_org_storage_path,
     })
     .select()
     .single();

@@ -7,14 +7,12 @@ import RefreshButton from '@/components/RefreshButton.vue';
 import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
 import AssetUpload from '@/modules/media/components/AssetUpload.vue';
 import BatchActionBar, { type BatchAction } from '@/components/ui/tables/BatchActionBar.vue';
-import { supabase } from '@/lib/supabaseClient';
 import { useAuthStore } from '@/auth/stores/useAuthStore';
 import { useActiveOrgStore } from '@/modules/orgs/stores/useActiveOrgStore';
-import { orgService } from '@/modules/orgs/services/orgService';
 import type { OrgMediaAsset } from '@/modules/orgs/types';
-import { useProfileStore } from '@/modules/profiles/stores/useProfileStore';
 import { ROLE_ORDER } from '@/modules/profiles/types';
 import { buildUploadJob, useUploadManager } from '@/modules/media/composables/useUploadManager';
+import { mediaService } from '@/modules/media/services/mediaService';
 
 const props = defineProps<{ slug?: string | string[] }>();
 
@@ -47,10 +45,24 @@ const assetUploadRef = ref<InstanceType<typeof AssetUpload> | null>(null);
 // ******* Upload Management ********
 // **********************************
 const uploadManager = useUploadManager();
+const uploadError = ref<string | null>(null);
 
 const hasInFlightUploads = computed(() =>
-  uploadManager.uploads.value.some((u) => u.state !== 'failed' && u.state !== 'cancelled')
+  uploadManager.activeUploads.value.length > 0
 );
+
+const getUploadJobForAsset = (assetId: string) => {
+  return uploadManager.activeUploads.value.find((upload) => upload.id === assetId);
+};
+
+const isAssetUploading = (assetId: string) => {
+  return Boolean(getUploadJobForAsset(assetId));
+};
+
+const uploadsWithoutMatchingAssets = computed(() => {
+  const assetIds = new Set(assets.value.map((a) => a.id));
+  return uploadManager.activeUploads.value.filter((upload) => !assetIds.has(upload.id));
+});
 
 const handleUploadFiles = (files: globalThis.File[]) => {
   if (activeOrg.value === null) {
@@ -62,8 +74,9 @@ const handleUploadFiles = (files: globalThis.File[]) => {
     return;
   }
 
+  uploadError.value = null;
+
   for (const file of files) {
-    console.log('Creating upload job for', file.name);
     // Fire and forget - don't await
     buildUploadJob(file, activeOrg.value.id, 'rugbycodex')
       .then((job) => {
@@ -71,9 +84,34 @@ const handleUploadFiles = (files: globalThis.File[]) => {
       })
       .catch((err) => {
         console.error('Failed to create upload job for', file.name, ':', err);
-        // Optional: show toast notification
+        uploadError.value = `Failed to create upload job for ${file.name}: ${err.message || err}`;
       });
   }
+};
+
+watch(
+  () => uploadManager.completedUploads.value,
+  async (completed) => {
+    if (completed.length === 0) return;
+    for (const job of completed) {
+      await mediaService.updateMediaAsset(job.id, {
+        storage_path: job.storage_path,
+        status: 'ready'
+      });
+      uploadManager.remove(job.id);
+    }
+
+    // Reload assets after uploads complete
+    loadAssets().catch((err) => {
+      console.error('Failed to reload assets after upload completion:', err);
+    });
+  }
+)
+
+const handleCancelUpload = (id: string) => {
+  // TODO: Implement cancel logic
+  console.log('Cancel upload:', id);
+  uploadManager.cancel(id);
 };
 
 
@@ -147,23 +185,6 @@ const displayAssets = computed(() => {
   });
 });
 
-// const uploadProgressPercent = (assetId: string) => {
-//   const upload = pendingUploadById.value.get(assetId);
-//   if (!upload) return null;
-//   return Math.round(Math.min(1, Math.max(0, upload.progress)) * 100);
-// };
-
-// const pendingUploadStatusText = (assetId: string) => {
-//   const upload = pendingUploadById.value.get(assetId);
-//   if (!upload) return null;
-//   if (upload.state === 'queued') return 'Queued…';
-//   if (upload.state === 'preparing') return 'Preparing…';
-//   if (upload.state === 'finalizing') return 'Finalizing…';
-//   if (upload.state === 'canceled') return 'Canceled';
-//   if (upload.state === 'failed') return 'Failed';
-//   return 'Uploading…';
-// };
-
 const isAssetDisabled = (assetId: string) => Boolean(disabledAssetMap.value[assetId]);
 const isAssetSelected = (assetId: string) => selectedAssetIds.value.includes(assetId);
 const selectableAssets = computed(() => displayAssets.value.filter((asset) => !isAssetDisabled(asset.id)));
@@ -196,7 +217,7 @@ const loadAssets = async () => {
   loading.value = true;
   error.value = null;
   try {
-    assets.value = await orgService.mediaAssets.listByOrganization(activeOrg.value.id);
+    assets.value = await mediaService.listByOrganization(activeOrg.value.id);
   } catch (err) {
     assets.value = [];
     error.value = err instanceof Error ? err.message : 'Unable to load media assets right now.';
@@ -303,7 +324,8 @@ const confirmDelete = async () => {
     }
 
     for (const asset of targets) {
-      await orgService.mediaAssets.deleteById(asset.id);
+      await mediaService.deleteById(asset.id);
+      uploadManager.remove(asset.id);
     }
 
     await loadAssets();
@@ -401,11 +423,25 @@ onBeforeUnmount(() => {
         </p>
       </div>
 
-      <!-- Uploads in Progress Section -->
-      <div v-if="uploadManager.activeUploads.value.length > 0" class="space-y-3">
+      <div v-if="uploadError" class="mt-4 rounded border border-rose-400/40 bg-rose-500/10 p-4 text-white">
+        <div class="flex items-start justify-between gap-3">
+          <div class="flex-1">
+            <p class="font-semibold">Upload Error</p>
+            <p class="text-sm text-white/80">{{ uploadError }}</p>
+          </div>
+          <button type="button"
+            class="flex-shrink-0 rounded p-1 text-white/70 transition hover:bg-white/10 hover:text-white"
+            @click="uploadError = null" title="Dismiss">
+            <Icon icon="carbon:close" class="h-5 w-5" />
+          </button>
+        </div>
+      </div>
+
+      <!-- Uploads in Progress Section (only for uploads without matching assets) -->
+      <div v-if="uploadsWithoutMatchingAssets.length > 0" class="space-y-3">
         <h3 class="text-sm font-semibold uppercase tracking-wide text-white/70">Uploads in Progress</h3>
         <div class="space-y-2">
-          <div v-for="upload in uploadManager.activeUploads.value" :key="upload.id"
+          <div v-for="upload in uploadsWithoutMatchingAssets" :key="upload.id"
             class="rounded border border-white/10 bg-black/30 p-4">
             <div class="mb-2 flex items-center justify-between">
               <div class="min-w-0 flex-1">
@@ -441,7 +477,8 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div v-if="loading && displayAssets.length === 0" class="rounded border border-white/15 bg-black/30 p-4 text-white/70">
+      <div v-if="loading && displayAssets.length === 0"
+        class="rounded border border-white/15 bg-black/30 p-4 text-white/70">
         Loading media…
       </div>
 
@@ -484,23 +521,59 @@ onBeforeUnmount(() => {
                 :aria-disabled="isAssetDisabled(asset.id)"
                 class="border-b border-white/10 text-white transition-colors last:border-0" :class="[
                   isAssetSelected(asset.id) ? 'bg-white/10' : 'hover:bg-white/5',
-                  isAssetDisabled(asset.id) ? 'opacity-50' : 'cursor-pointer'
-                ]" @click="() => toggleAssetSelection(asset.id)">
+                  isAssetDisabled(asset.id) ? 'opacity-50' : 'cursor-pointer',
+                  isAssetUploading(asset.id) ? 'bg-blue-500/10' : ''
+                ]" @click="() => !isAssetUploading(asset.id) && toggleAssetSelection(asset.id)">
                 <td class="px-4 py-3">
-                  <input type="checkbox" class="h-4 w-4 rounded border-white/40 bg-transparent"
-                    :checked="isAssetSelected(asset.id)" :disabled="isAssetDisabled(asset.id)" @click.stop
-                    @change="() => toggleAssetSelection(asset.id)" />
+                  <input v-if="!isAssetUploading(asset.id)" type="checkbox"
+                    class="h-4 w-4 rounded border-white/40 bg-transparent" :checked="isAssetSelected(asset.id)"
+                    :disabled="isAssetDisabled(asset.id)" @click.stop @change="() => toggleAssetSelection(asset.id)" />
+                  <Icon v-else icon="carbon:cloud-upload" class="h-5 w-5 text-blue-400 animate-pulse" />
                 </td>
                 <td class="px-4 py-3">
                   <p class="font-semibold">{{ asset.file_name }}</p>
                   <p class="text-xs text-white/60 font-mono">{{ asset.bucket }}/{{ asset.storage_path }}</p>
+                  <!-- Inline upload progress bar -->
+                  <div v-if="isAssetUploading(asset.id)" class="mt-2 space-y-1">
+                    <div class="relative h-2 overflow-hidden rounded bg-white/10">
+                      <div class="h-full transition-all duration-300" :class="{
+                        'bg-blue-500': getUploadJobForAsset(asset.id)?.state === 'uploading',
+                        'bg-green-500': getUploadJobForAsset(asset.id)?.state === 'completed',
+                        'bg-amber-500': getUploadJobForAsset(asset.id)?.state === 'paused' || getUploadJobForAsset(asset.id)?.state === 'queued',
+                        'bg-rose-500': getUploadJobForAsset(asset.id)?.state === 'failed' || getUploadJobForAsset(asset.id)?.state === 'cancelled',
+                      }" :style="{ width: `${getUploadJobForAsset(asset.id)?.progress || 0}%` }"></div>
+                    </div>
+                    <div class="flex items-center justify-between">
+                      <p class="text-xs" :class="{
+                        'text-blue-400': getUploadJobForAsset(asset.id)?.state === 'uploading',
+                        'text-green-400': getUploadJobForAsset(asset.id)?.state === 'completed',
+                        'text-amber-400': getUploadJobForAsset(asset.id)?.state === 'paused' || getUploadJobForAsset(asset.id)?.state === 'queued',
+                        'text-rose-400': getUploadJobForAsset(asset.id)?.state === 'failed' || getUploadJobForAsset(asset.id)?.state === 'cancelled',
+                      }">
+                        {{ getUploadJobForAsset(asset.id)?.state }} • {{ getUploadJobForAsset(asset.id)?.progress || 0
+                        }}%
+                      </p>
+                      <button type="button"
+                        class="flex items-center gap-1 rounded border border-white/30 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-white hover:text-black disabled:cursor-not-allowed disabled:opacity-60"
+                        :disabled="getUploadJobForAsset(asset.id)?.state === 'completed' || getUploadJobForAsset(asset.id)?.state === 'cancelled'"
+                        @click.stop="handleCancelUpload(asset.id)">
+                        <Icon icon="carbon:close" class="h-3 w-3" />
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
                 </td>
                 <td class="px-4 py-3">{{ asset.mime_type }}</td>
                 <td class="px-4 py-3">{{ formatBytes(asset.file_size_bytes) }}</td>
                 <td class="px-4 py-3">{{ formatDuration(asset.duration_seconds) }}</td>
                 <td class="px-4 py-3">{{ formatDate(asset.created_at) }}</td>
                 <td class="px-4 py-3">
-                  <span class="rounded-full border px-2 py-0.5 text-xs font-medium uppercase tracking-wide" :class="asset.status === 'ready'
+                  <span v-if="isAssetUploading(asset.id)"
+                    class="rounded-full border px-2 py-0.5 text-xs font-medium uppercase tracking-wide border-blue-300/50 text-blue-200">
+                    Uploading
+                  </span>
+                  <span v-else class="rounded-full border px-2 py-0.5 text-xs font-medium uppercase tracking-wide"
+                    :class="asset.status === 'ready'
                       ? 'border-emerald-300/50 text-emerald-200'
                       : asset.status === 'canceled'
                         ? 'border-white/40 text-white/70'
@@ -509,7 +582,7 @@ onBeforeUnmount(() => {
                   </span>
                 </td>
                 <td class="px-4 py-3 text-right">
-                  <div class="flex items-center justify-end gap-2">
+                  <div v-if="!isAssetUploading(asset.id)" class="flex items-center justify-end gap-2">
                     <RouterLink v-if="normalizedSlug"
                       :to="{ name: 'V2OrgMediaAsset', params: { slug: normalizedSlug, assetId: asset.id } }"
                       class="text-xs font-semibold uppercase tracking-wide text-white/70 transition hover:text-white"
@@ -526,6 +599,9 @@ onBeforeUnmount(() => {
                       @click.stop="() => copyToClipboard(asset.id, `${asset.bucket}/${asset.storage_path}`)">
                       {{ copyLabel(asset.id) }}
                     </button>
+                  </div>
+                  <div v-else class="flex items-center justify-end">
+                    <span class="text-xs text-white/50">—</span>
                   </div>
                 </td>
               </tr>

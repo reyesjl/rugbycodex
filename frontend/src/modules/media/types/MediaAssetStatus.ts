@@ -1,1 +1,1 @@
-export type MediaAssetStatus = "ready" | "processing" | "failed" | (string & {});
+export type MediaAssetStatus = "ready" | "processing" | "failed" | "uploading" | (string & {});

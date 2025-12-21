@@ -18,8 +18,8 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "Unauthorized" }, 401);
     }
 
-    const { org_id, bucket, file_name } = await req.json();
-    if (!org_id || !bucket || !file_name) {
+    const { org_id, bucket, file_name, duration_seconds } = await req.json();
+    if (!org_id || !bucket || !file_name || !duration_seconds) {
       return jsonResponse({ error: "Missing required fields" }, 400);
     }
 
@@ -35,12 +35,16 @@ Deno.serve(async (req) => {
       }
     }
 
+    // The base storage path to protect duplicate upload files within the org
+    const base_storage_path = `orgs/${org_id}/uploads/`;
     // Insert initial row
     const newAsset = await insertMediaAsset({
       org_id,
       uploader_id: userId,
       file_name,
       status: "uploading",
+      duration_seconds,
+      base_org_storage_path: base_storage_path,
     }, supabase);
 
     const mediaId = newAsset.id;

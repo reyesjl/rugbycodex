@@ -5,8 +5,8 @@ import { RouterLink } from 'vue-router';
 import { Icon } from '@iconify/vue';
 import { supabase } from '@/lib/supabaseClient';
 import { useActiveOrgStore } from '@/modules/orgs/stores/useActiveOrgStore';
-import { orgService } from '@/modules/orgs/services/orgService';
 import type { OrgMediaAsset } from '@/modules/orgs/types';
+import { mediaService } from '@/modules/media/services/mediaService';
 
 const props = defineProps<{ slug?: string | string[]; assetId?: string | string[] }>();
 
@@ -662,7 +662,7 @@ const load = async () => {
       throw new Error('No organization selected.');
     }
 
-    const nextAsset = await orgService.mediaAssets.getById(activeOrg.value.id, id);
+    const nextAsset = await mediaService.getById(activeOrg.value.id, id);
     asset.value = nextAsset;
     await signUrl(nextAsset);
   } catch (err) {

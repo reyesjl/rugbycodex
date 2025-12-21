@@ -18,4 +18,5 @@ export type OrgMediaAsset = {
   file_name: string;
   status: MediaAssetStatus;
   created_at: Date;
+  base_org_storage_path: string;
 };

@@ -7,8 +7,8 @@ import { useAuthStore } from '@/auth/stores/useAuthStore';
 import { useOrgCapabilities } from '@/modules/orgs/composables/useOrgCapabilities';
 import { useActiveOrgStore } from '@/modules/orgs/stores/useActiveOrgStore';
 import { profileService } from '@/modules/profiles/services/ProfileService';
-import { orgService } from '@/modules/orgs/services/orgService';
 import type { MembershipRole, UserProfile } from '@/modules/profiles/types';
+import { mediaService } from '@/modules/media/services/mediaService';
 
 const activeOrgStore = useActiveOrgStore();
 const { activeOrg, activeMembership, loading, error } = storeToRefs(activeOrgStore);
@@ -115,7 +115,7 @@ const loadMediaMinutes = async (orgId: string) => {
   mediaMinutesRequestId += 1;
   const requestId = mediaMinutesRequestId;
   try {
-    const totalSeconds = await orgService.mediaAssets.getTotalDurationSeconds(orgId);
+    const totalSeconds = await mediaService.getTotalDurationSeconds(orgId);
     if (requestId === mediaMinutesRequestId) {
       stubStats.media = formatMediaMinutes(totalSeconds);
     }

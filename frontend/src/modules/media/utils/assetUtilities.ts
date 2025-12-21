@@ -9,57 +9,6 @@ export const sanitizeFileName = (name: string) => {
     .slice(0, 120);
 };
 
-export const createStoragePath = (orgId: string, fileName: string) => {
-  const now = new Date();
-  const yyyy = String(now.getUTCFullYear());
-  const mm = String(now.getUTCMonth() + 1).padStart(2, '0');
-  const safeName = sanitizeFileName(fileName);
-  const uuid =
-    typeof globalThis.crypto !== 'undefined' && typeof globalThis.crypto.randomUUID === 'function'
-      ? globalThis.crypto.randomUUID()
-      : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-  // Bucket layout: matches/orgs/{orgId}/media/{yyyy}/{mm}/{uuid}_{file}
-  return `orgs/${orgId}/media/${yyyy}/${mm}/${uuid}_${safeName}`;
-};
-
-export const createTempUploadId = () => {
-  // We generate a client-side id so the table can render a stable row (and progress bar)
-  // while the storage upload is in-flight. Once the DB insert succeeds, we remove the
-  // temporary row and show the persisted `media_assets` row (with DB-generated UUID).
-  const uuid =
-    typeof globalThis.crypto !== 'undefined' && typeof globalThis.crypto.randomUUID === 'function'
-      ? globalThis.crypto.randomUUID()
-      : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-  return `upload-${uuid}`;
-};
-
-export const resolveSupabaseStorageBaseUrl = (supabaseUrl: string) => {
-  // For large uploads, Supabase recommends using the direct storage hostname:
-  // `https://<project-ref>.storage.supabase.co` instead of `https://<project-ref>.supabase.co`.
-  // This avoids gateway limits and improves reliability/performance.
-  try {
-    const url = new URL(supabaseUrl);
-    const host = url.hostname;
-    if (host.endsWith('.storage.supabase.co')) {
-      url.pathname = '';
-      url.search = '';
-      url.hash = '';
-      return url.toString().replace(/\/$/, '');
-    }
-    if (host.endsWith('.supabase.co') && !host.includes('.storage.')) {
-      const projectRef = host.split('.')[0];
-      url.hostname = `${projectRef}.storage.supabase.co`;
-      url.pathname = '';
-      url.search = '';
-      url.hash = '';
-      return url.toString().replace(/\/$/, '');
-    }
-    return supabaseUrl.replace(/\/$/, '');
-  } catch {
-    return supabaseUrl.replace(/\/$/, '');
-  }
-};
-
 export const getMediaDurationSeconds = async (file: globalThis.File) => {
   const mime = file.type ?? '';
   if (!mime.startsWith('video/') && !mime.startsWith('audio/')) return 0;
@@ -90,3 +39,11 @@ export const isMp4File = (file: globalThis.File) => {
   if (!file.type) return true;
   return MP4_MIME_TYPES.has(file.type);
 };
+
+export async function calculateFileChecksum(file: File): Promise<string> {
+  const arrayBuffer = await file.arrayBuffer();
+  const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  return hashHex;
+}

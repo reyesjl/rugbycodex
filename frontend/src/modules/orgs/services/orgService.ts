@@ -1,12 +1,11 @@
 import type { PostgrestError } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabaseClient';
-import type { CreateOrganizationInput, Organization, OrganizationUpdateFields, OrgMediaAsset } from '@/modules/orgs/types';
+import type { CreateOrganizationInput, Organization, OrganizationUpdateFields } from '@/modules/orgs/types';
 
 /**
  * orgServiceV2 centralizes organization-centric behavior and replaces `org_service.ts`.
  * Namespaces:
  * - `organizations`: CRUD operations and field updates for `organizations`.
- * - `mediaAssets`: helpers for fetching org media rows from `media_assets`.
  *
  * Usage:
  * ```ts
@@ -15,11 +14,10 @@ import type { CreateOrganizationInput, Organization, OrganizationUpdateFields, O
  * const orgs = await orgService.organizations.list();
  * const org = await orgService.organizations.getBySlug('club-slug');
  * await orgService.organizations.updateBio(org.id, 'New mission statement');
- * await orgService.mediaAssets.listByOrganization(org.id, { limit: 20 });
  * ```
  */
 
-type RowOptions = OrganizationRow | MediaAssetRow;
+type RowOptions = OrganizationRow;
 
 /**
  * Represents a row of organization data.
@@ -34,26 +32,6 @@ type OrganizationRow = {
   bio: string | null;
   visibility: string;
   type: string | null;
-};
-
-/**
- * Represents a row in the media assets table, containing metadata about a media file
- * associated with an organization.
- */
-type MediaAssetRow = {
-  id: string;
-  org_id: string;
-  uploader_id: string;
-  bucket: string;
-  storage_path: string;
-  file_size_bytes: number;
-  mime_type: string;
-  duration_seconds: number;
-  checksum: string;
-  source: string;
-  file_name: string;
-  status: string;
-  created_at: string | Date | null;
 };
 
 
@@ -98,24 +76,6 @@ function toOrganization(row: OrganizationRow): Organization {
     bio: row.bio,
     visibility: row.visibility,
     type: row.type,
-  };
-}
-
-function toOrgMediaAsset(row: MediaAssetRow): OrgMediaAsset {
-  return {
-    id: row.id,
-    org_id: row.org_id,
-    uploader_id: row.uploader_id,
-    bucket: row.bucket,
-    storage_path: row.storage_path,
-    file_size_bytes: row.file_size_bytes,
-    mime_type: row.mime_type,
-    duration_seconds: row.duration_seconds,
-    checksum: row.checksum,
-    source: row.source,
-    file_name: row.file_name,
-    status: row.status,
-    created_at: asDate(row.created_at, 'media asset creation'),
   };
 }
 
@@ -283,112 +243,6 @@ export const orgService = {
       if (error) {
         throw error;
       }
-    },
-  },
-
-  mediaAssets: {
-    /**
-     * Creates a media_assets row. Intended to be called after the file is uploaded to storage.
-     */
-    async create(input: {
-      orgId: string;
-      uploaderId: string;
-      bucket: string;
-      storagePath: string;
-      fileSizeBytes: number;
-      mimeType: string;
-      durationSeconds: number;
-      checksum: string;
-      source?: string;
-      fileName: string;
-      status?: string;
-    }): Promise<OrgMediaAsset> {
-      const payload = {
-        org_id: input.orgId,
-        uploader_id: input.uploaderId,
-        bucket: input.bucket,
-        storage_path: input.storagePath,
-        file_size_bytes: input.fileSizeBytes,
-        mime_type: input.mimeType,
-        duration_seconds: input.durationSeconds,
-        checksum: input.checksum,
-        source: input.source ?? 'upload',
-        file_name: input.fileName,
-        status: input.status,
-      };
-
-      const row = await getSingle<MediaAssetRow>(
-        supabase.from('media_assets').insert(payload).select('*').single(),
-        'Media asset creation failed.'
-      );
-
-      return toOrgMediaAsset(row);
-    },
-
-    /**
-     * Returns media assets for an organization, optionally filtered.
-     */
-    async listByOrganization(
-      orgId: string,
-      options: { limit?: number; status?: string; bucket?: string } = {}
-    ): Promise<OrgMediaAsset[]> {
-      let query = supabase
-        .from('media_assets')
-        .select('*')
-        .eq('org_id', orgId)
-        .order('created_at', { ascending: false });
-
-      if (options.status) {
-        query = query.eq('status', options.status);
-      }
-      if (options.bucket) {
-        query = query.eq('bucket', options.bucket);
-      }
-      if (options.limit) {
-        query = query.limit(options.limit);
-      }
-
-      const rows = await getList<MediaAssetRow>(query);
-      return rows.map(toOrgMediaAsset);
-    },
-
-    /**
-     * Returns the total duration (seconds) for an organization by summing `media_assets.duration_seconds`.
-     */
-    async getTotalDurationSeconds(orgId: string): Promise<number> {
-      const rows = await getList<{ duration_seconds: number | null }>(
-        supabase.from('media_assets').select('duration_seconds').eq('org_id', orgId)
-      );
-      return rows.reduce((total, row) => total + (row.duration_seconds ?? 0), 0);
-    },
-
-    /**
-     * Returns the total media duration (seconds) across all organizations.
-     */
-    async getTotalDurationSecondsAll(): Promise<number> {
-      const rows = await getList<{ duration_seconds: number | null }>(
-        supabase.from('media_assets').select('duration_seconds')
-      );
-      return rows.reduce((total, row) => total + (row.duration_seconds ?? 0), 0);
-    },
-
-    /**
-     * Retrieves a single media asset by id, scoped to an organization.
-     */
-    async getById(orgId: string, id: string): Promise<OrgMediaAsset> {
-      const row = await getSingle<MediaAssetRow>(
-        supabase.from('media_assets').select('*').eq('org_id', orgId).eq('id', id).single(),
-        `Media asset not found with id: ${id}`
-      );
-      return toOrgMediaAsset(row);
-    },
-
-    /**
-     * Deletes a media_assets row by id.
-     */
-    async deleteById(id: string): Promise<void> {
-      const { error } = await supabase.from('media_assets').delete().eq('id', id);
-      if (error) throw error;
     },
   },
 };

@@ -1,41 +1,12 @@
-import { computed, onMounted, shallowRef, triggerRef } from "vue";
-import { openDB } from "idb";
+import { computed, shallowRef, triggerRef } from "vue";
 import { S3Client } from "@aws-sdk/client-s3";
 import { Upload } from "@aws-sdk/lib-storage";
-import type { UploadState, S3Credentials, UploadJob, } from "@/modules/media/types/UploadStatus";
+import type { UploadJob, } from "@/modules/media/types/UploadStatus";
 import { supabase } from "@/lib/supabaseClient";
-
-/**
- * Persisted job (IndexedDB-safe)
- */
-interface PersistedUploadJob {
-  id: string;
-  bucket: string;
-  key: string;
-
-  state: UploadState;
-  progress: number;
-
-  credentials: S3Credentials;
-
-  fileMeta: {
-    name: string;
-    size: number;
-    type: string;
-  };
-
-  updatedAt: number;
-}
+import { calculateFileChecksum, getMediaDurationSeconds, sanitizeFileName } from "@/modules/media/utils/assetUtilities";
+import { mediaService } from "@/modules/media/services/mediaService";
 
 const MAX_CONCURRENT_UPLOADS = 3;
-const DB_NAME = "upload-manager";
-const STORE = "uploads";
-
-const dbPromise = openDB(DB_NAME, 1, {
-  upgrade(db) {
-    db.createObjectStore(STORE, { keyPath: "id" });
-  }
-});
 
 const uploads = shallowRef<UploadJob[]>([]);
 
@@ -51,11 +22,14 @@ export async function buildUploadJob(
   org_id: string,
   bucket: string
 ): Promise<UploadJob> {
+  const duration_seconds = await getMediaDurationSeconds(file);
+  console.log("Determined media duration (seconds):", duration_seconds);
   const response = await supabase.functions.invoke('get-wasabi-upload-session', {
     body: {
       org_id,
       bucket,
-      file_name: file.name,
+      file_name: sanitizeFileName(file.name),
+      duration_seconds
     }
   });
 
@@ -82,11 +56,8 @@ export async function buildUploadJob(
  * ======================================================= */
 
 export function useUploadManager() {
-  onMounted(restoreFromDB);
-
   async function enqueue(job: UploadJob) {
     uploads.value.push(job);
-    await persist(job);
     processQueue();
   }
 
@@ -96,7 +67,6 @@ export function useUploadManager() {
 
     job._uploader?.abort();
     job.state = "paused";
-    persist(job);
     triggerRef(uploads);
   }
 
@@ -106,7 +76,6 @@ export function useUploadManager() {
 
     job.file = file;
     job.state = "queued";
-    persist(job);
     triggerRef(uploads);
     processQueue();
   }
@@ -117,13 +86,11 @@ export function useUploadManager() {
 
     job._uploader?.abort();
     job.state = "cancelled";
-    persist(job);
     triggerRef(uploads);
   }
 
   function remove(id: string) {
     uploads.value = uploads.value.filter(u => u.id !== id);
-    deleteFromDB(id);
   }
 
   return {
@@ -163,26 +130,27 @@ async function startUpload(job: UploadJob) {
   if (!job.file) {
     console.error('No file associated with upload job', job.id);
     job.state = "failed";
-    persist(job);
     processQueue();
     return;
   }
 
-  //TODO: Put in service
-  const { error } = await supabase.from('media_assets').update({
+  job.state = "uploading";
+  triggerRef(uploads);
+
+  const checksum = await calculateFileChecksum(job.file);
+
+  const { error } = await mediaService.updateMediaAsset(job.id, {
     storage_path: job.storage_path,
     file_size_bytes: job.file.size,
     mime_type: job.file.type,
-    duration_seconds: 0, //TODO!!
-    checksum: 'TODO',
+    checksum: checksum,
     status: 'uploading'
-  }).eq('id', job.id);
+  });
 
   if (error) {
     console.error('Failed to update media asset status:', error);
   }
 
-  job.state = "uploading";
   triggerRef(uploads);
 
   const client = new S3Client({
@@ -209,7 +177,6 @@ async function startUpload(job: UploadJob) {
   new_uploader.on("httpUploadProgress", (e) => {
     if (e.total) {
       job.progress = Math.round((e.loaded! / e.total) * 100);
-      persist(job);
       triggerRef(uploads);
     }
   });
@@ -225,57 +192,9 @@ async function startUpload(job: UploadJob) {
     }
   } finally {
     job._uploader = undefined;
-    persist(job);
     triggerRef(uploads);
     processQueue();
   }
 }
 
-/* =========================================================
- * Persistence
- * ======================================================= */
 
-async function persist(job: UploadJob) {
-  const db = await dbPromise;
-
-  const persisted: PersistedUploadJob = {
-    id: job.id,
-    bucket: job.bucket,
-    key: job.storage_path,
-    state: job.state,
-    progress: job.progress,
-    credentials: job.credentials,
-    fileMeta: {
-      name: job.file?.name ?? "",
-      size: job.file?.size ?? 0,
-      type: job.file?.type ?? ""
-    },
-    updatedAt: Date.now()
-  };
-
-  await db.put(STORE, persisted);
-}
-
-async function restoreFromDB() {
-  const db = await dbPromise;
-  const stored = await db.getAll(STORE);
-
-  uploads.value = stored.map((p): UploadJob => {
-    const job: UploadJob = {
-      id: p.id,
-      bucket: p.bucket,
-      storage_path: p.key,
-      state: p.state === "uploading" ? "paused" : p.state,
-      progress: p.progress,
-      credentials: p.credentials,
-      file: undefined,
-      _uploader: undefined
-    };
-    return job;
-  });
-}
-
-async function deleteFromDB(id: string) {
-  const db = await dbPromise;
-  await db.delete(STORE, id);
-}
