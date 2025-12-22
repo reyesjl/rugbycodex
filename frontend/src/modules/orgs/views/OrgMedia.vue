@@ -149,7 +149,7 @@ const formatDuration = (seconds?: number | null) => {
 
 const canManageMedia = computed(() => {
   if (isAdmin.value) return true;
-  const role = activeMembership.value?.org_role;
+  const role = activeMembership.value?.role;
   if (!role) return false;
   const managerOrder = ROLE_ORDER.manager ?? Infinity;
   return (ROLE_ORDER[role] ?? Infinity) <= managerOrder;

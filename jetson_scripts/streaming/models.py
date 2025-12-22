@@ -45,13 +45,13 @@ class MediaAsset:
         """
     
     def full_input_path(self) -> str:
-        return f"{self.bucket}/{self.storage_path}/{self.file_name}"
+        return f"{self.bucket}/{self.storage_path}"
     def bucketless_input_path(self) -> str:
-        return f"{self.storage_path}/{self.file_name}"
+        return f"{self.storage_path}"
     def full_output_path(self) -> str:
-        return f"{self.bucket}/{self.storage_path.replace('input', 'output')}/{self.file_name.replace('.mp4', '/')}"
+        return f"{self.bucket}/orgs/{self.org_id}/uploads/{self.id}/streaming/"
     def bucketless_output_path(self) -> str:
-        return f"{self.storage_path.replace('input', 'output')}/{self.file_name.replace('.mp4', '/')}"
+        return f"orgs/{self.org_id}/uploads/{self.id}/streaming/"
 
 
 

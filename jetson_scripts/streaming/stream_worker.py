@@ -77,6 +77,32 @@ class StreamWorker(threading.Thread):
         except Exception as e:
             print(f"Exception while updating job state for {self.job.job_id}: {e}")
 
+    def _update_job_fields(self, fields: dict):
+        try:
+            (
+                self.supabase
+                    .table("jobs")
+                    .update(fields)
+                    .eq("id", str(self.job.job_id))
+                    .execute()
+            )
+        except Exception as e:
+            print(f"Exception while updating job fields for {self.job.job_id}: {e}")
+
+    def _start_job(self):
+        self._update_job_fields({
+            "state": JobState.RUNNING.value,
+            "started_at": "now()"
+        })
+
+    def _complete_job(self):
+        self.stage = _Stage.COMPLETE
+        self._update_job_fields({
+            "state": JobState.SUCCEEDED.value,
+            "finished_at": "now()",
+            "progress": 1.0
+        })
+
     def _download_input_file(self, input_mp4_path: str) -> bool:
         """
         Downloads an input MP4 file from an S3 bucket to a specified local path.
@@ -206,7 +232,7 @@ class StreamWorker(threading.Thread):
         Exceptions:
             - Catches and logs any unexpected exceptions during the workflow.
         """
-        self._update_job_state(JobState.RUNNING)
+        self._start_job()
         input_mp4_path = f"/tmp/{self.job.media_asset.id}-input.mp4"
         output_hls_path = f"/tmp/{self.job.media_asset.id}/"
         self.stage = _Stage.DOWNLOAD_INPUT
@@ -217,6 +243,9 @@ class StreamWorker(threading.Thread):
 
             while not self.stage == _Stage.COMPLETE:
                 self.attempts += 1
+                self._update_job_fields({
+                    "attempt": self.attempts,
+                })
                 if self.attempts > 3:
                     print(f"Job {self.job.job_id} failed after 3 attempts.")
                     self._update_job_state(JobState.FAILED)
@@ -246,12 +275,15 @@ class StreamWorker(threading.Thread):
                         print("Failed to upload output files. Retrying...")
                         continue        
 
-                self.stage = _Stage.COMPLETE
-                self._update_job_state(JobState.SUCCEEDED)
+                self._complete_job()
                 print(f"Job {self.job.job_id} completed successfully.")
         except Exception as e:
             print(f"Unexpected error in job {self.job.job_id}: {e}")
-            self._update_job_state(JobState.FAILED)
+            self._update_job_fields({
+                "state": JobState.FAILED.value,
+                "error_code": self.stage.name,
+                "error_message": str(e)
+            })
         finally:
             # Cleanup temporary files
             if os.path.exists(input_mp4_path):
