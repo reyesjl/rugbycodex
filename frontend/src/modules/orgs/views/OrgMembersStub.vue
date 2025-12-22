@@ -743,10 +743,10 @@ watch(
                       <RouterLink
                         class="text-xs font-semibold uppercase tracking-wide text-white/70 transition hover:text-white"
                         :to="member.username
-                          ? `/v2/profile/${member.username}`
+                          ? `/profile/${member.username}`
                           : member.id
-                            ? `/v2/profile/${member.id}`
-                            : '/v2/profile'"
+                            ? `/profile/${member.id}`
+                            : '/profile'"
                         @click.stop
                       >
                         View

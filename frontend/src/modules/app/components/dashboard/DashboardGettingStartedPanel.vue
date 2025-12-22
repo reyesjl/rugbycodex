@@ -11,19 +11,19 @@ const steps = [
     title: 'Join a team or workspace',
     description: 'Join an existing team or organization you’ve been invited to.',
     icon: 'carbon:add-child-node',
-    to: '/v2/organizations',
+    to: '/organizations',
   },
   {
     title: 'Create a workspace',
     description: 'Set up a new workspace for team, club, or personal analysis.',
     icon: 'carbon:intent-request-create',
-    to: '/v2/organizations',
+    to: '/organizations',
   },
   {
     title: 'See a real example',
     description: 'Walk through a real example of footage, narration, and tagging.',
     icon: 'carbon:help',
-    to: '/v2/organizations',
+    to: '/organizations',
   },
 ];
 </script>

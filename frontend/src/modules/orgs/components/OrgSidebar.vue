@@ -33,8 +33,8 @@ const routeSlug = computed(() => {
 });
 
 const orgSlug = computed(() => activeOrg.value?.slug ?? routeSlug.value);
-const orgBasePath = computed(() => (orgSlug.value ? `/v2/orgs/${orgSlug.value}` : '/v2/orgs'));
-const overviewLink = computed(() => (orgSlug.value ? `${orgBasePath.value}/overview` : '/v2/orgs'));
+const orgBasePath = computed(() => (orgSlug.value ? `/orgs/${orgSlug.value}` : '/orgs'));
+const overviewLink = computed(() => (orgSlug.value ? `${orgBasePath.value}/overview` : '/orgs'));
 
 const navigationLinks = computed(() => {
     if (!orgSlug.value) {
@@ -80,7 +80,7 @@ const handleSidebarToggle = () => emit('toggle-sidebar');
                 <ul class="space-y-1">
                     <li>
                         <RouterLink
-                            to="/v2/dashboard"
+                            to="/dashboard"
                             class="flex w-full items-center px-4 py-2 rounded hover:bg-white/10"
                         >
                             <Icon icon="carbon:chevron-left" width="20" height="20" class="mr-5" />

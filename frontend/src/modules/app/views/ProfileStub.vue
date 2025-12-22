@@ -131,12 +131,12 @@ watch(
 
 const jumpToOwnProfile = () => {
   if (authUsername.value) {
-    router.push(`/v2/profile/${authUsername.value}`);
+    router.push(`/profile/${authUsername.value}`);
     return;
   }
 
   if (authStore.user?.id) {
-    router.push('/v2/profile');
+    router.push('/profile');
   }
 };
 </script>
@@ -175,7 +175,7 @@ const jumpToOwnProfile = () => {
           <div class="flex flex-wrap gap-3">
             <RouterLink
               v-if="canEditProfile"
-              to="/v2/settings"
+              to="/settings"
               class="inline-flex items-center rounded border border-white/30 px-4 py-2 text-sm font-semibold uppercase tracking-[0.2em] hover:bg-white/10"
             >
               <Icon icon="carbon:edit" width="18" height="18" class="mr-2" />
@@ -221,7 +221,7 @@ const jumpToOwnProfile = () => {
           </div>
           <RouterLink
             v-if="canEditProfile"
-            to="/v2/organizations"
+            to="/organizations"
             class="text-sm font-semibold text-white/70 underline-offset-4 hover:text-white"
           >
             Manage memberships
@@ -249,7 +249,7 @@ const jumpToOwnProfile = () => {
               </div>
               <RouterLink
                 class="inline-flex items-center text-sm uppercase tracking-wide text-white/70 hover:text-white"
-                :to="membership.slug ? `/v2/orgs/${membership.slug}/overview` : `/v2/orgs/${membership.org_id}/overview`"
+                :to="membership.slug ? `/orgs/${membership.slug}/overview` : `/orgs/${membership.org_id}/overview`"
               >
                 View org
                 <Icon icon="carbon:chevron-right" width="16" height="16" class="ml-1" />

@@ -200,7 +200,7 @@ const handleSubmit = async () => {
     supabaseMessage.value = 'Your account is ready. We will redirect you to the dashboard.';
     submissionLogged.value = true;
     await nextTick();
-    await router.push({ name: 'V2Dashboard' });
+    await router.push({ name: 'Dashboard' });
     signingUp.value = false;
     return;
   }

@@ -53,7 +53,7 @@ onMounted(loadOrganizations);
       <RouterLink
         v-for="entry in organizations"
         :key="entry.organization.id"
-        :to="`/v2/orgs/${entry.organization.slug}`"
+        :to="`/orgs/${entry.organization.slug}`"
         class="rounded-lg border border-white/10 bg-white/5 p-4 transition hover:bg-white/10"
       >
         <div class="flex items-start justify-between gap-3">

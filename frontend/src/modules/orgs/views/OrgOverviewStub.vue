@@ -43,14 +43,14 @@ const ownerDisplayName = computed(() => {
 });
 const ownerProfileLink = computed(() => {
   if (ownerProfile.value?.username) {
-    return `/v2/profile/${ownerProfile.value.username}`;
+    return `/profile/${ownerProfile.value.username}`;
   }
   return null;
 });
 
 const quickLinks = computed(() => {
   if (!org.value) return [];
-  const base = `/v2/orgs/${org.value.slug}`;
+  const base = `/orgs/${org.value.slug}`;
   const entries: Array<{ label: string; description: string; icon: string; to: string; minRole?: MembershipRole }> = [
     {
       label: 'Vaults',
@@ -206,7 +206,7 @@ watch(
       <p class="font-semibold">{{ error }}</p>
       <p class="mt-2 text-sm text-white/80">Double-check the organization link or go back to the directory.</p>
       <RouterLink
-        to="/v2/organizations"
+        to="/organizations"
         class="mt-4 inline-flex items-center rounded border border-white/30 px-4 py-2 text-sm font-semibold uppercase tracking-wide hover:bg-white/10"
       >
         Return to organizations
@@ -273,7 +273,7 @@ watch(
             <p class="text-sm text-white/60">Jump straight into the most visited areas of this org.</p>
           </div>
           <RouterLink
-            to="/v2/organizations"
+            to="/organizations"
             class="inline-flex items-center rounded border border-white/30 px-4 py-2 text-xs font-semibold uppercase tracking-wide hover:bg-white/10"
           >
             Browse directory

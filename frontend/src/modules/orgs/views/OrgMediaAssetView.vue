@@ -30,7 +30,7 @@ const error = ref<string | null>(null);
 
 const orgMediaLink = computed(() => {
   const slug = normalizedSlug.value;
-  return slug ? `/v2/orgs/${slug}/media` : '/v2/orgs';
+  return slug ? `/orgs/${slug}/media` : '/orgs';
 });
 
 const canRenderPlayer = computed(() => {

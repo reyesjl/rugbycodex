@@ -1,18 +1,18 @@
 import type { RouteRecordRaw } from 'vue-router';
 
 export const authRoutes: RouteRecordRaw = {
-  path: '/v2/auth',
+  path: '/auth',
   component: () => import('@/layouts/AuthLayout.vue'),
   meta: { layout: 'auth', guestOnly: true },
   children: [
     {
       path: 'login',
-      name: 'V2Login',
+      name: 'Login',
       component: () => import('@/modules/auth/views/Login.vue'),
     },
     {
       path: 'signup',
-      name: 'V2Signup',
+      name: 'Signup',
       component: () => import('@/modules/auth/views/Signup.vue'),
     }
   ],

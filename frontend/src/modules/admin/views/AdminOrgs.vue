@@ -109,7 +109,7 @@ const getOwnerProfile = (ownerId: string | null) => {
 const ownerProfilePath = (ownerId: string | null) => {
   if (!ownerId) return null;
   const profile = getOwnerProfile(ownerId);
-  return profile?.username ? `/v2/profile/${profile.username}` : `/v2/profile/${ownerId}`;
+  return profile?.username ? `/profile/${profile.username}` : `/profile/${ownerId}`;
 };
 
 const ownerPrimaryLabel = (ownerId: string | null) => {
@@ -628,7 +628,7 @@ onBeforeUnmount(() => {
                 <td class="px-4 py-3 text-right">
                   <div class="flex items-center justify-end gap-3">
                     <RouterLink
-                      :to="`/v2/orgs/${org.slug}/overview`"
+                      :to="`/orgs/${org.slug}/overview`"
                       class="text-xs font-semibold uppercase tracking-wide text-white/70 transition hover:text-white"
                       @click.stop
                     >

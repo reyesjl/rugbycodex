@@ -558,7 +558,7 @@ onBeforeUnmount(() => {
                 <td class="px-4 py-3 text-right">
                   <div v-if="!isAssetUploading(asset.id)" class="flex items-center justify-end gap-2">
                     <RouterLink v-if="normalizedSlug"
-                      :to="{ name: 'V2OrgMediaAsset', params: { slug: normalizedSlug, assetId: asset.id } }"
+                      :to="{ name: 'OrgMediaAsset', params: { slug: normalizedSlug, assetId: asset.id } }"
                       class="text-xs font-semibold uppercase tracking-wide text-white/70 transition hover:text-white"
                       :tabindex="0" @click.stop @keydown.enter.stop @keydown.space.stop>
                       View

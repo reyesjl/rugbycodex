@@ -4,6 +4,7 @@ import { useAuthStore } from '@/auth/stores/useAuthStore';
 import { v2Routes } from '@/router/v2-routes';
 import { marketingRoutes } from './marketingRoutes';
 import { authRoutes } from './authRoutes';
+import { appRoutes } from './appRoutes';
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -27,6 +28,7 @@ const router = createRouter({
   routes: [
     marketingRoutes,
     authRoutes,
+    appRoutes,
     ...v2Routes,
   ],
 });
@@ -41,7 +43,7 @@ router.beforeEach(async (to) => {
 
   if ((to.meta.requiresAuth || to.meta.requiresAdmin) && !authStore.isAuthenticated) {
     return {
-      name: 'V2Login',
+      name: 'Login',
       query: {
         redirect: to.fullPath !== '/' ? to.fullPath : undefined,
       },
@@ -50,13 +52,13 @@ router.beforeEach(async (to) => {
 
   if (to.meta.guestOnly && authStore.isAuthenticated) {
     return {
-      name: 'V2Dashboard',
+      name: 'Dashboard',
     };
   }
 
   if (to.meta.requiresAdmin && !authStore.isAdmin) {
     return {
-      name: 'V2Dashboard',
+      name: 'Dashboard',
     };
   }
 

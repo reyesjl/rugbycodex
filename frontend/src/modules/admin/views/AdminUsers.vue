@@ -340,7 +340,7 @@ onBeforeUnmount(() => {
                   <div class="flex items-center justify-end gap-2">
                     <RouterLink
                       class="text-xs font-semibold uppercase tracking-wide text-white/70 transition hover:text-white"
-                      :to="profile.username ? `/v2/profile/${profile.username}` : `/v2/profile/${profile.id}`"
+                      :to="profile.username ? `/profile/${profile.username}` : `/profile/${profile.id}`"
                       @click.stop
                     >
                       View

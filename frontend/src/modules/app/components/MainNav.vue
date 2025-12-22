@@ -51,7 +51,7 @@ const handleLogout = async () => {
             return;
         }
         closeMenu();
-        await router.push('/v2/auth/login');
+        await router.push('/auth/login');
     } finally {
         loggingOut.value = false;
     }
@@ -155,7 +155,7 @@ watch(() => route.fullPath, () => {
                                 class="absolute right-0 mt-2 w-56 rounded-md border border-white/20 bg-black/90 p-2 text-sm shadow-2xl"
                             >
                                 <RouterLink
-                                    to="/v2/profile"
+                                    to="/profile"
                                     class="flex items-center rounded px-3 py-2 text-white hover:bg-white/10"
                                     @click="closeMenu"
                                 >
@@ -163,7 +163,7 @@ watch(() => route.fullPath, () => {
                                     Profile
                                 </RouterLink>
                                 <RouterLink
-                                    to="/v2/settings"
+                                    to="/settings"
                                     class="flex items-center rounded px-3 py-2 text-white hover:bg-white/10"
                                     @click="closeMenu"
                                 >
@@ -182,7 +182,7 @@ watch(() => route.fullPath, () => {
                             </div>
                         </transition>
                     </div>
-                    <RouterLink v-else :to="`/v2/auth/login`" class="ml-3 rounded-full border border-white/40 px-3 py-1 text-sm uppercase tracking-wide hover:bg-white/10">
+                    <RouterLink v-else :to="`/auth/login`" class="ml-3 rounded-full border border-white/40 px-3 py-1 text-sm uppercase tracking-wide hover:bg-white/10">
                         Sign in
                     </RouterLink>
                 </div>

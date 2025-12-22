@@ -127,7 +127,7 @@ const handleSubmit = async () => {
   form.confirmPassword = '';
 
   setTimeout(() => {
-    void router.push({ name: 'V2Dashboard' });
+    void router.push({ name: 'Dashboard' });
   }, 1500);
 };
 </script>

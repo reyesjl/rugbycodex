@@ -144,7 +144,7 @@ watch(isMenuOpen, (isOpen) => {
                 <NavLink to="/unions">
                     Unions
                 </NavLink>
-                <!-- <NavLink to="/v2/marketing/inside">
+                <!-- <NavLink to="/marketing/inside">
                     Inside the Codex
                 </NavLink> -->
                 <NavLink to="/mission">
@@ -154,14 +154,14 @@ watch(isMenuOpen, (isOpen) => {
 
             <!-- Display profile button if user is logged in -->
             <!-- authStore.isAuthenticated -->
-            <RouterLink v-if="authStore.isAuthenticated" class="hidden justify-end md:flex items-center space-x-2 sm:text-sm" :to="`/v2/dashboard`">
+            <RouterLink v-if="authStore.isAuthenticated" class="hidden justify-end md:flex items-center space-x-2 sm:text-sm" :to="`/dashboard`">
                 <Icon icon="carbon:user-avatar" width="25" height="25" class="h-full w-full p-2 text-white rounded-full cursor-pointer" />
             </RouterLink> 
             <div v-else class="hidden justify-end space-x-4 md:flex items-center sm:text-sm">
-                <RouterLink class="text-white hover:text-neutral-400 whitespace-nowrap" to="/v2/auth/login">
+                <RouterLink class="text-white hover:text-neutral-400 whitespace-nowrap" to="/auth/login">
                     Login
                 </RouterLink>
-                <Button variant="base" color="primary" to="/v2/auth/signup">Get Started</Button>
+                <Button variant="base" color="primary" to="/auth/signup">Get Started</Button>
             </div>
 
             <button
@@ -230,7 +230,7 @@ watch(isMenuOpen, (isOpen) => {
                 </RouterLink>
                 <!-- <RouterLink
                     class="hover:text-neutral-500 text-white w-fit"
-                    to="/v2/marketing"
+                    to="/marketing"
                     @click="closeMenu"
                 >
                     inside the codex
@@ -246,7 +246,7 @@ watch(isMenuOpen, (isOpen) => {
                 <div v-if="authStore.isAuthenticated">
                     <RouterLink
                         class="hover:text-neutral-500 text-white w-fit"
-                        :to="`/v2/dashboard`"
+                        :to="`/dashboard`"
                         @click="closeMenu"
                     >
                         profile
@@ -255,14 +255,14 @@ watch(isMenuOpen, (isOpen) => {
                 <div v-else class="flex flex-col space-y-6">
                     <RouterLink
                         class="hover:text-neutral-500 text-white w-fit"
-                        to="/v2/auth/login"
+                        to="/auth/login"
                         @click="closeMenu"
                     >
                         login
                     </RouterLink>
                     <RouterLink
                         class="hover:text-neutral-500 text-white w-fit"
-                        to="/v2/auth/signup"
+                        to="/auth/signup"
                         @click="closeMenu"
                     >
                         get started

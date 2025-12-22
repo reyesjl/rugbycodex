@@ -2,12 +2,12 @@
 import { ref, onMounted, watch } from 'vue';
 import { RouterView } from 'vue-router';
 import MainLayout from '@/layouts/MainLayout.vue';
-import NullLayout from '@/layouts/v2/NullLayout.vue';
+import NullLayout from '@/layouts/NullLayout.vue';
 import MarketingLayout from '@/layouts/MarketingLayout.vue';
-import AdminLayout from '@/layouts/v2/AdminLayout.vue';
+import AdminLayout from '@/layouts/AdminLayout.vue';
 import AuthLayout from '@/layouts/AuthLayout.vue';
-import AppLayout from '@/layouts/v2/AppLayout.vue';
-import OrgLayout from '@/layouts/v2/OrgLayout.vue';
+import AppLayout from '@/layouts/AppLayout.vue';
+import OrgLayout from '@/layouts/OrgLayout.vue';
 
 const isDarkMode = ref(false);
 const legacyStorageKeys = ['betaRequests.csv'];

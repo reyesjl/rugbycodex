@@ -10,15 +10,15 @@ const emit = defineEmits<{
 }>();
 
 const adminLinks = [
-  { to: '/v2/admin/', label: 'Organizations', icon: 'carbon:group-presentation' },
-  { to: '/v2/admin/users', label: 'Users', icon: 'carbon:user-multiple' },
-  { to: '/v2/admin/narrations', label: 'Narrations Moderation', icon: 'carbon:microphone' },
-  { to: '/v2/admin/media', label: 'Media Review', icon: 'carbon:image-search' },
-  { to: '/v2/admin/jobs', label: 'Jobs / Pipelines', icon: 'carbon:flow' },
-  { to: '/v2/admin/billing', label: 'Billing / Metering', icon: 'carbon:finance' },
-  { to: '/v2/admin/flags', label: 'Feature Flags', icon: 'carbon:flag' },
-  { to: '/v2/admin/experiments', label: 'Experiments', icon: 'carbon:chemistry' },
-  { to: '/v2/profile', label: 'Profile', icon: 'carbon:user-profile' },
+  { to: '/admin/', label: 'Organizations', icon: 'carbon:group-presentation' },
+  { to: '/admin/users', label: 'Users', icon: 'carbon:user-multiple' },
+  { to: '/admin/narrations', label: 'Narrations Moderation', icon: 'carbon:microphone' },
+  { to: '/admin/media', label: 'Media Review', icon: 'carbon:image-search' },
+  { to: '/admin/jobs', label: 'Jobs / Pipelines', icon: 'carbon:flow' },
+  { to: '/admin/billing', label: 'Billing / Metering', icon: 'carbon:finance' },
+  { to: '/admin/flags', label: 'Feature Flags', icon: 'carbon:flag' },
+  { to: '/admin/experiments', label: 'Experiments', icon: 'carbon:chemistry' },
+  { to: '/profile', label: 'Profile', icon: 'carbon:user-profile' },
 ];
 
 const handleSidebarToggle = () => emit('toggle-sidebar');
@@ -35,7 +35,7 @@ const handleSidebarToggle = () => emit('toggle-sidebar');
         <ul class="space-y-1">
           <li>
             <RouterLink
-              to="/v2/dashboard"
+              to="/dashboard"
               class="flex w-full items-center rounded px-4 py-2 hover:bg-white/10"
             >
               <Icon icon="carbon:chevron-left" width="20" height="20" class="mr-5" />
