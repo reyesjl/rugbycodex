@@ -36,7 +36,7 @@ import type {
  * Orchestration for all organization-related workflows.
  */
 
-export const orgServiceV2 = {
+export const orgService = {
   // ===========================================================================
   // Context & Resolution
   // ===========================================================================
@@ -228,11 +228,11 @@ export const orgServiceV2 = {
         )
       `)
       .eq("user_id", userId);
-    
+
     if (error) {
       throw error;
     }
-    
+
     return data.map((item) => {
       const org = Array.isArray(item.organizations)
         ? item.organizations[0]
@@ -278,10 +278,10 @@ export const orgServiceV2 = {
    */
   async getOrg(orgId: string): Promise<Organization> {
     const { data, error } = await supabase
-    .from("organizations")
-    .select("id, owner, slug, name, created_at, storage_limit_mb, bio, visibility, type")
-    .eq("id", orgId)
-    .single();
+      .from("organizations")
+      .select("id, owner, slug, name, created_at, storage_limit_mb, bio, visibility, type")
+      .eq("id", orgId)
+      .single();
 
     if (error) {
       throw error;
@@ -309,10 +309,10 @@ export const orgServiceV2 = {
    */
   async getOrgBySlug(slug: string): Promise<Organization> {
     const { data, error } = await supabase
-    .from('organizations')
-    .select("id, owner, slug, name, created_at, storage_limit_mb, bio, visibility, type")
-    .eq("slug", slug)
-    .single();
+      .from('organizations')
+      .select("id, owner, slug, name, created_at, storage_limit_mb, bio, visibility, type")
+      .eq("slug", slug)
+      .single();
 
     if (error) {
       throw error;
@@ -347,11 +347,11 @@ export const orgServiceV2 = {
       .update(patch)
       .eq("id", orgId)
       .single();
-    
+
     if (error) {
       throw error;
     }
-    
+
     return data;
   },
 
@@ -408,7 +408,7 @@ export const orgServiceV2 = {
       if (!profile) {
         throw new Error("Invariant violation: org_members row without profile");
       }
-      
+
       return {
         membership: {
           org_id: item.org_id,
@@ -519,7 +519,7 @@ export const orgServiceV2 = {
       .from("org_members")
       .insert({ org_id: orgId, user_id: userId, role })
       .single();
-    
+
     if (error) {
       throw error;
     }
@@ -566,7 +566,7 @@ export const orgServiceV2 = {
       .delete()
       .eq("org_id", orgId)
       .eq("user_id", userId);
-    
+
     if (error) {
       throw error;
     }
@@ -596,9 +596,10 @@ export const orgServiceV2 = {
    */
   async changeMemberRole(orgId: string, userId: string, role: OrgRole): Promise<OrgMember> {
     const { data, error } = await supabase.functions.invoke(
-      "change-member-role", 
-      { 
-        body: { orgId,
+      "change-member-role",
+      {
+        body: {
+          orgId,
           userId,
           role,
         },
@@ -643,7 +644,7 @@ export const orgServiceV2 = {
     if (error) {
       throw error;
     }
-   
+
     return data;
   },
 
@@ -667,7 +668,7 @@ export const orgServiceV2 = {
    * @returns Resolves when the membership is removed (or reassigned per policy).
    */
   async leaveOrg(orgId: string): Promise<void> {
-    const {error } = await supabase.functions.invoke(
+    const { error } = await supabase.functions.invoke(
       "leave-organization",
       {
         body: { orgId },
@@ -706,7 +707,7 @@ export const orgServiceV2 = {
    */
   async submitOrgRequest(payload: SubmitOrgRequestPayload): Promise<OrgRequest> {
     const userId = requireUserId();
-    
+
     const { data, error } = await supabase
       .from("organization_requests")
       .insert({
@@ -744,7 +745,7 @@ export const orgServiceV2 = {
    */
   async listMyOrgRequests(): Promise<OrgRequest[]> {
     const userId = requireUserId();
-    
+
     const { data, error } = await supabase
       .from("organization_requests")
       .select(
@@ -856,7 +857,7 @@ export const orgServiceV2 = {
         body: { requestId },
       }
     );
-    
+
     if (error) {
       throw error;
     }
@@ -897,7 +898,7 @@ export const orgServiceV2 = {
     if (error) {
       throw error;
     }
-    
+
     return data;
   },
 
@@ -959,7 +960,7 @@ export const orgServiceV2 = {
     if (error) {
       throw error;
     }
-    
+
     return data;
   },
 
@@ -1175,7 +1176,7 @@ export const orgServiceV2 = {
 
     const limitBytes = storageLimit.limit_mb * 1024 * 1024;
     const usageRatio = storageUsage.used_bytes / limitBytes;
-    
+
     return usageRatio >= THRESHOLD_PERCENTAGE;
   },
 
@@ -1201,7 +1202,7 @@ export const orgServiceV2 = {
    * @returns Eligibility result including optional remaining/limit context.
    */
   async canUpload(orgId: string, fileSizeBytes: number): Promise<UploadEligibility> {
-    const {data, error} = await supabase.functions.invoke(
+    const { data, error } = await supabase.functions.invoke(
       "check-upload-eligibility",
       {
         body: { orgId, fileSizeBytes },
@@ -1251,7 +1252,7 @@ export const orgServiceV2 = {
     if (error) {
       throw error;
     }
-    
+
     return data;
   },
 
@@ -1315,7 +1316,7 @@ export const orgServiceV2 = {
       .eq("org_id", orgId)
       .order("created_at", { ascending: false })
       .limit(10);
-      
+
     if (error) {
       throw error;
     }

@@ -6,9 +6,10 @@ import { storeToRefs } from 'pinia';
 import { useAuthStore } from '@/auth/stores/useAuthStore';
 import { useOrgCapabilities } from '@/modules/orgs/composables/useOrgCapabilities';
 import { useActiveOrgStore } from '@/modules/orgs/stores/useActiveOrgStore';
-import { profileService } from '@/modules/profiles/services/ProfileService';
+import { profileService } from '@/modules/profiles/services/profileServiceV2';
 import type { MembershipRole, UserProfile } from '@/modules/profiles/types';
 import { mediaService } from '@/modules/media/services/mediaService';
+import { orgService } from '../services/orgServiceV2';
 
 const activeOrgStore = useActiveOrgStore();
 const { activeOrg, activeMembership, loading, error } = storeToRefs(activeOrgStore);
@@ -138,7 +139,7 @@ const loadMemberCount = async (orgId: string) => {
   memberCountRequestId += 1;
   const requestId = memberCountRequestId;
   try {
-    const members = await profileService.memberships.listByOrganization(orgId);
+    const members = await orgService.listMembers(orgId);
     if (requestId === memberCountRequestId) {
       stubStats.members = formatMemberCount(members.length);
     }
@@ -181,8 +182,8 @@ watch(
       const trimmed = ownerIdentifier.trim();
       if (!trimmed) return;
       const profile = UUID_PATTERN.test(trimmed)
-        ? await profileService.profiles.getById(trimmed)
-        : await profileService.profiles.getByUsername(trimmed);
+        ? await profileService.getProfileById(trimmed)
+        : await profileService.getProfileByUsername(trimmed);
       if (requestId === ownerRequestId) {
         ownerProfile.value = profile;
       }

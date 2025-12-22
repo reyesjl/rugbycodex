@@ -6,7 +6,7 @@ import { RouterLink } from 'vue-router';
 import { useAuthStore } from '@/auth/stores/useAuthStore';
 import { useActiveOrgStore } from '@/modules/orgs/stores/useActiveOrgStore';
 import { orgService } from '@/modules/orgs/services/orgService';
-import { profileService } from '@/modules/profiles/services/ProfileService';
+import { profileService } from '@/modules/profiles/services/profileServiceV2';
 import BatchActionBar, { type BatchAction } from '@/components/ui/tables/BatchActionBar.vue';
 import { MEMBERSHIP_ROLES, ROLE_ORDER, type MembershipRole, type ProfileWithMembership, type UserProfile } from '@/modules/profiles/types';
 
@@ -268,9 +268,9 @@ const resolveInviteProfile = async (identifier: string) => {
   }
   const cleaned = trimmed.startsWith('@') ? trimmed.slice(1) : trimmed;
   if (uuidPattern.test(cleaned)) {
-    return profileService.profiles.getById(cleaned);
+    return profileService.getProfileById(cleaned);
   }
-  return profileService.profiles.getByUsername(cleaned);
+  return profileService.getProfileByUsername(cleaned);
 };
 
 const handleInviteSubmit = async () => {
@@ -282,6 +282,9 @@ const handleInviteSubmit = async () => {
   inviteError.value = null;
   try {
     const profile = await resolveInviteProfile(inviteIdentifier.value);
+    if (!profile) {
+      throw new Error('Profile not found.');
+    }
     await profileService.memberships.addByOrgSlug(profile.id, normalizedSlug.value, inviteRole.value);
     await loadMembers(normalizedSlug.value);
     roleSuccess.value = `${profile.name} added as ${formatRole(inviteRole.value)}.`;

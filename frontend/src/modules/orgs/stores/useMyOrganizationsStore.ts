@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
-import { orgServiceV2 } from '@/modules/orgs/services/orgServiceV2';
+import { orgService } from '@/modules/orgs/services/orgServiceV2';
 import type { UserOrganizationSummary } from '@/modules/orgs/types';
 
 
@@ -29,7 +29,7 @@ export const useMyOrganizationsStore = defineStore('myOrganizations', () => {
         error.value = null;
 
         try {
-            items.value = await orgServiceV2.listUserOrganizations();
+            items.value = await orgService.listUserOrganizations();
             loaded.value = true;
             console.log('Loaded user organizations', items.value);
         } catch (err) {

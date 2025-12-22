@@ -6,7 +6,7 @@ import RefreshButton from '@/components/RefreshButton.vue';
 import { getDashboardStats } from '@/modules/admin/services/stats_service';
 import type { DashboardStats } from '@/modules/admin/types';
 import type { MemberLeaderboardEntry } from '@/modules/profiles/types';
-import { profileService } from '@/modules/profiles/services/ProfileService';
+import { profileService } from '@/modules/profiles/services/profileServiceV2';
 
 const router = useRouter();
 

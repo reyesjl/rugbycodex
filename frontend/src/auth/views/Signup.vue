@@ -3,7 +3,7 @@ import { reactive, ref, computed, watch, nextTick } from 'vue';
 import { RouterLink, useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
 import { useAuthStore } from '@/auth/stores/useAuthStore';
-import { profileService } from '@/modules/profiles/services/ProfileService';
+import { profileService } from '@/modules/profiles/services/profileServiceV2';
 import TurnstileVerification from '@/components/TurnstileVerification.vue';
 const authStore = useAuthStore();
 const router = useRouter();
@@ -86,7 +86,7 @@ const handleSubmit = async () => {
   }
 
   try {
-    const available = await profileService.profiles.isUsernameAvailable(normalizedUsername);
+    const available = await profileService.isUsernameAvailable(normalizedUsername);
     if (!available) {
       supabaseError.value = 'That username is already taken. Please choose another.';
       signingUp.value = false;

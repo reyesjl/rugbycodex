@@ -7,7 +7,7 @@ import BatchActionBar, { type BatchAction } from '@/components/ui/tables/BatchAc
 import { useOrganizationList } from '@/modules/orgs/composables/useOrganizationsList';
 import { orgService } from '@/modules/orgs/services/orgService';
 import { useProfilesList } from '@/modules/profiles/composables/useProfileList';
-import { profileService } from '@/modules/profiles/services/ProfileService';
+import { profileService } from '@/modules/profiles/services/profileServiceV2';
 import type { Organization } from '@/modules/orgs/types';
 import type { UserProfile } from '@/modules/profiles/types';
 

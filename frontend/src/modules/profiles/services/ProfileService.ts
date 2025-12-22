@@ -335,28 +335,6 @@ export const profileService = {
     },
 
     /**
-     * Searches profiles by username prefix for typeahead experiences.
-     * Requires at least two characters to avoid full table scans.
-     */
-    async searchByUsername(term: string, limit: number = 5): Promise<UserProfile[]> {
-      const normalized = term.trim().replace(/^@/, '').toLowerCase();
-      if (normalized.length < 2) {
-        return [];
-      }
-
-      const rows = await getList<ProfileRow>(
-        supabase
-          .from('profiles')
-          .select('*')
-          .ilike('username', `${normalized}%`)
-          .order('username', { ascending: true })
-          .limit(limit)
-      );
-
-      return rows.map(toUserProfile);
-    },
-
-    /**
      * Checks if a username is available.
      *
      * Usage from unauthenticated contexts (e.g., marketing signup):

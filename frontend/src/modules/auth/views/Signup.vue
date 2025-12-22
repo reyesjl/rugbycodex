@@ -3,7 +3,7 @@ import { reactive, ref, computed, watch, nextTick } from 'vue';
 import { RouterLink, useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
 import { useAuthStore } from '@/auth/stores/useAuthStore';
-import { profileService } from '@/modules/profiles/services/ProfileService';
+import { profileService } from '@/modules/profiles/services/profileServiceV2';
 import TurnstileVerification from '@/components/TurnstileVerification.vue';
 import bgImg from '@/assets/modules/auth/headingley.jpg';
 import { useStaggeredFade } from '@/composables/useStaggeredFade';
@@ -101,7 +101,7 @@ watch(
     }
     usernameCheckTimeout = setTimeout(async () => {
       try {
-        const available = await profileService.profiles.isUsernameAvailable(next);
+        const available = await profileService.isUsernameAvailable(next);
         if (token !== usernameCheckToken.value) return;
         usernameStatus.available = available;
         usernameStatus.message = available
@@ -155,7 +155,7 @@ const handleSubmit = async () => {
   }
 
   try {
-    const available = await profileService.profiles.isUsernameAvailable(normalizedUsername.value);
+    const available = await profileService.isUsernameAvailable(normalizedUsername.value);
     usernameStatus.available = available;
     usernameStatus.message = available
       ? 'Username is available.'
