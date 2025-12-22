@@ -5,7 +5,7 @@ import MainLayout from '@/layouts/MainLayout.vue';
 import NullLayout from '@/layouts/v2/NullLayout.vue';
 import MarketingLayout from '@/layouts/MarketingLayout.vue';
 import AdminLayout from '@/layouts/v2/AdminLayout.vue';
-import AuthLayout from '@/layouts/v2/AuthLayout.vue';
+import AuthLayout from '@/layouts/AuthLayout.vue';
 import AppLayout from '@/layouts/v2/AppLayout.vue';
 import OrgLayout from '@/layouts/v2/OrgLayout.vue';
 
