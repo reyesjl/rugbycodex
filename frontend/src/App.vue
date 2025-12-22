@@ -3,7 +3,7 @@ import { ref, onMounted, watch } from 'vue';
 import { RouterView } from 'vue-router';
 import MainLayout from '@/layouts/MainLayout.vue';
 import NullLayout from '@/layouts/v2/NullLayout.vue';
-import MarketingLayout from '@/layouts/v2/MarketingLayout.vue';
+import MarketingLayout from '@/layouts/MarketingLayout.vue';
 import AdminLayout from '@/layouts/v2/AdminLayout.vue';
 import AuthLayout from '@/layouts/v2/AuthLayout.vue';
 import AppLayout from '@/layouts/v2/AppLayout.vue';
@@ -49,7 +49,7 @@ onMounted(() => {
   } else {
     isDarkMode.value = window.matchMedia('(prefers-color-scheme: dark)').matches;
   }
-}); 
+});
 
 watch(
   isDarkMode,
@@ -73,10 +73,7 @@ const toggleDarkMode = () => {
 
 <template>
   <RouterView v-slot="{ Component, route }">
-    <component
-      :is="resolveLayout(route.meta.layout as string | undefined)"
-      :toggle-dark-mode="toggleDarkMode"
-    >
+    <component :is="resolveLayout(route.meta.layout as string | undefined)" :toggle-dark-mode="toggleDarkMode">
       <component :is="Component" />
     </component>
   </RouterView>

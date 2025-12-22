@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router';
 import pinia from '@/lib/pinia';
 import { useAuthStore } from '@/auth/stores/useAuthStore';
 import { v2Routes } from '@/router/v2-routes';
+import { marketingRoutes } from './marketing';
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -23,54 +24,8 @@ const router = createRouter({
     return { top: 0, left: 0 }
   },
   routes: [
+    marketingRoutes,
     ...v2Routes,
-    {
-      path: '/login',
-      redirect: { name: 'V2Login' },
-    },
-    {
-      path: '/signup',
-      redirect: { name: 'V2Signup' },
-    },
-    {
-      path: '/dashboard',
-      redirect: { name: 'V2Dashboard' },
-    },
-    {
-      path: '/organizations/:orgSlug',
-      redirect: (to) => ({
-        name: 'V2OrgOverview',
-        params: { slug: String(to.params.orgSlug) },
-      }),
-    },
-    {
-      path: '/admin',
-      redirect: { name: 'V2AdminOverview' },
-    },
-    {
-      path: '/confirm-email',
-      name: 'ConfirmEmail',
-      component: () => import('@/auth/views/ConfirmEmail.vue'),
-      meta: { layout: 'null' },
-    },
-    {
-      path: '/reset-password',
-      name: 'ResetPassword',
-      component: () => import('@/auth/views/ResetPassword.vue'),
-      meta: { layout: 'null', guestOnly: true },
-    },
-    {
-      path: '/reset-password/update',
-      name: 'ResetPasswordUpdate',
-      component: () => import('@/auth/views/UpdatePassword.vue'),
-      meta: { layout: 'null' },
-    },
-    {
-      path: '/:pathMatch(.*)*',
-      name: 'NotFound',
-      component: () => import('@/views/404.vue'),
-      meta: { layout: 'null' },
-    },
   ],
 });
 

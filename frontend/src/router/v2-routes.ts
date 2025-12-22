@@ -2,39 +2,6 @@ import type { RouteRecordRaw } from 'vue-router';
 
 export const v2Routes: RouteRecordRaw[] = [
   {
-    path: '/',
-    alias: '/v2/marketing',
-    component: () => import('@/layouts/v2/MarketingLayout.vue'),
-    meta: { layout: 'marketing' },
-    children: [
-      {
-        path: '',
-        name: 'V2MarketingHome',
-        component: () => import('@/modules/marketing/views/MarketingHome.vue'),
-      },
-      {
-        path: 'players',
-        name: 'V2ForPlayers',
-        component: () => import('@/modules/marketing/views/ForPlayers.vue'),
-      },
-      {
-        path: 'coaches',
-        name: 'V2ForCoaches',
-        component: () => import('@/modules/marketing/views/ForCoaches.vue'),
-      },
-      {
-        path: 'unions',
-        name: 'V2ForUnions',
-        component: () => import('@/modules/marketing/views/ForUnions.vue'),
-      },
-      {
-        path: 'mission',
-        name: 'V2Mission',
-        component: () => import('@/modules/marketing/views/Mission.vue'),
-      }
-    ],
-  },
-  { 
     path: '/v2/auth',
     component: () => import('@/layouts/v2/AuthLayout.vue'),
     meta: { layout: 'auth', guestOnly: true },
@@ -44,7 +11,7 @@ export const v2Routes: RouteRecordRaw[] = [
         name: 'V2Login',
         component: () => import('@/modules/auth/views/Login.vue'),
       },
-      { 
+      {
         path: 'signup',
         name: 'V2Signup',
         component: () => import('@/modules/auth/views/Signup.vue'),
