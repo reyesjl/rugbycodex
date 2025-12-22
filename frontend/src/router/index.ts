@@ -5,6 +5,7 @@ import { v2Routes } from '@/router/v2-routes';
 import { marketingRoutes } from './marketingRoutes';
 import { authRoutes } from './authRoutes';
 import { appRoutes } from './appRoutes';
+import { orgRoutes } from './orgRoutes';
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -29,6 +30,7 @@ const router = createRouter({
     marketingRoutes,
     authRoutes,
     appRoutes,
+    orgRoutes,
     ...v2Routes,
   ],
 });
