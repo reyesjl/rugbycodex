@@ -28,7 +28,7 @@ export const appRoutes: RouteRecordRaw = {
     {
       path: 'profile/:username?',
       name: 'Profile',
-      component: () => import('@/modules/app/views/ProfileStub.vue'),
+      component: () => import('@/modules/app/views/Profile.vue'),
       props: true,
     },
     {
