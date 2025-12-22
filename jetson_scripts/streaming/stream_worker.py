@@ -268,10 +268,7 @@ class StreamWorker(threading.Thread):
                         continue
 
                 if self.stage == _Stage.UPLOAD_OUTPUT:
-                    success = self._upload_output(output_hls_path)
-                    if success:
-                        self.completed = True
-                    else:
+                    if not self._upload_output(output_hls_path):
                         print("Failed to upload output files. Retrying...")
                         continue        
 

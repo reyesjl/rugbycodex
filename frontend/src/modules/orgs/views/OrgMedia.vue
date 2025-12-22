@@ -101,7 +101,7 @@ watch(
       console.error('Failed to reload assets after upload completion:', err);
     });
   }
-)
+);
 
 const handleCancelUpload = (id: string) => {
   uploadManager.cancel(id);

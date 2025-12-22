@@ -1,5 +1,5 @@
 // supabase/functions/_shared/auth.ts
-import { SupabaseClient, createClient } from 'npm:@supabase/supabase-js@2.47.10';
+import { createClient } from 'npm:@supabase/supabase-js@2.47.10';
 
 export interface AuthContext {
   userId: string | null;

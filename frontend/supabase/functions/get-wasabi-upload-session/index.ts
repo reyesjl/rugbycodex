@@ -29,7 +29,7 @@ Deno.serve(async (req) => {
 
     // Verify org membership unless admin
     if (!isAdmin) {
-      const isMember = await isOrgMember(userId, org_id, supabase);
+      const isMember = await isOrgMember(org_id, userId, supabase);
       if (!isMember) {
         return jsonResponse({ error: "You must be a member of the Org to Upload Media" }, 403);
       }

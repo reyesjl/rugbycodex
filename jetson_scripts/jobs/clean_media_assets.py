@@ -83,7 +83,7 @@ while True:
                     # Prepare objects for batch deletion (max 1000 at a time)
                     if VERBOSE_LOGGING:
                         for obj in page['Contents']:
-                            print("Delting: ", obj)
+                            print("Deleting: ", obj)
 
                     objects_to_delete = [{'Key': obj['Key']} for obj in page['Contents']]
                     

@@ -6,7 +6,7 @@ import type { SupabaseClient } from 'jsr:@supabase/supabase-js@2';
  * @param supabase The existing Supabase client instance
  * @returns True if the user is a member of the organization, false otherwise
  */
-export async function isOrgMember(orgId: string, userId: string, supabase: SupabaseClient): bool {
+export async function isOrgMember(orgId: string, userId: string, supabase: SupabaseClient): boolean {
   const { data, error } = await supabase
     .from('org_members')
     .select('user_id')

@@ -197,6 +197,7 @@ async function startUpload(job: UploadJob) {
     job.state = "completed";
     job.progress = 100;
   } catch (err) {
+    console.error('Upload failed for job', job.id, err);
     // State may have been changed to paused/cancelled during upload
     if (job.state === "uploading") {
       job.state = "failed";
