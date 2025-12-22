@@ -1,11 +1,11 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import pinia from '@/lib/pinia';
 import { useAuthStore } from '@/auth/stores/useAuthStore';
-import { v2Routes } from '@/router/v2-routes';
 import { marketingRoutes } from './marketingRoutes';
 import { authRoutes } from './authRoutes';
 import { appRoutes } from './appRoutes';
 import { orgRoutes } from './orgRoutes';
+import { adminRoutes } from './adminRoutes';
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -31,7 +31,7 @@ const router = createRouter({
     authRoutes,
     appRoutes,
     orgRoutes,
-    ...v2Routes,
+    adminRoutes,
   ],
 });
 
