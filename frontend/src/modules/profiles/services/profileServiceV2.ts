@@ -316,9 +316,9 @@ export const profileService = {
     async getMyMemberships(): Promise<OrgMembership[]> {
         const userId = requireUserId();
         const { data, error } = await supabase
-            .from("org_memberships")
+            .from("org_members")
             .select("*")
-            .eq("profile_id", userId);
+            .eq("user_id", userId);
 
         if (error) {
             // PGRST116 = "No rows returned"

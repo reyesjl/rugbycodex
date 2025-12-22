@@ -1,0 +1,618 @@
+<script setup lang="ts">
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { Icon } from '@iconify/vue';
+import { storeToRefs } from 'pinia';
+import { RouterLink } from 'vue-router';
+import RefreshButton from '@/components/RefreshButton.vue';
+import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
+import AssetUpload from '@/modules/media/components/AssetUpload.vue';
+import BatchActionBar, { type BatchAction } from '@/components/ui/tables/BatchActionBar.vue';
+import { useAuthStore } from '@/auth/stores/useAuthStore';
+import { useActiveOrgStore } from '@/modules/orgs/stores/useActiveOrgStore';
+import type { OrgMediaAsset } from '@/modules/orgs/types';
+import { ROLE_ORDER } from '@/modules/profiles/types';
+import { buildUploadJob, useUploadManager } from '@/modules/media/composables/useUploadManager';
+import { mediaService } from '@/modules/media/services/mediaService';
+
+const props = defineProps<{ slug?: string | string[] }>();
+
+const normalizedSlug = computed(() => {
+  if (!props.slug) return null;
+  return Array.isArray(props.slug) ? props.slug[0] : props.slug;
+});
+
+const activeOrgStore = useActiveOrgStore();
+const { activeOrg, activeMembership } = storeToRefs(activeOrgStore);
+
+const authStore = useAuthStore();
+const { isAdmin } = storeToRefs(authStore);
+
+// const profileStore = useProfileStore();
+// const { profile } = storeToRefs(profileStore);
+
+const searchQuery = ref('');
+const assets = ref<OrgMediaAsset[]>([]);
+const loading = ref(false);
+const error = ref<string | null>(null);
+
+const selectedAssetIds = ref<string[]>([]);
+const disabledAssetMap = ref<Record<string, boolean>>({});
+const isBatchProcessing = ref(false);
+
+const assetUploadRef = ref<InstanceType<typeof AssetUpload> | null>(null);
+
+// **********************************
+// ******* Upload Management ********
+// **********************************
+const uploadManager = useUploadManager();
+const uploadError = ref<string | null>(null);
+
+const hasInFlightUploads = computed(() =>
+  uploadManager.activeUploads.value.length > 0
+);
+
+const getUploadJobForAsset = (assetId: string) => {
+  return uploadManager.activeUploads.value.find((upload) => upload.id === assetId);
+};
+
+const isAssetUploading = (assetId: string) => {
+  return Boolean(getUploadJobForAsset(assetId));
+};
+
+const handleUploadFiles = (files: globalThis.File[]) => {
+  if (activeOrg.value === null) {
+    console.error('No active organization to upload media to.');
+    return;
+  }
+  if (files.length === 0) {
+    console.warn('No files provided for upload.');
+    return;
+  }
+
+  uploadError.value = null;
+
+  for (const file of files) {
+    // Fire and forget - don't await
+    buildUploadJob(file, activeOrg.value.id, 'rugbycodex')
+      .then((job) => {
+        uploadManager.enqueue(job);
+      })
+      .catch((err) => {
+        console.error('Failed to create upload job for', file.name, ':', err);
+        uploadError.value = `Failed to create upload job for ${file.name}: ${err.message || err}`;
+      });
+  }
+};
+
+watch(
+  () => uploadManager.completedUploads.value,
+  async (completed) => {
+    if (completed.length === 0) return;
+    for (const job of completed) {
+      await mediaService.updateMediaAsset(job.id, {
+        storage_path: job.storage_path,
+        status: 'ready'
+      });
+      uploadManager.remove(job.id);
+    }
+
+    // Reload assets after uploads complete
+    loadAssets().catch((err) => {
+      console.error('Failed to reload assets after upload completion:', err);
+    });
+  }
+)
+
+const handleCancelUpload = (id: string) => {
+  uploadManager.cancel(id);
+  mediaService.deleteById(id).catch((err) => {
+    console.error('Failed to delete cancelled upload asset:', err);
+  });
+};
+
+
+const showDeleteModal = ref(false);
+const deleteError = ref<string | null>(null);
+const deleteProcessing = ref(false);
+
+const copyStatus = ref<Record<string, 'idle' | 'copied' | 'error'>>({});
+const copyResetTimers = new Map<string, number>();
+
+const formatDate = (date?: Date | null) => {
+  if (!date) return '—';
+  return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(date);
+};
+
+const formatBytes = (bytes?: number | null) => {
+  if (bytes == null) return '—';
+  if (bytes === 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  const value = bytes / Math.pow(1024, i);
+  return `${value.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
+};
+
+const formatSpeed = (bytesPerSecond?: number) => {
+  if (!bytesPerSecond || !Number.isFinite(bytesPerSecond) || bytesPerSecond <= 0) return '';
+  const mbps = (bytesPerSecond * 8) / (1024 * 1024);
+  return `${mbps.toFixed(1)} Mbps`;
+};
+
+const formatDuration = (seconds?: number | null) => {
+  if (seconds == null) return '—';
+  if (!Number.isFinite(seconds)) return '—';
+  const total = Math.max(0, Math.floor(seconds));
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+};
+
+const canManageMedia = computed(() => {
+  if (isAdmin.value) return true;
+  const role = activeMembership.value?.role;
+  if (!role) return false;
+  const managerOrder = ROLE_ORDER.manager ?? Infinity;
+  return (ROLE_ORDER[role] ?? Infinity) <= managerOrder;
+});
+
+const filteredAssets = computed(() => {
+  const source = [...assets.value];
+  if (!searchQuery.value.trim()) return source;
+  const q = searchQuery.value.toLowerCase();
+  return source.filter((asset) => {
+    const name = asset.file_name?.toLowerCase() ?? '';
+    const path = asset.storage_path?.toLowerCase() ?? '';
+    const mime = asset.mime_type?.toLowerCase() ?? '';
+    return name.includes(q) || path.includes(q) || mime.includes(q) || asset.id.toLowerCase().includes(q);
+  });
+});
+
+
+const displayAssets = computed(() => {
+  // Convert active uploads to asset-like objects and place them first
+  const uploadAssets = uploadManager.activeUploads.value.map((upload): Partial<OrgMediaAsset> & { id: string } => ({
+    id: upload.id,
+    file_name: upload.file?.name || 'Unknown',
+    storage_path: upload.storage_path || '',
+    bucket: upload.bucket,
+    mime_type: upload.file?.type || '',
+    file_size_bytes: upload.file?.size ?? undefined,
+    duration_seconds: undefined,
+    status: 'uploading',
+    created_at: undefined,
+  }));
+
+  // Filter assets based on search query
+  const q = searchQuery.value.trim().toLowerCase();
+
+  const filteredUploads = q
+    ? uploadAssets.filter((asset) => {
+      const name = asset.file_name?.toLowerCase() ?? '';
+      const path = asset.storage_path?.toLowerCase() ?? '';
+      const mime = asset.mime_type?.toLowerCase() ?? '';
+      return name.includes(q) || path.includes(q) || mime.includes(q) || asset.id.toLowerCase().includes(q);
+    })
+    : uploadAssets;
+
+  // Place uploads first, then filtered persisted assets
+  return [...filteredUploads, ...filteredAssets.value] as OrgMediaAsset[];
+});
+
+const isAssetDisabled = (assetId: string) => Boolean(disabledAssetMap.value[assetId]);
+const isAssetSelected = (assetId: string) => selectedAssetIds.value.includes(assetId);
+const selectableAssets = computed(() => displayAssets.value.filter((asset) => !isAssetDisabled(asset.id)));
+const allSelectableSelected = computed(
+  () => selectableAssets.value.length > 0 && selectableAssets.value.every((asset) => isAssetSelected(asset.id))
+);
+const selectionCount = computed(() => selectedAssetIds.value.length);
+
+const toggleAssetSelection = (assetId: string) => {
+  if (isAssetDisabled(assetId)) return;
+  if (isAssetSelected(assetId)) {
+    selectedAssetIds.value = selectedAssetIds.value.filter((id) => id !== assetId);
+  } else {
+    selectedAssetIds.value = [...selectedAssetIds.value, assetId];
+  }
+};
+
+const handleSelectAllChange = (event: globalThis.Event) => {
+  const target = event.target as globalThis.HTMLInputElement | null;
+  const checked = Boolean(target?.checked);
+  selectedAssetIds.value = checked ? selectableAssets.value.map((asset) => asset.id) : [];
+};
+
+const clearSelection = () => {
+  selectedAssetIds.value = [];
+};
+
+const loadAssets = async () => {
+  if (!activeOrg.value?.id) return;
+  loading.value = true;
+  error.value = null;
+  try {
+    assets.value = await mediaService.listByOrganization(activeOrg.value.id);
+  } catch (err) {
+    assets.value = [];
+    error.value = err instanceof Error ? err.message : 'Unable to load media assets right now.';
+  } finally {
+    loading.value = false;
+  }
+};
+
+const handleRefresh = async () => {
+  await loadAssets();
+};
+
+const openUploadModal = () => {
+  assetUploadRef.value?.openUploadModal();
+};
+
+const updateCopyStatus = (key: string, status: 'idle' | 'copied' | 'error') => {
+  copyStatus.value = { ...copyStatus.value, [key]: status };
+  if (typeof window === 'undefined') return;
+
+  if (status === 'idle') {
+    const timer = copyResetTimers.get(key);
+    if (timer) {
+      window.clearTimeout(timer);
+      copyResetTimers.delete(key);
+    }
+    return;
+  }
+
+  const duration = status === 'copied' ? 1800 : 3000;
+  const existing = copyResetTimers.get(key);
+  if (existing) window.clearTimeout(existing);
+
+  const timer = window.setTimeout(() => {
+    copyResetTimers.delete(key);
+    copyStatus.value = { ...copyStatus.value, [key]: 'idle' };
+  }, duration);
+
+  copyResetTimers.set(key, timer);
+};
+
+const copyToClipboard = async (key: string, text: string) => {
+  try {
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+    } else if (typeof document !== 'undefined') {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+    } else {
+      throw new Error('Clipboard API is not available in this environment.');
+    }
+    updateCopyStatus(key, 'copied');
+  } catch {
+    updateCopyStatus(key, 'error');
+  }
+};
+
+const copyLabel = (key: string) => {
+  const state = copyStatus.value[key];
+  if (state === 'copied') return 'Copied';
+  if (state === 'error') return 'Retry copy';
+  return 'Copy';
+};
+
+const openDeleteModal = () => {
+  if (!selectedAssetIds.value.length) return;
+  deleteError.value = null;
+  showDeleteModal.value = true;
+};
+
+const closeDeleteModal = (force: boolean = false) => {
+  if (deleteProcessing.value && !force) return;
+  showDeleteModal.value = false;
+  deleteError.value = null;
+};
+
+const handleBatchDelete = async () => {
+  openDeleteModal();
+};
+
+const confirmDelete = async () => {
+  if (!selectedAssetIds.value.length) return;
+
+  const targets = assets.value.filter((asset) => selectedAssetIds.value.includes(asset.id));
+  if (!targets.length) {
+    closeDeleteModal();
+    return;
+  }
+
+  isBatchProcessing.value = true;
+  deleteProcessing.value = true;
+  deleteError.value = null;
+
+  try {
+    for (const asset of targets) {
+      disabledAssetMap.value = { ...disabledAssetMap.value, [asset.id]: true };
+    }
+
+    for (const asset of targets) {
+      await mediaService.deleteById(asset.id);
+      uploadManager.remove(asset.id);
+    }
+
+    await loadAssets();
+    clearSelection();
+    closeDeleteModal(true);
+  } catch (err) {
+    deleteError.value = err instanceof Error ? err.message : 'Delete failed.';
+  } finally {
+    deleteProcessing.value = false;
+    isBatchProcessing.value = false;
+    disabledAssetMap.value = {};
+  }
+};
+
+const batchActions = computed<BatchAction[]>(() => [
+  {
+    id: 'delete',
+    label: 'Delete',
+    icon: 'carbon:trash-can',
+    variant: 'secondary',
+    disabled: isBatchProcessing.value,
+    onClick: handleBatchDelete,
+  },
+]);
+
+watch(
+  displayAssets,
+  (rows) => {
+    const valid = new Set(rows.filter((asset) => !isAssetDisabled(asset.id)).map((asset) => asset.id));
+    selectedAssetIds.value = selectedAssetIds.value.filter((id) => valid.has(id));
+  },
+  { immediate: true }
+);
+
+watch(selectionCount, (count) => {
+  if (count === 0 && showDeleteModal.value) {
+    closeDeleteModal();
+  }
+});
+
+watch(
+  normalizedSlug,
+  async (slug) => {
+    await activeOrgStore.ensureLoaded(slug);
+    await loadAssets();
+  },
+  { immediate: true }
+);
+
+onMounted(async () => {
+  await loadAssets();
+});
+
+onBeforeUnmount(() => {
+  if (typeof window === 'undefined') return;
+  copyResetTimers.forEach((timer) => window.clearTimeout(timer));
+  copyResetTimers.clear();
+});
+
+</script>
+
+<template>
+  <section class="container-lg space-y-6 py-5 text-white">
+    <header class="space-y-1">
+      <div>
+        <h1 class="text-3xl font-semibold">Footage</h1>
+        <p class="text-white/70">Upload and manage footage for this organization.</p>
+      </div>
+    </header>
+
+    <div class="flex flex-col gap-4 rounded border border-white/10 bg-white/5 p-4">
+      <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div class="relative w-full md:max-w-md">
+          <Icon icon="carbon:search"
+            class="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-white/40" />
+          <input v-model="searchQuery" type="search" placeholder="Search by filename, mime type, or path"
+            class="w-full rounded border border-white/20 bg-black/40 py-3 pl-12 pr-4 text-white placeholder:text-white/40 focus:border-white focus:outline-none" />
+        </div>
+        <div class="flex flex-wrap items-center justify-end gap-2">
+          <button type="button"
+            class="flex items-center gap-2 rounded border border-white/30 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-white hover:text-black disabled:cursor-not-allowed disabled:opacity-60"
+            :disabled="!canManageMedia" @click="openUploadModal">
+            <Icon icon="carbon:upload" class="h-4 w-4" />
+            Upload
+          </button>
+          <RefreshButton size="sm" :refresh="handleRefresh" :loading="loading" title="Refresh media" />
+        </div>
+      </div>
+
+      <div v-if="hasInFlightUploads" class="rounded border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-white">
+        <p class="text-xs text-white/80">
+          <Icon icon="carbon:information" class="mr-1 inline h-3.5 w-3.5" />
+          Keep this tab open until uploads finish. Closing will stop the transfer.
+        </p>
+      </div>
+
+      <div v-if="uploadError" class="mt-4 rounded border border-rose-400/40 bg-rose-500/10 p-4 text-white">
+        <div class="flex items-start justify-between gap-3">
+          <div class="flex-1">
+            <p class="font-semibold">Upload Error</p>
+            <p class="text-sm text-white/80">{{ uploadError }}</p>
+          </div>
+          <button type="button"
+            class="flex-shrink-0 rounded p-1 text-white/70 transition hover:bg-white/10 hover:text-white"
+            @click="uploadError = null" title="Dismiss">
+            <Icon icon="carbon:close" class="h-5 w-5" />
+          </button>
+        </div>
+      </div>
+
+      <div v-if="loading && displayAssets.length === 0"
+        class="rounded border border-white/15 bg-black/30 p-4 text-white/70">
+        Loading media…
+      </div>
+
+      <div v-else-if="error" class="rounded border border-rose-400/40 bg-rose-500/10 p-4 text-white">
+        <p class="font-semibold">{{ error }}</p>
+        <p class="text-sm text-white/80">Try refreshing or check back later.</p>
+      </div>
+
+      <div v-else class="overflow-hidden rounded border border-white/10">
+        <div class="overflow-x-auto">
+          <table class="w-full min-w-[860px] text-left text-sm">
+            <thead class="bg-white/5 text-xs uppercase tracking-wide text-white/70">
+              <tr>
+                <th scope="col" class="w-12 px-4 py-3">
+                  <label class="flex cursor-pointer items-center gap-2">
+                    <input type="checkbox" class="h-4 w-4 rounded border-white/40 bg-transparent text-black"
+                      :checked="allSelectableSelected" :disabled="selectableAssets.length === 0"
+                      @change="handleSelectAllChange" />
+                    <span class="sr-only">Select all media</span>
+                  </label>
+                </th>
+                <th scope="col" class="px-4 py-3 min-w-[200px]">File</th>
+                <th scope="col" class="px-4 py-3 w-32">Status</th>
+                <th scope="col" class="px-4 py-3 w-48">Type</th>
+                <th scope="col" class="px-4 py-3 w-24 text-right">Size</th>
+                <th scope="col" class="px-4 py-3 w-24 text-right">Duration</th>
+                <th scope="col" class="px-4 py-3 w-32">Uploaded</th>
+                <th scope="col" class="px-4 py-3 w-32 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-if="displayAssets.length === 0">
+                <td colspan="8" class="px-4 py-6 text-center text-white/70">
+                  {{ searchQuery ? 'No media matches your search.' : 'No media uploaded yet.' }}
+                </td>
+              </tr>
+
+              <tr v-for="asset in displayAssets" :key="asset.id"
+                :data-state="isAssetDisabled(asset.id) ? 'disabled' : isAssetSelected(asset.id) ? 'selected' : 'enabled'"
+                :aria-disabled="isAssetDisabled(asset.id)"
+                class="border-b border-white/10 text-white transition-colors last:border-0" :class="[
+                  isAssetSelected(asset.id) ? 'bg-white/10' : 'hover:bg-white/5',
+                  isAssetDisabled(asset.id) ? 'opacity-50' : 'cursor-pointer',
+                  isAssetUploading(asset.id) ? 'bg-blue-500/10' : ''
+                ]" @click="() => !isAssetUploading(asset.id) && toggleAssetSelection(asset.id)">
+                <td class="px-4 py-3">
+                  <input v-if="!isAssetUploading(asset.id)" type="checkbox"
+                    class="h-4 w-4 rounded border-white/40 bg-transparent" :checked="isAssetSelected(asset.id)"
+                    :disabled="isAssetDisabled(asset.id)" @click.stop @change="() => toggleAssetSelection(asset.id)" />
+                  <Icon v-else icon="carbon:cloud-upload" class="h-5 w-5 text-blue-400 animate-pulse" />
+                </td>
+                <td class="px-4 py-3">
+                  <p class="font-semibold">{{ asset.file_name }}</p>
+                  <!-- Inline upload progress bar -->
+                  <div v-if="isAssetUploading(asset.id)" class="mt-2 space-y-1">
+                    <div class="relative h-2 overflow-hidden rounded bg-white/10">
+                      <div class="h-full transition-all duration-300" :class="{
+                        'bg-blue-500': getUploadJobForAsset(asset.id)?.state === 'uploading',
+                        'bg-green-500': getUploadJobForAsset(asset.id)?.state === 'completed',
+                        'bg-amber-500': getUploadJobForAsset(asset.id)?.state === 'paused' || getUploadJobForAsset(asset.id)?.state === 'queued',
+                        'bg-rose-500': getUploadJobForAsset(asset.id)?.state === 'failed' || getUploadJobForAsset(asset.id)?.state === 'cancelled',
+                      }" :style="{ width: `${getUploadJobForAsset(asset.id)?.progress || 0}%` }"></div>
+                    </div>
+                    <div class="flex items-center justify-between">
+                      <p class="text-xs" :class="{
+                        'text-blue-400': getUploadJobForAsset(asset.id)?.state === 'uploading',
+                        'text-green-400': getUploadJobForAsset(asset.id)?.state === 'completed',
+                        'text-amber-400': getUploadJobForAsset(asset.id)?.state === 'paused' || getUploadJobForAsset(asset.id)?.state === 'queued',
+                        'text-rose-400': getUploadJobForAsset(asset.id)?.state === 'failed' || getUploadJobForAsset(asset.id)?.state === 'cancelled',
+                      }">
+                        {{ getUploadJobForAsset(asset.id)?.state }} • {{ getUploadJobForAsset(asset.id)?.progress || 0
+                        }}%
+                        <span v-if="getUploadJobForAsset(asset.id)?.uploadSpeedBps" class="ml-1 text-white/60">
+                          • {{ formatSpeed(getUploadJobForAsset(asset.id)?.uploadSpeedBps) }}
+                        </span>
+                      </p>
+                      <button type="button"
+                        class="flex items-center gap-1 rounded border border-white/30 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-white hover:text-black disabled:cursor-not-allowed disabled:opacity-60"
+                        :disabled="getUploadJobForAsset(asset.id)?.state === 'completed' || getUploadJobForAsset(asset.id)?.state === 'cancelled'"
+                        @click.stop="handleCancelUpload(asset.id)">
+                        <Icon icon="carbon:close" class="h-3 w-3" />
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                </td>
+                <td class="px-4 py-3">
+                  <span v-if="isAssetUploading(asset.id)"
+                    class="rounded-full border px-2 py-0.5 text-xs font-medium uppercase tracking-wide border-blue-300/50 text-blue-200">
+                    Uploading
+                  </span>
+                  <span v-else class="rounded-full border px-2 py-0.5 text-xs font-medium uppercase tracking-wide"
+                    :class="asset.status === 'ready'
+                      ? 'border-emerald-300/50 text-emerald-200'
+                      : asset.status === 'canceled'
+                        ? 'border-white/40 text-white/70'
+                        : 'border-amber-300/50 text-amber-200'">
+                    {{ asset.status }}
+                  </span>
+                </td>
+                <td class="px-4 py-3">{{ asset.mime_type }}</td>
+                <td class="px-4 py-3 text-right">{{ formatBytes(asset.file_size_bytes) }}</td>
+                <td class="px-4 py-3 text-right">{{ formatDuration(asset.duration_seconds) }}</td>
+                <td class="px-4 py-3">{{ formatDate(asset.created_at) }}</td>
+                <td class="px-4 py-3 text-right">
+                  <div v-if="!isAssetUploading(asset.id)" class="flex items-center justify-end gap-2">
+                    <RouterLink v-if="normalizedSlug"
+                      :to="{ name: 'V2OrgMediaAsset', params: { slug: normalizedSlug, assetId: asset.id } }"
+                      class="text-xs font-semibold uppercase tracking-wide text-white/70 transition hover:text-white"
+                      :tabindex="0" @click.stop @keydown.enter.stop @keydown.space.stop>
+                      View
+                    </RouterLink>
+                    <span v-else class="text-xs font-semibold uppercase tracking-wide text-white/40"
+                      aria-disabled="true" title="Missing organization slug">
+                      View
+                    </span>
+                    <button type="button"
+                      class="text-xs font-semibold uppercase tracking-wide text-white/70 transition hover:text-white"
+                      :title="`Copy storage path ${asset.bucket}/${asset.storage_path}`"
+                      @click.stop="() => copyToClipboard(asset.id, `${asset.bucket}/${asset.storage_path}`)">
+                      {{ copyLabel(asset.id) }}
+                    </button>
+                  </div>
+                  <div v-else class="flex items-center justify-end">
+                    <span class="text-xs text-white/50">—</span>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <BatchActionBar :selected-count="selectionCount" :actions="batchActions" :cancel-disabled="isBatchProcessing"
+      @cancel="clearSelection" />
+
+    <AssetUpload ref="assetUploadRef" @upload="handleUploadFiles" />
+
+    <ConfirmDeleteModal :show="showDeleteModal"
+      :item-name="selectionCount === 1 ? 'this media asset' : `${selectionCount} media assets`"
+      popup-title="Delete media" :is-deleting="deleteProcessing" :error="deleteError" @confirm="confirmDelete"
+      @cancel="closeDeleteModal" @close="closeDeleteModal" />
+  </section>
+</template>
+
+<style scoped>
+.upload-shimmer {
+  position: absolute;
+  inset: 0;
+  width: 35%;
+  transform: translateX(-120%);
+  animation: uploadShimmer 1.1s linear infinite;
+}
+
+@keyframes uploadShimmer {
+  0% {
+    transform: translateX(-120%);
+  }
+
+  100% {
+    transform: translateX(320%);
+  }
+}
+</style>

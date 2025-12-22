@@ -1,12 +1,12 @@
 // supabase/functions/_shared/auth.ts
-import { createClient } from 'npm:@supabase/supabase-js@2.47.10';
+import { SupabaseClient, createClient } from 'npm:@supabase/supabase-js@2.47.10';
 
 export interface AuthContext {
   userId: string | null;
   isAdmin: boolean;
 }
 
-function getClientBoundToRequest(req: Request) {
+export function getClientBoundToRequest(req: Request) {
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
   const authHeader = req.headers.get('Authorization') ?? '';

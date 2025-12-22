@@ -7,8 +7,8 @@ import { useAuthStore } from '@/auth/stores/useAuthStore';
 import { useOrgCapabilities } from '@/modules/orgs/composables/useOrgCapabilities';
 import { useActiveOrgStore } from '@/modules/orgs/stores/useActiveOrgStore';
 import { profileService } from '@/modules/profiles/services/ProfileService';
-import { orgService } from '@/modules/orgs/services/orgService';
 import type { MembershipRole, UserProfile } from '@/modules/profiles/types';
+import { mediaService } from '@/modules/media/services/mediaService';
 
 const activeOrgStore = useActiveOrgStore();
 const { activeOrg, activeMembership, loading, error } = storeToRefs(activeOrgStore);
@@ -21,7 +21,7 @@ let ownerRequestId = 0;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const org = computed(() => activeOrg.value);
-const membershipRole = computed(() => activeMembership.value?.org_role ?? null);
+const membershipRole = computed(() => activeMembership.value?.role ?? null);
 
 const { hasAccess } = useOrgCapabilities(membershipRole, isAdmin);
 
@@ -115,7 +115,7 @@ const loadMediaMinutes = async (orgId: string) => {
   mediaMinutesRequestId += 1;
   const requestId = mediaMinutesRequestId;
   try {
-    const totalSeconds = await orgService.mediaAssets.getTotalDurationSeconds(orgId);
+    const totalSeconds = await mediaService.getTotalDurationSeconds(orgId);
     if (requestId === mediaMinutesRequestId) {
       stubStats.media = formatMediaMinutes(totalSeconds);
     }

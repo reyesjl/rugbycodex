@@ -120,7 +120,7 @@ export const v2Routes: RouteRecordRaw[] = [
       {
         path: 'media',
         name: 'V2OrgMedia',
-        component: () => import('@/modules/orgs/views/OrgMediaStub.vue'),
+        component: () => import('@/modules/orgs/views/OrgMedia.vue'),
         props: true,
       },
       {
