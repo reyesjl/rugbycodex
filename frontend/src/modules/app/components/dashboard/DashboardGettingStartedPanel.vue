@@ -9,7 +9,7 @@ const profile = useProfileDisplay();
 const steps = [
   {
     title: 'Join a team or workspace',
-    description: 'Join an existing team or organization you’ve been invited to.',
+    description: 'Join an existing team or organization with their join code.',
     icon: 'carbon:add-child-node',
     to: '/organizations',
   },

@@ -15,7 +15,7 @@ export function useDashboardState() {
     const myOrgs = useMyOrganizationsStore();
 
     const primaryRole = computed(() =>
-        myOrgs.primaryOrg?.membership.role ?? null
+        myOrgs.fallbackOrg?.membership.role ?? null
     );
 
     const variant = computed<DashboardVariant>(() => {
@@ -36,7 +36,7 @@ export function useDashboardState() {
 
     return {
         variant,
-        primaryOrg: myOrgs.primaryOrg,
+        fallbackOrg: myOrgs.fallbackOrg,
         orgCount: myOrgs.membershipCount,
     };
 }

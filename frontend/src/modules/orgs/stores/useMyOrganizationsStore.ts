@@ -13,7 +13,7 @@ export const useMyOrganizationsStore = defineStore('myOrganizations', () => {
     const error = ref<string | null>(null);
     const loaded = ref(false);
 
-    const primaryOrg = computed(() => items.value[0] ?? null);
+    const fallbackOrg = computed(() => items.value[0] ?? null);
     const hasOrganizations = computed(() => items.value.length > 0);
     const membershipCount = computed(() => items.value.length);
 
@@ -53,7 +53,7 @@ export const useMyOrganizationsStore = defineStore('myOrganizations', () => {
         loading,
         error,
         loaded,
-        primaryOrg,
+        fallbackOrg,
         hasOrganizations,
         membershipCount,
         load,

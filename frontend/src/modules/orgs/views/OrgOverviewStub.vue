@@ -5,7 +5,7 @@ import { RouterLink } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import { useAuthStore } from '@/auth/stores/useAuthStore';
 import { useOrgCapabilities } from '@/modules/orgs/composables/useOrgCapabilities';
-import { useActiveOrgStore } from '@/modules/orgs/stores/useActiveOrgStore';
+import { useActiveOrgStore } from '@/modules/orgs/stores/useActiveOrganizationStore';
 import { profileService } from '@/modules/profiles/services/profileServiceV2';
 import type { MembershipRole, UserProfile } from '@/modules/profiles/types';
 import { mediaService } from '@/modules/media/services/mediaService';

@@ -8,7 +8,7 @@ import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
 import AssetUpload from '@/modules/media/components/AssetUpload.vue';
 import BatchActionBar, { type BatchAction } from '@/components/ui/tables/BatchActionBar.vue';
 import { useAuthStore } from '@/auth/stores/useAuthStore';
-import { useActiveOrgStore } from '@/modules/orgs/stores/useActiveOrgStore';
+import { useActiveOrgStore } from '@/modules/orgs/stores/useActiveOrganizationStore';
 import type { OrgMediaAsset } from '@/modules/orgs/types';
 import { ROLE_ORDER } from '@/modules/profiles/types';
 import { buildUploadJob, useUploadManager } from '@/modules/media/composables/useUploadManager';

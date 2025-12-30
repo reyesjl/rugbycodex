@@ -16,9 +16,9 @@ onMounted(() => {
 });
 
 // Derive dashboard meaning
-const { variant, primaryOrg, orgCount } = useDashboardState();
+const { variant, fallbackOrg, orgCount } = useDashboardState();
 console.log('Dashboard variant:', variant.value);
-console.log('Primary org:', primaryOrg);
+console.log('Primary org:', fallbackOrg);
 console.log('Org count:', orgCount);
 
 </script>
@@ -29,13 +29,13 @@ console.log('Org count:', orgCount);
 
     <DashboardAdminPanel
       v-else-if="variant === 'admin'"
-      :primary-org="primaryOrg"
+      :primary-org="fallbackOrg"
       :org-count="orgCount"
     />
 
     <DashboardGettingStartedPanel
       v-else-if="variant === 'onboarding'"
-      :primary-org="primaryOrg"
+      :primary-org="fallbackOrg"
       :org-count="orgCount"
     />
 

@@ -27,10 +27,10 @@ const router = createRouter({
     return { top: 0, left: 0 }
   },
   routes: [
-    adminRoutes,
-    appRoutes,
-    authRoutes,
     marketingRoutes,
+    appRoutes,
+    adminRoutes,
+    authRoutes,
     orgRoutes,
   ],
 });

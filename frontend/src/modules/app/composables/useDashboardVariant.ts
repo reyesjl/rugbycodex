@@ -29,9 +29,9 @@ export function useDashboardVariant() {
     // Prefer the user's explicitly set primary_org if it exists
     const primaryOrgId = profile.value?.primary_org;
     if (primaryOrgId) {
-      const primaryOrg = memberships.value.find(m => m.org_id === primaryOrgId);
-      if (primaryOrg) {
-        return primaryOrg;
+      const fallbackOrg = memberships.value.find(m => m.org_id === primaryOrgId);
+      if (fallbackOrg) {
+        return fallbackOrg;
       }
     }
 

@@ -1,7 +1,7 @@
 import type { RouteRecordRaw } from 'vue-router';
 
 export const orgRoutes: RouteRecordRaw = {
-  path: '/orgs/:slug',
+  path: '/organizations/:slug',
   component: () => import('@/layouts/OrgLayout.vue'),
   meta: { layout: 'org', requiresAuth: true },
   children: [
