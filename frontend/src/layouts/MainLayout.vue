@@ -307,8 +307,9 @@ watch(
           </p>
           <p class="leading-relaxed">
             Built by<br />
-            Biasware <a class="text-neutral-400" href="https://biasware.com">Biasware.com</a>
+            Biasware 
           </p>
+          <!-- <a class="text-neutral-400" href="https://biasware.com">Biasware.com</a> -->
         </div>
       </div>
     </footer>

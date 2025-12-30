@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue';
 import { RouterView } from 'vue-router';
-import MainLayout from '@/layouts/MainLayout.vue';
 import NullLayout from '@/layouts/NullLayout.vue';
 import MarketingLayout from '@/layouts/MarketingLayout.vue';
 import AdminLayout from '@/layouts/AdminLayout.vue';
@@ -24,7 +23,6 @@ const cleanupLegacyLocalStorage = () => {
 const layoutComponents = {
   admin: AdminLayout,
   app: AppLayout,
-  main: MainLayout,
   null: NullLayout,
   marketing: MarketingLayout,
   auth: AuthLayout,
@@ -38,7 +36,7 @@ const resolveLayout = (layout?: string) => {
   if (layout === 'app') return layoutComponents.app;
   if (layout === 'org') return layoutComponents.org;
   if (layout === 'admin') return layoutComponents.admin;
-  return layoutComponents.main;
+  return layoutComponents.marketing;
 };
 
 onMounted(() => {
