@@ -4,6 +4,7 @@ import type {
   ActiveOrgContext,
   ApproveAndCreateOrgResult,
   CreateOrgPayload,
+  DiscoverableOrganization,
   OrgEditableFields,
   OrgHealth,
   OrgJoinRequest,
@@ -347,6 +348,36 @@ export const orgService = {
       .update(patch)
       .eq("id", orgId)
       .single();
+
+    if (error) {
+      throw error;
+    }
+
+    return data;
+  },
+
+  /**
+   * Lists publicly discoverable organizations.
+   *
+   * Problem it solves:
+   * - Provides a safe, public-friendly directory of organizations without exposing private/internal data.
+   *
+   * Conceptual source:
+   * - `discoverable_organizations` view
+   *
+   * Allowed caller:
+   * - Anyone (anon or authenticated); access enforced by SQL grants, not RLS.
+   *
+   * Implementation:
+   * - Direct Supabase select against the view.
+   *
+   * @returns Publicly visible organizations.
+   */
+  async listDiscoverableOrganizations(): Promise<DiscoverableOrganization[]> {
+    const { data, error } = await supabase
+      .from("discoverable_organizations")
+      .select("id, slug, name, bio, type, created_at")
+      .order("name", { ascending: true });
 
     if (error) {
       throw error;
