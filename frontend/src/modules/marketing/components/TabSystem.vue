@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
+import { Icon } from '@iconify/vue';
 
 interface Slide {
   title: string;
@@ -42,6 +43,12 @@ const counterText = computed(() => {
 const handleTabClick = (index: number) => {
   activeIndex.value = index;
 };
+
+const handleNextClick = () => {
+  const total = props.slides?.length ?? 0;
+  if (!total) return;
+  activeIndex.value = (activeIndex.value + 1) % total;
+};
 </script>
 
 <template>
@@ -53,13 +60,13 @@ const handleTabClick = (index: number) => {
 
       <div
         v-if="props.slides?.length"
-        class="tabs overflow-x-scroll no-scrollbar border-1 border-b-white text-xs md:text-base flex items-center"
+        class="tabs overflow-x-scroll no-scrollbar border border-b-white text-xs md:text-base flex items-center"
       >
         <button
           v-for="(slide, index) in props.slides"
           :key="`${slide.title}-${index}`"
           type="button"
-          class="tab pb-4 pr-8 border-b-1 font-medium cursor-pointer whitespace-nowrap"
+          class="tab pb-4 pr-8 border-b font-medium cursor-pointer whitespace-nowrap"
           :class="index === activeIndex
             ? 'border-white text-white'
             : 'border-transparent text-gray-500'"
@@ -79,20 +86,28 @@ const handleTabClick = (index: number) => {
             : 'opacity-0 absolute inset-0 pointer-events-none w-full h-full'"
         >
           <div class="grid grid-cols-1 md:grid-cols-12 grid-rows-none md:grid-rows-[auto_auto_1fr] gap-8 relative">
-            <div class="order-1 md:order-none md:col-start-1 md:col-end-2 md:row-start-1 pl-4 text-xs">
-              {{ counterText }}
+            <div class="order-1 md:order-0 md:col-start-1 md:col-end-2 md:row-start-1 pl-4 text-xs flex md:items-start items-center justify-between w-full">
+              <span>{{ counterText }}</span>
+              <button
+                type="button"
+                class="md:hidden inline-flex items-center justify-center p-2 mr-5 text-black bg-black/10 rounded-full"
+                aria-label="Next slide"
+                @click="handleNextClick"
+              >
+                <Icon icon="carbon:chevron-right" class="h-8 w-8" />
+              </button>
             </div>
 
-            <div class="order-2 md:order-none md:col-start-3 md:col-end-7 md:row-start-1 space-y-4 px-4 md:px-0">
+            <div class="order-2 md:order-0 md:col-start-3 md:col-end-7 md:row-start-1 space-y-4 px-4 md:px-0">
               <div class="desc-title text-xs uppercase tracking-wide">
                 {{ slide.title }}
               </div>
-              <p class="desc-text text-lg md:text-xl max-w-xl md:leading-[2]">
+              <p class="desc-text text-lg md:text-xl max-w-xl md:leading-loose">
                 {{ slide.description }}
               </p>
             </div>
 
-            <div class="order-3 md:order-none md:col-start-9 md:col-end-13 md:row-start-1 md:row-end-[4] md:pr-8">
+            <div class="order-3 md:order-0 md:col-start-9 md:col-end-13 md:row-start-1 md:row-end-4 md:pr-8">
               <div v-if="slide.mediaSrc" class="w-full h-full aspect-video">
                 <img :src="slide.mediaSrc" class="w-full h-full object-cover md:rounded-lg" />
               </div>
@@ -101,7 +116,7 @@ const handleTabClick = (index: number) => {
               </div>
             </div>
 
-            <div class="order-4 md:order-none md:col-start-1 md:col-end-2 md:row-start-3 flex items-end pl-4 mb-[-0.5rem]">
+            <div class="order-4 md:order-0 md:col-start-1 md:col-end-2 md:row-start-3 flex items-end pl-4 mb-[-0.5rem]">
               <div class="text-6xl md:text-8xl leading-none">
                 {{ index + 1 }}
               </div>
