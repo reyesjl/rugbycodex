@@ -4,22 +4,31 @@ import BackgroundHighlightVideo from '../components/BackgroundHighlightVideo.vue
 import herovideo from '@/assets/modules/marketing/highlights.mp4';
 import TabSystem from '../components/TabSystem.vue';
 
+import unionSlide1 from '@/assets/modules/marketing/for-unions/slide1.png';
+import unionSlide2 from '@/assets/modules/marketing/for-unions/slide2.png';
+import unionSlide3 from '@/assets/modules/marketing/for-unions/slide3.png';
+import unionSlide4 from '@/assets/modules/marketing/for-unions/slide4.png';
+
 const unionSlides = [
   {
     "title": "Regional Performance Map",
     "description": "See how clubs and age groups across your region are progressing. Identify strengths, weaknesses, and trends with unified match footage, narrations, and analytics.",
+    "mediaSrc": unionSlide1
   },
   {
     "title": "Coaching Standards & Development",
-    "description": "Give coaches shared tools and shared language. Codex helps standardize terminology, teaching cues, and analysis methods across every team in your Union."
+    "description": "Give coaches shared tools and shared language. Codex helps standardize terminology, teaching cues, and analysis methods across every team in your Union.",
+    "mediaSrc": unionSlide2
   },
   {
     "title": "Pathways & Talent Pipeline",
-    "description": "Identify emerging players across every club and age group. Give selectors clear, time-aligned evidence from real match footage to support pathway decisions."
+    "description": "Identify emerging players across every club and age group. Give selectors clear, time-aligned evidence from real match footage to support pathway decisions.",
+    "mediaSrc": unionSlide3
   },
   {
     "title": "Marketing & Sponsorship Reach",
-    "description": "Turn regional footage into polished recap content and highlights for social, sponsors, and community campaigns. Grow visibility and strengthen your Union’s brand."
+    "description": "Turn regional footage into polished recap content and highlights for social, sponsors, and community campaigns. Grow visibility and strengthen your Union’s brand.",
+    "mediaSrc": unionSlide4
   }
 ];
 

@@ -4,22 +4,31 @@ import BackgroundHighlightVideo from '../components/BackgroundHighlightVideo.vue
 import TabSystem from '../components/TabSystem.vue';
 import herovideo from '@/assets/modules/marketing/highlights.mp4';
 
+import coachSlide1 from '@/assets/modules/marketing/for-coaches/slide1.png';
+import coachSlide2 from '@/assets/modules/marketing/for-coaches/slide2.png';
+import coachSlide3 from '@/assets/modules/marketing/for-coaches/slide3.png';
+import coachSlide4 from '@/assets/modules/marketing/for-coaches/slide4.png';
+
 const coachSlides = [
   {
     "title": "Searchable Voice Narrations",
-    "description": "Record voice notes for training or matches and rugbycodex converts them into searchable insights—time-aligned to your footage and ready for players to review."
+    "description": "Record voice notes for training or matches and rugbycodex converts them into searchable insights—time-aligned to your footage and ready for players to review.",
+    "mediaSrc": coachSlide1
   },
   {
     "title": "Layered Clip Breakdown",
-    "description": "Rugbycodex auto-tags each clip by phase and lets coaches, analysts, and players add narrations to the same moment, creating stacked perspectives and shared clarity."
+    "description": "Rugbycodex auto-tags each clip by phase and lets coaches, analysts, and players add narrations to the same moment, creating stacked perspectives and shared clarity.",
+    "mediaSrc": coachSlide2
   },
   {
     "title": "Predictive Session Planning",
-    "description": "Turn your footage into targeted session plans with intelligent suggestions drawn from your own match patterns and recurring trends."
+    "description": "Turn your footage into targeted session plans with intelligent suggestions drawn from your own match patterns and recurring trends.",
+    "mediaSrc": coachSlide3
   },
   {
     "title": "Shared Knowledge Network",
-    "description": "Share selected clips, narrations, and guides with your coaching group. Your insight scales without extra calls or emails—your network learns from the same moments you do."
+    "description": "Share selected clips, narrations, and guides with your coaching group. Your insight scales without extra calls or emails—your network learns from the same moments you do.",
+    "mediaSrc": coachSlide4
   }
 ];
 

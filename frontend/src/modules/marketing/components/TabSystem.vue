@@ -94,7 +94,7 @@ const handleTabClick = (index: number) => {
 
             <div class="order-3 md:order-none md:col-start-9 md:col-end-13 md:row-start-1 md:row-end-[4] md:pr-8">
               <div v-if="slide.mediaSrc" class="w-full h-full aspect-video">
-                <img :src="slide.mediaSrc" class="w-full h-full object-cover" />
+                <img :src="slide.mediaSrc" class="w-full h-full object-cover md:rounded-lg" />
               </div>
               <div v-else class="w-full h-full aspect-video bg-gray-200 text-xs text-gray-500 flex justify-center items-center">
                 [demo coming soon]

@@ -4,22 +4,32 @@ import BackgroundHighlightVideo from '../components/BackgroundHighlightVideo.vue
 import herovideo from '@/assets/modules/marketing/highlights.mp4';
 import TabSystem from '../components/TabSystem.vue';
 
+
+import playerSlide1 from '@/assets/modules/marketing/for-players/slide1.png';
+import playerSlide2 from '@/assets/modules/marketing/for-players/slide2.png';
+import playerSlide3 from '@/assets/modules/marketing/for-players/slide3.png';
+import playerSlide4 from '@/assets/modules/marketing/for-players/slide4.png';
+
 const playerSlides = [
   {
     "title": "Personalized Clip Library",
-    "description": "Every involvement you make—carry, tackle, pass, breakdown, support—is voice-tagged and grouped. Review your game with clean structure instead of raw footage."
+    "description": "Every involvement you make—carry, tackle, pass, breakdown, support—is voice-tagged and grouped. Review your game with clean structure instead of raw footage.",
+    "mediaSrc": playerSlide1
   },
   {
     "title": "Guided Rugby Understanding",
-    "description": "Hear coach and analyst narrations directly on your actions. Learn the cues, terminology, and decision frameworks used at higher levels—applied to your moments."
+    "description": "Hear coach and analyst narrations directly on your actions. Learn the cues, terminology, and decision frameworks used at higher levels—applied to your moments.",
+    "mediaSrc": playerSlide2
   },
   {
     "title": "Intelligent Work-Ons Generator",
-    "description": "Rugbycodex surfaces patterns from your clips and turns them into clear work-ons. See where you’re improving, where trends repeat, and what to prioritize in training."
+    "description": "Rugbycodex surfaces patterns from your clips and turns them into clear work-ons. See where you’re improving, where trends repeat, and what to prioritize in training.",
+    "mediaSrc": playerSlide3
   },
   {
     "title": "Player Development Timeline",
-    "description": "Track your growth across matches. See how your decision-making, involvements, and impact change over time with clean visibility—not guesswork."
+    "description": "Track your growth across matches. See how your decision-making, involvements, and impact change over time with clean visibility—not guesswork.",
+    "mediaSrc": playerSlide4
   }
 ];
 
