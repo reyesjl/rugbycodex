@@ -17,8 +17,8 @@ const toggleSidebar = () => {
     <Sidebar :is-open="isSidebarOpen" @toggle-sidebar="toggleSidebar" />
 
     <main 
-    class="pt-[var(--main-nav-height)]"
-    :class="[ isSidebarOpen ? 'pl-64' : 'pl-0', 'transition-all duration-300']">
+    class="pt-(--main-nav-height)"
+    :class="[ isSidebarOpen ? 'md:pl-64' : 'pl-0', 'transition-all duration-300']">
       <RouterView />
     </main>
   </div>
