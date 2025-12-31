@@ -1,7 +1,6 @@
 <script lang="ts" setup>
 import { ref } from 'vue';
 import { toast } from "@/lib/toast";
-import { Icon } from '@iconify/vue';
 import { useRouter } from 'vue-router';
 import { orgService } from '@/modules/orgs/services/orgServiceV2';
 import { useMyOrganizationsStore } from '@/modules/orgs/stores/useMyOrganizationsStore';

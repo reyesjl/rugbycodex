@@ -1,12 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import AnimatedLink from '@/components/AnimatedLink.vue';
 import RefreshButton from '@/components/RefreshButton.vue';
 import { getDashboardStats } from '@/modules/admin/services/stats_service';
 import type { DashboardStats } from '@/modules/admin/types';
 import type { MemberLeaderboardEntry } from '@/modules/profiles/types';
-import { profileService } from '@/modules/profiles/services/profileServiceV2';
 
 const router = useRouter();
 
@@ -34,9 +32,8 @@ const loadDashboardData = async () => {
   statsError.value = null;
   membersError.value = null;
 
-  const [statsResult, membersResult] = await Promise.allSettled([
+  const [statsResult] = await Promise.allSettled([
     getDashboardStats(),
-    profileService.leaderboard.topMembers(10),
   ]);
 
   if (statsResult.status === 'fulfilled') {
@@ -46,13 +43,6 @@ const loadDashboardData = async () => {
       statsResult.reason instanceof Error ? statsResult.reason.message : 'Failed to load dashboard stats.';
   }
   statsLoading.value = false;
-
-  if (membersResult.status === 'fulfilled') {
-    topMembers.value = membersResult.value;
-  } else {
-    membersError.value =
-      membersResult.reason instanceof Error ? membersResult.reason.message : 'Failed to load member list.';
-  }
   membersLoading.value = false;
 };
 
@@ -137,19 +127,19 @@ onMounted(() => {
               </tr>
             </thead>
             <tbody>
-              <tr v-for="(member, index) in topMembers" :key="member.id"
+              <tr 
                 class="border-b border-neutral-200 text-neutral-900 dark:border-neutral-800 dark:text-neutral-100">
                 <td class="py-4 pr-6 text-xs font-semibold text-neutral-500 dark:text-neutral-500">
-                  {{ String(index + 1).padStart(2, '0') }}
+                  1
                 </td>
                 <td class="py-4 pr-6 font-medium">
-                  <AnimatedLink :to="`/admin/profiles/${member.id}`" :text="member.name" />
+                  Member name
                 </td>
                 <td class="py-4 pr-6 font-semibold tracking-tight">
-                  {{ member.xp.toLocaleString() }}
+                  xp
                 </td>
                 <td class="py-4 pr-6 font-medium">
-                  {{ member.orgCount }}
+                  orgs
                 </td>
               </tr>
             </tbody>

@@ -8,7 +8,7 @@ import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
 import AssetUpload from '@/modules/media/components/AssetUpload.vue';
 import BatchActionBar, { type BatchAction } from '@/components/ui/tables/BatchActionBar.vue';
 import { useAuthStore } from '@/auth/stores/useAuthStore';
-import { useActiveOrgStore } from '@/modules/orgs/stores/useActiveOrganizationStore';
+import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrganizationStore';
 import type { OrgMediaAsset } from '@/modules/orgs/types';
 import { ROLE_ORDER } from '@/modules/profiles/types';
 import { buildUploadJob, useUploadManager } from '@/modules/media/composables/useUploadManager';
@@ -21,8 +21,8 @@ const normalizedSlug = computed(() => {
   return Array.isArray(props.slug) ? props.slug[0] : props.slug;
 });
 
-const activeOrgStore = useActiveOrgStore();
-const { activeOrg, activeMembership } = storeToRefs(activeOrgStore);
+const activeOrganizationStore = useActiveOrganizationStore();
+const { activeOrg, activeMembership } = storeToRefs(activeOrganizationStore);
 
 const authStore = useAuthStore();
 const { isAdmin } = storeToRefs(authStore);
