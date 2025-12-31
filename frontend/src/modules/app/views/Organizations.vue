@@ -43,7 +43,7 @@ onMounted(loadOrganizations);
 
         <div class="flex gap-3">
           <button @click="showJoin = true"
-            class="flex gap-2 items-center rounded px-2 py-1 border border-sky-500 bg-sky-500/70 hover:bg-sky-700/70 text-xs transition">
+            class="flex gap-2 items-center rounded px-2 py-1 border border-sky-500 bg-sky-500/70 hover:bg-sky-700/70 text-xs cursor-pointer transition">
             <Icon icon="carbon:join-left-outer" width="15" height="15" />
             <div>Join with code</div>
           </button>

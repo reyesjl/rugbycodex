@@ -2,7 +2,6 @@ import { supabase } from "@/lib/supabaseClient";
 import { requireUserId } from "@/modules/auth/identity";
 import { handleSupabaseEdgeError } from "@/lib/handleSupabaseEdgeError";
 import type {
-  ActiveOrgContext,
   ApproveAndCreateOrgResult,
   CreateOrgPayload,
   DiscoverableOrganization,
@@ -116,10 +115,9 @@ export const orgService = {
    *
    * @returns Active org context or `null` when none is set/resolvable.
    */
-  async getActiveOrg(): Promise<ActiveOrgContext | null> {
+  async getActiveOrg(): Promise<UserOrganizationSummary | null> {
     const userId = requireUserId();
 
-    // 1) Load primary org preference
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select("primary_org")
@@ -131,19 +129,14 @@ export const orgService = {
     const orgId = profile?.primary_org;
     if (!orgId) return null;
 
-    // 2) Hydrate organization (RLS-enforced)
     const { data: organization, error: orgError } = await supabase
       .from("organizations")
       .select("id, owner, slug, name, created_at, storage_limit_mb, bio, visibility, type")
       .eq("id", orgId)
       .maybeSingle();
 
-    // Org deleted or not visible
-    if (orgError || !organization) {
-      return null;
-    }
+    if (orgError || !organization) return null;
 
-    // 3) Attach membership (nullable by design)
     const { data: membership, error: membershipError } = await supabase
       .from("org_members")
       .select("org_id, user_id, role, joined_at")
@@ -153,10 +146,12 @@ export const orgService = {
 
     if (membershipError) throw membershipError;
 
+    // If primary_org points somewhere invalid for this user, treat as no active org.
+    if (!membership) return null;
+
     return {
       organization,
-      membership: membership ?? null,
-      source: "profile.primary_org",
+      membership,
     };
   },
 
@@ -179,13 +174,13 @@ export const orgService = {
    * @returns Resolves when the primary org is persisted.
    */
   async setPrimaryOrg(orgId: string): Promise<void> {
-    const userId = requireUserId();
-    const { error } = await supabase.from("profiles").update({ primary_org: orgId }).eq("id", userId);
+    const { error } = await supabase.functions.invoke("set-primary-org", {
+      body: { orgId },
+    });
 
     if (error) {
-      throw error;
+      throw await handleSupabaseEdgeError(error, "Unable to update primary organization right now.");
     }
-    return;
   },
 
   /**

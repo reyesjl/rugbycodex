@@ -116,7 +116,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Prevent duplicate membership
+    // Prevent duplicate membership (this org)
     const { data: membership, error: memberError } = await supabaseAdmin
       .from("org_members")
       .select("role")
@@ -134,7 +134,6 @@ Deno.serve(async (req) => {
     }
 
     if (membership) {
-      // This is not really an "error" – it's a valid state
       return jsonResponse({
         status: "already_member",
         org: {
@@ -146,6 +145,25 @@ Deno.serve(async (req) => {
         },
       });
     }
+
+    // Detect "first org join" (no memberships anywhere yet)
+    const { data: anyMembership, error: anyMembershipError } = await supabaseAdmin
+      .from("org_members")
+      .select("org_id")
+      .eq("user_id", userId)
+      .limit(1)
+      .maybeSingle();
+
+    if (anyMembershipError) {
+      console.error("First-join lookup failed:", anyMembershipError);
+      return errorResponse(
+        "FIRST_JOIN_LOOKUP_FAILED",
+        "Failed to determine membership status.",
+        500,
+      );
+    }
+
+    const isFirstOrgJoin = !anyMembership;
 
     // Create membership
     const { error: insertError } = await supabaseAdmin
@@ -165,6 +183,20 @@ Deno.serve(async (req) => {
       );
     }
 
+    // If this was the user's first org, set primary_org (guarded: only if still null)
+    if (isFirstOrgJoin) {
+      const { error: primaryError } = await supabaseAdmin
+        .from("profiles")
+        .update({ primary_org: org.id })
+        .eq("id", userId)
+        .is("primary_org", null);
+
+      if (primaryError) {
+        console.error("Failed to set primary_org:", primaryError);
+        // Not fatal: membership is already created. Client can still pick later.
+      }
+    }
+
     // Return success
     return jsonResponse({
       status: "joined",
@@ -179,6 +211,7 @@ Deno.serve(async (req) => {
         role: "member",
         joined_at: new Date().toISOString(),
       },
+      // primaryOrgSet: isFirstOrgJoin, // optional flag for client UX
     });
   } catch (err) {
     console.error("Unexpected error:", err);

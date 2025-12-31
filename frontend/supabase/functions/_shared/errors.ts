@@ -4,6 +4,8 @@ import { jsonResponse } from "./cors.ts";
 export type ErrorCode =
   | "METHOD_NOT_ALLOWED"
   | "AUTH_REQUIRED"
+  | "ORG_ID_REQUIRED"
+  | "FORBIDDEN"
   | "JOIN_CODE_REQUIRED"
   | "JOIN_CODE_EMPTY"
   | "JOIN_CODE_INVALID"
@@ -11,6 +13,7 @@ export type ErrorCode =
   | "MEMBERSHIP_LOOKUP_FAILED"
   | "ORG_LOOKUP_FAILED"
   | "JOIN_FAILED"
+  | "PRIMARY_ORG_UPDATE_FAILED"
   | "UNEXPECTED_SERVER_ERROR";
 
 export function errorResponse(

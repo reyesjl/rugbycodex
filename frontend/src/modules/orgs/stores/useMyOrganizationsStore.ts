@@ -48,6 +48,8 @@ export const useMyOrganizationsStore = defineStore('myOrganizations', () => {
         loaded.value = false;
     };
 
+    const refresh = async () => load({ force: true });
+
     return {
         items,
         loading,
@@ -58,5 +60,6 @@ export const useMyOrganizationsStore = defineStore('myOrganizations', () => {
         membershipCount,
         load,
         clear,
+        refresh,
     };
 });
