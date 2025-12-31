@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabaseClient";
 import { requireUserId } from "@/modules/auth/identity";
+import { handleSupabaseEdgeError } from "@/lib/handleSupabaseEdgeError";
 import type {
   ActiveOrgContext,
   ApproveAndCreateOrgResult,
@@ -29,6 +30,7 @@ import type {
   SubmitOrgRequestPayload,
   UploadEligibility,
   UserOrganizationSummary,
+  JoinOrgWithCodeResult,
 } from "@/modules/orgs/types";
 
 /**
@@ -178,10 +180,7 @@ export const orgService = {
    */
   async setPrimaryOrg(orgId: string): Promise<void> {
     const userId = requireUserId();
-    const { error } = await supabase
-      .from("profiles")
-      .update({ primary_org: orgId })
-      .eq("id", userId);
+    const { error } = await supabase.from("profiles").update({ primary_org: orgId }).eq("id", userId);
 
     if (error) {
       throw error;
@@ -211,7 +210,8 @@ export const orgService = {
     const userId = requireUserId();
     const { data, error } = await supabase
       .from("org_members")
-      .select(`
+      .select(
+        `
         org_id,
         user_id,
         role,
@@ -227,7 +227,8 @@ export const orgService = {
           visibility,
           type
         )
-      `)
+      `
+      )
       .eq("user_id", userId);
 
     if (error) {
@@ -235,9 +236,7 @@ export const orgService = {
     }
 
     return data.map((item) => {
-      const org = Array.isArray(item.organizations)
-        ? item.organizations[0]
-        : item.organizations;
+      const org = Array.isArray(item.organizations) ? item.organizations[0] : item.organizations;
 
       if (!org) {
         throw new Error("Invariant violation: org_members row without organization");
@@ -310,7 +309,7 @@ export const orgService = {
    */
   async getOrgBySlug(slug: string): Promise<Organization> {
     const { data, error } = await supabase
-      .from('organizations')
+      .from("organizations")
       .select("id, owner, slug, name, created_at, storage_limit_mb, bio, visibility, type")
       .eq("slug", slug)
       .single();
@@ -343,11 +342,7 @@ export const orgService = {
    */
   async updateOrg(orgId: string, patch: OrgEditableFields): Promise<Organization> {
     // TODO: Make into edge function for security reasons
-    const { data, error } = await supabase
-      .from("organizations")
-      .update(patch)
-      .eq("id", orgId)
-      .single();
+    const { data, error } = await supabase.from("organizations").update(patch).eq("id", orgId).single();
 
     if (error) {
       throw error;
@@ -413,7 +408,8 @@ export const orgService = {
   async listMembers(orgId: string): Promise<OrgMember[]> {
     const { data, error } = await supabase
       .from("org_members")
-      .select(`
+      .select(
+        `
         org_id,
         user_id,
         role,
@@ -424,7 +420,8 @@ export const orgService = {
           name,
           role
         )
-      `)
+      `
+      )
       .eq("org_id", orgId);
 
     if (error) {
@@ -432,9 +429,7 @@ export const orgService = {
     }
 
     return data.map((item) => {
-      const profile = Array.isArray(item.profiles)
-        ? item.profiles[0]
-        : item.profiles;
+      const profile = Array.isArray(item.profiles) ? item.profiles[0] : item.profiles;
 
       if (!profile) {
         throw new Error("Invariant violation: org_members row without profile");
@@ -493,17 +488,49 @@ export const orgService = {
   },
 
   /**
+   * Joins an organization using a rotating join code.
+   *
+   * Problem it solves:
+   * - Self-service onboarding into orgs without admin approval.
+   *
+   * Conceptual tables:
+   * - organizations.join_code
+   * - org_members (insert)
+   * - profiles.primary_org (optional server update)
+   *
+   * Allowed caller:
+   * - Authenticated user.
+   *
+   * Implementation:
+   * - Edge Function (privileged multi-table logic + validation).
+   *
+   * @param joinCode - The current valid organization join code.
+   * @returns Membership + lightweight org context.
+   */
+  async joinWithCode(joinCode: string): Promise<JoinOrgWithCodeResult> {
+    const { data, error } = await supabase.functions.invoke("join-organization-with-code", {
+      body: { joinCode },
+    });
+
+    if (error) {
+      throw await handleSupabaseEdgeError(error, "Unable to join organization right now.");
+    }
+
+    return data;
+  },
+
+  /**
    * Send a request to join an organization.
-   * 
+   *
    * Problem it solves:
    * - User-initiated join requests for organizations that require approval.
-   * 
+   *
    * Conceptual tables:
    * - `org_join_requests`
-   * 
+   *
    * Allowed caller:
    * - Authenticated user; can only create requests for themselves (enforced by RLS).
-   * 
+   *
    * Implementation:
    * - Direct Supabase insert under RLS.
    * @param orgId - Organization ID.
@@ -592,11 +619,7 @@ export const orgService = {
    * @returns Resolves when removal is complete.
    */
   async removeMember(orgId: string, userId: string): Promise<void> {
-    const { error } = await supabase
-      .from("org_members")
-      .delete()
-      .eq("org_id", orgId)
-      .eq("user_id", userId);
+    const { error } = await supabase.from("org_members").delete().eq("org_id", orgId).eq("user_id", userId);
 
     if (error) {
       throw error;
@@ -626,16 +649,13 @@ export const orgService = {
    * @returns Updated member projection.
    */
   async changeMemberRole(orgId: string, userId: string, role: OrgRole): Promise<OrgMember> {
-    const { data, error } = await supabase.functions.invoke(
-      "change-member-role",
-      {
-        body: {
-          orgId,
-          userId,
-          role,
-        },
-      }
-    );
+    const { data, error } = await supabase.functions.invoke("change-member-role", {
+      body: {
+        orgId,
+        userId,
+        role,
+      },
+    });
 
     if (error) {
       throw error;
@@ -665,12 +685,9 @@ export const orgService = {
    * @returns Updated organization metadata.
    */
   async transferOwnership(orgId: string, newOwnerId: string): Promise<Organization> {
-    const { data, error } = await supabase.functions.invoke(
-      "transfer-ownership",
-      {
-        body: { orgId, newOwnerId },
-      }
-    );
+    const { data, error } = await supabase.functions.invoke("transfer-ownership", {
+      body: { orgId, newOwnerId },
+    });
 
     if (error) {
       throw error;
@@ -699,12 +716,9 @@ export const orgService = {
    * @returns Resolves when the membership is removed (or reassigned per policy).
    */
   async leaveOrg(orgId: string): Promise<void> {
-    const { error } = await supabase.functions.invoke(
-      "leave-organization",
-      {
-        body: { orgId },
-      }
-    );
+    const { error } = await supabase.functions.invoke("leave-organization", {
+      body: { orgId },
+    });
 
     if (error) {
       throw error;
@@ -846,12 +860,9 @@ export const orgService = {
    * @returns Requests visible to admins, optionally denormalized.
    */
   async listOrgRequests(filters?: OrgRequestAdminFilters): Promise<OrgRequestAdminView[]> {
-    const { data, error } = await supabase.functions.invoke(
-      "list-organization-requests",
-      {
-        body: filters ?? {},
-      }
-    );
+    const { data, error } = await supabase.functions.invoke("list-organization-requests", {
+      body: filters ?? {},
+    });
 
     if (error) {
       throw error;
@@ -882,12 +893,9 @@ export const orgService = {
    * @returns Updated request record.
    */
   async approveOrgRequest(requestId: string): Promise<OrgRequestAdminView> {
-    const { data, error } = await supabase.functions.invoke(
-      "approve-organization-request",
-      {
-        body: { requestId },
-      }
-    );
+    const { data, error } = await supabase.functions.invoke("approve-organization-request", {
+      body: { requestId },
+    });
 
     if (error) {
       throw error;
@@ -919,12 +927,9 @@ export const orgService = {
    * @returns Updated request record.
    */
   async rejectOrgRequest(requestId: string, notes?: string): Promise<OrgRequestAdminView> {
-    const { data, error } = await supabase.functions.invoke(
-      "reject-organization-request",
-      {
-        body: { requestId, notes: notes || null },
-      }
-    );
+    const { data, error } = await supabase.functions.invoke("reject-organization-request", {
+      body: { requestId, notes: notes || null },
+    });
 
     if (error) {
       throw error;
@@ -981,12 +986,9 @@ export const orgService = {
    * @returns Newly created organization metadata.
    */
   async createOrg(payload: CreateOrgPayload): Promise<Organization> {
-    const { data, error } = await supabase.functions.invoke(
-      "create-organization",
-      {
-        body: payload,
-      }
-    );
+    const { data, error } = await supabase.functions.invoke("create-organization", {
+      body: payload,
+    });
 
     if (error) {
       throw error;
@@ -1017,12 +1019,9 @@ export const orgService = {
    * @returns Newly created organization plus the updated request record.
    */
   async approveAndCreateOrg(requestId: string): Promise<ApproveAndCreateOrgResult> {
-    const { data, error } = await supabase.functions.invoke(
-      "approve-and-create-organization",
-      {
-        body: { requestId },
-      }
-    );
+    const { data, error } = await supabase.functions.invoke("approve-and-create-organization", {
+      body: { requestId },
+    });
 
     if (error) {
       throw error;
@@ -1052,12 +1051,9 @@ export const orgService = {
    * @returns Updated organization metadata.
    */
   async assignOwner(orgId: string, userId: string): Promise<Organization> {
-    const { data, error } = await supabase.functions.invoke(
-      "assign-organization-owner",
-      {
-        body: { orgId, userId },
-      }
-    );
+    const { data, error } = await supabase.functions.invoke("assign-organization-owner", {
+      body: { orgId, userId },
+    });
 
     if (error) {
       throw error;
@@ -1090,10 +1086,7 @@ export const orgService = {
    * @returns Storage usage snapshot.
    */
   async getStorageUsage(orgId: string): Promise<OrgStorageUsage> {
-    const { data, error } = await supabase
-      .from("media_assets")
-      .select("file_size_bytes")
-      .eq("org_id", orgId);
+    const { data, error } = await supabase.from("media_assets").select("file_size_bytes").eq("org_id", orgId);
 
     if (error) {
       throw error;
@@ -1233,12 +1226,9 @@ export const orgService = {
    * @returns Eligibility result including optional remaining/limit context.
    */
   async canUpload(orgId: string, fileSizeBytes: number): Promise<UploadEligibility> {
-    const { data, error } = await supabase.functions.invoke(
-      "check-upload-eligibility",
-      {
-        body: { orgId, fileSizeBytes },
-      }
-    );
+    const { data, error } = await supabase.functions.invoke("check-upload-eligibility", {
+      body: { orgId, fileSizeBytes },
+    });
 
     if (error) {
       throw error;
@@ -1273,12 +1263,9 @@ export const orgService = {
    * @returns Dashboard-ready overview payload.
    */
   async getOrgOverview(orgId: string): Promise<OrgOverview> {
-    const { data, error } = await supabase.functions.invoke(
-      "get-organization-overview",
-      {
-        body: { orgId },
-      }
-    );
+    const { data, error } = await supabase.functions.invoke("get-organization-overview", {
+      body: { orgId },
+    });
 
     if (error) {
       throw error;
@@ -1308,12 +1295,9 @@ export const orgService = {
    * @returns Computed org stats.
    */
   async getOrgStats(orgId: string): Promise<OrgStats> {
-    const { data, error } = await supabase.functions.invoke(
-      "get-organization-stats",
-      {
-        body: { orgId },
-      }
-    );
+    const { data, error } = await supabase.functions.invoke("get-organization-stats", {
+      body: { orgId },
+    });
 
     if (error) {
       throw error;
@@ -1343,7 +1327,9 @@ export const orgService = {
   async getRecentUploads(orgId: string): Promise<OrgMediaAssetSummary[]> {
     const { data, error } = await supabase
       .from("media_assets")
-      .select("id, org_id, uploader_id, bucket, storage_path, file_name, file_size_bytes, mime_type, duration_seconds, status, created_at")
+      .select(
+        "id, org_id, uploader_id, bucket, storage_path, file_name, file_size_bytes, mime_type, duration_seconds, status, created_at"
+      )
       .eq("org_id", orgId)
       .order("created_at", { ascending: false })
       .limit(10);
@@ -1375,12 +1361,9 @@ export const orgService = {
    * @returns Aggregated job summary.
    */
   async getJobSummary(orgId: string): Promise<OrgJobSummary> {
-    const { data, error } = await supabase.functions.invoke(
-      "get-organization-job-summary",
-      {
-        body: { orgId },
-      }
-    );
+    const { data, error } = await supabase.functions.invoke("get-organization-job-summary", {
+      body: { orgId },
+    });
 
     if (error) {
       throw error;
@@ -1415,12 +1398,9 @@ export const orgService = {
    * @returns Admin-oriented org list rows.
    */
   async listOrganizations(filters?: OrganizationAdminFilters): Promise<OrganizationAdminListItem[]> {
-    const { data, error } = await supabase.functions.invoke(
-      "list-organizations-admin",
-      {
-        body: filters ?? {},
-      }
-    );
+    const { data, error } = await supabase.functions.invoke("list-organizations-admin", {
+      body: filters ?? {},
+    });
 
     if (error) {
       throw error;
@@ -1451,12 +1431,9 @@ export const orgService = {
    * @returns Health payload with signals.
    */
   async getOrgHealth(orgId: string): Promise<OrgHealth> {
-    const { data, error } = await supabase.functions.invoke(
-      "get-organization-health",
-      {
-        body: { orgId },
-      }
-    );
+    const { data, error } = await supabase.functions.invoke("get-organization-health", {
+      body: { orgId },
+    });
 
     if (error) {
       throw error;
@@ -1484,10 +1461,7 @@ export const orgService = {
    * @returns Orgs with computed utilization ratios.
    */
   async getOrgsNearLimits(): Promise<OrgNearLimit[]> {
-    const { data, error } = await supabase.functions.invoke(
-      "get-organizations-near-limits",
-      {}
-    );
+    const { data, error } = await supabase.functions.invoke("get-organizations-near-limits", {});
 
     if (error) {
       throw error;
@@ -1514,10 +1488,7 @@ export const orgService = {
    * @returns Recently created organizations.
    */
   async getRecentlyCreatedOrgs(): Promise<OrganizationAdminListItem[]> {
-    const { data, error } = await supabase.functions.invoke(
-      "get-recently-created-organizations",
-      {}
-    );
+    const { data, error } = await supabase.functions.invoke("get-recently-created-organizations", {});
 
     if (error) {
       throw error;
@@ -1546,10 +1517,7 @@ export const orgService = {
    * @returns Organizations flagged as inactive.
    */
   async getInactiveOrgs(): Promise<OrganizationAdminListItem[]> {
-    const { data, error } = await supabase.functions.invoke(
-      "get-inactive-organizations",
-      {}
-    );
+    const { data, error } = await supabase.functions.invoke("get-inactive-organizations", {});
 
     if (error) {
       throw error;

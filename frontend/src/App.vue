@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue';
 import { RouterView } from 'vue-router';
+import ToastHost from '@/components/ToastHost.vue';
 import NullLayout from '@/layouts/NullLayout.vue';
 import MarketingLayout from '@/layouts/MarketingLayout.vue';
 import AdminLayout from '@/layouts/AdminLayout.vue';
@@ -70,6 +71,7 @@ const toggleDarkMode = () => {
 </script>
 
 <template>
+  <ToastHost />
   <RouterView v-slot="{ Component, route }">
     <component :is="resolveLayout(route.meta.layout as string | undefined)" :toggle-dark-mode="toggleDarkMode">
       <component :is="Component" />
