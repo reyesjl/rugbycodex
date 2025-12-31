@@ -3,7 +3,7 @@ import MainNav from '@/modules/app/components/MainNav.vue';
 import Sidebar from '@/modules/app/components/Sidebar.vue';
 import { ref } from 'vue';
 
-const isSidebarOpen = ref(true);
+const isSidebarOpen = ref(false);
 const toggleSidebar = () => {
   isSidebarOpen.value = !isSidebarOpen.value;
 };

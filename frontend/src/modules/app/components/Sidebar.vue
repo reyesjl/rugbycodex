@@ -1,11 +1,13 @@
 <script setup lang="ts">
+import { toRef } from 'vue';
 import { Icon } from '@iconify/vue';
 import { RouterLink } from 'vue-router';
 import { isPlatformAdmin } from "@/modules/auth/identity";
 import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrganizationStore';
 import { storeToRefs } from 'pinia';
+import { useSidebarGestures } from '@/modules/app/composables/useSidebarGestures';
 
-defineProps<{
+const props = defineProps<{
   isOpen: boolean;
 }>();
 
@@ -17,6 +19,20 @@ const handleSidebarToggle = () => emit('toggle-sidebar');
 
 const activeOrgStore = useActiveOrganizationStore();
 const { active, hasActiveOrg } = storeToRefs(activeOrgStore);
+
+const {
+  mobileSheetRef,
+  sheetStyle,
+  onHandlePointerDown,
+  onHandlePointerMove,
+  onHandlePointerUp,
+  onEdgePointerDown,
+  onEdgePointerMove,
+  onEdgePointerUp,
+} = useSidebarGestures({
+  isOpen: toRef(props, 'isOpen'),
+  onToggle: handleSidebarToggle,
+});
 </script>
 
 <template>
@@ -127,6 +143,17 @@ const { active, hasActiveOrg } = storeToRefs(activeOrgStore);
     </div>
   </div>
 
+  <!-- MOBILE EDGE SWIPE ZONE -->
+  <div
+    v-if="!isOpen"
+    class="md:hidden fixed bottom-0 left-0 w-full h-6 z-40"
+    style="touch-action: none;"
+    @pointerdown="onEdgePointerDown"
+    @pointermove="onEdgePointerMove"
+    @pointerup="onEdgePointerUp"
+    @pointercancel="onEdgePointerUp"
+  />
+
   <!-- MOBILE BOTTOM SHEET -->
   <div
     class="
@@ -142,22 +169,29 @@ const { active, hasActiveOrg } = storeToRefs(activeOrgStore);
       transition-transform duration-300
     "
     :class="[ isOpen ? 'translate-y-0' : 'translate-y-full' ]"
+    :style="sheetStyle"
+    ref="mobileSheetRef"
   >
     <div class="p-4 h-full flex flex-col">
-      <div class="w-10 h-1.5 bg-white/30 rounded-full mx-auto mb-3" />
+      <div
+        class="pb-6"
+        style="touch-action: none;"
+        @pointerdown="onHandlePointerDown"
+        @pointermove="onHandlePointerMove"
+        @pointerup="onHandlePointerUp"
+        @pointercancel="onHandlePointerUp"
+      >
+        <div class="w-10 h-1.5 bg-white/30 rounded-full mx-auto mb-3" />
+        <div class="flex items-center justify-between text-lg select-none px-4">
+          <div>RUGBY<span class="font-semibold">CODEX</span></div>
+          <button type="button" data-no-drag @click="handleSidebarToggle">
+            <Icon icon="carbon:close" width="22" />
+          </button>
+        </div>
+      </div>
       <div class="overflow-y-auto flex-1 px-2">
         <nav class="sidebar">
           <ul class="sidebar-list">
-            <!-- reuse same links -->
-            <li class="mb-6 text-lg select-none px-4">
-                <div class="flex items-center justify-between">
-                    <div>RUGBY<span class="font-semibold">CODEX</span></div>
-                    <button @click="handleSidebarToggle">
-                        <Icon icon="carbon:close" width="22" />
-                    </button>
-                </div>
-            </li>
-
             <template v-if="hasActiveOrg">
               <li>
                 <RouterLink
