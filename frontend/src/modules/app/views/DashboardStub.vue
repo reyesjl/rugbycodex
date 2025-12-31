@@ -12,7 +12,7 @@ import DashboardGettingStartedPanel from '@/modules/app/components/dashboard/Das
 // Load user org state
 const myOrgs = useMyOrganizationsStore();
 onMounted(() => {
-  myOrgs.load();
+  myOrgs.refresh();
 });
 
 // Derive dashboard meaning

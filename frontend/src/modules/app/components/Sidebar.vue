@@ -44,23 +44,22 @@ const { active, hasActiveOrg } = storeToRefs(activeOrgStore);
                     <template v-if="hasActiveOrg">
                         <li>
                             <RouterLink
-                            :to="`/orgs/${active?.organization.slug}/media`"
-                            class="flex items-center px-4 py-2 hover:bg-white/10 rounded"
-                            >
-                            <Icon icon="carbon:image" width="20" height="20" class="mr-5" />
-                            Media
-                            </RouterLink>
-                        </li>
-
-                        <li>
-                            <RouterLink
-                            :to="`/orgs/${active?.organization.slug}/team`"
+                            :to="`/orgs/${active?.organization.slug}/members`"
                             class="flex items-center px-4 py-2 hover:bg-white/10 rounded"
                             >
                             <Icon icon="carbon:user-multiple" width="20" height="20" class="mr-5" />
                             Team
                             </RouterLink>
                         </li>
+                        <li>
+                            <RouterLink
+                            :to="`/orgs/${active?.organization.slug}/media`"
+                            class="flex items-center px-4 py-2 hover:bg-white/10 rounded"
+                            >
+                            <Icon icon="carbon:image" width="20" height="20" class="mr-5" />
+                            Media
+                            </RouterLink>
+                        </li>                        
                     </template>
                     
                     <li>
