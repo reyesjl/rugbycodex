@@ -2,7 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getAuthContext } from "../_shared/auth.ts";
-serve(async (req)=>{
+serve(async (req) => {
   try {
     if (req.method !== "POST") {
       return new Response("Method Not Allowed", {
@@ -48,10 +48,39 @@ serve(async (req)=>{
         status: 409
       });
     }
+
+    // Generate unique slug from name
+    const generateSlug = (name: string): string => {
+      return name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+    };
+
+    let slug = generateSlug(request.requested_name);
+    let slugSuffix = 1;
+    let isSlugUnique = false;
+
+    // Ensure slug uniqueness
+    while (!isSlugUnique) {
+      const { data: existingOrg } = await supabase
+        .from("organizations")
+        .select("id")
+        .eq("slug", slug)
+        .maybeSingle();
+
+      if (!existingOrg) {
+        isSlugUnique = true;
+      } else {
+        slug = `${generateSlug(request.requested_name)}-${slugSuffix}`;
+        slugSuffix++;
+      }
+    }
+
     // Create organization
     const { data: organization, error: orgError } = await supabase.from("organizations").insert({
       name: request.requested_name,
-      slug: request.requested_slug,
+      slug: slug,
       owner: request.requester_id,
       type: request.requested_type ?? null,
       visibility: "private"

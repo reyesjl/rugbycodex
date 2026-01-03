@@ -37,6 +37,26 @@ const form = reactive({
   honeypot: '',
 });
 
+const referralOptions = [
+  { value: '', label: 'Select an option', disabled: true },
+  { value: 'referral', label: 'Friend or teammate' },
+  { value: 'social', label: 'Social media' },
+  { value: 'event', label: 'Conference or event' },
+  { value: 'search', label: 'Search engine' },
+  { value: 'community', label: 'Rugby community forum' },
+  { value: 'other', label: 'Other' },
+];
+
+const roleOptions = [
+  { value: '', label: 'Select a role', disabled: true },
+  { value: 'player', label: 'Player' },
+  { value: 'coach', label: 'Coach' },
+  { value: 'analyst', label: 'Analyst' },
+  { value: 'referee', label: 'Referee' },
+  { value: 'administrator', label: 'Administrator / Union Staff' },
+  { value: 'other', label: 'Other' },
+];
+
 const submissionLogged = ref(false);
 const passwordMismatch = computed(
   () => Boolean(form.password) && Boolean(form.confirmPassword) && form.password !== form.confirmPassword,
@@ -216,14 +236,14 @@ const handleSubmit = async () => {
   <section class="relative h-screen">
     <!-- Background image -->
     <img :src="bgImg" alt="Background" class="fixed inset-0 h-full w-full object-cover" />
-    
+
     <!-- Overlay -->
     <div class="fixed inset-0 bg-black/60"></div>
     <!-- Content -->
     <div class="relative z-10 max-w-xl mx-auto px-4">
       <!-- Small auth navigation -->
       <AuthNav />
-      
+
       <div class="flex items-center min-h-screen py-20">
         <div class="w-full">
           <div class="space-y-5">
@@ -234,18 +254,8 @@ const handleSubmit = async () => {
             <div class="space-y-10">
               <div class="sr-only" aria-hidden="true">
                 <label for="signup-company" class="text-xs">Company</label>
-                <input
-                  id="signup-company"
-                  v-model="form.honeypot"
-                  type="text"
-                  name="company"
-                  tabindex="-1"
-                  autocomplete="off"
-                  autocorrect="off"
-                  autocapitalize="off"
-                  spellcheck="false"
-                  inputmode="text"
-                />
+                <input id="signup-company" v-model="form.honeypot" type="text" name="company" tabindex="-1"
+                  autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" />
               </div>
 
               <div class="flex flex-col space-y-2" :ref="registerFadeItem">
@@ -256,19 +266,15 @@ const handleSubmit = async () => {
 
               <div class="flex flex-col space-y-2" :ref="registerFadeItem">
                 <label for="username" class="text-xs uppercase text-white">Username</label>
-                <input
-                  id="username"
-                  v-model="form.username"
-                  type="text"
-                  autocomplete="username"
-                  placeholder="choose-a-handle"
-                  required
-                  class="block w-full backdrop-blur bg-black/10 text-white border-b-2 border-white placeholder-white/30 px-2 py-1 outline-none"
-                />
+                <input id="username" v-model="form.username" type="text" autocomplete="username"
+                  placeholder="choose-a-handle" required
+                  class="block w-full backdrop-blur bg-black/10 text-white border-b-2 border-white placeholder-white/30 px-2 py-1 outline-none" />
                 <p class="text-xs text-white/70">
-                  {{ USERNAME_MIN_LENGTH }}-{{ USERNAME_MAX_LENGTH }} lowercase letters, numbers, dots, underscores, or hyphens.
+                  {{ USERNAME_MIN_LENGTH }}-{{ USERNAME_MAX_LENGTH }} lowercase letters, numbers, dots, underscores, or
+                  hyphens.
                 </p>
-                <p v-if="usernameStatus.message || usernameStatus.checking" class="text-xs" :class="usernameStatus.available ? 'text-emerald-300' : 'text-rose-300'">
+                <p v-if="usernameStatus.message || usernameStatus.checking" class="text-xs"
+                  :class="usernameStatus.available ? 'text-emerald-300' : 'text-rose-300'">
                   <span v-if="usernameStatus.checking">Checking availability…</span>
                   <span v-else>{{ usernameStatus.message }}</span>
                 </p>
@@ -276,7 +282,8 @@ const handleSubmit = async () => {
 
               <div class="flex flex-col space-y-2" :ref="registerFadeItem">
                 <label for="email" class="text-xs uppercase text-white">Email</label>
-                <input id="email" v-model="form.email" type="email" inputmode="email" autocomplete="email" placeholder="user@rugbycodex.com" required
+                <input id="email" v-model="form.email" type="email" inputmode="email" autocomplete="email"
+                  placeholder="user@rugbycodex.com" required
                   class="block w-full backdrop-blur bg-black/10 text-white border-b-2 border-white placeholder-white/30 px-2 py-1 outline-none" />
               </div>
 
@@ -314,14 +321,11 @@ const handleSubmit = async () => {
               <div class="flex flex-col space-y-2" :ref="registerFadeItem">
                 <label for="role" class="text-xs uppercase text-white">Role</label>
                 <select id="role" v-model="form.role" required
-                  class="block w-full backdrop-blur bg-black/10 text-white border-b-2 border-white px-2 py-1 outline-none">
-                  <option disabled value="">Select a role</option>
-                  <option value="player">Player</option>
-                  <option value="coach">Coach</option>
-                  <option value="analyst">Analyst</option>
-                  <option value="referee">Referee</option>
-                  <option value="administrator">Administrator / Union Staff</option>
-                  <option value="other">Other</option>
+                  :class="['block w-full backdrop-blur bg-black/10 border-b-2 border-white px-2 py-1 outline-none', form.role ? 'text-white' : 'text-white/30']">
+                  <option v-for="opt in roleOptions" :key="opt.value" :value="opt.value" :disabled="opt.disabled"
+                    :hidden="opt.disabled" class="bg-black text-white">
+                    {{ opt.label }}
+                  </option>
                 </select>
               </div>
 
@@ -334,14 +338,11 @@ const handleSubmit = async () => {
               <div class="flex flex-col space-y-2" :ref="registerFadeItem">
                 <label for="referral" class="text-xs uppercase text-white">How did you hear about us?</label>
                 <select id="referral" v-model="form.referral"
-                  class="block w-full backdrop-blur bg-black/10 text-white border-b-2 border-white px-2 py-1 outline-none">
-                  <option value="">Select an option</option>
-                  <option value="referral">Friend or teammate</option>
-                  <option value="social">Social media</option>
-                  <option value="event">Conference or event</option>
-                  <option value="search">Search engine</option>
-                  <option value="community">Rugby community forum</option>
-                  <option value="other">Other</option>
+                  :class="['block w-full backdrop-blur bg-black/10 border-b-2 border-white px-2 py-1 outline-none', form.referral ? 'text-white' : 'text-white/30']">
+                  <option v-for="opt in referralOptions" :key="opt.value" :value="opt.value" :disabled="opt.disabled"
+                    :hidden="opt.disabled" class="bg-black text-white">
+                    {{ opt.label }}
+                  </option>
                 </select>
               </div>
             </div>

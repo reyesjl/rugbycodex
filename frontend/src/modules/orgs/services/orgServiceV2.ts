@@ -44,7 +44,7 @@ export const orgService = {
   // ===========================================================================
 
   /**
-   * Resolves an organization identifier (UUID or slug) into canonical organization context.
+   * Resolves an organization identifier (UUID) into canonical organization context.
    *
    * Problem it solves:
    * - Provides a single entry point for route/URL-driven org selection.
@@ -60,14 +60,14 @@ export const orgService = {
    * Implementation:
    * - Direct Supabase call (read-only, org-scoped via RLS).
    *
-   * @param identifier - Organization UUID or slug.
+   * @param identifier - Organization UUID.
    * @returns Resolved org context including matched strategy.
    */
-  async resolveOrg(identifier: string): Promise<ResolvedOrgContext> {
+  async resolveOrgById(identifier: string): Promise<ResolvedOrgContext> {
     const { data: orgData, error: orgError } = await supabase
       .from("organizations")
       .select("id, owner, slug, name, created_at, storage_limit_mb, bio, visibility, type")
-      .or(`id.eq.${identifier},slug.eq.${identifier}`)
+      .eq("id", identifier)
       .single();
 
     if (orgError) {
@@ -93,17 +93,47 @@ export const orgService = {
     };
   },
 
+  async resolveOrgBySlug(slug: string): Promise<ResolvedOrgContext> {
+    const { data: orgData, error: orgError } = await supabase
+      .from("organizations")
+      .select("id, owner, slug, name, created_at, storage_limit_mb, bio, visibility, type")
+      .eq("slug", slug)
+      .single();
+
+    if (orgError) {
+      throw orgError;
+    }
+
+    const userId = requireUserId();
+    const { data: membershipData, error: membershipError } = await supabase
+      .from("org_members")
+      .select("org_id, user_id, role, joined_at")
+      .eq("org_id", orgData.id)
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (membershipError) {
+      throw membershipError;
+    }
+
+    return {
+      organization: orgData,
+      membership: membershipData ?? null,
+      matched_by: "slug",
+    };
+  },
+
   /**
    * Fetches an organization by slug for the current user, ensuring membership.
    * @param slug - Organization slug.
    * @returns Organization with membership info.
    */
   async getOrgBySlugForUser(slug: string): Promise<UserOrganizationSummary> {
-    const resolved = await this.resolveOrg(slug);
+    const resolved = await this.resolveOrgBySlug(slug);
 
     // Critical assertion: must be a member
     if (!resolved.membership) {
-      throw new Error("User is not a member of this organization");
+      throw new Error("You are not a member of this organization");
     }
 
     return {
@@ -772,7 +802,6 @@ export const orgService = {
       .insert({
         requester_id: userId,
         requested_name: payload.requested_name,
-        requested_slug: payload.requested_slug,
         requested_type: payload.requested_type || null,
         message: payload.message || null,
       })
@@ -808,7 +837,7 @@ export const orgService = {
     const { data, error } = await supabase
       .from("organization_requests")
       .select(
-        "id, requester_id, requested_name, requested_slug, requested_type, message, status, reviewed_by, reviewed_at, review_notes, organization_id, created_at, updated_at"
+        "id, requester_id, requested_name, requested_type, message, status, reviewed_by, reviewed_at, review_notes, organization_id, created_at, updated_at"
       )
       .eq("requester_id", userId)
       .order("created_at", { ascending: false });
@@ -842,7 +871,7 @@ export const orgService = {
     const { data, error } = await supabase
       .from("organization_requests")
       .select(
-        "id, requester_id, requested_name, requested_slug, requested_type, message, status, reviewed_by, reviewed_at, review_notes, organization_id, created_at, updated_at"
+        "id, requester_id, requested_name, requested_type, message, status, reviewed_by, reviewed_at, review_notes, organization_id, created_at, updated_at"
       )
       .eq("id", requestId)
       .single();

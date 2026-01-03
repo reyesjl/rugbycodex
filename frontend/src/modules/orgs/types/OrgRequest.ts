@@ -8,7 +8,6 @@ export type OrgRequest = {
   id: OrgRequestId;
   requester_id: UserId;
   requested_name: string;
-  requested_slug: string;
   requested_type: OrganizationType;
   message: string | null;
   status: OrganizationRequestStatus;

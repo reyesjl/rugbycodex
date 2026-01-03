@@ -8,6 +8,15 @@ const toasts = ref<ToastItem[]>([]);
 let off: null | (() => void) = null;
 
 function addToast(payload: ToastPayload) {
+  // Check if a toast with the same message and variant already exists
+  const existingToast = toasts.value.find(
+    (t) => t.message === payload.message && t.variant === payload.variant
+  );
+
+  if (existingToast) {
+    return;
+  }
+
   const item: ToastItem = {
     id: crypto.randomUUID(),
     message: payload.message,

@@ -4,12 +4,10 @@ import { toast } from "@/lib/toast";
 import { useRouter } from 'vue-router';
 import { orgService } from '@/modules/orgs/services/orgServiceV2';
 import { useMyOrganizationsStore } from '@/modules/orgs/stores/useMyOrganizationsStore';
-import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrganizationStore';
 
 const emit = defineEmits(['close']);
 const router = useRouter();
 const myOrgStore = useMyOrganizationsStore();
-const activeOrgStore = useActiveOrganizationStore();
 
 const code = ref('');
 const loading = ref(false);
@@ -48,8 +46,6 @@ const submit = async () => {
 
         // Ensure my org store is up to date
         await myOrgStore.refresh();
-        // Ensure active org store is up to date
-        await activeOrgStore.refresh();
 
         toast({
             variant: result.status === "already_member" ? "info" : "success",
@@ -63,7 +59,7 @@ const submit = async () => {
         emit('close');
 
         if (result.status === "joined") {
-            router.push(`/orgs/${result.org.slug}`);
+            router.push(`/organizations/${result.org.slug}`);
         }
     } catch (err) {
         console.log("Join error:", err);

@@ -49,7 +49,6 @@ serve(async (req)=>{
         id,
         requester_id,
         requested_name,
-        requested_slug,
         requested_type,
         message,
         status,
@@ -92,7 +91,7 @@ serve(async (req)=>{
       query = query.lte("created_at", filters.created_before);
     }
     if (filters?.search) {
-      query = query.or(`requested_name.ilike.%${filters.search}%,requested_slug.ilike.%${filters.search}%`);
+      query = query.or(`requested_name.ilike.%${filters.search}%`);
     }
     const limit = filters?.limit ?? 25;
     const offset = filters?.offset ?? 0;

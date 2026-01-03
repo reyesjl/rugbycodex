@@ -137,13 +137,13 @@ async function startUpload(job: UploadJob) {
   job.state = "uploading";
   triggerRef(uploads);
 
-  const checksum = await calculateFileChecksum(job.file);
+  // const checksum = await calculateFileChecksum(job.file);
 
   const { error } = await mediaService.updateMediaAsset(job.id, {
     storage_path: job.storage_path,
     file_size_bytes: job.file.size,
     mime_type: job.file.type,
-    checksum: checksum,
+    checksum: "TODO",
     status: 'uploading'
   });
 

@@ -78,7 +78,7 @@ const {
           <template v-if="hasActiveOrg">
             <li>
               <RouterLink
-                :to="`/orgs/${active?.organization.slug}/members`"
+                :to="`/organizations/${active?.organization.slug}/members`"
                 class="flex items-center px-4 py-2 hover:bg-white/10 rounded"
               >
                 <Icon icon="carbon:user-multiple" width="20" height="20" class="mr-5" />
@@ -88,7 +88,7 @@ const {
 
             <li>
               <RouterLink
-                :to="`/orgs/${active?.organization.slug}/media`"
+                :to="`/organizations/${active?.organization.slug}/media`"
                 class="flex items-center px-4 py-2 hover:bg-white/10 rounded"
               >
                 <Icon icon="carbon:image" width="20" height="20" class="mr-5" />
@@ -195,7 +195,7 @@ const {
             <template v-if="hasActiveOrg">
               <li>
                 <RouterLink
-                  :to="`/orgs/${active?.organization.slug}/members`"
+                  :to="`/organizations/${active?.organization.slug}/members`"
                   class="flex items-center px-4 py-2 hover:bg-white/10 rounded"
                   @click="handleSidebarToggle"
                 >
@@ -206,7 +206,7 @@ const {
 
               <li>
                 <RouterLink
-                  :to="`/orgs/${active?.organization.slug}/media`"
+                  :to="`/organizations/${active?.organization.slug}/media`"
                   class="flex items-center px-4 py-2 hover:bg-white/10 rounded"
                   @click="handleSidebarToggle"
                 >

@@ -6,6 +6,9 @@ import { authRoutes } from './authRoutes';
 import { appRoutes } from './appRoutes';
 import { orgRoutes } from './orgRoutes';
 import { adminRoutes } from './adminRoutes';
+import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrganizationStore';
+import { toast } from '@/lib/toast';
+
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -37,10 +40,28 @@ const router = createRouter({
 
 router.beforeEach(async (to) => {
   const authStore = useAuthStore(pinia);
+  const activeOrganizationStore = useActiveOrganizationStore(pinia);
 
   // hydrate first if not done yet
   if (!authStore.hydrated) {
     await authStore.initialize();
+  }
+
+  if (to.meta.orgScoped) {
+    const orgSlug = to.params.slug as string;
+    await activeOrganizationStore.setActiveBySlug(orgSlug);
+
+    if (!activeOrganizationStore.active) {
+      toast({
+          variant: "info",
+          message:
+              activeOrganizationStore.error ?? "Organization not found or access denied.",
+          durationMs: 3000,
+      });
+      return {
+        name: 'Organizations',
+      };
+    }
   }
 
   if ((to.meta.requiresAuth || to.meta.requiresAdmin) && !authStore.isAuthenticated) {
