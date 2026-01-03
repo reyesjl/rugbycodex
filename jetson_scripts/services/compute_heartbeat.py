@@ -1,12 +1,18 @@
 import os
 import time
 import socket
-import requests
+from datetime import datetime, timezone
 import psutil
+from dotenv import load_dotenv
+from supabase import create_client, Client
 
-EDGE_URL = os.getenv("RC_EDGE_URL")
-EDGE_SECRET = os.getenv("ORIN_NANO_SECRET")
-DEVICE_NAME = os.getenv("RC_DEVICE_NAME")
+load_dotenv()
+
+SUPABASE_URL: str = os.getenv("SUPABASE_URL")
+SUPABASE_KEY: str = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+DEVICE_NAME: str = os.getenv("RC_DEVICE_NAME")
+
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # Orin Nano GPU DVFS path
 GPU_DEVFREQ_PATH = "/sys/class/devfreq/17000000.gpu"
@@ -49,36 +55,40 @@ def get_gpu_temperature():
 while True:
     gpu_util = get_gpu_utilization()
     gpu_temp = get_gpu_temperature()
+    now = datetime.now(timezone.utc).isoformat()
 
     payload = {
         "name": DEVICE_NAME,
         "hostname": socket.gethostname(),
+        "status": "online",
+        "last_heartbeat_at": now,
         "cpu_cores": psutil.cpu_count(),
         "memory_total_mb": int(psutil.virtual_memory().total / 1024 / 1024),
         "cpu_utilization": psutil.cpu_percent(interval=1),
         "memory_used_mb": int(psutil.virtual_memory().used / 1024 / 1024),
         "gpu_utilization": gpu_util,      # DVFS-based load
         "temperature_c": gpu_temp,        # GPU silicon temp
+        "updated_at": now,
     }
 
     try:
-        r = requests.post(
-            EDGE_URL,
-            json=payload,
-            headers={
-                "Authorization": f"Bearer {EDGE_SECRET}",
-                "Content-Type": "application/json",
-            },
-            timeout=5,
+        response = (
+            supabase
+                .table("compute_devices")
+                .upsert(payload, on_conflict="name")
+                .execute()
         )
-        print(
-            "Heartbeat:",
-            r.status_code,
-            "GPU load:",
-            gpu_util,
-            "GPU temp:",
-            gpu_temp,
-        )
+        if response.error:
+            print("Heartbeat failed:", response.error)
+        else:
+            print(
+                "Heartbeat:",
+                "ok",
+                "GPU load:",
+                gpu_util,
+                "GPU temp:",
+                gpu_temp,
+            )
     except Exception as e:
         print("Heartbeat failed:", e)
 
