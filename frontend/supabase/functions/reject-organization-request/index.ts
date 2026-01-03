@@ -2,30 +2,37 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getAuthContext } from "../_shared/auth.ts";
+import { corsHeaders, handleCors } from "../_shared/cors.ts";
 serve(async (req)=>{
   try {
+    // Handle OPTIONS preflight
+    const cors = handleCors(req);
+    if (cors) return cors;
+
     if (req.method !== "POST") {
       return new Response("Method Not Allowed", {
-        status: 405
+        status: 405,
+        headers: corsHeaders
       });
     }
     const { userId, isAdmin } = await getAuthContext(req);
     if (!userId) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
-        headers: { "Content-Type": "application/json" }
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
       });
     }
     if (!isAdmin) {
       return new Response(JSON.stringify({ error: "Forbidden" }), {
         status: 403,
-        headers: { "Content-Type": "application/json" }
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
       });
     }
     const { requestId, notes } = await req.json();
     if (!requestId) {
       return new Response("requestId is required", {
-        status: 400
+        status: 400,
+        headers: corsHeaders
       });
     }
     const authHeader = req.headers.get("Authorization")!;
@@ -40,12 +47,14 @@ serve(async (req)=>{
     const { data: request, error: requestError } = await supabase.from("organization_requests").select("*").eq("id", requestId).single();
     if (requestError) {
       return new Response("Organization request not found", {
-        status: 404
+        status: 404,
+        headers: corsHeaders
       });
     }
     if (request.status !== "pending") {
       return new Response("Only pending requests can be rejected", {
-        status: 409
+        status: 409,
+        headers: corsHeaders
       });
     }
     // Reject request
@@ -61,13 +70,15 @@ serve(async (req)=>{
     return new Response(JSON.stringify(updated), {
       status: 200,
       headers: {
+        ...corsHeaders,
         "Content-Type": "application/json"
       }
     });
   } catch (err) {
     console.error(err);
     return new Response("Internal Server Error", {
-      status: 500
+      status: 500,
+      headers: corsHeaders
     });
   }
 });

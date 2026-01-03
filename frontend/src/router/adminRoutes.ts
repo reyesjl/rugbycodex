@@ -11,6 +11,11 @@ export const adminRoutes: RouteRecordRaw = {
       component: () => import('@/modules/admin/views/AdminOrgs.vue'),
     },
     {
+      path: 'org-requests',
+      name: 'AdminOrgRequests',
+      component: () => import('@/modules/admin/views/AdminOrgRequests.vue'),
+    },
+    {
       path: 'users',
       name: 'AdminUsers',
       component: () => import('@/modules/admin/views/AdminUsers.vue'),

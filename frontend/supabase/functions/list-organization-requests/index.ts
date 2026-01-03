@@ -1,18 +1,25 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { corsHeaders, handleCors } from "../_shared/cors.ts";
 serve(async (req)=>{
   try {
+    // Handle OPTIONS preflight
+    const cors = handleCors(req);
+    if (cors) return cors;
+
     if (req.method !== "POST") {
       return new Response("Method Not Allowed", {
-        status: 405
+        status: 405,
+        headers: corsHeaders
       });
     }
     const filters = await req.json();
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response("Missing Authorization header", {
-        status: 401
+        status: 401,
+        headers: corsHeaders
       });
     }
     const supabase = createClient(Deno.env.get("SUPABASE_URL"), Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"), {
@@ -26,14 +33,16 @@ serve(async (req)=>{
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user) {
       return new Response("Unauthorized", {
-        status: 401
+        status: 401,
+        headers: corsHeaders
       });
     }
     // Verify platform admin / moderator
     const { data: profile, error: profileError } = await supabase.from("profiles").select("role").eq("id", user.id).single();
     if (profileError) {
       return new Response("Profile not found", {
-        status: 403
+        status: 403,
+        headers: corsHeaders
       });
     }
     if (![
@@ -41,7 +50,8 @@ serve(async (req)=>{
       "moderator"
     ].includes(profile.role)) {
       return new Response("Forbidden", {
-        status: 403
+        status: 403,
+        headers: corsHeaders
       });
     }
     // Build query
@@ -58,13 +68,13 @@ serve(async (req)=>{
         organization_id,
         created_at,
         updated_at,
-        requester:profiles!organization_requests_requester_id_fkey (
+        requester:profiles!organization_requests_requester_fkey (
           id,
           username,
           name,
           role
         ),
-        reviewer:profiles!organization_requests_reviewed_by_fkey (
+        reviewer:profiles!organization_requests_reviewer_fkey (
           id,
           username,
           name,
@@ -103,19 +113,22 @@ serve(async (req)=>{
     if (error) {
       console.error(error);
       return new Response("Query failed", {
-        status: 500
+        status: 500,
+        headers: corsHeaders
       });
     }
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
+        ...corsHeaders,
         "Content-Type": "application/json"
       }
     });
   } catch (err) {
     console.error(err);
     return new Response("Internal Server Error", {
-      status: 500
+      status: 500,
+      headers: corsHeaders
     });
   }
 });

@@ -3,7 +3,7 @@ import { ref } from 'vue';
 import MainNav from '@/modules/app/components/MainNav.vue';
 import AdminSidebar from '@/modules/admin/components/AdminSidebar.vue';
 
-const isSidebarOpen = ref(true);
+const isSidebarOpen = ref(false);
 const toggleSidebar = () => {
   isSidebarOpen.value = !isSidebarOpen.value;
 };
@@ -17,7 +17,7 @@ const toggleSidebar = () => {
 
     <main
       class="pt-[var(--main-nav-height)]"
-      :class="[isSidebarOpen ? 'pl-64' : 'pl-0', 'transition-all duration-300']"
+      :class="[ isSidebarOpen ? 'md:pl-64' : 'pl-0', 'transition-all duration-300']"
     >
       <RouterView />
     </main>
