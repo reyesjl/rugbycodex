@@ -29,6 +29,6 @@ export const marketingRoutes: RouteRecordRaw = {
       path: 'mission',
       name: 'Mission',
       component: () => import('@/modules/marketing/views/Mission.vue'),
-    }
+    },
   ],
 };

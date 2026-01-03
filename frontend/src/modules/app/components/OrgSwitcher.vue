@@ -133,6 +133,17 @@ watch(
             <Icon icon="carbon:add" width="15" height="15" class="mr-2" />
             New Organization
           </RouterLink>
+
+          <hr class="my-2 border-white/20" />
+          
+          <RouterLink
+            to="/"
+            class="text-xs flex items-center rounded px-3 py-2 hover:bg-white/10"
+            @click="closeOrgMenu"
+          >
+            <Icon icon="carbon:home" width="15" height="15" class="mr-2" />
+            Back to Home
+          </RouterLink>
         </div>
       </transition>
     </div>

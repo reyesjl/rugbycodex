@@ -11,6 +11,14 @@ export const useActiveOrganizationStore = defineStore('activeOrganization', () =
   const hasActiveOrg = computed(() => !!active.value)
 
   async function setActiveBySlug(slug: string) {
+    const activeSlug = computed(() => active.value?.organization.slug)
+
+    if (activeSlug.value === slug) return
+
+    if (resolving.value) {
+      return
+    }
+
     resolving.value = true
     error.value = null
 

@@ -26,8 +26,8 @@ const { resolving } = storeToRefs(activeOrgStore)
     />
 
     <main
-      class="pt-[var(--main-nav-height)] transition-all duration-300"
-      :class="[isSidebarOpen ? 'pl-64' : 'pl-0']"
+      class="pt-(--main-nav-height) transition-all duration-300"
+      :class="[isSidebarOpen ? 'md:pl-64' : 'pl-0']"
     >
       <div v-if="resolving" class="p-6 text-white">
         Loading organization…

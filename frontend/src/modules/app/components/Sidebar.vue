@@ -33,6 +33,8 @@ const {
   isOpen: toRef(props, 'isOpen'),
   onToggle: handleSidebarToggle,
 });
+
+mobileSheetRef.value;
 </script>
 
 <template>
@@ -49,7 +51,7 @@ const {
     class="
       hidden md:block
       overflow-y-auto fixed
-      top-[var(--main-nav-height)] left-0
+      top-(--main-nav-height) left-0
       text-white backdrop-blur bg-black/30
       w-64 h-full z-50 border-r border-white/30
       transition-transform duration-300
@@ -78,16 +80,6 @@ const {
           <template v-if="hasActiveOrg">
             <li>
               <RouterLink
-                :to="`/organizations/${active?.organization.slug}/members`"
-                class="flex items-center px-4 py-2 hover:bg-white/10 rounded"
-              >
-                <Icon icon="carbon:user-multiple" width="20" height="20" class="mr-5" />
-                Members
-              </RouterLink>
-            </li>
-
-            <li>
-              <RouterLink
                 :to="`/organizations/${active?.organization.slug}/media`"
                 class="flex items-center px-4 py-2 hover:bg-white/10 rounded"
               >
@@ -95,21 +87,25 @@ const {
                 Media
               </RouterLink>
             </li>
+            <li>
+              <RouterLink
+                :to="`/organizations/${active?.organization.slug}`"
+                class="flex items-center px-4 py-2 hover:bg-white/10 rounded"
+              >
+                <Icon icon="carbon:home" width="20" height="20" class="mr-5" />
+                Overview
+              </RouterLink>
+            </li>
+            <li>
+              <RouterLink
+                :to="`/organizations/${active?.organization.slug}/members`"
+                class="flex items-center px-4 py-2 hover:bg-white/10 rounded"
+              >
+                <Icon icon="carbon:user-multiple" width="20" height="20" class="mr-5" />
+                Members
+              </RouterLink>
+            </li>
           </template>
-
-          <li>
-            <RouterLink to="/" class="flex items-center px-4 py-2 hover:bg-white/10 rounded">
-              <Icon icon="carbon:home" width="20" height="20" class="mr-5" />
-              Product
-            </RouterLink>
-          </li>
-
-          <li>
-            <RouterLink to="/dashboard" class="flex items-center px-4 py-2 hover:bg-white/10 rounded">
-              <Icon icon="carbon:dashboard" width="20" height="20" class="mr-5" />
-              Dashboard
-            </RouterLink>
-          </li>
 
           <li class="mt-5">
             <RouterLink to="/profile" class="flex items-center px-4 py-2 font-semibold hover:bg-white/10 rounded">
@@ -122,6 +118,13 @@ const {
             <RouterLink to="/profile" class="flex items-center px-4 py-2 hover:bg-white/10 rounded">
               <Icon icon="carbon:user-profile" width="20" height="20" class="mr-5" />
               Profile
+            </RouterLink>
+          </li>
+
+          <li>
+            <RouterLink to="/dashboard" class="flex items-center px-4 py-2 hover:bg-white/10 rounded">
+              <Icon icon="carbon:dashboard" width="20" height="20" class="mr-5" />
+              My Dashboard
             </RouterLink>
           </li>
 
@@ -195,17 +198,6 @@ const {
             <template v-if="hasActiveOrg">
               <li>
                 <RouterLink
-                  :to="`/organizations/${active?.organization.slug}/members`"
-                  class="flex items-center px-4 py-2 hover:bg-white/10 rounded"
-                  @click="handleSidebarToggle"
-                >
-                  <Icon icon="carbon:user-multiple" width="20" height="20" class="mr-5" />
-                  Team
-                </RouterLink>
-              </li>
-
-              <li>
-                <RouterLink
                   :to="`/organizations/${active?.organization.slug}/media`"
                   class="flex items-center px-4 py-2 hover:bg-white/10 rounded"
                   @click="handleSidebarToggle"
@@ -214,42 +206,77 @@ const {
                   Media
                 </RouterLink>
               </li>
+              
+              <li>
+                <RouterLink
+                  :to="`/organizations/${active?.organization.slug}`"
+                  class="flex items-center px-4 py-2 hover:bg-white/10 rounded"
+                  @click="handleSidebarToggle"
+                >
+                  <Icon icon="carbon:home" width="20" height="20" class="mr-5" />
+                  Overview
+                </RouterLink>
+              </li>
+
+              <li>
+                <RouterLink
+                  :to="`/organizations/${active?.organization.slug}/members`"
+                  class="flex items-center px-4 py-2 hover:bg-white/10 rounded"
+                  @click="handleSidebarToggle"
+                >
+                  <Icon icon="carbon:user-multiple" width="20" height="20" class="mr-5" />
+                  Members
+                </RouterLink>
+              </li>
+
+              
             </template>
 
             <li>
-              <RouterLink to="/" class="flex items-center px-4 py-2 hover:bg-white/10 rounded" @click="handleSidebarToggle">
-                <Icon icon="carbon:home" width="20" height="20" class="mr-5" />
-                Product
-              </RouterLink>
-            </li>
-
-            <li>
-              <RouterLink to="/dashboard" class="flex items-center px-4 py-2 hover:bg-white/10 rounded" @click="handleSidebarToggle">
+              <RouterLink
+                :to="hasActiveOrg ? `/organizations/${active?.organization.slug}` : '/organizations'"
+                class="flex items-center px-4 py-2 hover:bg-white/10 rounded"
+                @click="handleSidebarToggle"
+              >
                 <Icon icon="carbon:dashboard" width="20" height="20" class="mr-5" />
                 Dashboard
               </RouterLink>
             </li>
 
-            <li class="mt-5">
-              <RouterLink to="/profile" class="flex items-center px-4 py-2 font-semibold hover:bg-white/10 rounded" @click="handleSidebarToggle">
-                You
-                <Icon icon="carbon:chevron-right" width="20" height="20" class="ml-5" />
-              </RouterLink>
-            </li>
+              <li class="mt-5">
+                <RouterLink to="/profile" class="flex items-center px-4 py-2 font-semibold hover:bg-white/10 rounded" @click="handleSidebarToggle">
+                  You
+                  <Icon icon="carbon:chevron-right" width="20" height="20" class="ml-5" />
+                </RouterLink>
+              </li>
 
-            <li>
-              <RouterLink to="/settings" class="flex items-center px-4 py-2 hover:bg-white/10 rounded" @click="handleSidebarToggle">
-                <Icon icon="carbon:settings" width="20" height="20" class="mr-5" />
-                Settings
-              </RouterLink>
-            </li>
+              <li>
+                <RouterLink to="/profile" class="flex items-center px-4 py-2 hover:bg-white/10 rounded" @click="handleSidebarToggle">
+                  <Icon icon="carbon:user-profile" width="20" height="20" class="mr-5" />
+                  Profile
+                </RouterLink>
+              </li>
 
-            <li v-if="isPlatformAdmin()" class="mt-5">
-              <RouterLink to="/admin" class="flex items-center px-4 py-2 text-amber-200 hover:bg-white/10 rounded" @click="handleSidebarToggle">
-                <Icon icon="carbon:police" width="20" height="20" class="mr-5" />
-                Admin Console
-              </RouterLink>
-            </li>
+              <li>
+                <RouterLink to="/dashboard" class="flex items-center px-4 py-2 hover:bg-white/10 rounded" @click="handleSidebarToggle">
+                  <Icon icon="carbon:dashboard" width="20" height="20" class="mr-5" />
+                  My Dashboard
+                </RouterLink>
+              </li>
+
+              <li>
+                <RouterLink to="/settings" class="flex items-center px-4 py-2 hover:bg-white/10 rounded" @click="handleSidebarToggle">
+                  <Icon icon="carbon:settings" width="20" height="20" class="mr-5" />
+                  Settings
+                </RouterLink>
+              </li>
+
+              <li v-if="isPlatformAdmin()" class="mt-5">
+                <RouterLink to="/admin" class="flex items-center px-4 py-2 text-amber-200 hover:bg-white/10 rounded" @click="handleSidebarToggle">
+                  <Icon icon="carbon:police" width="20" height="20" class="mr-5" />
+                  Admin Console
+                </RouterLink>
+              </li>
           </ul>
         </nav>
       </div>
