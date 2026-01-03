@@ -94,6 +94,25 @@ export const orgService = {
   },
 
   /**
+   * Fetches an organization by slug for the current user, ensuring membership.
+   * @param slug - Organization slug.
+   * @returns Organization with membership info.
+   */
+  async getOrgBySlugForUser(slug: string): Promise<UserOrganizationSummary> {
+    const resolved = await this.resolveOrg(slug);
+
+    // Critical assertion: must be a member
+    if (!resolved.membership) {
+      throw new Error("User is not a member of this organization");
+    }
+
+    return {
+      organization: resolved.organization,
+      membership: resolved.membership,
+    };
+  },
+
+  /**
    * Returns the app's current "active organization" context for the signed-in user.
    *
    * Problem it solves:

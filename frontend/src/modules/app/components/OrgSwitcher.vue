@@ -1,74 +1,69 @@
 <script setup lang="ts">
-import { Icon } from '@iconify/vue';
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { storeToRefs } from 'pinia';
-import { RouterLink, useRoute } from 'vue-router';
-import { useMyOrganizationsStore } from '@/modules/orgs/stores/useMyOrganizationsStore';
-import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrganizationStore';
-import type { UserOrganizationSummary } from '@/modules/orgs/types';
-import { useAuthStore } from '@/auth/stores/useAuthStore';
+import { Icon } from '@iconify/vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { storeToRefs } from 'pinia'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
+import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrganizationStore'
+import { useMyOrganizationsStore } from '@/modules/orgs/stores/useMyOrganizationsStore'
+import type { UserOrganizationSummary } from '@/modules/orgs/types'
+import { useAuthStore } from '@/auth/stores/useAuthStore'
 
+const route = useRoute()
+const router = useRouter()
 
-const route = useRoute();
+const authStore = useAuthStore()
+const myOrgStore = useMyOrganizationsStore()
+const { items, hasOrganizations } = storeToRefs(myOrgStore)
 
-const authStore = useAuthStore();
-const myOrgStore = useMyOrganizationsStore();
-const { items, hasOrganizations, fallbackOrg } = storeToRefs(myOrgStore);
+const activeOrgStore = useActiveOrganizationStore()
+const { active } = storeToRefs(activeOrgStore)
 
-const activeOrgStore = useActiveOrganizationStore();
-const displayOrg = computed(() => activeOrgStore.active ?? fallbackOrg.value);
-const activeOrgId = computed(() => activeOrgStore.active?.organization.id ?? null);
+const activeOrgId = computed(() => active.value?.organization.id ?? null)
 
-const orgMenuOpen = ref(false);
+const displayOrg = computed(() => {
+  // when on an org route, active will be set
+  if (active.value) return active.value
 
-const orgMenuRef = ref<HTMLElement | null>(null);
-const orgButtonRef = ref<HTMLElement | null>(null);
+  // fallback: first org or nothing
+  return items.value[0] ?? null
+})
 
-const closeOrgMenu = () => {
-  orgMenuOpen.value = false;
-};
+const orgMenuOpen = ref(false)
+const orgMenuRef = ref<HTMLElement | null>(null)
+const orgButtonRef = ref<HTMLElement | null>(null)
 
-const toggleOrgMenu = () => {
-  orgMenuOpen.value = !orgMenuOpen.value;
-};
+const closeOrgMenu = () => (orgMenuOpen.value = false)
+const toggleOrgMenu = () => (orgMenuOpen.value = !orgMenuOpen.value)
 
 const handleClickOutside = (event: MouseEvent) => {
-  if (!orgMenuOpen.value) return;
-
-  const target = event.target as Node | null;
-  if (orgButtonRef.value?.contains(target) || orgMenuRef.value?.contains(target)) return;
-
-  closeOrgMenu();
-};
+  if (!orgMenuOpen.value) return
+  const target = event.target as Node | null
+  if (orgButtonRef.value?.contains(target) || orgMenuRef.value?.contains(target)) return
+  closeOrgMenu()
+}
 
 const handleOrgSelect = async (org: UserOrganizationSummary) => {
-  // Switch active org
-  await activeOrgStore.selectAndPersist(org);
-  closeOrgMenu();
-};
+  closeOrgMenu()
+  await router.push(`/organizations/${org.organization.slug}`)
+}
 
 onMounted(() => {
   if (authStore.isAuthenticated) {
-    myOrgStore.load();
-    activeOrgStore.load();
+    myOrgStore.load()
   }
-
-  if (typeof window !== 'undefined') {
-    document.addEventListener('click', handleClickOutside);
-  }
-});
+  document.addEventListener('click', handleClickOutside)
+})
 
 onBeforeUnmount(() => {
-  if (typeof window !== 'undefined') {
-    document.removeEventListener('click', handleClickOutside);
-  }
-});
+  document.removeEventListener('click', handleClickOutside)
+})
 
 watch(
   () => route.fullPath,
-  () => closeOrgMenu()
-);
+  closeOrgMenu
+)
 </script>
+
 
 <template>
   <!-- Org switcher (ONLY if user has orgs) -->

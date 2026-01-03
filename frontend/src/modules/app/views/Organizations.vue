@@ -31,7 +31,7 @@ onMounted(loadOrganizations);
 
 <template>
   <JoinOrgModal v-if="showJoin" @close="showJoin = false" />
-  <section class="container-lg space-y-6 py-5 text-white">
+  <section class="container space-y-6 py-5 text-white">
     <header class="space-y-1">
       <div class="flex md:flex-row flex-col items-center justify-between">
         <div class="mb-8 md:mb-0">
@@ -48,7 +48,7 @@ onMounted(loadOrganizations);
             <div>Join with code</div>
           </button>
 
-          <RouterLink to="/orgs/create"
+          <RouterLink to="/organizations/create"
             class="flex gap-2 items-center rounded px-2 py-1 border border-green-500 bg-green-500/70 hover:bg-green-700/70 text-xs transition">
             <Icon icon="carbon:add" width="15" height="15" />
             <div>New organization</div>
@@ -68,7 +68,7 @@ onMounted(loadOrganizations);
     </div>
 
     <div v-else class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-      <RouterLink v-for="org in organizations" :key="org.id" :to="`/orgs/${org.slug}`"
+      <RouterLink v-for="org in organizations" :key="org.id" :to="`/organizations/${org.slug}`"
         class="rounded-lg border border-white/10 bg-white/5 p-6 transition hover:bg-white/10">
         <div class="flex items-start justify-between gap-3">
           <h2 class="">{{ org.name }}</h2>

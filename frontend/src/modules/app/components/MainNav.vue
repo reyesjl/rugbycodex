@@ -117,7 +117,7 @@ watch(
 </script>
 
 <template>
-  <nav ref="navRef" class="fixed top-0 left-0 w-full backdrop-blur text-white z-50">
+  <nav ref="navRef" class="fixed top-0 left-0 w-full backdrop-blur text-white z-60">
     <div class="container-lg py-5 flex items-center justify-between">
       <!-- Left -->
       <div class="flex items-center">

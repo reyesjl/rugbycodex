@@ -1,53 +1,53 @@
-import { computed, watchEffect } from 'vue';
-import { storeToRefs } from 'pinia';
-import { useAuthStore } from '@/auth/stores/useAuthStore';
-import { useMyOrganizationsStore } from '@/modules/orgs/stores/useMyOrganizationsStore';
-import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrganizationStore';
+import { computed, watchEffect } from 'vue'
+import { storeToRefs } from 'pinia'
+import { useAuthStore } from '@/auth/stores/useAuthStore'
+import { useMyOrganizationsStore } from '@/modules/orgs/stores/useMyOrganizationsStore'
+import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrganizationStore'
 
 export type DashboardVariant =
-    | 'booting'
-    | 'admin'
-    | 'onboarding'
-    | 'orgLeader'
-    | 'orgContributor';
+  | 'booting'
+  | 'admin'
+  | 'onboarding'
+  | 'orgLeader'
+  | 'orgContributor'
 
 export function useDashboardState() {
-    const { isAdmin, isAuthenticated } = storeToRefs(useAuthStore());
-    const myOrgs = useMyOrganizationsStore();
-    const activeOrg = useActiveOrganizationStore();
+  const authStore = useAuthStore()
+  const { isAdmin, isAuthenticated } = storeToRefs(authStore)
 
-    watchEffect(() => {
-        if (!isAuthenticated.value) return;
-        void myOrgs.load();
-        void activeOrg.load();
-    });
+  const myOrgs = useMyOrganizationsStore()
+  const { hasOrganizations, loaded } = storeToRefs(myOrgs)
 
-    const effectiveOrg = computed(() => activeOrg.active ?? myOrgs.fallbackOrg ?? null);
+  const activeOrgStore = useActiveOrganizationStore()
+  const { active } = storeToRefs(activeOrgStore)
 
-    const primaryRole = computed(() =>
-        effectiveOrg.value?.membership.role ?? null
-    );
+  watchEffect(() => {
+    if (!isAuthenticated.value) return
+    void myOrgs.load()
+  })
 
-    const variant = computed<DashboardVariant>(() => {
-        if (!myOrgs.loaded) return 'booting';
-        if (isAdmin.value) return 'admin';
-        if (!myOrgs.hasOrganizations) return 'onboarding';
-        if (!activeOrg.loaded) return 'booting';
+  const primaryRole = computed(() =>
+    active.value?.membership.role ?? null
+  )
 
-        if (
-            primaryRole.value === 'owner' || 
-            primaryRole.value === 'manager' || 
-            primaryRole.value === 'staff'
-        ) { 
-            return 'orgLeader'
-        };
+  const variant = computed<DashboardVariant>(() => {
+    if (!loaded.value) return 'booting'
+    if (isAdmin.value) return 'admin'
+    if (!hasOrganizations.value) return 'onboarding'
 
-        return 'orgContributor';
-    });
+    if (
+      primaryRole.value === 'owner' ||
+      primaryRole.value === 'manager' ||
+      primaryRole.value === 'staff'
+    ) {
+      return 'orgLeader'
+    }
 
-    return {
-        variant,
-        fallbackOrg: myOrgs.fallbackOrg,
-        orgCount: myOrgs.membershipCount,
-    };
+    return 'orgContributor'
+  })
+
+  return {
+    variant,
+    orgCount: myOrgs.membershipCount,
+  }
 }
