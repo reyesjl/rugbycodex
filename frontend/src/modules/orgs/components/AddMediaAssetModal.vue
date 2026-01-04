@@ -8,10 +8,6 @@ type AddMediaUploadPayload = {
   kind: MediaAssetKind;
 };
 
-const props = defineProps<{
-  orgId: string;
-}>();
-
 const emit = defineEmits<{
   close: [];
   submit: [payload: AddMediaUploadPayload];
