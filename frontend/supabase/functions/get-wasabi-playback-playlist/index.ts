@@ -7,8 +7,11 @@ import { isOrgMember } from "../_shared/orgs.ts";
 const WASABI_S3_ENDPOINT = "https://s3.us-east-1.wasabisys.com";
 const WASABI_REGION = "us-east-1";
 const HLS_MANIFEST_KEY = "index.m3u8";
-
 const DEFAULT_PRESIGN_TTL_SECONDS = 60 * 10; // 10 minutes
+
+/* =========================================================
+ * Helpers
+ * ======================================================= */
 
 function parseMediaId(reqBody: unknown): string | null {
   if (!reqBody || typeof reqBody !== "object") return null;
@@ -25,12 +28,10 @@ async function readBodyAsText(body: unknown): Promise<string> {
     return new TextDecoder().decode(body);
   }
 
-  // In Edge/Deno, aws-sdk Body is commonly a ReadableStream.
   if (body instanceof ReadableStream) {
     return await new Response(body).text();
   }
 
-  // Fallback: try to coerce via Response.
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return await new Response(body as any).text();
@@ -43,8 +44,6 @@ function isSegmentLine(line: string): boolean {
   const trimmed = line.trim();
   if (!trimmed) return false;
   if (trimmed.startsWith("#")) return false;
-
-  // Segment URIs are typically *.ts. Avoid rewriting nested playlists.
   if (trimmed.toLowerCase().includes(".m3u8")) return false;
   return trimmed.toLowerCase().includes(".ts");
 }
@@ -54,45 +53,31 @@ function normalizeSegmentPath(segmentUri: string): string {
   s = s.replace(/^\.(\/)+/, "");
   s = s.replace(/^\/+/, "");
 
-  // If the playlist uses URL encoding, try to decode for S3 key matching.
   if (s.includes("%")) {
     try {
       s = decodeURIComponent(s);
     } catch {
-      // keep original
+      // noop
     }
   }
 
   return s;
 }
 
-function getWasabiErrorInfo(err: unknown): { name?: string; status?: number } {
-  if (!err || typeof err !== "object") {
-    return { name: typeof err === "string" ? err : undefined };
-  }
-
-  const maybe = err as {
-    name?: string;
-    $metadata?: { httpStatusCode?: number };
-    statusCode?: number;
-  };
-
-  return {
-    name: maybe.name,
-    status: maybe.$metadata?.httpStatusCode ?? maybe.statusCode,
-  };
-}
-
-function isMissingPlaylistError(err: unknown): boolean {
-  const info = getWasabiErrorInfo(err);
-  if (info.status === 404) return true;
-  if (!info.name) return false;
-  return ["NoSuchKey", "NotFound", "NotFoundException"].includes(info.name);
-}
+/* =========================================================
+ * Handler
+ * ======================================================= */
 
 Deno.serve(async (req) => {
   const corsResponse = handleCors(req);
   if (corsResponse) return corsResponse;
+
+  // Log execution region (diagnostics)
+  const edgeRegion =
+    req.headers.get("x-supabase-region") ??
+    req.headers.get("x-vercel-region") ??
+    "unknown";
+  console.log("edge_region:", edgeRegion);
 
   try {
     if (req.method !== "POST") {
@@ -106,16 +91,16 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json().catch(() => null);
-    const media_id = parseMediaId(body);
-    if (!media_id) {
+    const mediaId = parseMediaId(body);
+    if (!mediaId) {
       return jsonResponse({ error: "Missing required field: media_id" }, 400);
     }
 
-    // Fetch media asset (must include org + bucket)
+    // Fetch media asset
     const { data: asset, error: assetError } = await supabase
       .from("media_assets")
       .select("id, org_id, bucket")
-      .eq("id", media_id)
+      .eq("id", mediaId)
       .maybeSingle();
 
     if (assetError || !asset) {
@@ -126,10 +111,9 @@ Deno.serve(async (req) => {
     const bucket = String(asset.bucket ?? "").trim() || "rugbycodex";
 
     if (!orgId) {
-      return jsonResponse({ error: "Media asset is missing org_id" }, 500);
+      return jsonResponse({ error: "Media asset missing org_id" }, 500);
     }
 
-    // Verify org membership unless admin
     if (!isAdmin) {
       const member = await isOrgMember(orgId, userId, supabase);
       if (!member) {
@@ -137,11 +121,16 @@ Deno.serve(async (req) => {
       }
     }
 
-    const streamingPrefix = `orgs/${orgId}/uploads/${media_id}/streaming`;
+    const streamingPrefix = `orgs/${orgId}/uploads/${mediaId}/streaming`;
     const manifestKey = `${streamingPrefix}/${HLS_MANIFEST_KEY}`;
 
-    const accessKeyId = Deno.env.get("WASABI_READER_KEY") ?? Deno.env.get("WASABI_UPLOADER_KEY");
-    const secretAccessKey = Deno.env.get("WASABI_READER_SECRET") ?? Deno.env.get("WASABI_UPLOADER_SECRET");
+    const accessKeyId =
+      Deno.env.get("WASABI_READER_KEY") ??
+      Deno.env.get("WASABI_UPLOADER_KEY");
+
+    const secretAccessKey =
+      Deno.env.get("WASABI_READER_SECRET") ??
+      Deno.env.get("WASABI_UPLOADER_SECRET");
 
     if (!accessKeyId || !secretAccessKey) {
       return jsonResponse({ error: "Wasabi credentials not configured" }, 500);
@@ -156,8 +145,12 @@ Deno.serve(async (req) => {
       },
     });
 
-    // Fetch the original playlist from Wasabi (private)
+    /* =========================================================
+     * Fetch playlist
+     * ======================================================= */
+
     let playlistText: string;
+
     try {
       const resp = await s3.send(
         new GetObjectCommand({
@@ -171,49 +164,59 @@ Deno.serve(async (req) => {
       if (!playlistText.trim()) {
         return jsonResponse({ error: "Playlist not found" }, 404);
       }
-    } catch (err) {
-      // NoSuchKey / AccessDenied / etc. should not leak details.
-      const { name, status } = getWasabiErrorInfo(err);
-      console.error("Error fetching HLS manifest from Wasabi:", { name, status, err });
-      if (isMissingPlaylistError(err)) {
+    } catch (err: any) {
+      console.error("Wasabi HLS manifest read failed", {
+        name: err?.name,
+        code: err?.Code,
+        httpStatus: err?.$metadata?.httpStatusCode,
+        requestId: err?.$metadata?.requestId,
+      });
+
+      // True "does not exist"
+      if (
+        err?.name === "NoSuchKey" ||
+        err?.$metadata?.httpStatusCode === 404
+      ) {
         return jsonResponse({ error: "Playlist not found" }, 404);
       }
-      return jsonResponse({ error: "Playlist temporarily unavailable" }, 503);
+
+      // Transient / retryable
+      return jsonResponse(
+        { error: "Playlist temporarily unavailable" },
+        503,
+      );
     }
 
-    const ttlSeconds = DEFAULT_PRESIGN_TTL_SECONDS;
+    /* =========================================================
+     * Rewrite segments (parallel signing)
+     * ======================================================= */
 
     const lines = playlistText.split(/\r?\n/);
-    const rewritten: string[] = [];
+    const ttlSeconds = DEFAULT_PRESIGN_TTL_SECONDS;
 
-    for (const line of lines) {
-      if (!isSegmentLine(line)) {
-        rewritten.push(line);
-        continue;
-      }
+    const rewritten = await Promise.all(
+      lines.map(async (line) => {
+        if (!isSegmentLine(line)) return line;
 
-      const segmentUri = normalizeSegmentPath(line);
+        const segmentUri = normalizeSegmentPath(line);
+        const segmentKey = segmentUri.startsWith("orgs/")
+          ? segmentUri
+          : `${streamingPrefix}/${segmentUri}`;
 
-      // Support either relative segment URIs (most common) or absolute key paths.
-      const segmentKey = segmentUri.startsWith("orgs/")
-        ? segmentUri
-        : `${streamingPrefix}/${segmentUri}`;
+        const signedUrl = await getSignedUrl(
+          s3,
+          new GetObjectCommand({
+            Bucket: bucket,
+            Key: segmentKey,
+          }),
+          { expiresIn: ttlSeconds },
+        );
 
-      const signedUrl = await getSignedUrl(
-        s3,
-        new GetObjectCommand({
-          Bucket: bucket,
-          Key: segmentKey,
-        }),
-        { expiresIn: ttlSeconds },
-      );
+        return signedUrl;
+      }),
+    );
 
-      rewritten.push(signedUrl);
-    }
-
-    const bodyText = rewritten.join("\n");
-
-    return new Response(bodyText, {
+    return new Response(rewritten.join("\n"), {
       status: 200,
       headers: {
         ...corsHeaders,
@@ -221,7 +224,8 @@ Deno.serve(async (req) => {
       },
     });
   } catch (err) {
-    console.error("Error in get-wasabi-playback-playlist:", err);
+    console.error("Unhandled playback playlist error:", err);
     return jsonResponse({ error: "Unexpected server error" }, 500);
   }
 });
+
