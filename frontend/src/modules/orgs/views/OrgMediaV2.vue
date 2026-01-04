@@ -4,8 +4,12 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { Icon } from '@iconify/vue';
 import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrganizationStore';
 import { useOrgMediaStore } from '@/modules/media/stores/useOrgMediaStore';
+import { buildUploadJob, useUploadManager } from '@/modules/media/composables/useUploadManager';
+import { mediaService } from '@/modules/media/services/mediaService';
 import MediaAssetCard from '@/modules/orgs/components/MediaAssetCard.vue';
 import AddMediaAssetModal from '@/modules/orgs/components/AddMediaAssetModal.vue';
+import { toast } from '@/lib/toast';
+import type { MediaAssetKind } from '@/modules/media/types/MediaAssetKind';
 
 const activeOrgStore = useActiveOrganizationStore();
 const mediaStore = useOrgMediaStore();
@@ -16,6 +20,23 @@ const { assets, status, error, isLoading } = storeToRefs(mediaStore);
 const activeOrgId = computed(() => active.value?.organization?.id ?? null);
 
 const showAddMedia = ref(false);
+
+const uploadManager = useUploadManager();
+
+const hasInFlightUploads = computed(() => uploadManager.activeUploads.value.length > 0);
+
+const uploadMetricsByAssetId = computed(() => {
+  return new Map(
+    uploadManager.activeUploads.value.map((job) => [
+      job.id,
+      {
+        state: job.state,
+        progress: job.progress,
+        uploadSpeedBps: job.uploadSpeedBps,
+      },
+    ])
+  );
+});
 
 function openAddMedia() {
   if (!activeOrgId.value) return;
@@ -30,6 +51,86 @@ function handleUploadStarted() {
   mediaStore.reset();
   void mediaStore.loadForActiveOrg();
 }
+
+async function handleDeleteAsset(assetId: string) {
+  try {
+    await mediaService.deleteById(assetId);
+    toast({
+      variant: 'success',
+      message: 'Media deleted.',
+      durationMs: 2500,
+    });
+    mediaStore.reset();
+    void mediaStore.loadForActiveOrg();
+  } catch (err) {
+    toast({
+      variant: 'error',
+      message: err instanceof Error ? err.message : 'Failed to delete media.',
+      durationMs: 3500,
+    });
+  }
+}
+
+async function handleUploadSubmit(payload: { file: globalThis.File; kind: MediaAssetKind }) {
+  if (!activeOrgId.value) return;
+
+  try {
+    const job = await buildUploadJob(payload.file, activeOrgId.value, 'rugbycodex');
+
+    const { error: updateError } = await mediaService.updateMediaAsset(job.id, {
+      kind: payload.kind,
+    });
+
+    if (updateError) {
+      throw new Error(updateError.message);
+    }
+
+    uploadManager.enqueue(job);
+
+    toast({
+      variant: 'success',
+      message: 'Upload started.',
+      durationMs: 2500,
+    });
+
+    handleUploadStarted();
+  } catch (err) {
+    toast({
+      variant: 'error',
+      message: err instanceof Error ? err.message : 'Failed to start upload.',
+      durationMs: 3500,
+    });
+  } finally {
+    closeAddMedia();
+  }
+}
+
+watch(
+  () => uploadManager.completedUploads.value,
+  async (completed) => {
+    if (completed.length === 0) return;
+
+    // Copy before we mutate the uploadManager list.
+    const jobs = [...completed];
+
+    await Promise.all(
+      jobs.map((job) =>
+        mediaService.updateMediaAsset(job.id, {
+          storage_path: job.storage_path,
+          status: 'ready',
+        })
+      )
+    );
+
+    for (const job of jobs) {
+      uploadManager.remove(job.id);
+    }
+
+    // Reload assets after uploads complete
+    mediaStore.reset();
+    void mediaStore.loadForActiveOrg();
+  }
+);
 
 onMounted(() => {
   void mediaStore.loadForActiveOrg();
@@ -55,6 +156,16 @@ watch(activeOrgId, (orgId, prevOrgId) => {
         <Icon icon="carbon:upload" width="15" height="15" />
         Upload
       </button>
+    </div>
+
+    <div
+      v-if="hasInFlightUploads"
+      class="rounded-lg border border-white/10 bg-white/5 p-4 text-white/70"
+      aria-label="Upload status"
+    >
+      <div class="text-sm">
+        Upload in progress. Please do not navigate away from this page.
+      </div>
     </div>
 
     <div v-if="orgResolving" class="rounded-lg border border-white/10 bg-white/5 p-6 text-white/70">
@@ -90,6 +201,8 @@ watch(activeOrgId, (orgId, prevOrgId) => {
             :key="asset.id"
             :asset="asset"
             :narration-count="mediaStore.narrationCountByAssetId(asset.id)"
+            :upload-metrics="uploadMetricsByAssetId.get(asset.id)"
+            @delete="handleDeleteAsset"
           />
         </div>
       </div>
@@ -100,7 +213,7 @@ watch(activeOrgId, (orgId, prevOrgId) => {
     v-if="showAddMedia && activeOrgId"
     :org-id="activeOrgId"
     @close="closeAddMedia"
-    @started="handleUploadStarted"
+    @submit="handleUploadSubmit"
   />
 </template>
 

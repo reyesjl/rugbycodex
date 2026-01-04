@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { toast } from '@/lib/toast';
-import { buildUploadJob, useUploadManager } from '@/modules/media/composables/useUploadManager';
-import { mediaService } from '@/modules/media/services/mediaService';
 import { isMp4File, sanitizeFileName } from '@/modules/media/utils/assetUtilities';
 import type { MediaAssetKind } from '@/modules/media/types/MediaAssetKind';
+
+type AddMediaUploadPayload = {
+  file: globalThis.File;
+  kind: MediaAssetKind;
+};
 
 const props = defineProps<{
   orgId: string;
@@ -12,7 +14,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   close: [];
-  started: [mediaAssetId: string];
+  submit: [payload: AddMediaUploadPayload];
 }>();
 
 const title = ref('');
@@ -88,38 +90,16 @@ async function submit() {
     return;
   }
 
-  loading.value = true;
   error.value = null;
 
-  try {
-    const uploadManager = useUploadManager();
-    const uploadFile = buildUploadFile(file.value, title.value);
+  const uploadFile = buildUploadFile(file.value, title.value);
+  emit('submit', {
+    file: uploadFile,
+    kind: kind.value,
+  });
 
-    const job = await buildUploadJob(uploadFile, props.orgId, 'rugbycodex');
-
-    const { error: updateError } = await mediaService.updateMediaAsset(job.id, {
-      kind: kind.value,
-    });
-
-    if (updateError) {
-      throw new Error(updateError.message);
-    }
-
-    await uploadManager.enqueue(job);
-
-    toast({
-      variant: 'success',
-      message: 'Upload started.',
-      durationMs: 2500,
-    });
-
-    emit('started', job.id);
-    close();
-  } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to start upload.';
-  } finally {
-    loading.value = false;
-  }
+  // Close immediately after emitting the payload (validation-only modal).
+  close();
 }
 </script>
 
