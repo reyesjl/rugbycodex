@@ -17,7 +17,7 @@ const steps = [
     title: 'Create a workspace',
     description: 'Set up a new workspace for team, club, or personal analysis.',
     icon: 'carbon:intent-request-create',
-    to: '/organizations',
+    to: '/organizations/create',
   },
   {
     title: 'See a real example',

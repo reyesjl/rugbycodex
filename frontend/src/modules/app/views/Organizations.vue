@@ -88,14 +88,14 @@ onMounted(() => {
         <div class="flex gap-3">
           <button
             @click="handleJoinClick"
-            class="flex gap-2 items-center rounded px-2 py-1 border border-sky-500 bg-sky-500/70 hover:bg-sky-700/70 text-xs cursor-pointer transition">
+            class="flex gap-2 items-center rounded-lg px-2 py-1 border border-sky-500 bg-sky-500/70 hover:bg-sky-700/70 text-xs cursor-pointer transition">
             <Icon icon="carbon:join-left-outer" width="15" height="15" />
             <div>Join with code</div>
           </button>
 
           <RouterLink
             to="/organizations/create"
-            class="flex gap-2 items-center rounded px-2 py-1 border border-green-500 bg-green-500/70 hover:bg-green-700/70 text-xs transition">
+            class="flex gap-2 items-center rounded-lg px-2 py-1 border border-green-500 bg-green-500/70 hover:bg-green-700/70 text-xs transition">
             <Icon icon="carbon:add" width="15" height="15" />
             <div>New organization</div>
           </RouterLink>

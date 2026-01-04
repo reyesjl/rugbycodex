@@ -3,7 +3,7 @@ import { S3Client } from "@aws-sdk/client-s3";
 import { Upload } from "@aws-sdk/lib-storage";
 import type { UploadJob, } from "@/modules/media/types/UploadStatus";
 import { supabase } from "@/lib/supabaseClient";
-import { calculateFileChecksum, getMediaDurationSeconds, sanitizeFileName } from "@/modules/media/utils/assetUtilities";
+import { getMediaDurationSeconds, sanitizeFileName } from "@/modules/media/utils/assetUtilities";
 import { mediaService } from "@/modules/media/services/mediaService";
 
 const MAX_CONCURRENT_UPLOADS = 3;

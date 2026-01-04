@@ -22,7 +22,7 @@ export const orgRoutes: RouteRecordRaw = {
         {
           path: 'overview',
           name: 'OrgOverview',
-          component: () => import('@/modules/orgs/views/OrgOverviewStub.vue'),
+          component: () => import('@/modules/orgs/views/OrgOverview.vue'),
           props: true,
         },
         {

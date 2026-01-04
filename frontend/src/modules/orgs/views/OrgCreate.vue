@@ -62,7 +62,8 @@ const submit = async () => {
 };
 
 const cancel = () => {
-  router.push('/organizations');
+  // router back
+  router.back();
 };
 </script>
 
@@ -71,7 +72,7 @@ const cancel = () => {
     <div class="max-w-2xl mx-auto py-8">
       <!-- Header -->
       <header class="mb-6">
-        <h2 class="text-xl font-semibold">Create Organization</h2>
+        <h2 class="text-xl">Create Organization</h2>
         <p class="text-sm text-gray-400">
           Request a new organization workspace. Admins will review your request.
         </p>

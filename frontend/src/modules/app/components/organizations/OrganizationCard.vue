@@ -27,7 +27,7 @@ const props = withDefaults(
 const linkTo = computed(() => props.to ?? `/organizations/${props.slug}`);
 
 const cardClass = computed(() => {
-  const base = 'rounded-lg bg-white/5 transition';
+  const base = 'block rounded-lg bg-white/5 transition';
   const border = props.prominent
     ? 'border border-white/15 hover:border-white/25'
     : 'border border-white/10 hover:border-white/15';
@@ -38,7 +38,7 @@ const cardClass = computed(() => {
 
   return props.variant === 'horizontal'
     ? `${base} ${border} ${motion} ${snap} w-72 shrink-0 p-4`
-    : `${base} ${border} ${motion} p-6`;
+    : `${base} ${border} ${motion} w-full p-6`;
 });
 
 const descriptionClass = computed(() => {

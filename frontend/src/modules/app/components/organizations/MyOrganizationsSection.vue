@@ -27,18 +27,19 @@ defineProps<{
       You’re not a member of any organizations yet.
     </div>
 
-    <div v-else class="no-scrollbar flex gap-4 overflow-x-auto pb-2 scroll-smooth snap-x snap-mandatory">
-      <OrganizationCard
-        v-for="item in organizations"
-        :key="item.organization.id"
-        :name="item.organization.name"
-        :slug="item.organization.slug"
-        :bio="item.organization.bio"
-        :type="item.organization.type"
-        :role="item.membership.role"
-        variant="horizontal"
-        prominent
-      />
+    <div v-else class="flex flex-wrap -m-2">
+      <div v-for="item in organizations" :key="item.organization.id" class="w-full p-2 lg:w-1/3">
+        <OrganizationCard
+          :name="item.organization.name"
+          :slug="item.organization.slug"
+          :bio="item.organization.bio"
+          :type="item.organization.type"
+          :role="item.membership.role"
+          variant="grid"
+          prominent
+          class="h-full"
+        />
+      </div>
     </div>
   </section>
 </template>

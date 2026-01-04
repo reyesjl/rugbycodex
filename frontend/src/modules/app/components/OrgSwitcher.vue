@@ -24,8 +24,8 @@ const displayOrg = computed(() => {
   // when on an org route, active will be set
   if (active.value) return active.value
 
-  // fallback: first org or nothing
-  return items.value[0] ?? null
+  // fallback:nothing
+  return null
 })
 
 const orgMenuOpen = ref(false)
@@ -66,10 +66,10 @@ watch(
 
 
 <template>
-  <!-- Org switcher (ONLY if user has orgs) -->
-  <div v-if="hasOrganizations" class="flex items-center mr-4">
+  <!-- Org switcher -->
+  <div class="flex items-center mr-4">
     <div class="text-sm mr-1 truncate max-w-[180px]">
-      {{ displayOrg?.organization.name }}
+      {{ displayOrg?.organization.name ?? 'Select org' }}
     </div>
 
     <div class="relative">
@@ -96,25 +96,27 @@ watch(
           class="absolute left-0 mt-2 w-56 rounded-md border border-white/20 bg-black p-2 text-sm shadow-2xl"
         >
           <!-- Org list -->
-          <button
-            v-for="org in items"
-            :key="org.organization.id"
-            class="flex text-xs cursor-pointer w-full items-center justify-between gap-3 rounded px-3 py-2 border border-transparent"
-            :class="activeOrgId === org.organization.id ? 'border-green-500 bg-green-500/30 hover:bg-green-700/70' : 'hover:bg-white/10'"
-            @click="handleOrgSelect(org)"
-          >
-            <span class="truncate">{{ org.organization.name }}</span>
-            <Icon
-              v-if="activeOrgId === org.organization.id"
-              icon="carbon:checkmark"
-              width="16"
-              height="16"
-              class="shrink-0 text-white/70"
-              aria-label="Active organization"
-            />
-          </button>
+          <template v-if="hasOrganizations">
+            <button
+              v-for="org in items"
+              :key="org.organization.id"
+              class="flex text-xs cursor-pointer w-full items-center justify-between gap-3 rounded px-3 py-2 border border-transparent"
+              :class="activeOrgId === org.organization.id ? 'border-green-500 bg-green-500/30 hover:bg-green-700/70' : 'hover:bg-white/10'"
+              @click="handleOrgSelect(org)"
+            >
+              <span class="truncate">{{ org.organization.name }}</span>
+              <Icon
+                v-if="activeOrgId === org.organization.id"
+                icon="carbon:checkmark"
+                width="16"
+                height="16"
+                class="shrink-0 text-white/70"
+                aria-label="Active organization"
+              />
+            </button>
 
-          <hr class="my-2 border-white/20" />
+            <hr class="my-2 border-white/20" />
+          </template>
 
           <RouterLink
             to="/organizations"
@@ -135,7 +137,7 @@ watch(
           </RouterLink>
 
           <hr class="my-2 border-white/20" />
-          
+
           <RouterLink
             to="/"
             class="text-xs flex items-center rounded px-3 py-2 hover:bg-white/10"
