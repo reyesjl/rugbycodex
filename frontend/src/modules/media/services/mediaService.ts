@@ -44,6 +44,11 @@ type ListQueryResult<T = unknown> = PromiseLike<{ data: T[] | null; error: Postg
  */
 type SingleQueryResult<T = unknown> = PromiseLike<{ data: T | null; error: PostgrestError | null }>;
 
+type NarrationCountRow = {
+  media_asset_id: string | null;
+  count: number | string | null;
+};
+
 function asDate(value: string | Date | null, context: string): Date {
   if (!value) {
     throw new Error(`Missing ${context} timestamp.`);
@@ -109,6 +114,28 @@ function toOrgMediaAsset(row: MediaAssetRow): OrgMediaAsset {
 
 
 export const mediaService = {
+
+  /**
+   * Returns narration counts grouped by media_asset_id for a given org.
+   *
+   * Shape: [{ media_asset_id, count }]
+   */
+  async getNarrationCountsByOrg(orgId: string): Promise<Array<{ media_asset_id: string; count: number }>> {
+    const { data, error } = await supabase.rpc('get_narration_counts_by_org', {
+      p_org_id: orgId,
+    });
+
+    if (error) throw error;
+
+    const rows = (data ?? []) as Array<NarrationCountRow>;
+
+    return rows
+      .filter((row) => !!row.media_asset_id)
+      .map((row) => ({
+        media_asset_id: row.media_asset_id as string,
+        count: typeof row.count === 'number' ? row.count : Number(row.count ?? 0),
+      }));
+  },
 
   async updateMediaAsset(id: string, fields: Partial<OrgMediaAsset>) {
     return supabase
