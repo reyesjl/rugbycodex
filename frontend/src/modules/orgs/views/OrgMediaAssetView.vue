@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
-import Hls from 'hls.js';
 import { storeToRefs } from 'pinia';
+import HlsPlayer from '@/components/HlsPlayer.vue';
 import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrganizationStore';
 import { mediaService } from '@/modules/media/services/mediaService';
 import type { OrgMediaAsset } from '@/modules/media/types/OrgMediaAsset';
@@ -25,10 +25,6 @@ const loading = ref(true);
 const error = ref<string | null>(null);
 const asset = ref<OrgMediaAsset | null>(null);
 
-// eslint-disable-next-line no-undef
-const videoEl = ref<HTMLVideoElement | null>(null);
-let hls: Hls | null = null;
-
 const playlistObjectUrl = ref<string | null>(null);
 
 const title = computed(() => {
@@ -39,20 +35,6 @@ const title = computed(() => {
   return withoutExtension.replace(/[-_]+/g, ' ').trim() || 'Untitled clip';
 });
 
-function destroyPlayer() {
-  debugLog('destroyPlayer()', { hasHls: Boolean(hls), hasVideo: Boolean(videoEl.value) });
-  if (hls) {
-    hls.destroy();
-    hls = null;
-  }
-
-  const video = videoEl.value;
-  if (video) {
-    video.removeAttribute('src');
-    video.load();
-  }
-}
-
 function revokePlaylistUrl() {
   const url = playlistObjectUrl.value;
   if (!url) return;
@@ -60,55 +42,8 @@ function revokePlaylistUrl() {
   playlistObjectUrl.value = null;
 }
 
-async function initPlayer() {
-  destroyPlayer();
-
-  const nextAsset = asset.value;
-  if (!nextAsset) return;
-
-  const url = playlistObjectUrl.value;
-  const video = videoEl.value;
-  debugLog('initPlayer()', {
-    url,
-    hasVideoEl: Boolean(video),
-    canPlayNativeHls: video ? video.canPlayType('application/vnd.apple.mpegurl') : null,
-    hlsJsSupported: Hls.isSupported(),
-  });
-
-  if (!url || !video) {
-    error.value = 'Unable to load the stream for this clip.';
-    debugLog('initPlayer(): aborting due to missing url or video element', { url, videoEl: video });
-    return;
-  }
-
-  // Native HLS (Safari)
-  if (video.canPlayType('application/vnd.apple.mpegurl')) {
-    debugLog('initPlayer(): using native HLS');
-    video.src = url;
-    return;
-  }
-
-  // hls.js fallback
-  if (Hls.isSupported()) {
-    debugLog('initPlayer(): using hls.js');
-    hls = new Hls({
-      enableWorker: true,
-    });
-
-    hls.on(Hls.Events.ERROR, (_event, data) => {
-      debugLog('hls.js error event', data);
-      if (data?.fatal) {
-        error.value = 'Unable to play this clip right now.';
-        destroyPlayer();
-      }
-    });
-
-    hls.loadSource(url);
-    hls.attachMedia(video);
-    return;
-  }
-
-  error.value = 'HLS playback is not supported in this browser.';
+function handlePlayerError(message: string) {
+  error.value = message;
 }
 
 async function loadAsset() {
@@ -119,7 +54,6 @@ async function loadAsset() {
   loading.value = true;
   error.value = null;
   asset.value = null;
-  destroyPlayer();
   revokePlaylistUrl();
 
   try {
@@ -153,26 +87,8 @@ async function loadAsset() {
       throw err;
     }
 
-    // Ensure the template swaps from loading state before we attempt to resolve refs.
+    // Ensure the template swaps from loading state before playback init runs in the player.
     loading.value = false;
-
-    await nextTick();
-    if (!videoEl.value) {
-      await nextTick();
-    }
-
-    debugLog('loadAsset(): after nextTick', { hasVideoEl: Boolean(videoEl.value) });
-
-    if (!videoEl.value) {
-      error.value = 'Unable to load the stream for this clip.';
-      debugLog('initPlayer(): aborting due to missing url or video element', {
-        url: playlistObjectUrl.value,
-        videoEl: videoEl.value,
-      });
-      return;
-    }
-
-    await initPlayer();
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Unable to load clip.';
     debugLog('loadAsset(): error', err);
@@ -189,7 +105,6 @@ watch([mediaId, activeOrgId], () => {
 }, { immediate: true });
 
 onBeforeUnmount(() => {
-  destroyPlayer();
   revokePlaylistUrl();
 });
 </script>
@@ -213,11 +128,12 @@ onBeforeUnmount(() => {
       </header>
 
       <div class="overflow-hidden rounded-lg bg-white/5 ring-1 ring-white/10">
-        <video
-          ref="videoEl"
+        <HlsPlayer
+          :src="playlistObjectUrl ?? ''"
           class="w-full h-auto"
           controls
           playsinline
+          @error="handlePlayerError"
         />
       </div>
     </div>
