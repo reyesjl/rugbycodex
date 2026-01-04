@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia';
 import { computed } from 'vue';
+import { formatMonthYear } from '@/lib/date';
 import { useActiveOrganizationStore } from '../stores/useActiveOrganizationStore';
 
 const activeOrganizationStore = useActiveOrganizationStore();
@@ -27,11 +28,12 @@ const badgeClass =
       <header class="space-y-2">
         <div class="flex flex-col gap-2 md:flex-row md:items-center">
           <h1 class="text-3xl">{{ org.name }}</h1>
-
           <div class="flex flex-wrap gap-2">
             <span :class="badgeClass">{{ org.visibility ?? 'unknown' }}</span>
           </div>
         </div>
+
+        <p class="text-xs text-gray-500">Joined on {{ formatMonthYear(org.created_at) ?? 'Unknown' }}</p>
 
         <p class="max-w-2xl text-white/70">
           {{ org.bio && org.bio.trim().length ? org.bio : 'No bio yet.' }}

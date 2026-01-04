@@ -1371,7 +1371,7 @@ export const orgService = {
     const { data, error } = await supabase
       .from("media_assets")
       .select(
-        "id, org_id, uploader_id, bucket, storage_path, file_name, file_size_bytes, mime_type, duration_seconds, status, created_at"
+        "id, org_id, uploader_id, bucket, storage_path, file_name, file_size_bytes, mime_type, duration_seconds, kind, status, created_at"
       )
       .eq("org_id", orgId)
       .order("created_at", { ascending: false })

@@ -7,6 +7,7 @@ export type { CreateOrganizationInput } from "./CreateOrganizationInput";
 export type { JobState } from "./JobState";
 export type { JobType } from "./JobType";
 export type { JoinOrgWithCodeResult } from "./JoinOrgWithCodeResult";
+export type { MediaAssetKind } from "../../media/types/MediaAssetKind";
 export type { MediaAssetStatus } from "../../media/types/MediaAssetStatus";
 export type { Megabytes } from "./Megabytes";
 export type { OrgCapabilities } from "./OrgCapabilities";

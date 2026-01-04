@@ -18,6 +18,7 @@ type MediaAssetRow = {
   checksum: string;
   source: string;
   file_name: string;
+  kind: string;
   status: string;
   created_at: string | Date | null;
   base_org_storage_path: string;
@@ -99,6 +100,7 @@ function toOrgMediaAsset(row: MediaAssetRow): OrgMediaAsset {
     checksum: row.checksum,
     source: row.source,
     file_name: row.file_name,
+    kind: row.kind,
     status: row.status,
     created_at: asDate(row.created_at, 'media asset creation'),
     base_org_storage_path: row.base_org_storage_path,
