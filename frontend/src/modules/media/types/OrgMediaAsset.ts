@@ -17,8 +17,10 @@ export type OrgMediaAsset = {
   checksum: string;
   source: string;
   file_name: string;
+  title?: string | null;
   kind: MediaAssetKind;
   status: MediaAssetStatus;
+  hls_url?: string | null;
   created_at: Date;
   base_org_storage_path: string;
 };

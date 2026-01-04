@@ -18,6 +18,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
+  open: [assetId: string];
   delete: [assetId: string];
 }>();
 
@@ -98,6 +99,13 @@ function confirmAndDelete() {
   emit('delete', props.asset.id);
 }
 
+function handleCardClick() {
+  closeMenu();
+  if (isInteractive.value) {
+    emit('open', props.asset.id);
+  }
+}
+
 function clipTitle(fileName: string) {
   const lastSegment = fileName.split('/').pop() ?? fileName;
   const withoutExtension = lastSegment.replace(/\.[^/.]+$/, '');
@@ -111,9 +119,9 @@ function clipTitle(fileName: string) {
     :class="
       isInteractive
         ? 'hover:cursor-pointer hover:bg-white/10 hover:ring-white/20'
-        : 'pointer-events-none opacity-60'
+        : 'opacity-60'
     "
-    @click="closeMenu"
+    @click="handleCardClick"
   >
     <div class="p-3">
       <!-- Thumbnail placeholder -->

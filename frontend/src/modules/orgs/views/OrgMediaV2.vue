@@ -2,6 +2,7 @@
 import { storeToRefs } from 'pinia';
 import { computed, onMounted, ref, watch } from 'vue';
 import { Icon } from '@iconify/vue';
+import { useRoute, useRouter } from 'vue-router';
 import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrganizationStore';
 import { useOrgMediaStore } from '@/modules/media/stores/useOrgMediaStore';
 import { buildUploadJob, useUploadManager } from '@/modules/media/composables/useUploadManager';
@@ -11,8 +12,12 @@ import AddMediaAssetModal from '@/modules/orgs/components/AddMediaAssetModal.vue
 import { toast } from '@/lib/toast';
 import type { MediaAssetKind } from '@/modules/media/types/MediaAssetKind';
 
+defineProps<{ slug?: string | string[] }>();
+
 const activeOrgStore = useActiveOrganizationStore();
 const mediaStore = useOrgMediaStore();
+const router = useRouter();
+const route = useRoute();
 
 const { active, resolving: orgResolving } = storeToRefs(activeOrgStore);
 const { assets, status, error, isLoading } = storeToRefs(mediaStore);
@@ -41,6 +46,18 @@ const uploadMetricsByAssetId = computed(() => {
 function openAddMedia() {
   if (!activeOrgId.value) return;
   showAddMedia.value = true;
+}
+
+function openAsset(assetId: string) {
+  const slug = route.params.slug;
+  if (!slug) return;
+  void router.push({
+    name: 'OrgMediaAsset',
+    params: {
+      slug,
+      mediaId: assetId,
+    },
+  });
 }
 
 function closeAddMedia() {
@@ -202,6 +219,7 @@ watch(activeOrgId, (orgId, prevOrgId) => {
             :asset="asset"
             :narration-count="mediaStore.narrationCountByAssetId(asset.id)"
             :upload-metrics="uploadMetricsByAssetId.get(asset.id)"
+            @open="openAsset"
             @delete="handleDeleteAsset"
           />
         </div>

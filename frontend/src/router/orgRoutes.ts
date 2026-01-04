@@ -44,7 +44,7 @@ export const orgRoutes: RouteRecordRaw = {
           props: true,
         },
         {
-          path: 'media/:assetId',
+          path: 'media/:mediaId',
           name: 'OrgMediaAsset',
           component: () => import('@/modules/orgs/views/OrgMediaAssetView.vue'),
           props: true,

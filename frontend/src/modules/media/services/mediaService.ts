@@ -2,6 +2,11 @@ import { supabase } from "@/lib/supabaseClient";
 import type { OrgMediaAsset } from "@/modules/media/types/OrgMediaAsset";
 import type { PostgrestError } from "@supabase/supabase-js";
 
+const HLS_PLAYLIST_MIME = "application/vnd.apple.mpegurl";
+const RETRY_DELAYS_MS = [500, 1000, 1500];
+const MAX_RETRY_ATTEMPTS = 3;
+const PLAYBACK_ERROR_MESSAGE = "Unable to play this clip right now.";
+
 /**
  * Represents a row in the media assets table, containing metadata about a media file
  * associated with an organization.
@@ -18,8 +23,10 @@ type MediaAssetRow = {
   checksum: string;
   source: string;
   file_name: string;
+  title?: string | null;
   kind: string;
   status: string;
+  hls_url?: string | null;
   created_at: string | Date | null;
   base_org_storage_path: string;
 };
@@ -48,6 +55,81 @@ type NarrationCountRow = {
   media_asset_id: string | null;
   count: number | string | null;
 };
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function getFunctionErrorStatus(error: unknown): number | null {
+  if (!error || typeof error !== "object") return null;
+  const maybe = error as {
+    status?: number;
+    context?: { status?: number; response?: { status?: number } };
+  };
+  return maybe.status ?? maybe.context?.status ?? maybe.context?.response?.status ?? null;
+}
+
+function isNetworkError(error: unknown): boolean {
+  if (error instanceof TypeError) return true;
+  if (!error || typeof error !== "object") return false;
+  const name = (error as { name?: string }).name;
+  return name === "FunctionsFetchError";
+}
+
+function isRetryableFunctionError(error: unknown): boolean {
+  const status = getFunctionErrorStatus(error);
+  if (status === 503) return true;
+  if (status === 404) return false;
+  if (status !== null) return false;
+  return isNetworkError(error);
+}
+
+function isNotFoundFunctionError(error: unknown): boolean {
+  return getFunctionErrorStatus(error) === 404;
+}
+
+async function withRetry<T>(
+  operation: () => Promise<T>,
+  isRetryable: (error: unknown) => boolean
+): Promise<T> {
+  let retries = 0;
+
+  while (true) {
+    try {
+      return await operation();
+    } catch (error) {
+      if (!isRetryable(error)) {
+        throw error;
+      }
+
+      if (retries >= MAX_RETRY_ATTEMPTS) {
+        const finalError = new Error(PLAYBACK_ERROR_MESSAGE);
+        (finalError as Error & { cause?: unknown }).cause = error;
+        throw finalError;
+      }
+
+      const delayMs = RETRY_DELAYS_MS[retries] ?? RETRY_DELAYS_MS[RETRY_DELAYS_MS.length - 1] ?? 0;
+      retries += 1;
+      if (delayMs > 0) {
+        await delay(delayMs);
+      }
+    }
+  }
+}
+
+async function fetchSignedHlsPlaylist(mediaId: string): Promise<string> {
+  const response = await supabase.functions.invoke("get-wasabi-playback-playlist", {
+    body: {
+      media_id: mediaId,
+    },
+  });
+
+  if (response.error) {
+    throw response.error;
+  }
+
+  return typeof response.data === "string" ? response.data : String(response.data ?? "");
+}
 
 function asDate(value: string | Date | null, context: string): Date {
   if (!value) {
@@ -105,8 +187,10 @@ function toOrgMediaAsset(row: MediaAssetRow): OrgMediaAsset {
     checksum: row.checksum,
     source: row.source,
     file_name: row.file_name,
+    title: row.title ?? null,
     kind: row.kind,
     status: row.status,
+    hls_url: row.hls_url ?? null,
     created_at: asDate(row.created_at, 'media asset creation'),
     base_org_storage_path: row.base_org_storage_path,
   };
@@ -208,6 +292,37 @@ export const mediaService = {
   async deleteById(id: string): Promise<void> {
     const { error } = await supabase.from('media_assets').delete().eq('id', id);
     if (error) throw error;
+  },
+
+  /**
+   * Retrieves an HLS playlist (m3u8) for playback via Supabase Edge Function,
+   * wraps it in a Blob, and returns an object URL.
+   */
+  async getSignedHlsPlaylistObjectUrl(mediaId: string): Promise<string> {
+    let playlistText: string;
+    try {
+      playlistText = await withRetry(
+        () => fetchSignedHlsPlaylist(mediaId),
+        isRetryableFunctionError
+      );
+    } catch (error) {
+      if (isNotFoundFunctionError(error)) {
+        throw new Error("This clip is not ready for playback yet.");
+      }
+      if (error instanceof Error && error.message === PLAYBACK_ERROR_MESSAGE) {
+        throw error;
+      }
+      const userError = new Error(PLAYBACK_ERROR_MESSAGE);
+      (userError as Error & { cause?: unknown }).cause = error;
+      throw userError;
+    }
+
+    if (!playlistText.trim()) {
+      throw new Error("This clip is not ready for playback yet.");
+    }
+
+    const blob = new Blob([playlistText], { type: HLS_PLAYLIST_MIME });
+    return URL.createObjectURL(blob);
   },
 
 }
