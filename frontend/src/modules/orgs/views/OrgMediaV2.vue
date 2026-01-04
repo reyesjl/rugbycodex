@@ -211,7 +211,6 @@ watch(activeOrgId, (orgId, prevOrgId) => {
 
   <AddMediaAssetModal
     v-if="showAddMedia && activeOrgId"
-    :org-id="activeOrgId"
     @close="closeAddMedia"
     @submit="handleUploadSubmit"
   />
