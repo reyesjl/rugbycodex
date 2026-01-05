@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import HlsPlayer from '@/components/HlsPlayer.vue';
@@ -35,13 +35,6 @@ const title = computed(() => {
   return withoutExtension.replace(/[-_]+/g, ' ').trim() || 'Untitled clip';
 });
 
-function revokePlaylistUrl() {
-  const url = playlistObjectUrl.value;
-  if (!url) return;
-  URL.revokeObjectURL(url);
-  playlistObjectUrl.value = null;
-}
-
 function handlePlayerError(message: string) {
   error.value = message;
 }
@@ -54,7 +47,7 @@ async function loadAsset() {
   loading.value = true;
   error.value = null;
   asset.value = null;
-  revokePlaylistUrl();
+  playlistObjectUrl.value = null;
 
   try {
     if (!mediaId.value) {
@@ -78,14 +71,11 @@ async function loadAsset() {
       status: found.status,
     });
 
-    try {
-      playlistObjectUrl.value = await mediaService.getSignedHlsPlaylistObjectUrl(found.id);
-    } catch (err) {
-      if (err instanceof Error && 'cause' in err && err.cause) {
-        debugLog('fetchPlaybackPlaylistObjectUrl(): function error', err.cause);
-      }
-      throw err;
-    }
+    playlistObjectUrl.value = await mediaService.getPublicHlsPlaylistUrl(
+      activeOrgId.value,
+      found.id,
+      found.bucket
+    );
 
     // Ensure the template swaps from loading state before playback init runs in the player.
     loading.value = false;
@@ -103,10 +93,6 @@ watch([mediaId, activeOrgId], () => {
   if (!activeOrgId.value) return;
   void loadAsset();
 }, { immediate: true });
-
-onBeforeUnmount(() => {
-  revokePlaylistUrl();
-});
 </script>
 
 <template>

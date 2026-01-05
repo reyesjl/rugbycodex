@@ -295,6 +295,20 @@ export const mediaService = {
   },
 
   /**
+   * Returns the public HLS playlist URL (m3u8) for an asset stored in Wasabi.
+   *
+   * This does not invoke Edge Functions or fetch/rewrite playlists.
+   */
+  async getPublicHlsPlaylistUrl(
+    orgId: string,
+    mediaId: string,
+    bucket: string = 'rugbycodex'
+  ): Promise<string> {
+    const resolvedBucket = bucket || 'rugbycodex';
+    return `https://rugbycodex.s3.us-east-1.wasabisys.com/${encodeURIComponent(resolvedBucket)}/orgs/${encodeURIComponent(orgId)}/uploads/${encodeURIComponent(mediaId)}/streaming/index.m3u8`;
+  },
+
+  /**
    * Retrieves an HLS playlist (m3u8) for playback via Supabase Edge Function,
    * wraps it in a Blob, and returns an object URL.
    */
