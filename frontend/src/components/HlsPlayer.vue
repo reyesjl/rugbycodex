@@ -84,6 +84,8 @@ function destroyPlayer() {
     // Keep the element interactable; only reset media bindings.
     video.removeAttribute('src');
     video.load();
+    // video.pause();
+    // video.removeAttribute('src');
   }
 }
 
@@ -208,7 +210,6 @@ function onNativeUserGesture() {
   const hasSrc = Boolean(video.getAttribute('src') || video.currentSrc || video.src);
   if (!hasSrc && props.src && video.canPlayType('application/vnd.apple.mpegurl')) {
     video.src = props.src;
-    video.load();
   }
 
   // Requirement: ensure a source is attached before attempting playback.
@@ -238,9 +239,7 @@ function bindNativeGestureListeners(video: VideoElement) {
     nativeGestureTarget.removeEventListener('touchend', nativeGestureHandler);
   }
 
-  const handler = (event: Event) => {
-    // Only act on direct interactions.
-    if (event.isTrusted === false) return;
+  const handler = () => {
     onNativeUserGesture();
   };
 
