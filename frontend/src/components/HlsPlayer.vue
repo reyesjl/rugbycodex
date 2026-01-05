@@ -242,6 +242,7 @@ onBeforeUnmount(() => {
     playsinline
     webkit-playsinline
     preload="metadata"
+    controls
     @pointerup="onUserGesture"
     @click="onUserGesture"
   />
