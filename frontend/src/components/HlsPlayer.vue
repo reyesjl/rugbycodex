@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, ref, useAttrs, watch } from 'vue';
+import { nextTick, onBeforeUnmount, onMounted, ref, useAttrs, watch } from 'vue';
 import Hls from 'hls.js';
 
 defineOptions({ inheritAttrs: false });
@@ -28,6 +28,8 @@ const videoEl = ref<VideoElement | null>(null);
 let hls: Hls | null = null;
 let refreshVersion = 0;
 let lastGestureAt = 0;
+let nativeGestureTarget: VideoElement | null = null;
+let nativeGestureHandler: ((event: Event) => void) | null = null;
 
 const isIOS = (() => {
   if (typeof navigator === 'undefined') return false;
@@ -55,10 +57,15 @@ function configureVideoElement(video: VideoElement) {
   video.playsInline = true;
   video.preload = 'metadata';
 
+  // Ensure controls is present before user-gesture play calls.
+  // (If already present, this is a no-op.)
+  video.controls = true;
+
   video.setAttribute('muted', '');
   video.setAttribute('playsinline', '');
   video.setAttribute('webkit-playsinline', '');
   video.setAttribute('preload', 'metadata');
+  video.setAttribute('controls', '');
 }
 
 function emitError(message: string) {
@@ -185,7 +192,7 @@ async function refreshPlayer() {
   await initPlayerWithoutDestroy(version);
 }
 
-function onUserGesture() {
+function onNativeUserGesture() {
   const now = Date.now();
   // Guard against duplicate pointer/click events.
   if (now - lastGestureAt < 250) return;
@@ -196,15 +203,18 @@ function onUserGesture() {
 
   configureVideoElement(video);
 
-  // If a user taps quickly during async init, ensure we at least bind the native src.
-  // (We must not await here; iOS requires play() to be called synchronously in the gesture handler.)
-  if (!hls && !video.getAttribute('src') && props.src && video.canPlayType('application/vnd.apple.mpegurl')) {
+  // If a user taps quickly during async init, ensure we at least bind the native HLS src.
+  // IMPORTANT: do not await here; iOS requires play() to be called synchronously in the gesture handler.
+  const hasSrc = Boolean(video.getAttribute('src') || video.currentSrc || video.src);
+  if (!hasSrc && props.src && video.canPlayType('application/vnd.apple.mpegurl')) {
     video.src = props.src;
+    video.load();
   }
 
   // Requirement: ensure a source is attached before attempting playback.
   // If init is still in-flight, kick a refresh and let the user tap again.
-  if (!hls && !video.getAttribute('src')) {
+  const hasSrcAfterAttach = Boolean(video.getAttribute('src') || video.currentSrc || video.src);
+  if (!hls && !hasSrcAfterAttach) {
     void refreshPlayer();
     return;
   }
@@ -221,6 +231,26 @@ function onUserGesture() {
   }
 }
 
+function bindNativeGestureListeners(video: VideoElement) {
+  // iOS WebKit requires a *native DOM* event listener directly on the media element.
+  if (nativeGestureHandler && nativeGestureTarget) {
+    nativeGestureTarget.removeEventListener('click', nativeGestureHandler);
+    nativeGestureTarget.removeEventListener('touchend', nativeGestureHandler);
+  }
+
+  const handler = (event: Event) => {
+    // Only act on direct interactions.
+    if (event.isTrusted === false) return;
+    onNativeUserGesture();
+  };
+
+  nativeGestureTarget = video;
+  nativeGestureHandler = handler;
+
+  video.addEventListener('click', handler);
+  video.addEventListener('touchend', handler);
+}
+
 watch(
   () => props.src,
   () => {
@@ -229,7 +259,21 @@ watch(
   { immediate: true }
 );
 
+onMounted(async () => {
+  await nextTick();
+  const video = videoEl.value;
+  if (!video) return;
+  configureVideoElement(video);
+  bindNativeGestureListeners(video);
+});
+
 onBeforeUnmount(() => {
+  if (nativeGestureTarget && nativeGestureHandler) {
+    nativeGestureTarget.removeEventListener('click', nativeGestureHandler);
+    nativeGestureTarget.removeEventListener('touchend', nativeGestureHandler);
+  }
+  nativeGestureTarget = null;
+  nativeGestureHandler = null;
   destroyPlayer();
 });
 </script>
@@ -243,7 +287,5 @@ onBeforeUnmount(() => {
     webkit-playsinline
     preload="metadata"
     controls
-    @pointerup="onUserGesture"
-    @click="onUserGesture"
   />
 </template>
