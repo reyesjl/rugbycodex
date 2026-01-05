@@ -131,6 +131,34 @@ async function fetchSignedHlsPlaylist(mediaId: string): Promise<string> {
   return typeof response.data === "string" ? response.data : String(response.data ?? "");
 }
 
+async function fetchPresignedHlsPlaylistUrl(
+  orgId: string,
+  mediaId: string,
+  bucket: string
+): Promise<string> {
+  const response = await supabase.functions.invoke("get-wasabi-playback-playlist", {
+    body: {
+      mode: "url",
+      org_id: orgId,
+      media_id: mediaId,
+      bucket,
+    },
+  });
+
+  if (response.error) {
+    throw response.error;
+  }
+
+  const data = response.data as unknown;
+  if (typeof data === "string") return data;
+  if (data && typeof data === "object") {
+    const maybeUrl = (data as { url?: unknown }).url;
+    if (typeof maybeUrl === "string") return maybeUrl;
+  }
+
+  return String((data as any)?.url ?? "");
+}
+
 function asDate(value: string | Date | null, context: string): Date {
   if (!value) {
     throw new Error(`Missing ${context} timestamp.`);
@@ -305,7 +333,46 @@ export const mediaService = {
     bucket: string = 'rugbycodex'
   ): Promise<string> {
     const resolvedBucket = bucket || 'rugbycodex';
-    return `https://rugbycodex.s3.us-east-1.wasabisys.com/${encodeURIComponent(resolvedBucket)}/orgs/${encodeURIComponent(orgId)}/uploads/${encodeURIComponent(mediaId)}/streaming/index.m3u8`;
+    return `https://${encodeURIComponent(resolvedBucket)}.s3.us-east-1.wasabisys.com/` +
+         `orgs/${encodeURIComponent(orgId)}/uploads/${encodeURIComponent(mediaId)}/streaming/index.m3u8`;
+  },
+
+  /**
+   * Returns a presigned HTTPS URL to the HLS playlist (m3u8) for playback.
+   *
+   * This calls the existing Edge Function in a "url" mode and does not fetch,
+   * rewrite, or Blob-wrap the playlist.
+   */
+  async getPresignedHlsPlaylistUrl(
+    orgId: string,
+    mediaId: string,
+    bucket: string = 'rugbycodex'
+  ): Promise<string> {
+    const resolvedBucket = bucket || 'rugbycodex';
+
+    let url: string;
+    try {
+      url = await withRetry(
+        () => fetchPresignedHlsPlaylistUrl(orgId, mediaId, resolvedBucket),
+        isRetryableFunctionError
+      );
+    } catch (error) {
+      if (isNotFoundFunctionError(error)) {
+        throw new Error('This clip is not ready for playback yet.');
+      }
+      if (error instanceof Error && error.message === PLAYBACK_ERROR_MESSAGE) {
+        throw error;
+      }
+      const userError = new Error(PLAYBACK_ERROR_MESSAGE);
+      (userError as Error & { cause?: unknown }).cause = error;
+      throw userError;
+    }
+
+    if (!url || !String(url).trim()) {
+      throw new Error('This clip is not ready for playback yet.');
+    }
+
+    return url;
   },
 
   /**

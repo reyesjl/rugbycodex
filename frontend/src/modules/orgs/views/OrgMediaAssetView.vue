@@ -35,6 +35,7 @@ const title = computed(() => {
   return withoutExtension.replace(/[-_]+/g, ' ').trim() || 'Untitled clip';
 });
 
+
 function handlePlayerError(message: string) {
   error.value = message;
 }
@@ -71,11 +72,18 @@ async function loadAsset() {
       status: found.status,
     });
 
-    playlistObjectUrl.value = await mediaService.getPublicHlsPlaylistUrl(
-      activeOrgId.value,
-      found.id,
-      found.bucket
-    );
+    try {
+      playlistObjectUrl.value = await mediaService.getPresignedHlsPlaylistUrl(
+        activeOrgId.value,
+        found.id,
+        found.bucket
+      );
+    } catch (err) {
+      if (err instanceof Error && 'cause' in err && err.cause) {
+        debugLog('fetchPlaybackPlaylistObjectUrl(): function error', err.cause);
+      }
+      throw err;
+    }
 
     // Ensure the template swaps from loading state before playback init runs in the player.
     loading.value = false;
@@ -106,13 +114,6 @@ watch([mediaId, activeOrgId], () => {
     </div>
 
     <div v-else-if="asset" class="space-y-4">
-      <header class="space-y-1">
-        <h1 class="text-white text-2xl font-semibold">{{ title }}</h1>
-        <div class="text-xs font-medium capitalize tracking-wide text-white/50">
-          {{ asset.kind }}
-        </div>
-      </header>
-
       <div class="overflow-hidden rounded-lg bg-white/5 ring-1 ring-white/10">
         <HlsPlayer
           :src="playlistObjectUrl ?? ''"
@@ -121,6 +122,12 @@ watch([mediaId, activeOrgId], () => {
           playsinline
           @error="handlePlayerError"
         />
+      </div>
+      <div class="space-y-1">
+        <h1 class="text-white text-xl font-semibold">{{ title }}</h1>
+        <div class="text-xs font-medium capitalize tracking-wide text-white/50">
+          {{ asset.kind }}
+        </div>
       </div>
     </div>
   </div>
