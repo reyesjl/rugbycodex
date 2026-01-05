@@ -14,9 +14,12 @@ declare module 'hls.js' {
 
     static Events: {
       ERROR: string;
+      MANIFEST_PARSED: string;
     };
 
     on(eventName: string, listener: (event: string, data: HlsErrorData) => void): void;
+    once(eventName: string, listener: (event: string, data: HlsErrorData) => void): void;
+    off(eventName: string, listener?: (event: string, data: HlsErrorData) => void): void;
     loadSource(url: string): void;
     attachMedia(media: HTMLMediaElement): void;
     destroy(): void;
