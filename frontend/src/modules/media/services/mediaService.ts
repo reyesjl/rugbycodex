@@ -136,7 +136,7 @@ async function fetchPresignedHlsPlaylistUrl(
   mediaId: string,
   bucket: string
 ): Promise<string> {
-  const response = await supabase.functions.invoke("get-wasabi-playback-playlist", {
+  const response = await supabase.functions.invoke("get-playback-playlist", {
     body: {
       mode: "url",
       org_id: orgId,
