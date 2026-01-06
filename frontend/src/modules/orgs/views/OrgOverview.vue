@@ -33,7 +33,7 @@ const badgeClass =
           </div>
         </div>
 
-        <p class="text-xs text-gray-500">Joined on {{ formatMonthYear(org.created_at) ?? 'Unknown' }}</p>
+        <p class="text-xs text-gray-500">Established {{ formatMonthYear(org.created_at) ?? 'Unknown' }}</p>
 
         <p class="max-w-2xl text-white/70">
           {{ org.bio && org.bio.trim().length ? org.bio : 'No bio yet.' }}

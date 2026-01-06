@@ -20,7 +20,6 @@ export type OrgMediaAsset = {
   title?: string | null;
   kind: MediaAssetKind;
   status: MediaAssetStatus;
-  hls_url?: string | null;
   created_at: Date;
   base_org_storage_path: string;
 };

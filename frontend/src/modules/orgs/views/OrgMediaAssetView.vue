@@ -68,7 +68,6 @@ async function loadAsset() {
       bucket: found.bucket,
       storage_path: found.storage_path,
       base_org_storage_path: found.base_org_storage_path,
-      hls_url: found.hls_url,
       status: found.status,
     });
 

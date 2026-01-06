@@ -26,7 +26,6 @@ type MediaAssetRow = {
   title?: string | null;
   kind: string;
   status: string;
-  hls_url?: string | null;
   created_at: string | Date | null;
   base_org_storage_path: string;
 };
@@ -218,7 +217,6 @@ function toOrgMediaAsset(row: MediaAssetRow): OrgMediaAsset {
     title: row.title ?? null,
     kind: row.kind,
     status: row.status,
-    hls_url: row.hls_url ?? null,
     created_at: asDate(row.created_at, 'media asset creation'),
     base_org_storage_path: row.base_org_storage_path,
   };
