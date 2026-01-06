@@ -11,6 +11,8 @@ export type OrgMediaAsset = {
   uploader_id: UserId;
   bucket: string;
   storage_path: string;
+  streaming_ready: boolean;
+  thumbnail_path: string | null;
   file_size_bytes: Bytes;
   mime_type: string;
   duration_seconds: number;

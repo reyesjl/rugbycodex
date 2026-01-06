@@ -3,6 +3,7 @@ import { storeToRefs } from 'pinia';
 import { computed, onMounted, ref, watch } from 'vue';
 import { Icon } from '@iconify/vue';
 import { useRoute, useRouter } from 'vue-router';
+import { useAuthStore } from '@/auth/stores/useAuthStore';
 import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrganizationStore';
 import { useOrgMediaStore } from '@/modules/media/stores/useOrgMediaStore';
 import { buildUploadJob, useUploadManager } from '@/modules/media/composables/useUploadManager';
@@ -16,13 +17,21 @@ defineProps<{ slug?: string | string[] }>();
 
 const activeOrgStore = useActiveOrganizationStore();
 const mediaStore = useOrgMediaStore();
+const authStore = useAuthStore();
 const router = useRouter();
 const route = useRoute();
 
 const { active, resolving: orgResolving } = storeToRefs(activeOrgStore);
 const { assets, status, error, isLoading } = storeToRefs(mediaStore);
+const { isAdmin } = storeToRefs(authStore);
 
 const activeOrgId = computed(() => active.value?.organization?.id ?? null);
+
+const canManage = computed(() => {
+  if (isAdmin.value) return true;
+  const role = active.value?.membership?.role;
+  return role === 'owner' || role === 'manager' || role === 'staff';
+});
 
 const showAddMedia = ref(false);
 
@@ -45,6 +54,7 @@ const uploadMetricsByAssetId = computed(() => {
 
 function openAddMedia() {
   if (!activeOrgId.value) return;
+  if (!canManage.value) return;
   showAddMedia.value = true;
 }
 
@@ -70,6 +80,15 @@ function handleUploadStarted() {
 }
 
 async function handleDeleteAsset(assetId: string) {
+  if (!canManage.value) {
+    toast({
+      variant: 'error',
+      message: 'You do not have permission to delete media.',
+      durationMs: 3500,
+    });
+    return;
+  }
+
   try {
     await mediaService.deleteById(assetId);
     toast({
@@ -90,6 +109,7 @@ async function handleDeleteAsset(assetId: string) {
 
 async function handleUploadSubmit(payload: { file: globalThis.File; kind: MediaAssetKind }) {
   if (!activeOrgId.value) return;
+  if (!canManage.value) return;
 
   try {
     const job = await buildUploadJob(payload.file, activeOrgId.value, 'rugbycodex');
@@ -165,6 +185,7 @@ watch(activeOrgId, (orgId, prevOrgId) => {
     <div class="flex items-center justify-between gap-3">
       <h1 class="text-white text-3xl">Footage</h1>
       <button
+        v-if="canManage"
         type="button"
         class="flex gap-2 items-center rounded-lg px-2 py-1 border border-green-500 bg-green-500/70 hover:bg-green-700/70 text-xs transition disabled:opacity-50"
         :disabled="orgResolving || !active"
@@ -218,6 +239,7 @@ watch(activeOrgId, (orgId, prevOrgId) => {
             :key="asset.id"
             :asset="asset"
             :narration-count="mediaStore.narrationCountByAssetId(asset.id)"
+            :can-manage="canManage"
             :upload-metrics="uploadMetricsByAssetId.get(asset.id)"
             @open="openAsset"
             @delete="handleDeleteAsset"
@@ -228,7 +250,7 @@ watch(activeOrgId, (orgId, prevOrgId) => {
   </div>
 
   <AddMediaAssetModal
-    v-if="showAddMedia && activeOrgId"
+    v-if="showAddMedia && activeOrgId && canManage"
     @close="closeAddMedia"
     @submit="handleUploadSubmit"
   />

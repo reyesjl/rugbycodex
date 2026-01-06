@@ -17,6 +17,8 @@ type MediaAssetRow = {
   uploader_id: string;
   bucket: string;
   storage_path: string;
+  streaming_ready: boolean;
+  thumbnail_path: string | null;
   file_size_bytes: number;
   mime_type: string;
   duration_seconds: number;
@@ -208,6 +210,8 @@ function toOrgMediaAsset(row: MediaAssetRow): OrgMediaAsset {
     uploader_id: row.uploader_id,
     bucket: row.bucket,
     storage_path: row.storage_path,
+    streaming_ready: row.streaming_ready,
+    thumbnail_path: row.thumbnail_path ?? null,
     file_size_bytes: row.file_size_bytes,
     mime_type: row.mime_type,
     duration_seconds: row.duration_seconds,

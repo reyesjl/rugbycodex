@@ -10,6 +10,7 @@ import { formatHoursMinutes } from '@/lib/duration';
 const props = defineProps<{
   asset: OrgMediaAsset;
   narrationCount: number;
+  canManage?: boolean;
   uploadMetrics?: {
     state: UploadState;
     progress: number;
@@ -24,10 +25,24 @@ const emit = defineEmits<{
 
 const statusDisplay = computed(() => getMediaAssetStatusDisplay(props.asset.status));
 
-const isInteractive = computed(() => props.asset.status === 'ready');
+const isInteractive = computed(() => props.asset.status === 'ready' && props.asset.streaming_ready);
+
+const STORAGE_BASE_URL = 'https://cdn.rugbycodex.com';
+
+const thumbnailUrl = computed(() => {
+  if (!props.asset.thumbnail_path) return null;
+  return `${STORAGE_BASE_URL}/${props.asset.thumbnail_path}`;
+});
+
+const showThumbnail = computed(() => !!thumbnailUrl.value);
+
+const isStreamingProcessing = computed(
+  () => props.asset.status === 'ready' && !props.asset.streaming_ready
+);
 
 const overlayIconName = computed(() => {
   const status = props.asset.status;
+  if (status === 'ready' && !props.asset.streaming_ready) return 'ei:spinner';
   if (status === 'ready') return 'carbon:play-filled-alt';
   if (status === 'processing' || status === 'uploading') return 'ei:spinner';
   return statusDisplay.value.icon ?? 'ei:spinner';
@@ -35,8 +50,9 @@ const overlayIconName = computed(() => {
 
 const overlayIconClass = computed(() => {
   const status = props.asset.status;
-  if (status === 'ready') return 'text-white/30';
-  const shouldSpin = status === 'processing' || status === 'uploading';
+  if (status === 'ready' && props.asset.streaming_ready) return 'text-white/30';
+  const shouldSpin =
+    status === 'processing' || status === 'uploading' || (status === 'ready' && !props.asset.streaming_ready);
   return `text-white/40${shouldSpin ? ' animate-spin' : ''}`;
 });
 
@@ -76,6 +92,8 @@ const uploadSpeedLabel = computed(() => {
 const menuOpen = ref(false);
 const confirmDelete = ref(false);
 
+const canManage = computed(() => Boolean(props.canManage));
+
 function closeMenu() {
   menuOpen.value = false;
   confirmDelete.value = false;
@@ -91,10 +109,15 @@ function toggleMenu() {
 }
 
 function requestDelete() {
+  if (!canManage.value) return;
   confirmDelete.value = true;
 }
 
 function confirmAndDelete() {
+  if (!canManage.value) {
+    closeMenu();
+    return;
+  }
   closeMenu();
   emit('delete', props.asset.id);
 }
@@ -127,7 +150,19 @@ function clipTitle(fileName: string) {
       <!-- Thumbnail placeholder -->
       <div class="relative overflow-hidden rounded-md bg-white/5 ring-1 ring-white/10">
         <div class="relative w-full pb-[56.25%]">
-          <div class="absolute inset-0 flex items-center justify-center">
+          <img
+            v-if="thumbnailUrl"
+            class="absolute inset-0 h-full w-full object-cover"
+            :class="isStreamingProcessing ? 'opacity-60' : ''"
+            :src="thumbnailUrl"
+            :alt="clipTitle(asset.file_name)"
+            loading="lazy"
+          />
+
+          <div
+            v-if="!showThumbnail || isStreamingProcessing"
+            class="absolute inset-0 flex items-center justify-center"
+          >
             <Icon :icon="overlayIconName" class="h-10 w-10" :class="overlayIconClass" />
           </div>
         </div>
@@ -169,7 +204,7 @@ function clipTitle(fileName: string) {
               :class="statusDisplay.iconClass"
             />
             <span class="truncate">
-              {{ statusDisplay.label }}
+              {{ isStreamingProcessing ? 'Processing' : statusDisplay.label }}
               <span v-if="showUploadProgress"> • {{ uploadMetrics!.progress }}%</span>
               <span v-if="showUploadProgress && uploadSpeedLabel"> • {{ uploadSpeedLabel }}</span>
             </span>
@@ -177,6 +212,7 @@ function clipTitle(fileName: string) {
 
           <div class="relative">
             <button
+              v-if="canManage"
               type="button"
               class="rounded p-1 text-white/50 hover:bg-white/10 hover:text-white/80 transition"
               aria-label="More actions"
@@ -186,7 +222,7 @@ function clipTitle(fileName: string) {
             </button>
 
             <div
-              v-if="menuOpen"
+              v-if="menuOpen && canManage"
               class="absolute right-0 bottom-full mb-2 min-w-28 rounded-md border border-white/20 bg-black text-white shadow-none"
               @click.stop
             >
