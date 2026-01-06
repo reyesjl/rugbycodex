@@ -50,25 +50,28 @@ while True:
         print(f"Checking for new jobs... Active workers: {len(workers)}")
 
     response = (
-        supabase
-            .table("jobs")
-            .select("""
+    supabase
+        .table("jobs")
+        .select("""
+            id,
+            state,
+            media_asset:media_asset_id (
                 id,
-                state,
-                media_asset:media_asset_id (
-                    id,
-                    org_id,
-                    bucket,
-                    storage_path,
-                    file_name,
-                    duration_seconds,
-                    status
-                )
-            """)
-            .eq("type", "transcode")
-            .eq("state", JobState.QUEUED.value)
-            .execute()
+                org_id,
+                bucket,
+                storage_path,
+                file_name,
+                duration_seconds,
+                status,
+                streaming_ready,
+                thumbnail_path
+            )
+        """)
+        .eq("type", "transcode")
+        .eq("state", JobState.QUEUED.value)
+        .execute()
     )
+
 
     cleanup_finished_workers()
 

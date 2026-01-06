@@ -6,6 +6,7 @@ import os
 import boto3
 from dotenv import load_dotenv
 from supabase import Client
+import threading
 
 load_dotenv()
 
@@ -17,7 +18,6 @@ s3 = boto3.client(
     aws_secret_access_key=os.getenv("WASABI_SECRET"),
 )
 
-import threading
 
 class TransferProgress:
     def __init__(self, total_bytes: int, label: str):
@@ -40,11 +40,12 @@ class _Stage(Enum):
     START = 0
     DOWNLOAD_INPUT = 1
     TRANSCODE = 2
-    UPLOAD_OUTPUT = 3
-    COMPLETE = 4
+    GENERATE_THUMBNAIL = 3
+    UPLOAD_OUTPUT = 4
+    COMPLETE = 5
+
 
 class StreamWorker(threading.Thread):
-
     def __init__(self, job: TranscodingJob, supabase: Client):
         super().__init__(daemon=True)
         self.job: TranscodingJob = job
@@ -53,26 +54,13 @@ class StreamWorker(threading.Thread):
         self.attempts: int = 0
 
     def _update_job_state(self, state: JobState):
-        """
-        Updates the state of the current job in the Supabase 'jobs' table.
-
-        Args:
-            state (JobState): The new state to set for the job.
-
-        Side Effects:
-            - Sends an update request to the Supabase database to change the job's state.
-            - Prints a message indicating success or failure of the update operation.
-
-        Exceptions:
-            - Catches and prints any exceptions that occur during the update process.
-        """
         try:
             (
                 self.supabase
-                    .table("jobs")
-                    .update({"state": state.value})
-                    .eq("id", str(self.job.job_id))
-                    .execute()
+                .table("jobs")
+                .update({"state": state.value})
+                .eq("id", str(self.job.job_id))
+                .execute()
             )
         except Exception as e:
             print(f"Exception while updating job state for {self.job.job_id}: {e}")
@@ -81,10 +69,10 @@ class StreamWorker(threading.Thread):
         try:
             (
                 self.supabase
-                    .table("jobs")
-                    .update(fields)
-                    .eq("id", str(self.job.job_id))
-                    .execute()
+                .table("jobs")
+                .update(fields)
+                .eq("id", str(self.job.job_id))
+                .execute()
             )
         except Exception as e:
             print(f"Exception while updating job fields for {self.job.job_id}: {e}")
@@ -104,22 +92,6 @@ class StreamWorker(threading.Thread):
         })
 
     def _download_input_file(self, input_mp4_path: str) -> bool:
-        """
-        Downloads an input MP4 file from an S3 bucket to a specified local path.
-
-        Args:
-            input_mp4_path (str): The local file path where the downloaded MP4 file will be saved.
-
-        Returns:
-            bool: True if the file was downloaded successfully, False otherwise.
-
-        Side Effects:
-            - Prints progress and status messages to the console.
-            - Handles and logs exceptions that occur during the download process.
-
-        Raises:
-            Does not raise exceptions; errors are caught and result in a False return value.
-        """
         key: str = f"{self.job.media_asset.bucketless_input_path()}"
         try:
             head = s3.head_object(
@@ -136,36 +108,35 @@ class StreamWorker(threading.Thread):
                 Filename=input_mp4_path,
                 Callback=progress
             )
-            print(f"Downloaded file to /tmp/{self.job.media_asset.id}-input.mp4")
+            print(f"Downloaded file to {input_mp4_path}")
             return True
         except Exception as e:
             print(f"Error downloading file: {e}")
             return False
 
+    def _get_video_duration(self, input_mp4_path: str) -> float:
+        try:
+            cmd = [
+                "ffprobe",
+                "-v", "error",
+                "-show_entries", "format=duration",
+                "-of", "default=noprint_wrappers=1:nokey=1",
+                input_mp4_path
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            return float(result.stdout.strip())
+        except Exception as e:
+            print(f"Error getting video duration: {e}")
+            return 0.0
+
     def _transcode(self, input_mp4_path: str, output_hls_path: str) -> bool:
-        """
-        Transcodes an input MP4 file to HLS (HTTP Live Streaming) format using ffmpeg.
-
-        Args:
-            input_mp4_path (str): Path to the input MP4 file.
-            output_hls_path (str): Directory where the HLS output (index.m3u8 and segments) will be saved.
-
-        Returns:
-            bool: True if transcoding succeeds, False otherwise.
-
-        Side Effects:
-            - Runs an external ffmpeg process.
-            - Writes HLS files to the specified output directory.
-            - Suppresses ffmpeg output (stdout and stderr).
-            - Prints an error message if transcoding fails.
-        """
         try:
             cmd = [
                 "ffmpeg",
                 "-y",
                 "-hwaccel", "nvdec",
                 "-i", input_mp4_path,
-                "-c", "copy",      # requires video to be h264 and aac audio
+                "-c", "copy",  # requires video to be h264 and aac audio
                 "-f", "hls",
                 "-hls_time", "6",
                 "-hls_playlist_type", "vod",
@@ -180,58 +151,77 @@ class StreamWorker(threading.Thread):
             return False
 
     def _upload_output(self, output_hls_path: str) -> bool:
-        """
-        Uploads all files from the specified HLS output directory to a Wasabi S3 bucket.
-
-        Args:
-            output_hls_path (str): The local directory path containing the HLS output files to upload.
-
-        Returns:
-            bool: True if all files are uploaded successfully, False otherwise.
-
-        Side Effects:
-            Prints the names of generated files and upload status to the console.
-
-        Exceptions:
-            Catches and prints any exceptions that occur during the upload process.
-        """
         try:
             files_list = sorted(Path(output_hls_path).iterdir(), key=lambda x: x.name)
             for files in files_list:
                 print("Generated file:", files.name)
                 full_path = os.path.join(output_hls_path, files.name)
-                print("Uploading to wasabi:", f"{self.job.media_asset.bucketless_output_path()}{files.name}")
+                dest_key = f"{self.job.media_asset.bucketless_output_path()}{files.name}"
+                print("Uploading to wasabi:", dest_key)
                 s3.upload_file(
                     Filename=full_path,
                     Bucket=self.job.media_asset.bucket,
-                    Key=f"{self.job.media_asset.bucketless_output_path()}{files.name}"
+                    Key=dest_key
                 )
             return True
         except Exception as e:
             print(f"Error uploading files: {e}")
             return False
 
+    def _generate_thumbnail(self, input_mp4_path: str, output_path: str) -> bool:
+        try:
+            duration = self._get_video_duration(input_mp4_path)
+            if duration <= 0:
+                print("Could not determine video duration, skipping thumbnail.")
+                return False
+
+            if duration >= 30:
+                seek_time = 30
+            else:
+                seek_time = max(0.1, duration * 0.3)
+
+            seek_ts = f"{seek_time:.2f}"
+
+            cmd = [
+                "ffmpeg",
+                "-y",
+                "-i", input_mp4_path,
+                "-ss", seek_ts,  # accurate seek AFTER input
+                "-vframes", "1",
+                "-q:v", "2",
+                output_path
+            ]
+
+            subprocess.run(cmd, check=True, stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL)
+            print(f"Thumbnail generated at {output_path} (t={seek_ts}s)")
+            return True
+        except Exception as e:
+            print(f"Error generating thumbnail: {e}")
+            return False
+
+    def _update_media_asset_derivatives(self):
+        """
+        Marks the media asset as having streaming output and records thumbnail location.
+        DOES NOT modify media_assets.status to avoid interfering with existing triggers/semantics.
+        """
+        try:
+            thumbnail_path = f"{self.job.media_asset.bucketless_output_path()}thumbnail.jpg"
+
+            (
+                self.supabase
+                .table("media_assets")
+                .update({
+                    "streaming_ready": True,
+                    "thumbnail_path": thumbnail_path
+                })
+                .eq("id", str(self.job.media_asset.id))
+                .execute()
+            )
+            print(f"Updated media_assets derivatives for {self.job.media_asset.id}")
+        except Exception as e:
+            print(f"Failed to update media_assets derivatives for {self.job.media_asset.id}: {e}")
+
     def run(self):
-        """
-        Executes the streaming job workflow, managing the stages of downloading the input file,
-        transcoding it, and uploading the output. The method attempts each stage up to three times
-        in case of failure, and performs cleanup of temporary files upon completion or error.
-
-        Workflow stages:
-            1. DOWNLOAD_INPUT: Downloads the input MP4 file from Wasabi storage.
-            2. TRANSCODE: Transcodes the downloaded file to HLS format.
-            3. UPLOAD_OUTPUT: Uploads the transcoded output files.
-            4. COMPLETE: Marks the job as completed.
-
-        Retries:
-            - Each stage is retried up to 3 times before aborting the job.
-
-        Cleanup:
-            - Temporary input and output files are removed after job completion or failure.
-
-        Exceptions:
-            - Catches and logs any unexpected exceptions during the workflow.
-        """
         self._start_job()
         input_mp4_path = f"/tmp/{self.job.media_asset.id}-input.mp4"
         output_hls_path = f"/tmp/{self.job.media_asset.id}/"
@@ -240,40 +230,45 @@ class StreamWorker(threading.Thread):
         os.makedirs(output_hls_path, exist_ok=True)
 
         try:
-
-            while not self.stage == _Stage.COMPLETE:
+            while self.stage != _Stage.COMPLETE:
                 self.attempts += 1
-                self._update_job_fields({
-                    "attempt": self.attempts,
-                })
+                self._update_job_fields({"attempt": self.attempts})
+
                 if self.attempts > 3:
                     print(f"Job {self.job.job_id} failed after 3 attempts.")
                     self._update_job_state(JobState.FAILED)
                     break
-                # Download the input file from Wasabi
+
                 if self.stage == _Stage.DOWNLOAD_INPUT:
-                    success = self._download_input_file(input_mp4_path)
-                    if success:
+                    if self._download_input_file(input_mp4_path):
                         self.stage = _Stage.TRANSCODE
                     else:
                         print("Failed to download input file. Retrying...")
                         continue
 
                 if self.stage == _Stage.TRANSCODE:
-                    success = self._transcode(input_mp4_path, output_hls_path)
-                    if success:
-                        self.stage = _Stage.UPLOAD_OUTPUT
+                    if self._transcode(input_mp4_path, output_hls_path):
+                        self.stage = _Stage.GENERATE_THUMBNAIL
                     else:
                         print("Failed to transcode input file. Retrying...")
                         continue
 
+                if self.stage == _Stage.GENERATE_THUMBNAIL:
+                    thumb_path = os.path.join(output_hls_path, "thumbnail.jpg")
+                    if not self._generate_thumbnail(input_mp4_path, thumb_path):
+                        print("Warning: failed to generate thumbnail, continuing without it.")
+                    self.stage = _Stage.UPLOAD_OUTPUT
+
                 if self.stage == _Stage.UPLOAD_OUTPUT:
                     if not self._upload_output(output_hls_path):
                         print("Failed to upload output files. Retrying...")
-                        continue        
+                        continue
 
-                self._complete_job()
-                print(f"Job {self.job.job_id} completed successfully.")
+                    # NEW: record derivatives once upload succeeds
+                    self._update_media_asset_derivatives()
+
+                    self._complete_job()
+                    print(f"Job {self.job.job_id} completed successfully.")
         except Exception as e:
             print(f"Unexpected error in job {self.job.job_id}: {e}")
             self._update_job_fields({
@@ -282,7 +277,6 @@ class StreamWorker(threading.Thread):
                 "error_message": str(e)
             })
         finally:
-            # Cleanup temporary files
             if os.path.exists(input_mp4_path):
                 os.remove(input_mp4_path)
             if os.path.exists(output_hls_path):

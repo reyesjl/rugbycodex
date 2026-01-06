@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from uuid import UUID
-
 from enum import Enum
+
 
 class JobState(str, Enum):
     QUEUED = "queued"
@@ -21,6 +21,10 @@ class MediaAsset:
     duration_seconds: float
     status: str
 
+    # NEW (optional fields; keep frontend contract unchanged)
+    streaming_ready: bool = False
+    thumbnail_path: str | None = None
+
     @staticmethod
     def from_row(row: dict) -> "MediaAsset":
         return MediaAsset(
@@ -31,7 +35,10 @@ class MediaAsset:
             file_name=row["file_name"],
             duration_seconds=row["duration_seconds"],
             status=row["status"],
+            streaming_ready=row.get("streaming_ready", False),
+            thumbnail_path=row.get("thumbnail_path"),
         )
+
     def __str__(self):
         return f"""MediaAsset(
         id               = {self.id},
@@ -40,19 +47,23 @@ class MediaAsset:
         storage_path     = {self.storage_path},
         file_name        = {self.file_name},
         duration_seconds = {self.duration_seconds},
-        status           = {self.status}
+        status           = {self.status},
+        streaming_ready  = {self.streaming_ready},
+        thumbnail_path   = {self.thumbnail_path}
     )
         """
-    
+
     def full_input_path(self) -> str:
         return f"{self.bucket}/{self.storage_path}"
+
     def bucketless_input_path(self) -> str:
         return f"{self.storage_path}"
+
     def full_output_path(self) -> str:
         return f"{self.bucket}/orgs/{self.org_id}/uploads/{self.id}/streaming/"
+
     def bucketless_output_path(self) -> str:
         return f"orgs/{self.org_id}/uploads/{self.id}/streaming/"
-
 
 
 @dataclass
