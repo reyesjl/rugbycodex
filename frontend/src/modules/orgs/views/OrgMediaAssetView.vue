@@ -16,10 +16,10 @@ function debugLog(...args: unknown[]) {
 
 const route = useRoute();
 const activeOrgStore = useActiveOrganizationStore();
-const { active } = storeToRefs(activeOrgStore);
+const { orgContext } = storeToRefs(activeOrgStore);
 
 const mediaId = computed(() => String(route.params.mediaId ?? ''));
-const activeOrgId = computed(() => active.value?.organization?.id ?? null);
+const activeOrgId = computed(() => orgContext.value?.organization?.id ?? null);
 
 const loading = ref(true);
 const error = ref<string | null>(null);

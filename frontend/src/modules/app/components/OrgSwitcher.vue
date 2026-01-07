@@ -16,13 +16,13 @@ const myOrgStore = useMyOrganizationsStore()
 const { items, hasOrganizations } = storeToRefs(myOrgStore)
 
 const activeOrgStore = useActiveOrganizationStore()
-const { active } = storeToRefs(activeOrgStore)
+const { orgContext } = storeToRefs(activeOrgStore)
 
-const activeOrgId = computed(() => active.value?.organization.id ?? null)
+const activeOrgId = computed(() => orgContext.value?.organization.id ?? null)
 
 const displayOrg = computed(() => {
   // when on an org route, active will be set
-  if (active.value) return active.value
+  if (orgContext.value) return orgContext.value
 
   // fallback:nothing
   return null

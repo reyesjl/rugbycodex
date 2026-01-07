@@ -497,6 +497,37 @@ export const orgService = {
   },
 
   /**
+   * Returns the member count for an organization.
+   *
+   * Problem it solves:
+   * - Powers org overview cards, admin summaries, and capacity heuristics.
+   *
+   * Conceptual tables:
+   * - `org_members`
+   *
+   * Allowed caller:
+   * - Org members (or platform admin); enforced by RLS.
+   *
+   * Implementation:
+   * - Direct Supabase count aggregation.
+   *
+   * @param orgId - Organization ID.
+   * @returns Number of members in the org.
+   */
+  async getMemberCount(orgId: string): Promise<number> {
+    const { count, error } = await supabase
+      .from("org_members")
+      .select("*", { count: "exact", head: true })
+      .eq("org_id", orgId);
+
+    if (error) {
+      throw error;
+    }
+
+    return count ?? 0;
+  },
+
+  /**
    * Fetches the current user's membership for a given organization.
    *
    * Problem it solves:

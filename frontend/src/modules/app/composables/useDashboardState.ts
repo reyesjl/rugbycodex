@@ -19,7 +19,7 @@ export function useDashboardState() {
   const { hasOrganizations, loaded } = storeToRefs(myOrgs)
 
   const activeOrgStore = useActiveOrganizationStore()
-  const { active } = storeToRefs(activeOrgStore)
+  const { orgContext } = storeToRefs(activeOrgStore)
 
   watchEffect(() => {
     if (!isAuthenticated.value) return
@@ -27,7 +27,7 @@ export function useDashboardState() {
   })
 
   const primaryRole = computed(() =>
-    active.value?.membership.role ?? null
+    orgContext.value?.membership.role ?? null
   )
 
   const variant = computed<DashboardVariant>(() => {

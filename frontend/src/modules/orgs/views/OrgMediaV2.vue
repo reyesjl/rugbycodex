@@ -21,15 +21,15 @@ const authStore = useAuthStore();
 const router = useRouter();
 const route = useRoute();
 
-const { active, resolving: orgResolving } = storeToRefs(activeOrgStore);
+const { orgContext, resolving: orgResolving } = storeToRefs(activeOrgStore);
 const { assets, status, error, isLoading } = storeToRefs(mediaStore);
 const { isAdmin } = storeToRefs(authStore);
 
-const activeOrgId = computed(() => active.value?.organization?.id ?? null);
+const activeOrgId = computed(() => orgContext.value?.organization?.id ?? null);
 
 const canManage = computed(() => {
   if (isAdmin.value) return true;
-  const role = active.value?.membership?.role;
+  const role = orgContext.value?.membership?.role;
   return role === 'owner' || role === 'manager' || role === 'staff';
 });
 
@@ -188,7 +188,7 @@ watch(activeOrgId, (orgId, prevOrgId) => {
         v-if="canManage"
         type="button"
         class="flex gap-2 items-center rounded-lg px-2 py-1 border border-green-500 bg-green-500/70 hover:bg-green-700/70 text-xs transition disabled:opacity-50"
-        :disabled="orgResolving || !active"
+        :disabled="orgResolving || !orgContext"
         @click="openAddMedia"
       >
         <Icon icon="carbon:upload" width="15" height="15" />
@@ -210,7 +210,7 @@ watch(activeOrgId, (orgId, prevOrgId) => {
       Loading organization…
     </div>
 
-    <div v-else-if="!active" class="rounded-lg border border-white/10 bg-white/5 p-6 text-white/70">
+    <div v-else-if="!orgContext" class="rounded-lg border border-white/10 bg-white/5 p-6 text-white/70">
       No active organization.
     </div>
 

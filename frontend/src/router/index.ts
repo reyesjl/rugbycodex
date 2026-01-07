@@ -51,7 +51,7 @@ router.beforeEach(async (to) => {
     const orgSlug = to.params.slug as string;
     await activeOrganizationStore.setActiveBySlug(orgSlug);
 
-    if (!activeOrganizationStore.active) {
+    if (!activeOrganizationStore.orgContext) {
       toast({
           variant: "info",
           message:

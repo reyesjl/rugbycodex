@@ -19,7 +19,7 @@ export const useOrgMediaStore = defineStore("orgMedia", () => {
   const isLoading = computed(() => status.value === "loading");
   const isReady = computed(() => status.value === "ready");
 
-  const activeOrgId = computed(() => activeOrganizationStore.active?.organization?.id ?? null);
+  const activeOrgId = computed(() => activeOrganizationStore.orgContext?.organization?.id ?? null);
 
   function narrationCountByAssetId(assetId: string): number {
     return narrationCounts.value[assetId] ?? 0;

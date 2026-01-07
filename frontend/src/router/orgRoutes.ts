@@ -26,6 +26,12 @@ export const orgRoutes: RouteRecordRaw = {
           props: true,
         },
         {
+          path: 'feed',
+          name: 'OrgFeed',
+          component: () => import('@/modules/orgs/views/OrgFeedStub.vue'),
+          props: true,
+        },
+        {
           path: 'vaults',
           name: 'OrgVaults',
           component: () => import('@/modules/orgs/views/OrgVaultsStub.vue'),

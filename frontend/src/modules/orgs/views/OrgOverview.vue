@@ -5,9 +5,9 @@ import { formatMonthYear } from '@/lib/date';
 import { useActiveOrganizationStore } from '../stores/useActiveOrganizationStore';
 
 const activeOrganizationStore = useActiveOrganizationStore();
-const { active, resolving } = storeToRefs(activeOrganizationStore);
+const { orgContext, resolving } = storeToRefs(activeOrganizationStore);
 
-const org = computed(() => active.value?.organization ?? null);
+const org = computed(() => orgContext.value?.organization ?? null);
 
 const badgeClass =
   'rounded-md border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white/50';
@@ -38,6 +38,8 @@ const badgeClass =
         <p class="max-w-2xl text-white/70">
           {{ org.bio && org.bio.trim().length ? org.bio : 'No bio yet.' }}
         </p>
+
+        <p>Members: </p>
       </header>
     </div>
   </section>
