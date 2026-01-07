@@ -219,7 +219,7 @@ watch(activeOrgId, (orgId, prevOrgId) => {
         Loading media…
       </div>
 
-      <div v-else-if="status === 'error'" class="rounded-lg border border-white/10 bg-white/5 p-6 text-white/70">
+      <div v-else-if="status.state === 'error'" class="rounded-lg border border-white/10 bg-white/5 p-6 text-white/70">
         {{ error ?? 'Unable to load media.' }}
       </div>
 

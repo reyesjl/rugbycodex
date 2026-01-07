@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { computed, ref, watch } from "vue";
+import { computed, reactive, toRef, watch } from "vue";
 import { useActiveOrganizationStore } from "@/modules/orgs/stores/useActiveOrganizationStore";
 import { mediaService } from "@/modules/media/services/mediaService";
 import type { OrgMediaAsset } from "@/modules/media/types/OrgMediaAsset";
@@ -8,21 +8,33 @@ export type OrgMediaStatus = "idle" | "loading" | "ready" | "error";
 
 export type MediaContextState = "no_context" | "in_progress" | "contextualized";
 
+let loadToken = 0;
+
 export const useOrgMediaStore = defineStore("orgMedia", () => {
   const activeOrganizationStore = useActiveOrganizationStore();
 
-  const assets = ref<OrgMediaAsset[]>([]);
-  const narrationCounts = ref<Record<string, number>>({});
-  const status = ref<OrgMediaStatus>("idle");
-  const error = ref<string | null>(null);
-  const loadedOrgId = ref<string | null>(null);
-  const isLoading = computed(() => status.value === "loading");
-  const isReady = computed(() => status.value === "ready");
+  const data = reactive({
+    assets: [] as OrgMediaAsset[],
+    narrationCounts: {} as Record<string, number>,
+    loadedOrgId: null as string | null,
+  });
+
+  const status = reactive({
+    state: "idle" as OrgMediaStatus,
+    error: null as string | null,
+  });
+
+  const assets = toRef(data, "assets");
+  const narrationCounts = toRef(data, "narrationCounts");
+  const loadedOrgId = toRef(data, "loadedOrgId");
+  const error = toRef(status, "error");
+  const isLoading = computed(() => status.state === "loading");
+  const isReady = computed(() => status.state === "ready");
 
   const activeOrgId = computed(() => activeOrganizationStore.orgContext?.organization?.id ?? null);
 
   function narrationCountByAssetId(assetId: string): number {
-    return narrationCounts.value[assetId] ?? 0;
+    return data.narrationCounts[assetId] ?? 0;
   }
 
   function hasNarrations(assetId: string): boolean {
@@ -46,10 +58,13 @@ export const useOrgMediaStore = defineStore("orgMedia", () => {
     const orgId = activeOrgId.value;
     if (!orgId) return;
 
-    if (loadedOrgId.value === orgId) return;
+    if (data.loadedOrgId === orgId) return;
 
-    status.value = "loading";
-    error.value = null;
+    loadToken += 1;
+    const token = loadToken;
+
+    status.state = "loading";
+    status.error = null;
 
     try {
       const [assetsResult, narrationCountRows] = await Promise.all([
@@ -57,30 +72,35 @@ export const useOrgMediaStore = defineStore("orgMedia", () => {
         mediaService.getNarrationCountsByOrg(orgId),
       ]);
 
-      assets.value = assetsResult;
+       if (token !== loadToken) return;
 
-      narrationCounts.value = narrationCountRows.reduce<Record<string, number>>((acc, row) => {
+      data.assets = assetsResult;
+
+      data.narrationCounts = narrationCountRows.reduce<Record<string, number>>((acc, row) => {
         acc[row.media_asset_id] = row.count;
         return acc;
       }, {});
 
-      loadedOrgId.value = orgId;
-      status.value = "ready";
+      data.loadedOrgId = orgId;
+      status.state = "ready";
     } catch (err) {
-      assets.value = [];
-      narrationCounts.value = {};
-      loadedOrgId.value = null;
-      status.value = "error";
-      error.value = err instanceof Error ? err.message : "Failed to load media assets.";
+      if (token !== loadToken) return;
+
+      data.assets = [];
+      data.narrationCounts = {};
+      data.loadedOrgId = null;
+      status.state = "error";
+      status.error = err instanceof Error ? err.message : "Failed to load media assets.";
     }
   }
 
   function reset() {
-    assets.value = [];
-    narrationCounts.value = {};
-    status.value = "idle";
-    error.value = null;
-    loadedOrgId.value = null;
+    loadToken += 1;
+    data.assets = [];
+    data.narrationCounts = {};
+    data.loadedOrgId = null;
+    status.state = "idle";
+    status.error = null;
   }
 
   watch(activeOrgId, (nextId, prevId) => {
