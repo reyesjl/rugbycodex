@@ -21,3 +21,6 @@ draft_media
 node_modules/
 
 openai
+
+# Ignore asset imports that are now loaded from CDN
+src/assets/
