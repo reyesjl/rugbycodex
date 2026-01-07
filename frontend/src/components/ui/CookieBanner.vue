@@ -13,12 +13,15 @@ const show = computed(() => shouldShowBanner.value);
       class="absolute top-3 right-3 transition-colors">
       <Icon icon="carbon:close" class="w-5 h-5" />
     </button>
-    <div class="content pb-4 w-full md:w-2/3 text-center md:text-left">We DONT use any cookies! We respect your right to privacy.</div>
+    <div class="content pb-4 w-full md:w-2/3 text-center md:text-left">We do NOT use cookies or third-party trackers.</div>
     <!-- <div class="content pb-4 w-full md:w-2/3 text-center md:text-left">We use optional analytics cookies to understand how you use our site so we can improve it. View our Privacy Policy for details.</div> -->
     <!-- <div class="buttons flex gap-2 justify-center">
       <span @click="accept" class="cursor-pointer underline underline-offset-2">Accept</span>|
       <span @click="reject" class="cursor-pointer underline underline-offset-2">Reject</span>
     </div> -->
+    <div class="buttons flex gap-2 justify-center">
+      <span @click="dismiss" class="cursor-pointer underline underline-offset-2">Dismiss</span>|
+    </div>
   </div>
 </template>
 <style scoped lang="css">
