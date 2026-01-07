@@ -2,6 +2,7 @@
 import PageHero from '../components/PageHero.vue';
 import HeadlineSlice from '../components/HeadlineSlice.vue';
 import BackgroundHighlightPhoto from '../components/BackgroundHighlightPhoto.vue';
+import AudienceCTA from '../components/AudienceCTA.vue';
 import { CDN_BASE } from '@/lib/cdn';
 
 const bgImg = `${CDN_BASE}/static/assets/modules/marketing/mission2.jpg`;
@@ -59,5 +60,16 @@ const bgImg2 = `${CDN_BASE}/static/assets/modules/marketing/mission3.jpg`;
       </div>
     </div>
   </section>
+
+  <!-- CTA -->
+  <AudienceCTA
+    headline="Help shape the future of rugby intelligence."
+    subtext="We’re building this with the people who live the game. If that’s you, let’s talk."
+    primary-label="Join the Codex"
+    primary-to="/auth/signup"
+    learn-more-label="Contact Us"
+    learn-more-to="mailto:contact@biasware.com"
+    bg-color="bg-black"
+  />
 
 </template>

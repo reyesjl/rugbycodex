@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import LandingThreeColumnSection from '../components/LandingThreeColumnSection.vue';
 import BackgroundHighlightVideo from '../components/BackgroundHighlightVideo.vue';
+import AudienceCTA from '../components/AudienceCTA.vue';
 import TabSystem from '../components/TabSystem.vue';
 import { CDN_BASE } from '@/lib/cdn';
 
@@ -55,5 +56,15 @@ const coachSlides = [
 
   <!-- Tab System -->
   <TabSystem section-title="Core Functions" :slides="coachSlides" />
+
+  <!-- CTA -->
+  <AudienceCTA
+    headline="Build a smarter rugby brain for your team."
+    subtext="Turn match footage into shared understanding. Teach faster. Align everyone."
+    primary-label="Get Coach Access"
+    primary-to="/auth/signup"
+    learn-more-to="/mission"
+    bg-color="bg-zinc-500"
+  />
 
 </template>

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import LandingThreeColumnSection from '../components/LandingThreeColumnSection.vue';
 import BackgroundHighlightVideo from '../components/BackgroundHighlightVideo.vue';
+import AudienceCTA from '../components/AudienceCTA.vue';
 import TabSystem from '../components/TabSystem.vue';
 import { CDN_BASE } from '@/lib/cdn';
 
@@ -54,4 +55,14 @@ const unionSlides = [
 
   <!-- Tab System -->
   <TabSystem section-title="Core Functions" :slides="unionSlides" />
+
+  <!-- CTA -->
+  <AudienceCTA
+    headline="Build a clearer pathway. Raise the standard."
+    subtext="Unify analysis, develop coaches, and surface talent across your region."
+    primary-label="Talk With Us"
+    primary-to="mailto:contact@biasware.com"
+    learn-more-to="/mission"
+    bg-color="bg-blue-900"
+  />
 </template>

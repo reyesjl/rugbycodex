@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import LandingThreeColumnSection from '../components/LandingThreeColumnSection.vue';
 import BackgroundHighlightVideo from '../components/BackgroundHighlightVideo.vue';
+import AudienceCTA from '../components/AudienceCTA.vue';
 import TabSystem from '../components/TabSystem.vue';
 import { CDN_BASE } from '@/lib/cdn';
 
@@ -50,4 +51,14 @@ const playerSlides = [
 
   <!-- Tab System -->
   <TabSystem section-title="Core Functions" :slides="playerSlides" />
+
+  <!-- CTA -->
+  <AudienceCTA
+    headline="See your game. Understand your impact."
+    subtext="Your footage, your actions, your development. Structured and searchable."
+    primary-label="Get Player Access"
+    primary-to="/auth/signup"
+    learn-more-to="/mission"
+    bg-color="bg-red-800"
+  />
 </template>
