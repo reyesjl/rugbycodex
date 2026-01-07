@@ -4,40 +4,87 @@ import { useAuthStore } from '@/auth/stores/useAuthStore';
 import { profileService } from '../services/profileServiceV2';
 import type { Profile } from '../types/Profile';
 
+
+let loadToken = 0;
+
 export const useProfileStore = defineStore('profile', () => {
   const authStore = useAuthStore();
 
-  const profile = ref<Profile | null>(null);
-  const loading = ref(false);
-  const error = ref<string | null>(null);
-  const loaded = ref(false);
+  const data = {
+    profile: ref<Profile | null>(null),
+    loaded: ref(false),
+  };
 
-  const isAdmin = computed(() => profile.value?.role === 'admin');
+  const status = {
+    loading: ref(false),
+    error: ref<string | null>(null),
+  };
+
+  const profile = computed({
+    get: () => data.profile.value,
+    set: (next) => {
+      data.profile.value = next;
+    },
+  });
+
+  const loaded = computed({
+    get: () => data.loaded.value,
+    set: (next) => {
+      data.loaded.value = next;
+    },
+  });
+
+  const loading = computed({
+    get: () => status.loading.value,
+    set: (next) => {
+      status.loading.value = next;
+    },
+  });
+
+  const error = computed({
+    get: () => status.error.value,
+    set: (next) => {
+      status.error.value = next;
+    },
+  });
+
+  const isAdmin = computed(() => data.profile.value?.role === 'admin');
 
   const load = async (opts?: { force?: boolean }) => {
     const force = opts?.force ?? false;
-    if (loaded.value && !force) return;
+    if (data.loaded.value && !force) return;
 
-    loading.value = true;
-    error.value = null;
+    const token = ++loadToken;
+
+    status.loading.value = true;
+    status.error.value = null;
 
     try {
-      profile.value = await profileService.getMyProfile();
-      loaded.value = true;
+      const nextProfile = await profileService.getMyProfile();
+      if (token !== loadToken) return;
+
+      data.profile.value = nextProfile;
+      data.loaded.value = true;
     } catch (err) {
-      error.value = err instanceof Error ? err.message : 'Failed to load profile.';
-      profile.value = null;
-      loaded.value = false;
+      if (token !== loadToken) return;
+
+      status.error.value = err instanceof Error ? err.message : 'Failed to load profile.';
+      data.profile.value = null;
+      data.loaded.value = false;
     } finally {
-      loading.value = false;
+      if (token === loadToken) {
+        status.loading.value = false;
+      }
     }
   };
 
   const clear = () => {
-    profile.value = null;
-    loading.value = false;
-    error.value = null;
-    loaded.value = false;
+    loadToken += 1;
+
+    data.profile.value = null;
+    data.loaded.value = false;
+    status.loading.value = false;
+    status.error.value = null;
   };
 
   // react to auth lifecycle
