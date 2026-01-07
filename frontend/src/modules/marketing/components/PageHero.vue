@@ -12,10 +12,10 @@ defineProps<{
         <div class="container-lg">
             <div class="top-wrapper pt-60 gap-20 flex flex-col">
                 <div class="title-wrapper flex flex-col gap-5">
-                    <div class="text-xs uppercase">
+                    <div class="text-lg md:text-xl uppercase">
                         {{ titleLabel }}
                     </div>
-                    <div class="text-3xl md:text-6xl md:w-1/2">
+                    <div class="text-5xl md:text-8xl md:w-3/4">
                         {{ titleText }}
                     </div>
                 </div>
