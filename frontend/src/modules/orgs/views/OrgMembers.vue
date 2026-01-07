@@ -7,6 +7,7 @@ import type { OrgMember } from "@/modules/orgs/types";
 import AddMemberModal from '@/modules/orgs/components/AddMemberModal.vue';
 import MemberPill from '@/modules/orgs/components/MemberPill.vue';
 import MembersActionBar from '@/modules/orgs/components/MembersActionBar.vue';
+import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
 
 const activeOrgStore = useActiveOrganizationStore();
 const authStore = useAuthStore();
@@ -24,6 +25,9 @@ const error = ref<string | null>(null);
 const members = ref<OrgMember[]>([]);
 const showAddMember = ref(false);
 const selectedMemberIds = ref<Set<string>>(new Set());
+const showConfirmRemove = ref(false);
+const deleteError = ref<string | null>(null);
+const isDeleting = ref(false);
 
 function openAddMember() {
   if (!orgId.value) return;
@@ -68,15 +72,27 @@ function handleDemote() {
   // Stub: backend logic to be implemented
 }
 
-async function handleRemoveMembers() {
+function openConfirmRemove() {
+  if (!hasSelection.value) return;
+  deleteError.value = null;
+  showConfirmRemove.value = true;
+}
+
+function closeConfirmRemove() {
+  if (isDeleting.value) return;
+  showConfirmRemove.value = false;
+  deleteError.value = null;
+}
+
+async function confirmRemoveMembers() {
   if (!orgId.value) return;
 
   const selected = members.value.filter(m => selectedMemberIds.value.has(m.profile.id));
 
   if (selected.length === 0) return;
 
-  loading.value = true;
-  error.value = null;
+  isDeleting.value = true;
+  deleteError.value = null;
 
   try {
     await Promise.all(
@@ -91,10 +107,11 @@ async function handleRemoveMembers() {
     );
 
     selectedMemberIds.value.clear();
+    showConfirmRemove.value = false;
   } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Failed to remove members.';
+    deleteError.value = e instanceof Error ? e.message : 'Failed to remove members.';
   } finally {
-    loading.value = false;
+    isDeleting.value = false;
   }
 }
 
@@ -177,7 +194,7 @@ watch(orgId, (next, prev) => {
         @add="openAddMember"
         @promote="handlePromote"
         @demote="handleDemote"
-        @remove="handleRemoveMembers"
+        @remove="openConfirmRemove"
       />
 
       <div v-if="error" class="mb-6 rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">
@@ -199,6 +216,17 @@ watch(orgId, (next, prev) => {
     </div>
 
     <AddMemberModal v-if="showAddMember && canManage" @close="closeAddMember" @submit="handleAddMember" />
+    
+    <ConfirmDeleteModal
+      :show="showConfirmRemove"
+      :item-name="`${selectedMemberIds.size} member${selectedMemberIds.size === 1 ? '' : 's'}`"
+      popup-title="Remove Members"
+      :is-deleting="isDeleting"
+      :error="deleteError"
+      @confirm="confirmRemoveMembers"
+      @cancel="closeConfirmRemove"
+      @close="closeConfirmRemove"
+    />
   </div>
 </template>
 
