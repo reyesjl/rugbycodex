@@ -120,7 +120,7 @@ watch(
     <img :src="bgImg" alt="Background" class="fixed inset-0 h-full w-full object-cover" />
     
     <!-- Overlay -->
-    <div class="fixed inset-0 bg-black/60"></div>
+    <div class="fixed inset-0 bg-black/80"></div>
 
     <!-- Content -->
     <div class="relative z-10 max-w-xl mx-auto px-4">
