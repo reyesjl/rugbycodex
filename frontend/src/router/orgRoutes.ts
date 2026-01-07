@@ -58,7 +58,7 @@ export const orgRoutes: RouteRecordRaw = {
         {
           path: 'members',
           name: 'OrgMembers',
-          component: () => import('@/modules/orgs/views/OrgMembersStub.vue'),
+          component: () => import('@/modules/orgs/views/OrgMembers.vue'),
           props: true,
         },
         {

@@ -1,16 +1,43 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
+import { Icon } from '@iconify/vue';
 import { orgService } from "@/modules/orgs/services/orgServiceV2";
 import { useActiveOrganizationStore } from "@/modules/orgs/stores/useActiveOrganizationStore";
+import { useAuthStore } from '@/auth/stores/useAuthStore';
 import type { OrgMember } from "@/modules/orgs/types";
+import AddMemberModal from '@/modules/orgs/components/AddMemberModal.vue';
 
 const activeOrgStore = useActiveOrganizationStore();
+const authStore = useAuthStore();
 
 const orgId = computed(() => activeOrgStore.orgContext?.organization.id ?? null);
+
+const canManage = computed(() => {
+  if (authStore.isAdmin) return true;
+  const role = activeOrgStore.orgContext?.membership?.role;
+  return role === 'owner' || role === 'manager' || role === 'staff';
+});
 
 const loading = ref(false);
 const error = ref<string | null>(null);
 const members = ref<OrgMember[]>([]);
+const showAddMember = ref(false);
+
+function openAddMember() {
+  if (!orgId.value) return;
+  if (!canManage.value) return;
+  showAddMember.value = true;
+}
+
+function closeAddMember() {
+  showAddMember.value = false;
+}
+
+function handleAddMember(payload: { username: string; role: 'member' | 'staff' | 'manager' | 'owner' }) {
+  // Stub: backend logic to be implemented
+  console.log('Add member:', payload);
+  closeAddMember();
+}
 
 function sortByName(a: OrgMember, b: OrgMember) {
   const an = (a.profile.name ?? a.profile.username ?? "").toLowerCase();
@@ -98,6 +125,16 @@ watch(orgId, (next, prev) => {
           <span v-else>{{ members.length }} total</span>
         </p>
       </div>
+      <button
+        v-if="canManage"
+        type="button"
+        class="flex gap-2 items-center rounded-lg px-2 py-1 text-white border border-green-500 bg-green-500/70 hover:bg-green-700/70 text-xs transition disabled:opacity-50"
+        :disabled="loading || !orgId"
+        @click="openAddMember"
+      >
+        <Icon icon="carbon:add" width="15" height="15" />
+        Add Member
+      </button>
     </div>
 
     <div v-if="error" class="mb-6 rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">
@@ -127,6 +164,12 @@ watch(orgId, (next, prev) => {
 
     <p v-else class="text-sm text-gray-500">No members found.</p>
   </div>
+
+  <AddMemberModal
+    v-if="showAddMember && canManage"
+    @close="closeAddMember"
+    @submit="handleAddMember"
+  />
 </template>
 
 <style scoped>
