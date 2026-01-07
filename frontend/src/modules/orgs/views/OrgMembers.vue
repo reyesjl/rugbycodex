@@ -22,6 +22,7 @@ const loading = ref(false);
 const error = ref<string | null>(null);
 const members = ref<OrgMember[]>([]);
 const showAddMember = ref(false);
+const selectedMemberIds = ref<Set<string>>(new Set());
 
 function openAddMember() {
   if (!orgId.value) return;
@@ -37,6 +38,39 @@ function handleAddMember(payload: { username: string; role: 'member' | 'staff' |
   // Stub: backend logic to be implemented
   console.log('Add member:', payload);
   closeAddMember();
+}
+
+function toggleMemberSelection(memberId: string) {
+  if (!canManage.value) return;
+  if (selectedMemberIds.value.has(memberId)) {
+    selectedMemberIds.value.delete(memberId);
+  } else {
+    selectedMemberIds.value.add(memberId);
+  }
+}
+
+function isSelected(memberId: string) {
+  return selectedMemberIds.value.has(memberId);
+}
+
+const hasSelection = computed(() => selectedMemberIds.value.size > 0);
+
+function handlePromote() {
+  const selected = members.value.filter(m => selectedMemberIds.value.has(m.profile.id));
+  console.log('Promote members:', selected.map(m => ({ id: m.profile.id, username: displayName(m), role: m.membership.role })));
+  // Stub: backend logic to be implemented
+}
+
+function handleDemote() {
+  const selected = members.value.filter(m => selectedMemberIds.value.has(m.profile.id));
+  console.log('Demote members:', selected.map(m => ({ id: m.profile.id, username: displayName(m), role: m.membership.role })));
+  // Stub: backend logic to be implemented
+}
+
+function handleRemoveMembers() {
+  const selected = members.value.filter(m => selectedMemberIds.value.has(m.profile.id));
+  console.log('Remove members:', selected.map(m => ({ id: m.profile.id, username: displayName(m) })));
+  // Stub: backend logic to be implemented
 }
 
 function sortByName(a: OrgMember, b: OrgMember) {
@@ -116,63 +150,86 @@ watch(orgId, (next, prev) => {
 </script>
 
 <template>
-  <div class="container py-6">
-    <div class="mb-6 flex items-end justify-between gap-4">
-      <div>
-        <h1 class="text-white text-3xl tracking-tight">Members</h1>
-        <p class="mt-1 text text-white/70">
-          <span v-if="loading">Loading…</span>
-          <span v-else>{{ members.length }} total</span>
-        </p>
+  <div>
+    <div class="container py-6">
+      <div class="mb-6 flex md:flex-row flex-col md:items-end justify-between gap-4">
+        <div>
+          <h1 class="text-white text-3xl tracking-tight">Members</h1>
+          <p class="mt-1 text text-white/70">
+            <span v-if="loading">Loading…</span>
+            <span v-else>{{ members.length }} total</span>
+          </p>
+        </div>
+
+        <!-- Add member control -->
+        <div class="flex gap-2 items-center justify-end">
+          <button v-if="canManage" type="button"
+            class="flex gap-2 items-center rounded-lg px-2 py-1 text-white border border-green-500 bg-green-500/70 hover:bg-green-700/70 text-xs transition disabled:opacity-50"
+            :disabled="loading || !orgId" @click="openAddMember">
+            <Icon icon="carbon:add" width="15" height="15" />
+            Add Member
+          </button>
+        </div>
       </div>
-      <button
-        v-if="canManage"
-        type="button"
-        class="flex gap-2 items-center rounded-lg px-2 py-1 text-white border border-green-500 bg-green-500/70 hover:bg-green-700/70 text-xs transition disabled:opacity-50"
-        :disabled="loading || !orgId"
-        @click="openAddMember"
-      >
-        <Icon icon="carbon:add" width="15" height="15" />
-        Add Member
-      </button>
-    </div>
 
-    <div v-if="error" class="mb-6 rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">
-      {{ error }}
-    </div>
-
-    <div v-if="sortedMembers.length" class="flex flex-wrap gap-2">
-      <div
-        v-for="m in sortedMembers"
-        :key="m.profile.id"
-        class="group hover:cursor-pointer flex items-center gap-2 rounded-full border border-white/10 bg-white/0 px-3 py-1.5 transition hover:bg-white/5"
-      >
-        <span class="text-sm text-gray-500 group-hover:text-white transition">
-          {{ displayName(m) }}
-        </span>
-        <span class="text-xs text-gray-500/80 group-hover:text-gray-300 transition">
-          {{ m.profile.xp ?? 0 }} xp
-        </span>
-        <span
-          class="text-[11px] px-2 py-0.5 rounded-full leading-none"
-          :class="rolePillClass(m.membership.role)"
-        >
-          {{ m.membership.role }}
-        </span>
+      <!-- Membership select control -->
+      <div v-if="hasSelection" class="flex items-center justify-between py-2 border-t border-b border-white/20 mb-6">
+        <div>
+          <p class="text-sm text-white/70">
+            {{ selectedMemberIds.size }} member(s) selected
+          </p>
+        </div>
+        <div class="flex gap-2 items-center">
+          <button v-if="canManage && hasSelection" type="button"
+            class="flex gap-2 items-center rounded-lg px-2 py-1 text-white border border-sky-500 bg-sky-500/70 hover:bg-sky-700/70 text-xs transition"
+            @click="handlePromote">
+            <Icon icon="carbon:arrow-up" width="15" height="15" />
+            Promote
+          </button>
+          <button v-if="canManage && hasSelection" type="button"
+            class="flex gap-2 items-center rounded-lg px-2 py-1 text-white border border-sky-500 bg-sky-500/70 hover:bg-sky-700/70 text-xs transition"
+            @click="handleDemote">
+            <Icon icon="carbon:arrow-down" width="15" height="15" />
+            Demote
+          </button>
+          <button v-if="canManage && hasSelection" type="button"
+            class="flex gap-2 items-center rounded-lg px-2 py-1 text-white border border-red-500 bg-red-500/70 hover:bg-red-700/70 text-xs transition"
+            @click="handleRemoveMembers">
+            <Icon icon="carbon:trash-can" width="15" height="15" />
+            Remove
+          </button>
+        </div>
       </div>
+
+      <div v-if="error" class="mb-6 rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">
+        {{ error }}
+      </div>
+
+      <div v-if="sortedMembers.length" class="flex flex-wrap gap-2">
+        <div v-for="m in sortedMembers" :key="m.profile.id"
+          class="group flex items-center gap-2 rounded-full px-3 py-1.5 transition" :class="[
+            isSelected(m.profile.id) ? 'border border-sky-500 bg-sky-500/10 shadow-lg shadow-sky-500/20' : 'border border-white/10 bg-white/0 hover:bg-white/5',
+            canManage ? 'hover:cursor-pointer' : ''
+          ]" @click="toggleMemberSelection(m.profile.id)">
+          <span class="text-sm text-gray-500 group-hover:text-white transition">
+            {{ displayName(m) }}
+          </span>
+          <span class="text-xs text-gray-500/80 group-hover:text-gray-300 transition">
+            {{ m.profile.xp ?? 0 }} xp
+          </span>
+          <span class="text-[11px] px-2 py-0.5 rounded-full leading-none" :class="rolePillClass(m.membership.role)">
+            {{ m.membership.role }}
+          </span>
+        </div>
+      </div>
+
+      <p v-else class="text-sm text-gray-500">No members found.</p>
     </div>
 
-    <p v-else class="text-sm text-gray-500">No members found.</p>
+    <AddMemberModal v-if="showAddMember && canManage" @close="closeAddMember" @submit="handleAddMember" />
   </div>
-
-  <AddMemberModal
-    v-if="showAddMember && canManage"
-    @close="closeAddMember"
-    @submit="handleAddMember"
-  />
 </template>
 
 <style scoped>
 /* intentionally empty: swiss-style = let spacing + type do the work */
 </style>
-
