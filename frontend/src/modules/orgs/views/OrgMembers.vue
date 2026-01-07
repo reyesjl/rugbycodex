@@ -169,26 +169,26 @@ watch(orgId, (next, prev) => {
       </div>
 
       <!-- Membership select control -->
-      <div v-if="hasSelection" class="flex items-center justify-between py-2 border-t border-b border-white/20 mb-6">
+      <div v-if="canManage && hasSelection" class="flex items-center justify-between py-2 border-t border-b border-white/20 mb-6">
         <div>
           <p class="text-sm text-white/70">
             {{ selectedMemberIds.size }} member(s) selected
           </p>
         </div>
         <div class="flex gap-2 items-center">
-          <button v-if="canManage && hasSelection" type="button"
+          <button type="button"
             class="flex gap-2 items-center rounded-lg px-2 py-1 text-white border border-sky-500 bg-sky-500/70 hover:bg-sky-700/70 text-xs transition"
             @click="handlePromote">
             <Icon icon="carbon:arrow-up" width="15" height="15" />
             Promote
           </button>
-          <button v-if="canManage && hasSelection" type="button"
+          <button type="button"
             class="flex gap-2 items-center rounded-lg px-2 py-1 text-white border border-sky-500 bg-sky-500/70 hover:bg-sky-700/70 text-xs transition"
             @click="handleDemote">
             <Icon icon="carbon:arrow-down" width="15" height="15" />
             Demote
           </button>
-          <button v-if="canManage && hasSelection" type="button"
+          <button type="button"
             class="flex gap-2 items-center rounded-lg px-2 py-1 text-white border border-red-500 bg-red-500/70 hover:bg-red-700/70 text-xs transition"
             @click="handleRemoveMembers">
             <Icon icon="carbon:trash-can" width="15" height="15" />
