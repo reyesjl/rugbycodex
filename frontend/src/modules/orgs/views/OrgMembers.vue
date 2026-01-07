@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
-import { Icon } from '@iconify/vue';
 import { orgService } from "@/modules/orgs/services/orgServiceV2";
 import { useActiveOrganizationStore } from "@/modules/orgs/stores/useActiveOrganizationStore";
 import { useAuthStore } from '@/auth/stores/useAuthStore';
 import type { OrgMember } from "@/modules/orgs/types";
 import AddMemberModal from '@/modules/orgs/components/AddMemberModal.vue';
+import MemberPill from '@/modules/orgs/components/MemberPill.vue';
+import MembersActionBar from '@/modules/orgs/components/MembersActionBar.vue';
 
 const activeOrgStore = useActiveOrganizationStore();
 const authStore = useAuthStore();
@@ -67,10 +68,34 @@ function handleDemote() {
   // Stub: backend logic to be implemented
 }
 
-function handleRemoveMembers() {
+async function handleRemoveMembers() {
+  if (!orgId.value) return;
+
   const selected = members.value.filter(m => selectedMemberIds.value.has(m.profile.id));
-  console.log('Remove members:', selected.map(m => ({ id: m.profile.id, username: displayName(m) })));
-  // Stub: backend logic to be implemented
+
+  if (selected.length === 0) return;
+
+  loading.value = true;
+  error.value = null;
+
+  try {
+    await Promise.all(
+      selected.map((m) =>
+        orgService.removeMember(orgId.value!, m.profile.id)
+      )
+    );
+
+    // Refresh list
+    members.value = members.value.filter(
+      (m) => !selectedMemberIds.value.has(m.profile.id)
+    );
+
+    selectedMemberIds.value.clear();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : 'Failed to remove members.';
+  } finally {
+    loading.value = false;
+  }
 }
 
 function sortByName(a: OrgMember, b: OrgMember) {
@@ -108,22 +133,6 @@ function displayName(m: OrgMember) {
   return m.profile.username || m.profile.name;
 }
 
-function rolePillClass(role: string) {
-  // color-coded (700 shades) to blend with dark scheme
-  switch (role) {
-    case "owner":
-      return "border border-purple-700/40 bg-purple-700/20 text-purple-200";
-    case "staff":
-      return "border border-blue-700/40 bg-blue-700/20 text-blue-200";
-    case "manager":
-      return "border border-amber-700/40 bg-amber-700/20 text-amber-200";
-    case "member":
-      return "border border-emerald-700/40 bg-emerald-700/20 text-emerald-200";
-    default:
-      return "border border-slate-700/40 bg-slate-700/20 text-slate-200";
-  }
-}
-
 async function load() {
   if (!orgId.value) return;
 
@@ -156,67 +165,34 @@ watch(orgId, (next, prev) => {
         <div>
           <h1 class="text-white text-3xl tracking-tight">Members</h1>
         </div>
-
-        <!-- Add member control -->
-        <div class="flex gap-2 items-center justify-end">
-          <button v-if="canManage" type="button"
-            class="flex gap-2 items-center rounded-lg px-2 py-1 text-white border border-green-500 bg-green-500/70 hover:bg-green-700/70 text-xs transition disabled:opacity-50"
-            :disabled="loading || !orgId" @click="openAddMember">
-            <Icon icon="carbon:add" width="15" height="15" />
-            Add Member
-          </button>
-        </div>
       </div>
 
-      <!-- Membership select control -->
-      <div v-if="canManage && hasSelection" class="flex items-center justify-between py-2 border-t border-b border-white/20 mb-6">
-        <div>
-          <p class="text-sm text-white/70">
-            {{ selectedMemberIds.size }} member(s) selected
-          </p>
-        </div>
-        <div class="flex gap-2 items-center">
-          <button type="button"
-            class="flex gap-2 items-center rounded-lg px-2 py-1 text-white border border-sky-500 bg-sky-500/70 hover:bg-sky-700/70 text-xs transition"
-            @click="handlePromote">
-            <Icon icon="carbon:arrow-up" width="15" height="15" />
-            Promote
-          </button>
-          <button type="button"
-            class="flex gap-2 items-center rounded-lg px-2 py-1 text-white border border-sky-500 bg-sky-500/70 hover:bg-sky-700/70 text-xs transition"
-            @click="handleDemote">
-            <Icon icon="carbon:arrow-down" width="15" height="15" />
-            Demote
-          </button>
-          <button type="button"
-            class="flex gap-2 items-center rounded-lg px-2 py-1 text-white border border-red-500 bg-red-500/70 hover:bg-red-700/70 text-xs transition"
-            @click="handleRemoveMembers">
-            <Icon icon="carbon:trash-can" width="15" height="15" />
-            Remove
-          </button>
-        </div>
-      </div>
+      <!-- Action bar with Add / Promote / Demote / Remove controls -->
+      <MembersActionBar
+        :can-manage="canManage"
+        :has-selection="hasSelection"
+        :selected-count="selectedMemberIds.size"
+        :loading="loading"
+        :org-id="orgId"
+        @add="openAddMember"
+        @promote="handlePromote"
+        @demote="handleDemote"
+        @remove="handleRemoveMembers"
+      />
 
       <div v-if="error" class="mb-6 rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">
         {{ error }}
       </div>
 
       <div v-if="sortedMembers.length" class="flex flex-wrap gap-2">
-        <div v-for="m in sortedMembers" :key="m.profile.id"
-          class="group flex items-center gap-2 rounded-full px-3 py-1.5 transition" :class="[
-            isSelected(m.profile.id) ? 'border border-sky-500 bg-sky-500/10 shadow-lg shadow-sky-500/20' : 'border border-white/10 bg-white/0 hover:bg-white/5',
-            canManage ? 'hover:cursor-pointer' : ''
-          ]" @click="toggleMemberSelection(m.profile.id)">
-          <span class="text-sm text-gray-500 group-hover:text-white transition">
-            {{ displayName(m) }}
-          </span>
-          <!-- <span class="text-xs text-gray-500/80 group-hover:text-gray-300 transition">
-            {{ m.profile.xp ?? 0 }} xp
-          </span> -->
-          <span class="text-[11px] px-2 py-0.5 rounded-full leading-none" :class="rolePillClass(m.membership.role)">
-            {{ m.membership.role }}
-          </span>
-        </div>
+        <MemberPill
+          v-for="m in sortedMembers"
+          :key="m.profile.id"
+          :member="m"
+          :selected="isSelected(m.profile.id)"
+          :can-manage="canManage"
+          @toggle="toggleMemberSelection(m.profile.id)"
+        />
       </div>
 
       <p v-else class="text-sm text-gray-500">No members found.</p>
