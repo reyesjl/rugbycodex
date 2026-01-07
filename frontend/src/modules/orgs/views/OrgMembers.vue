@@ -155,10 +155,6 @@ watch(orgId, (next, prev) => {
       <div class="mb-6 flex md:flex-row flex-col md:items-end justify-between gap-4">
         <div>
           <h1 class="text-white text-3xl tracking-tight">Members</h1>
-          <p class="mt-1 text text-white/70">
-            <span v-if="loading">Loading…</span>
-            <span v-else>{{ members.length }} total</span>
-          </p>
         </div>
 
         <!-- Add member control -->
@@ -214,9 +210,9 @@ watch(orgId, (next, prev) => {
           <span class="text-sm text-gray-500 group-hover:text-white transition">
             {{ displayName(m) }}
           </span>
-          <span class="text-xs text-gray-500/80 group-hover:text-gray-300 transition">
+          <!-- <span class="text-xs text-gray-500/80 group-hover:text-gray-300 transition">
             {{ m.profile.xp ?? 0 }} xp
-          </span>
+          </span> -->
           <span class="text-[11px] px-2 py-0.5 rounded-full leading-none" :class="rolePillClass(m.membership.role)">
             {{ m.membership.role }}
           </span>
