@@ -24,3 +24,7 @@ openai
 
 # Ignore asset imports that are now loaded from CDN
 src/assets/
+*.mp4
+*.mov
+*.jpg
+*.png
