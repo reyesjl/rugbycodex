@@ -340,8 +340,6 @@ onMounted(() => {
                     {{ profileLabel(request.requester, request.requester_id) }}
                   </span>
                   <span class="text-white/35">•</span>
-                  <span>{{ request.requester?.role ?? 'member' }}</span>
-                  <span class="text-white/35">•</span>
                   <span v-if="request.status === 'pending'">Requested {{ formatRelative(request.created_at) }}</span>
                 </div>
               </div>
