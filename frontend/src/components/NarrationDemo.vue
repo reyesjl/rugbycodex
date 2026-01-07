@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { CDN_BASE } from '@/lib/cdn';
 
 type NarrationCategory = string;
 
@@ -14,10 +15,10 @@ interface NarrationExample {
 
 const waveformSegments = 84;
 
-const commentaryBroadcastAudioSrc = new URL('../assets/audio/ngwenya-demo.mp3', import.meta.url).href;
-const coachPreviewAudioSrc = new URL('../assets/audio/coach-demo2.mp3', import.meta.url).href;
-const coachDrillAudioSrc = new URL('../assets/audio/coach-demo3.mp3', import.meta.url).href;
-const playerReflectionAudioSrc = new URL('../assets/audio/player-demo.mp3', import.meta.url).href;
+const commentaryBroadcastAudioSrc = `${CDN_BASE}/static/assets/audio/ngwenya-demo.mp3`;
+const coachPreviewAudioSrc = `${CDN_BASE}/static/assets/audio/coach-demo2.mp3`;
+const coachDrillAudioSrc = `${CDN_BASE}/static/assets/audio/coach-demo3.mp3`;
+const playerReflectionAudioSrc = `${CDN_BASE}/static/assets/audio/player-demo.mp3`;
 
 const narrationExamples: NarrationExample[] = [
   {

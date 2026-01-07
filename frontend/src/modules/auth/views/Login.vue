@@ -3,9 +3,11 @@ import { reactive, ref, watch } from 'vue';
 import { RouterLink, useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/auth/stores/useAuthStore';
 import TurnstileVerification from '@/components/TurnstileVerification.vue';
-import bgImg from '@/assets/modules/auth/headingley.jpg';
 import { useStaggeredFade } from '@/composables/useStaggeredFade';
 import AuthNav from '../components/AuthNav.vue';
+import { CDN_BASE } from '@/lib/cdn';
+
+const bgImg = `${CDN_BASE}/static/assets/modules/auth/headingley.jpg`;
 
 const router = useRouter();
 const route = useRoute();

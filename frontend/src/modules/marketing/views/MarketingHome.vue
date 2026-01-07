@@ -1,18 +1,20 @@
 <script setup lang="ts">
-// import heroAnimatedLight from '@/assets/logos/animated/logo-animation-light.mp4';
-// import heroAnimatedDark from '@/assets/logos/animated/logo-animation-dark.mp4';
+// const heroAnimatedLight = `${CDN_BASE}/static/assets/logos/animated/logo-animation-light.mp4`;
+// const heroAnimatedDark = `${CDN_BASE}/static/assets/logos/animated/logo-animation-dark.mp4`;
 import { Icon } from '@iconify/vue';
-import heroImage from '@/assets/modules/marketing/saracens-hero.jpg';
 import Button from '@/components/ui/primitives/Button.vue';
 import { RouterLink } from 'vue-router';
-import simonImg from '@/assets/modules/marketing/simon.jpg';
-import coreyImg from '@/assets/modules/marketing/corey.png';
-import usawImg from '@/assets/modules/marketing/usaw.jpg';
 import ImageCell from '@/modules/marketing/components/ImageCell.vue';
 // import BackgroundHighlightVideo from '../components/BackgroundHighlightVideo.vue';
-// import herovideo from '@/assets/modules/marketing/highlights.mp4';
+// const heroVideo = `${CDN_BASE}/static/assets/modules/marketing/highlights.mp4`;
 import BackgroundHighlightPhoto from '../components/BackgroundHighlightPhoto.vue';
-import bgImg from '@/assets/modules/marketing/mission1.jpg';
+import { CDN_BASE } from '@/lib/cdn';
+
+const heroImage = `${CDN_BASE}/static/assets/modules/marketing/saracens-hero.jpg`;
+const simonImg = `${CDN_BASE}/static/assets/modules/marketing/simon.jpg`;
+const coreyImg = `${CDN_BASE}/static/assets/modules/marketing/corey.png`;
+const usawImg = `${CDN_BASE}/static/assets/modules/marketing/usaw.jpg`;
+const bgImg = `${CDN_BASE}/static/assets/modules/marketing/mission1.jpg`;
 </script>
 <template>
   <!-- <section class="min-h-screen grid place-items-center px-4">

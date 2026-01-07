@@ -2,12 +2,14 @@
 import LandingThreeColumnSection from '../components/LandingThreeColumnSection.vue';
 import BackgroundHighlightVideo from '../components/BackgroundHighlightVideo.vue';
 import TabSystem from '../components/TabSystem.vue';
-import herovideo from '@/assets/modules/marketing/highlights.mp4';
+import { CDN_BASE } from '@/lib/cdn';
 
-import coachSlide1 from '@/assets/modules/marketing/for-coaches/slide1.png';
-import coachSlide2 from '@/assets/modules/marketing/for-coaches/slide2.png';
-import coachSlide3 from '@/assets/modules/marketing/for-coaches/slide3.png';
-import coachSlide4 from '@/assets/modules/marketing/for-coaches/slide4.png';
+const herovideo = `${CDN_BASE}/static/assets/modules/marketing/highlights.mp4`;
+
+const coachSlide1 = `${CDN_BASE}/static/assets/modules/marketing/for-coaches/slide1.png`;
+const coachSlide2 = `${CDN_BASE}/static/assets/modules/marketing/for-coaches/slide2.png`;
+const coachSlide3 = `${CDN_BASE}/static/assets/modules/marketing/for-coaches/slide3.png`;
+const coachSlide4 = `${CDN_BASE}/static/assets/modules/marketing/for-coaches/slide4.png`;
 
 const coachSlides = [
   {

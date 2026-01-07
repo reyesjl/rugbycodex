@@ -1,14 +1,15 @@
 <script setup lang="ts">
 import LandingThreeColumnSection from '../components/LandingThreeColumnSection.vue';
 import BackgroundHighlightVideo from '../components/BackgroundHighlightVideo.vue';
-import herovideo from '@/assets/modules/marketing/highlights.mp4';
 import TabSystem from '../components/TabSystem.vue';
+import { CDN_BASE } from '@/lib/cdn';
 
+const herovideo = `${CDN_BASE}/static/assets/modules/marketing/highlights.mp4`;
 
-import playerSlide1 from '@/assets/modules/marketing/for-players/slide1.png';
-import playerSlide2 from '@/assets/modules/marketing/for-players/slide2.png';
-import playerSlide3 from '@/assets/modules/marketing/for-players/slide3.png';
-import playerSlide4 from '@/assets/modules/marketing/for-players/slide4.png';
+const playerSlide1 = `${CDN_BASE}/static/assets/modules/marketing/for-players/slide1.png`;
+const playerSlide2 = `${CDN_BASE}/static/assets/modules/marketing/for-players/slide2.png`;
+const playerSlide3 = `${CDN_BASE}/static/assets/modules/marketing/for-players/slide3.png`;
+const playerSlide4 = `${CDN_BASE}/static/assets/modules/marketing/for-players/slide4.png`;
 
 const playerSlides = [
   {

@@ -7,3 +7,4 @@ export function stringToSlugCase(str: string): string {
 export * from './date';
 export * from './status';
 export * from './duration';
+export * from './cdn';

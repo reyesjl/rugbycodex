@@ -2,8 +2,10 @@
 import PageHero from '../components/PageHero.vue';
 import HeadlineSlice from '../components/HeadlineSlice.vue';
 import BackgroundHighlightPhoto from '../components/BackgroundHighlightPhoto.vue';
-import bgImg from '@/assets/modules/marketing/mission2.jpg';
-import bgImg2 from '@/assets/modules/marketing/mission3.jpg';
+import { CDN_BASE } from '@/lib/cdn';
+
+const bgImg = `${CDN_BASE}/static/assets/modules/marketing/mission2.jpg`;
+const bgImg2 = `${CDN_BASE}/static/assets/modules/marketing/mission3.jpg`;
 
 </script>
 <template>

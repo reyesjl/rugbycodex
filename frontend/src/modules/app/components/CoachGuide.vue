@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import coachImage from '@/assets/helper/coach.png';
+import { CDN_BASE } from '@/lib/cdn';
+
+const coachImage = `${CDN_BASE}/static/assets/helper/coach.png`;
 
 const props = withDefaults(defineProps<{ imgWidth?: string }>(), {
     imgWidth: '140px',

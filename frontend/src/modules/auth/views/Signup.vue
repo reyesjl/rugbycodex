@@ -5,13 +5,14 @@ import { Icon } from '@iconify/vue';
 import { useAuthStore } from '@/auth/stores/useAuthStore';
 import { profileService } from '@/modules/profiles/services/profileServiceV2';
 import TurnstileVerification from '@/components/TurnstileVerification.vue';
-import bgImg from '@/assets/modules/auth/headingley.jpg';
 import { useStaggeredFade } from '@/composables/useStaggeredFade';
+import { CDN_BASE } from '@/lib/cdn';
 const authStore = useAuthStore();
 const router = useRouter();
 const signingUp = ref(false);
 const supabaseError = ref<string | null>(null);
 const supabaseMessage = ref<string | null>(null);
+const bgImg = `${CDN_BASE}/static/assets/modules/auth/headingley.jpg`;
 const confirmationRedirectUrl =
   typeof window !== 'undefined' ? `${window.location.origin}/confirm-email` : undefined;
 const turnstileToken = ref('');

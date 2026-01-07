@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import LandingThreeColumnSection from '../components/LandingThreeColumnSection.vue';
 import BackgroundHighlightVideo from '../components/BackgroundHighlightVideo.vue';
-import herovideo from '@/assets/modules/marketing/highlights.mp4';
 import TabSystem from '../components/TabSystem.vue';
+import { CDN_BASE } from '@/lib/cdn';
 
-import unionSlide1 from '@/assets/modules/marketing/for-unions/slide1.png';
-import unionSlide2 from '@/assets/modules/marketing/for-unions/slide2.png';
-import unionSlide3 from '@/assets/modules/marketing/for-unions/slide3.png';
-import unionSlide4 from '@/assets/modules/marketing/for-unions/slide4.png';
+const herovideo = `${CDN_BASE}/static/assets/modules/marketing/highlights.mp4`;
+
+const unionSlide1 = `${CDN_BASE}/static/assets/modules/marketing/for-unions/slide1.png`;
+const unionSlide2 = `${CDN_BASE}/static/assets/modules/marketing/for-unions/slide2.png`;
+const unionSlide3 = `${CDN_BASE}/static/assets/modules/marketing/for-unions/slide3.png`;
+const unionSlide4 = `${CDN_BASE}/static/assets/modules/marketing/for-unions/slide4.png`;
 
 const unionSlides = [
   {

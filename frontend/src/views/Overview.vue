@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue';
 import { RouterLink } from 'vue-router';
-import heroAnimatedLight from '@/assets/logos/animated/logo-animation-light.mp4';
-import heroAnimatedDark from '@/assets/logos/animated/logo-animation-dark.mp4';
-import narrationDemo from '@/assets/videos/narrationDemo.webm';
 import NarrationDemo from '@/components/NarrationDemo.vue';
+import { CDN_BASE } from '@/lib/cdn';
+
+const heroAnimatedLight = `${CDN_BASE}/static/assets/logos/animated/logo-animation-light.mp4`;
+const heroAnimatedDark = `${CDN_BASE}/static/assets/logos/animated/logo-animation-dark.mp4`;
+const narrationDemo = `${CDN_BASE}/static/assets/videos/narrationDemo.webm`;
 </script>
 
 <template>
