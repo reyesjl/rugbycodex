@@ -27,7 +27,6 @@ const adminLinks = [
 const handleSidebarToggle = () => emit('toggle-sidebar');
 
 const {
-  mobileSheetRef,
   sheetStyle,
   onHandlePointerDown,
   onHandlePointerMove,
@@ -55,7 +54,7 @@ const {
     class="
       hidden md:block
       overflow-y-auto fixed
-      top-[var(--main-nav-height)] left-0
+      top-(--main-nav-height) left-0
       text-white backdrop-blur bg-black/30
       w-64 h-full z-50 border-r border-white/30
       transition-transform duration-300

@@ -1,13 +1,135 @@
 <script setup lang="ts">
+import { computed, onMounted, ref, watch } from "vue";
+import { orgService } from "@/modules/orgs/services/orgServiceV2";
+import { useActiveOrganizationStore } from "@/modules/orgs/stores/useActiveOrganizationStore";
+import type { OrgMember } from "@/modules/orgs/types";
 
+const activeOrgStore = useActiveOrganizationStore();
+
+const orgId = computed(() => activeOrgStore.orgContext?.organization.id ?? null);
+
+const loading = ref(false);
+const error = ref<string | null>(null);
+const members = ref<OrgMember[]>([]);
+
+function sortByName(a: OrgMember, b: OrgMember) {
+  const an = (a.profile.name ?? a.profile.username ?? "").toLowerCase();
+  const bn = (b.profile.name ?? b.profile.username ?? "").toLowerCase();
+  return an.localeCompare(bn);
+}
+
+function roleRank(role: string) {
+  // desired order: owners → staff → managers → members
+  switch (role) {
+    case "owner":
+      return 0;
+    case "staff":
+      return 1;
+    case "manager":
+      return 2;
+    case "member":
+      return 3;
+    default:
+      return 4;
+  }
+}
+
+const sortedMembers = computed(() => {
+  return [...members.value].sort((a, b) => {
+    const ar = roleRank(a.membership.role);
+    const br = roleRank(b.membership.role);
+    if (ar !== br) return ar - br;
+    return sortByName(a, b);
+  });
+});
+
+function displayName(m: OrgMember) {
+  return m.profile.username || m.profile.name;
+}
+
+function rolePillClass(role: string) {
+  // color-coded (700 shades) to blend with dark scheme
+  switch (role) {
+    case "owner":
+      return "border border-purple-700/40 bg-purple-700/20 text-purple-200";
+    case "staff":
+      return "border border-blue-700/40 bg-blue-700/20 text-blue-200";
+    case "manager":
+      return "border border-amber-700/40 bg-amber-700/20 text-amber-200";
+    case "member":
+      return "border border-emerald-700/40 bg-emerald-700/20 text-emerald-200";
+    default:
+      return "border border-slate-700/40 bg-slate-700/20 text-slate-200";
+  }
+}
+
+async function load() {
+  if (!orgId.value) return;
+
+  loading.value = true;
+  error.value = null;
+
+  try {
+    members.value = await orgService.listMembers(orgId.value);
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "Failed to load members.";
+    members.value = [];
+  } finally {
+    loading.value = false;
+  }
+}
+
+onMounted(() => {
+  void load();
+});
+
+watch(orgId, (next, prev) => {
+  if (next && next !== prev) void load();
+});
 </script>
 
 <template>
   <div class="container py-6">
-    <h1 class="text-white">Organization Members</h1>
+    <div class="mb-6 flex items-end justify-between gap-4">
+      <div>
+        <h1 class="text-white text-3xl tracking-tight">Members</h1>
+        <p class="mt-1 text text-white/70">
+          <span v-if="loading">Loading…</span>
+          <span v-else>{{ members.length }} total</span>
+        </p>
+      </div>
+    </div>
+
+    <div v-if="error" class="mb-6 rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">
+      {{ error }}
+    </div>
+
+    <div v-if="sortedMembers.length" class="flex flex-wrap gap-2">
+      <div
+        v-for="m in sortedMembers"
+        :key="m.profile.id"
+        class="group hover:cursor-pointer flex items-center gap-2 rounded-full border border-white/10 bg-white/0 px-3 py-1.5 transition hover:bg-white/5"
+      >
+        <span class="text-sm text-gray-500 group-hover:text-white transition">
+          {{ displayName(m) }}
+        </span>
+        <span class="text-xs text-gray-500/80 group-hover:text-gray-300 transition">
+          {{ m.profile.xp ?? 0 }} xp
+        </span>
+        <span
+          class="text-[11px] px-2 py-0.5 rounded-full leading-none"
+          :class="rolePillClass(m.membership.role)"
+        >
+          {{ m.membership.role }}
+        </span>
+      </div>
+    </div>
+
+    <p v-else class="text-sm text-gray-500">No members found.</p>
   </div>
 </template>
 
 <style scoped>
-
+/* intentionally empty: swiss-style = let spacing + type do the work */
 </style>
+

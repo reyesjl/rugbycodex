@@ -5,7 +5,7 @@ import { formatMonthYear } from '@/lib/date';
 import { useActiveOrganizationStore } from '../stores/useActiveOrganizationStore';
 
 const activeOrganizationStore = useActiveOrganizationStore();
-const { orgContext, resolving } = storeToRefs(activeOrganizationStore);
+const { orgContext, resolving, memberCount } = storeToRefs(activeOrganizationStore);
 
 const org = computed(() => orgContext.value?.organization ?? null);
 
@@ -33,13 +33,14 @@ const badgeClass =
           </div>
         </div>
 
-        <p class="text-xs text-gray-500">Established {{ formatMonthYear(org.created_at) ?? 'Unknown' }}</p>
+        <div class="flex">
+          <div class="text-xs text-gray-500">Circa {{ formatMonthYear(org.created_at) ?? 'Unknown' }} • {{ memberCount }} members</div>
+        </div>
 
         <p class="max-w-2xl text-white/70">
           {{ org.bio && org.bio.trim().length ? org.bio : 'No bio yet.' }}
         </p>
 
-        <p>Members: </p>
       </header>
     </div>
   </section>

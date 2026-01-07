@@ -458,11 +458,11 @@ export const orgService = {
         user_id,
         role,
         joined_at,
-        profiles!inner (
+        public_profiles!inner (
           id,
           username,
           name,
-          role
+          xp
         )
       `
       )
@@ -473,7 +473,7 @@ export const orgService = {
     }
 
     return data.map((item) => {
-      const profile = Array.isArray(item.profiles) ? item.profiles[0] : item.profiles;
+      const profile = Array.isArray(item.public_profiles) ? item.public_profiles[0] : item.public_profiles;
 
       if (!profile) {
         throw new Error("Invariant violation: org_members row without profile");
@@ -490,7 +490,7 @@ export const orgService = {
           id: profile.id,
           username: profile.username,
           name: profile.name,
-          role: profile.role,
+          xp: profile.xp,
         },
       };
     });
@@ -659,7 +659,7 @@ export const orgService = {
 
     const { data: profileData, error: profileError } = await supabase
       .from("profiles")
-      .select("id, username, name, role")
+      .select("id, username, name, role, xp")
       .eq("id", userId)
       .single();
 
