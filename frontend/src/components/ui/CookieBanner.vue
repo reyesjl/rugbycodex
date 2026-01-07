@@ -20,7 +20,7 @@ const show = computed(() => shouldShowBanner.value);
       <span @click="reject" class="cursor-pointer underline underline-offset-2">Reject</span>
     </div> -->
     <div class="buttons flex gap-2 justify-center">
-      <span @click="dismiss" class="cursor-pointer underline underline-offset-2">Dismiss</span>|
+      <span @click="dismiss" class="cursor-pointer underline underline-offset-2">Dismiss</span>
     </div>
   </div>
 </template>
