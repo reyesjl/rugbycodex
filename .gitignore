@@ -23,7 +23,7 @@ node_modules/
 openai
 
 # Ignore asset imports that are now loaded from CDN
-src/assets/
+frontend/src/assets/
 *.mp4
 *.mov
 *.jpg
