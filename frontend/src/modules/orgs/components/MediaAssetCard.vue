@@ -49,8 +49,8 @@ const isAbandoned = computed(() => {
 const overlayIconName = computed(() => {
   if (isAbandoned.value) return 'carbon:warning-alt';
   const status = props.asset.status;
-  if (status === 'processing') return 'carbon:ibm-data-power';
-  if (status === 'ready' && !props.asset.streaming_ready) return 'carbon:ibm-data-power';
+  if (status === 'processing') return 'carbon:data-regular';
+  if (status === 'ready' && !props.asset.streaming_ready) return 'carbon:data-regular';
   if (status === 'ready') return 'carbon:play-filled-alt';
   if (status === 'uploading') return 'ei:spinner';
   return statusDisplay.value.icon ?? 'ei:spinner';
@@ -61,7 +61,7 @@ const overlayIconClass = computed(() => {
   const status = props.asset.status;
   if (status === 'ready' && props.asset.streaming_ready) return 'text-white/30';
   if (status === 'processing' || (status === 'ready' && !props.asset.streaming_ready)) {
-    return 'text-blue-400/70 animate-spin';
+    return 'text-white/40 animate-spin';
   }
   if (status === 'uploading') return 'text-white/40 animate-spin';
   return 'text-white/40';
