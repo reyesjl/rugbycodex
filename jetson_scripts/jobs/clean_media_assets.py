@@ -51,7 +51,7 @@ while True:
 
     if response.data is None or len(response.data) == 0:
         print("No media cleanup jobs found.")
-        time.sleep(300) # 5 minutes
+        time.sleep(21600)  # 6 hours
         continue
 
     for record in response.data:
@@ -110,9 +110,9 @@ while True:
             }).eq("id", record['id']).execute()
             continue
 
-    print("Completed media cleanup job cycle. Sleeping for 5 minutes.")
+    print("Completed media cleanup job cycle. Sleeping for 6 hours.")
 
-    time.sleep(300) # 5 minutes
+    time.sleep(21600)  # 6 hours
 
 
 # Git Hub Action
