@@ -10,6 +10,14 @@ import MembersActionBar from '@/modules/orgs/components/MembersActionBar.vue';
 import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
 import { toast } from '@/lib/toast';
 
+// Role hierarchy for client-side validation
+const ROLE_RANK = {
+  member: 0,
+  staff: 1,
+  manager: 2,
+  owner: 3,
+} as const;
+
 const activeOrgStore = useActiveOrganizationStore();
 const authStore = useAuthStore();
 
@@ -20,6 +28,8 @@ const canManage = computed(() => {
   const role = activeOrgStore.orgContext?.membership?.role;
   return role === 'owner' || role === 'manager' || role === 'staff';
 });
+
+const role = computed(() => activeOrgStore.orgContext?.membership?.role ?? 'member');
 
 const loading = ref(false);
 const error = ref<string | null>(null);
@@ -40,20 +50,27 @@ function closeAddMember() {
   showAddMember.value = false;
 }
 
-function handleAddMember(payload: { username: string; role: 'member' | 'staff' | 'manager' | 'owner' }) {
-  // Stub: backend logic to be implemented
-  console.log('Add member:', payload);
-  
-  // TODO: Remove stub and implement actual API call
-  toast({
-    variant: 'success',
-    message: `Member ${payload.username} added as ${payload.role}.`,
-    durationMs: 2500,
-  });
-  
-  closeAddMember();
-  // After real implementation: reload members list
-  // void load();
+async function handleAddMember(payload: { username: string; role: 'member' | 'staff' | 'manager' | 'owner' }) {
+  if (!orgId.value) return;
+
+  try {
+    await orgService.addMemberByUsername(orgId.value, payload.username, payload.role);
+    
+    toast({
+      variant: 'success',
+      message: `Member ${payload.username} added as ${payload.role}.`,
+      durationMs: 2500,
+    });
+    
+    closeAddMember();
+    void load();
+  } catch (e) {
+    toast({
+      variant: 'error',
+      message: e instanceof Error ? e.message : 'Failed to add member.',
+      durationMs: 3500,
+    });
+  }
 }
 
 function toggleMemberSelection(memberId: string) {
@@ -71,48 +88,154 @@ function isSelected(memberId: string) {
 
 const hasSelection = computed(() => selectedMemberIds.value.size > 0);
 
-function handlePromote() {
-  const selected = members.value.filter(m => selectedMemberIds.value.has(m.profile.id));
-  console.log('Promote members:', selected.map(m => ({ id: m.profile.id, username: displayName(m), role: m.membership.role })));
+async function handlePromote() {
+  if (!orgId.value) return;
   
-  // Stub: backend logic to be implemented
-  // TODO: Implement actual API call for promotion
-  toast({
-    variant: 'error',
-    message: 'Promote feature not yet implemented.',
-    durationMs: 3000,
-  });
+  const myRole = role.value as 'member' | 'staff' | 'manager' | 'owner';
+  const myRank = ROLE_RANK[myRole];
+
+  // Client-side validation: filter members we can actually promote
+  const promotable = members.value
+    .filter(m => selectedMemberIds.value.has(m.profile.id))
+    .filter(m => {
+      const currentRank = ROLE_RANK[m.membership.role as keyof typeof ROLE_RANK];
+      const nextRank = currentRank + 1;
+      
+      // Can't promote if already at max
+      if (m.membership.role === 'owner') return false;
+      
+      // Can't promote if result would be higher than our own role
+      if (nextRank > myRank) return false;
+      
+      return true;
+    });
   
-  // After implementation:
-  // toast({
-  //   variant: 'success',
-  //   message: `${selected.length} member${selected.length === 1 ? '' : 's'} promoted.`,
-  //   durationMs: 2500,
-  // });
-  // selectedMemberIds.value.clear();
-  // void load();
+  if (promotable.length === 0) {
+    toast({
+      variant: 'error',
+      message: 'Cannot promote selected members: insufficient permissions or already at maximum role.',
+      durationMs: 3000,
+    });
+    return;
+  }
+
+  loading.value = true;
+  error.value = null;
+
+  try {
+    await Promise.all(
+      promotable.map((m) => {
+        let newRole: 'member' | 'staff' | 'manager' | 'owner';
+        switch (m.membership.role) {
+          case 'member':
+            newRole = 'staff';
+            break;
+          case 'staff':
+            newRole = 'manager';
+            break;
+          case 'manager':
+            newRole = 'owner';
+            break;
+          case 'viewer':
+            newRole = 'member';
+            break;
+          default:
+            newRole = 'member';
+        }
+        return orgService.changeMemberRole(orgId.value!, m.profile.id, newRole);
+      })
+    );
+
+    toast({
+      variant: 'success',
+      message: `${promotable.length} member${promotable.length === 1 ? '' : 's'} promoted.`,
+      durationMs: 2500,
+    });
+    
+    selectedMemberIds.value.clear();
+    void load();
+  } catch (e) {
+    toast({
+      variant: 'error',
+      message: e instanceof Error ? e.message : 'Failed to promote members.',
+      durationMs: 3500,
+    });
+  } finally {
+    loading.value = false;
+  }
 }
 
-function handleDemote() {
-  const selected = members.value.filter(m => selectedMemberIds.value.has(m.profile.id));
-  console.log('Demote members:', selected.map(m => ({ id: m.profile.id, username: displayName(m), role: m.membership.role })));
+async function handleDemote() {
+  if (!orgId.value) return;
   
-  // Stub: backend logic to be implemented
-  // TODO: Implement actual API call for demotion
-  toast({
-    variant: 'error',
-    message: 'Demote feature not yet implemented.',
-    durationMs: 3000,
-  });
+  const myRole = role.value as 'member' | 'staff' | 'manager' | 'owner';
+  const myRank = ROLE_RANK[myRole];
+
+  // Client-side validation: filter members we can actually demote
+  const demotable = members.value
+    .filter(m => selectedMemberIds.value.has(m.profile.id))
+    .filter(m => {
+      const currentRank = ROLE_RANK[m.membership.role as keyof typeof ROLE_RANK];
+      
+      // Can't demote if already at min
+      if (m.membership.role === 'member') return false;
+      
+      // Can't demote if their current rank is higher than ours
+      if (currentRank > myRank) return false;
+      
+      return true;
+    });
   
-  // After implementation:
-  // toast({
-  //   variant: 'success',
-  //   message: `${selected.length} member${selected.length === 1 ? '' : 's'} demoted.`,
-  //   durationMs: 2500,
-  // });
-  // selectedMemberIds.value.clear();
-  // void load();
+  if (demotable.length === 0) {
+    toast({
+      variant: 'error',
+      message: 'Cannot demote selected members: insufficient permissions or already at minimum role.',
+      durationMs: 3000,
+    });
+    return;
+  }
+
+  loading.value = true;
+  error.value = null;
+
+  try {
+    await Promise.all(
+      demotable.map((m) => {
+        let newRole: 'member' | 'staff' | 'manager' | 'owner';
+        switch (m.membership.role) {
+          case 'owner':
+            newRole = 'manager';
+            break;
+          case 'manager':
+            newRole = 'staff';
+            break;
+          case 'staff':
+            newRole = 'member';
+            break;
+          default:
+            newRole = 'member';
+        }
+        return orgService.changeMemberRole(orgId.value!, m.profile.id, newRole);
+      })
+    );
+
+    toast({
+      variant: 'success',
+      message: `${demotable.length} member${demotable.length === 1 ? '' : 's'} demoted.`,
+      durationMs: 2500,
+    });
+    
+    selectedMemberIds.value.clear();
+    void load();
+  } catch (e) {
+    toast({
+      variant: 'error',
+      message: e instanceof Error ? e.message : 'Failed to demote members.',
+      durationMs: 3500,
+    });
+  } finally {
+    loading.value = false;
+  }
 }
 
 function openConfirmRemove() {
@@ -172,13 +295,13 @@ function sortByName(a: OrgMember, b: OrgMember) {
 }
 
 function roleRank(role: string) {
-  // desired order: owners → staff → managers → members
+  // desired order: owners → managers → staff → members
   switch (role) {
     case "owner":
       return 0;
-    case "staff":
-      return 1;
     case "manager":
+      return 1;
+    case "staff":
       return 2;
     case "member":
       return 3;
@@ -195,10 +318,6 @@ const sortedMembers = computed(() => {
     return sortByName(a, b);
   });
 });
-
-function displayName(m: OrgMember) {
-  return m.profile.username || m.profile.name;
-}
 
 async function load() {
   if (!orgId.value) return;

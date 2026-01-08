@@ -658,8 +658,8 @@ export const orgService = {
     }
 
     const { data: profileData, error: profileError } = await supabase
-      .from("profiles")
-      .select("id, username, name, role, xp")
+      .from("public_profiles")
+      .select("id, username, name, xp")
       .eq("id", userId)
       .single();
 
@@ -671,6 +671,66 @@ export const orgService = {
       membership: data,
       profile: profileData,
     };
+  },
+
+  /**
+   * Resolves a username to a user ID.
+   *
+   * Problem it solves:
+   * - Allows adding members by username instead of requiring a user ID lookup.
+   *
+   * Conceptual tables:
+   * - `profiles`
+   *
+   * Allowed caller:
+   * - Authenticated user; enforced by RLS.
+   *
+   * Implementation:
+   * - Direct Supabase call (read-only).
+   *
+   * @param username - Username to resolve.
+   * @returns User ID.
+   * @throws Error if user not found.
+   */
+  async resolveUserIdByUsername(username: string): Promise<string> {
+    const { data, error } = await supabase
+      .from("public_profiles")
+      .select("id")
+      .eq("username", username)
+      .single();
+
+    if (error || !data) {
+      throw new Error("User not found.");
+    }
+
+    return data.id;
+  },
+
+  /**
+   * Adds a user to an organization by username.
+   *
+   * Problem it solves:
+   * - Simplifies member addition by accepting username instead of user ID.
+   *
+   * Conceptual tables:
+   * - `public_profiles` (username resolution)
+   * - `org_members` (membership creation)
+   *
+   * Allowed caller:
+   * - Org owner/managers or platform admin; enforced server-side.
+   *
+   * Implementation:
+   * - Combines username resolution with existing addMember method.
+   *
+   * @param orgId - Organization ID.
+   * @param username - Username of user to add.
+   * @param role - Role to assign.
+   * @returns The created membership projection.
+   * @throws Error if user not found.
+   */
+  async addMemberByUsername(orgId: string, username: string, role: OrgRole): Promise<OrgMember> {
+    const userId = await this.resolveUserIdByUsername(username);
+    return this.addMember(orgId, userId, role);
   },
 
   /**
@@ -733,10 +793,33 @@ export const orgService = {
     });
 
     if (error) {
-      throw error;
+      // Parse structured error from edge function
+      if (error.context?.body) {
+        try {
+          // Check if body is already an object
+          const errorBody = typeof error.context.body === 'string' 
+            ? JSON.parse(error.context.body) 
+            : error.context.body;
+          
+          if (errorBody?.error?.message) {
+            throw new Error(errorBody.error.message);
+          }
+        } catch (parseError) {
+          // If parsing fails, just use the original error message
+          console.warn('Failed to parse edge function error:', parseError);
+        }
+      }
+      throw new Error(error.message || 'Failed to change member role.');
     }
 
-    return data;
+    if (!data?.membership || !data?.profile) {
+      throw new Error('Invalid response from server.');
+    }
+
+    return {
+      membership: data.membership,
+      profile: data.profile,
+    };
   },
 
   /**
