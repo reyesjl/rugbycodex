@@ -6,14 +6,15 @@ import { Icon } from '@iconify/vue';
 import HlsPlayer from '@/components/HlsPlayer.vue';
 import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrganizationStore';
 import { mediaService } from '@/modules/media/services/mediaService';
-import { narrationService } from '@/modules/narrations/services/narrationService';
 import type { OrgMediaAsset } from '@/modules/media/types/OrgMediaAsset';
 import type { MediaAssetSegment } from '@/modules/narrations/types/MediaAssetSegment';
-import type { Narration } from '@/modules/narrations/types/Narration';
 import { supabase } from '@/lib/supabaseClient';
 import { formatMinutesSeconds } from '@/lib/duration';
+import NarrationView from '@/modules/media/views/NarrationView.vue';
 
 const DEBUG = import.meta.env.DEV;
+
+//TODO: Ui play/pause on click space bar etc
 
 function debugLog(...args: unknown[]) {
   if (!DEBUG) return;
@@ -34,13 +35,8 @@ const asset = ref<OrgMediaAsset | null>(null);
 const playlistObjectUrl = ref<string | null>(null);
 const videoEl = ref<HTMLVideoElement | null>(null);
 
-const narrations = ref<Narration[]>([]);
-const narrationText = ref('');
-const submitting = ref(false);
-const submitError = ref<string | null>(null);
-
 const isPlaying = ref(false);
-const isRecording = ref(false);
+const narrationViewRef = ref<InstanceType<typeof NarrationView> | null>(null);
 
 type PlayerOverlay =
   | { kind: 'seek'; direction: 'back' | 'forward'; seconds: number }
@@ -93,7 +89,6 @@ async function loadSegment() {
   segment.value = null;
   asset.value = null;
   playlistObjectUrl.value = null;
-  narrations.value = [];
 
   try {
     if (!segmentId.value) {
@@ -149,9 +144,6 @@ async function loadSegment() {
       throw err;
     }
 
-    // Load existing narrations
-    narrations.value = await narrationService.listNarrationsForSegment(segmentId.value);
-
     loading.value = false;
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Unable to load segment.';
@@ -159,31 +151,6 @@ async function loadSegment() {
   } finally {
     loading.value = false;
     debugLog('loadSegment(): done', { loading: loading.value, error: error.value });
-  }
-}
-
-async function submitNarration() {
-  if (!narrationText.value.trim()) return;
-  if (!segment.value || !asset.value || !activeOrgId.value) return;
-
-  submitting.value = true;
-  submitError.value = null;
-
-  try {
-    const narration = await narrationService.createNarration({
-      orgId: activeOrgId.value,
-      mediaAssetId: asset.value.id,
-      mediaAssetSegmentId: segment.value.id,
-      transcriptRaw: narrationText.value.trim(),
-    });
-
-    narrations.value.push(narration);
-    narrationText.value = '';
-  } catch (err) {
-    submitError.value = err instanceof Error ? err.message : 'Failed to save narration.';
-    debugLog('submitNarration(): error', err);
-  } finally {
-    submitting.value = false;
   }
 }
 
@@ -237,8 +204,22 @@ function handleForward() {
   }
 }
 
+function handleNarrationRecordingStarted() {
+  // If video is paused, play it when recording starts
+  if (videoEl.value && videoEl.value.paused) {
+    videoEl.value.play().catch((err) => {
+      debugLog('play on record start failed', err);
+    });
+  }
+}
+
+function handleNarrationRecordingStopped() {
+  // No action needed when recording stops
+}
+
 function handleRecordToggle() {
-  isRecording.value = !isRecording.value;
+  // This button is no longer used - recording is handled in NarrationView
+  // Keeping for backward compatibility
 }
 
 function updatePlayingState() {
@@ -366,44 +347,24 @@ watch([playlistObjectUrl, segment], () => {
       <!-- Video Player -->
       <div class="overflow-hidden rounded-lg bg-white/5 ring-1 ring-white/10">
         <div class="relative">
-          <HlsPlayer
-            :src="playlistObjectUrl ?? ''"
-            class="w-full h-auto"
-            playsinline
-            autoplay
-            @error="handlePlayerError"
-          />
+          <HlsPlayer :src="playlistObjectUrl ?? ''" class="w-full h-auto" playsinline autoplay
+            @error="handlePlayerError" />
 
-          <Transition
-            enter-active-class="transition duration-150 ease-out"
-            enter-from-class="opacity-0 scale-95"
-            enter-to-class="opacity-100 scale-100"
-            leave-active-class="transition duration-250 ease-in"
-            leave-from-class="opacity-100 scale-100"
-            leave-to-class="opacity-0 scale-95"
-          >
-            <div
-              v-if="playerOverlay"
-              class="pointer-events-none absolute inset-0 flex items-center justify-center"
-            >
-              <div
-                class="flex items-center gap-2 rounded-lg bg-black/50 px-3 py-2 text-white backdrop-blur-sm"
-              >
-                <Icon
-                  :icon="
-                    playerOverlay.kind === 'seek'
-                      ? (playerOverlay.direction === 'back' ? 'carbon:skip-back' : 'carbon:skip-forward')
-                      : playerOverlay.kind === 'seek-limit'
-                        ? 'carbon:information'
-                      : playerOverlay.kind === 'restart'
-                        ? 'carbon:restart'
+          <Transition enter-active-class="transition duration-150 ease-out" enter-from-class="opacity-0 scale-95"
+            enter-to-class="opacity-100 scale-100" leave-active-class="transition duration-250 ease-in"
+            leave-from-class="opacity-100 scale-100" leave-to-class="opacity-0 scale-95">
+            <div v-if="playerOverlay" class="pointer-events-none absolute inset-0 flex items-center justify-center">
+              <div class="flex items-center gap-2 rounded-lg bg-black/50 px-3 py-2 text-white backdrop-blur-sm">
+                <Icon :icon="playerOverlay.kind === 'seek'
+                  ? (playerOverlay.direction === 'back' ? 'carbon:skip-back' : 'carbon:skip-forward')
+                  : playerOverlay.kind === 'seek-limit'
+                    ? 'carbon:information'
+                    : playerOverlay.kind === 'restart'
+                      ? 'carbon:restart'
                       : playerOverlay.kind === 'pause'
                         ? 'carbon:pause'
                         : 'carbon:play'
-                  "
-                  width="18"
-                  height="18"
-                />
+                  " width="18" height="18" />
                 <div class="text-sm font-medium">
                   <template v-if="playerOverlay.kind === 'seek'">
                     {{ playerOverlay.direction === 'back' ? '-' : '+' }}{{ playerOverlay.seconds }} seconds
@@ -427,61 +388,31 @@ watch([playlistObjectUrl, segment], () => {
       <!-- Custom Controls -->
       <div class="flex items-center justify-center gap-5">
         <div class="flex items-center">
-          <button
-            type="button"
+          <button type="button"
             class="flex items-center rounded-lg px-2 py-1 text-white border border-emerald-500 bg-emerald-500/70 hover:bg-emerald-700/70 hover:cursor-pointer text-xs transition"
-            @click="handleRestart"
-            title="Restart segment"
-          >
+            @click="handleRestart" title="Restart segment">
             <Icon icon="carbon:restart" width="15" height="15" />
           </button>
         </div>
 
         <div class="flex items-center gap-2">
-          <button
-            type="button"
+          <button type="button"
             class="flex items-center rounded-lg px-2 py-1 text-white border border-indigo-500 bg-indigo-500/70 hover:bg-indigo-700/70 hover:cursor-pointer text-xs transition"
-            @click="handleBack"
-            title="Back 5 seconds"
-          >
+            @click="handleBack" title="Back 5 seconds">
             <Icon icon="carbon:skip-back" width="15" height="15" />
           </button>
-          <button
-            type="button"
-            :class="[
-              'flex items-center rounded-lg px-2 py-1 text-white text-xs transition border hover:cursor-pointer',
-              isPlaying
-                ? 'border-amber-500 bg-amber-500/70 hover:bg-amber-700/70'
-                : 'border-sky-500 bg-sky-500/70 hover:bg-sky-700/70',
-            ]"
-            @click="handlePlayPause"
-            :title="isPlaying ? 'Pause' : 'Play'"
-          >
+          <button type="button" :class="[
+            'flex items-center rounded-lg px-2 py-1 text-white text-xs transition border hover:cursor-pointer',
+            isPlaying
+              ? 'border-amber-500 bg-amber-500/70 hover:bg-amber-700/70'
+              : 'border-sky-500 bg-sky-500/70 hover:bg-sky-700/70',
+          ]" @click="handlePlayPause" :title="isPlaying ? 'Pause' : 'Play'">
             <Icon :icon="isPlaying ? 'carbon:pause' : 'carbon:play'" width="15" height="15" />
           </button>
-          <button
-            type="button"
+          <button type="button"
             class="flex items-center rounded-lg px-2 py-1 text-white border border-indigo-500 bg-indigo-500/70 hover:bg-indigo-700/70 hover:cursor-pointer text-xs transition"
-            @click="handleForward"
-            title="Forward 5 seconds"
-          >
+            @click="handleForward" title="Forward 5 seconds">
             <Icon icon="carbon:skip-forward" width="15" height="15" />
-          </button>
-        </div>
-
-        <div class="flex items-center">
-          <button
-            type="button"
-            :class="[
-              'flex items-center rounded-lg px-2 py-1 text-white text-xs transition border hover:cursor-pointer',
-              isRecording
-                ? 'border-rose-500 bg-rose-600/90 hover:bg-rose-700/90'
-                : 'border-white/20 bg-white/10 text-white/70 hover:bg-white/15',
-            ]"
-            @click="handleRecordToggle"
-            :title="isRecording ? 'Stop recording' : 'Record'"
-          >
-            <Icon icon="carbon:microphone" width="15" height="15" />
           </button>
         </div>
       </div>
@@ -490,55 +421,15 @@ watch([playlistObjectUrl, segment], () => {
       <div class="space-y-1">
         <h1 class="text-white text-xl font-semibold">{{ title }}</h1>
         <div class="text-xs font-medium tracking-wide text-white/50">
-          Segment {{ segment.segment_index + 1 }} · {{ formatMinutesSeconds(segment.start_seconds) }} - {{ formatMinutesSeconds(segment.end_seconds) }}
+          Segment {{ segment.segment_index + 1 }} · {{ formatMinutesSeconds(segment.start_seconds) }} - {{
+            formatMinutesSeconds(segment.end_seconds) }}
         </div>
       </div>
 
-      <!-- Narration Input -->
-      <div class="rounded-lg border border-white/10 bg-white/5 p-4 space-y-3">
-        <h2 class="text-white text-sm font-semibold">Add Narration</h2>
-        <textarea
-          v-model="narrationText"
-          class="w-full px-3 py-2 bg-white/5 border border-white/10 rounded text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500/50 resize-none"
-          rows="4"
-          placeholder="Write your thoughts on this segment..."
-          :disabled="submitting"
-        ></textarea>
-        <div class="flex items-center justify-between">
-          <div v-if="submitError" class="text-red-400 text-sm">
-            {{ submitError }}
-          </div>
-          <div v-else class="text-white/50 text-xs">
-            {{ narrationText.length }} characters
-          </div>
-          <button
-            @click="submitNarration"
-            :disabled="!narrationText.trim() || submitting"
-            class="flex gap-2 items-center rounded-lg px-2 py-1 text-white border border-sky-500 bg-sky-500/70 hover:bg-sky-700/70 hover:cursor-pointer text-xs transition disabled:bg-white/10 disabled:border-white/20 disabled:cursor-not-allowed"
-          >
-            {{ submitting ? 'Saving…' : 'Submit' }}
-          </button>
-        </div>
-      </div>
-
-      <!-- Existing Narrations -->
-      <div v-if="narrations.length > 0" class="space-y-2">
-        <h2 class="text-white text-sm font-semibold">Narrations ({{ narrations.length }})</h2>
-        <div class="space-y-2">
-          <div
-            v-for="narration in narrations"
-            :key="narration.id"
-            class="rounded-lg border border-white/10 bg-white/5 p-3 space-y-1"
-          >
-            <div class="text-xs text-white/50">
-              {{ new Date(narration.created_at).toLocaleString() }}
-            </div>
-            <div class="text-white text-sm whitespace-pre-wrap">
-              {{ narration.transcript_raw }}
-            </div>
-          </div>
-        </div>
-      </div>
+      <!-- Narration View Component -->
+      <NarrationView ref="narrationViewRef" v-if="activeOrgId && asset" :segment-id="segmentId"
+        :media-asset-id="asset.id" :org-id="activeOrgId" @recording-started="handleNarrationRecordingStarted"
+        @recording-stopped="handleNarrationRecordingStopped" />
     </div>
   </div>
 </template>
