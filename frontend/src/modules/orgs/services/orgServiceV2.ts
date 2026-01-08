@@ -387,7 +387,12 @@ export const orgService = {
    */
   async updateOrg(orgId: string, patch: OrgEditableFields): Promise<Organization> {
     // TODO: Make into edge function for security reasons
-    const { data, error } = await supabase.from("organizations").update(patch).eq("id", orgId).single();
+    const { data, error } = await supabase
+      .from("organizations")
+      .update(patch)
+      .eq("id", orgId)
+      .select("id, owner, slug, name, created_at, storage_limit_mb, bio, visibility, type")
+      .single();
 
     if (error) {
       throw error;
