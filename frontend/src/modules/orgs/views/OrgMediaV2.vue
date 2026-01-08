@@ -292,12 +292,18 @@ async function cleanupOrphanedUploads() {
     const orphanedAssets = assets.value.filter(asset => {
       if (asset.status !== 'uploading') return false;
       
-      // Check if this asset has an active upload session
+      // Check if this asset has an active upload session on THIS device
       const hasActiveUpload = uploadManager.uploads.value.some(
         job => job.mediaId === asset.id
       );
       
-      return !hasActiveUpload;
+      // Only mark as orphaned if:
+      // 1. No active upload on this device AND
+      // 2. Upload started more than 8 hours ago (accounts for large files on slow connections)
+      const uploadAge = Date.now() - new Date(asset.created_at).getTime();
+      const EIGHT_HOURS = 8 * 60 * 60 * 1000;
+      
+      return !hasActiveUpload && uploadAge > EIGHT_HOURS;
     });
 
     for (const asset of orphanedAssets) {
