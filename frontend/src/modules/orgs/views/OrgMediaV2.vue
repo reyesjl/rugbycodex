@@ -10,6 +10,7 @@ import { buildUploadJob, useUploadManager } from '@/modules/media/composables/us
 import { mediaService } from '@/modules/media/services/mediaService';
 import MediaAssetCard from '@/modules/orgs/components/MediaAssetCard.vue';
 import AddMediaAssetModal from '@/modules/orgs/components/AddMediaAssetModal.vue';
+import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
 import { toast } from '@/lib/toast';
 import type { MediaAssetKind } from '@/modules/media/types/MediaAssetKind';
 
@@ -34,6 +35,10 @@ const canManage = computed(() => {
 });
 
 const showAddMedia = ref(false);
+const showConfirmDelete = ref(false);
+const deleteError = ref<string | null>(null);
+const isDeleting = ref(false);
+const assetToDelete = ref<{ id: string; name: string } | null>(null);
 
 const uploadManager = useUploadManager();
 
@@ -79,7 +84,7 @@ function handleUploadStarted() {
   void mediaStore.loadForActiveOrg();
 }
 
-async function handleDeleteAsset(assetId: string) {
+function openConfirmDelete(assetId: string) {
   if (!canManage.value) {
     toast({
       variant: 'error',
@@ -89,8 +94,32 @@ async function handleDeleteAsset(assetId: string) {
     return;
   }
 
+  const asset = assets.value.find(a => a.id === assetId);
+  if (!asset) return;
+
+  assetToDelete.value = {
+    id: asset.id,
+    name: asset.title || asset.original_filename || 'this asset',
+  };
+  deleteError.value = null;
+  showConfirmDelete.value = true;
+}
+
+function closeConfirmDelete() {
+  if (isDeleting.value) return;
+  showConfirmDelete.value = false;
+  deleteError.value = null;
+  assetToDelete.value = null;
+}
+
+async function confirmDeleteAsset() {
+  if (!assetToDelete.value) return;
+
+  isDeleting.value = true;
+  deleteError.value = null;
+
   try {
-    await mediaService.deleteById(assetId);
+    await mediaService.deleteById(assetToDelete.value.id);
     toast({
       variant: 'success',
       message: 'Media deleted.',
@@ -98,12 +127,12 @@ async function handleDeleteAsset(assetId: string) {
     });
     mediaStore.reset();
     void mediaStore.loadForActiveOrg();
+    showConfirmDelete.value = false;
+    assetToDelete.value = null;
   } catch (err) {
-    toast({
-      variant: 'error',
-      message: err instanceof Error ? err.message : 'Failed to delete media.',
-      durationMs: 3500,
-    });
+    deleteError.value = err instanceof Error ? err.message : 'Failed to delete media.';
+  } finally {
+    isDeleting.value = false;
   }
 }
 
@@ -242,7 +271,7 @@ watch(activeOrgId, (orgId, prevOrgId) => {
             :can-manage="canManage"
             :upload-metrics="uploadMetricsByAssetId.get(asset.id)"
             @open="openAsset"
-            @delete="handleDeleteAsset"
+            @delete="openConfirmDelete"
           />
         </div>
       </div>
@@ -253,6 +282,17 @@ watch(activeOrgId, (orgId, prevOrgId) => {
     v-if="showAddMedia && activeOrgId && canManage"
     @close="closeAddMedia"
     @submit="handleUploadSubmit"
+  />
+
+  <ConfirmDeleteModal
+    :show="showConfirmDelete"
+    :item-name="assetToDelete?.name ?? 'this asset'"
+    popup-title="Delete Media"
+    :is-deleting="isDeleting"
+    :error="deleteError"
+    @confirm="confirmDeleteAsset"
+    @cancel="closeConfirmDelete"
+    @close="closeConfirmDelete"
   />
 </template>
 

@@ -8,6 +8,7 @@ import AddMemberModal from '@/modules/orgs/components/AddMemberModal.vue';
 import MemberPill from '@/modules/orgs/components/MemberPill.vue';
 import MembersActionBar from '@/modules/orgs/components/MembersActionBar.vue';
 import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
+import { toast } from '@/lib/toast';
 
 const activeOrgStore = useActiveOrganizationStore();
 const authStore = useAuthStore();
@@ -106,8 +107,15 @@ async function confirmRemoveMembers() {
       (m) => !selectedMemberIds.value.has(m.profile.id)
     );
 
+    const removedCount = selected.length;
     selectedMemberIds.value.clear();
     showConfirmRemove.value = false;
+
+    toast({
+      variant: 'success',
+      message: `${removedCount} member${removedCount === 1 ? '' : 's'} removed.`,
+      durationMs: 2500,
+    });
   } catch (e) {
     deleteError.value = e instanceof Error ? e.message : 'Failed to remove members.';
   } finally {

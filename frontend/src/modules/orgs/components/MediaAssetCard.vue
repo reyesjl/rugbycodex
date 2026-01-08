@@ -90,34 +90,19 @@ const uploadSpeedLabel = computed(() => {
 });
 
 const menuOpen = ref(false);
-const confirmDelete = ref(false);
 
 const canManage = computed(() => Boolean(props.canManage));
 
 function closeMenu() {
   menuOpen.value = false;
-  confirmDelete.value = false;
 }
 
 function toggleMenu() {
-  if (menuOpen.value) {
-    closeMenu();
-    return;
-  }
-  menuOpen.value = true;
-  confirmDelete.value = false;
+  menuOpen.value = !menuOpen.value;
 }
 
-function requestDelete() {
+function handleDelete() {
   if (!canManage.value) return;
-  confirmDelete.value = true;
-}
-
-function confirmAndDelete() {
-  if (!canManage.value) {
-    closeMenu();
-    return;
-  }
   closeMenu();
   emit('delete', props.asset.id);
 }
@@ -226,33 +211,13 @@ function clipTitle(fileName: string) {
               class="absolute right-0 bottom-full mb-2 min-w-28 rounded-md border border-white/20 bg-black text-white shadow-none"
               @click.stop
             >
-              <template v-if="!confirmDelete">
-                <button
-                  type="button"
-                  class="w-full px-3 py-2 text-left text-xs text-red-300 hover:bg-white/10 transition"
-                  @click="requestDelete"
-                >
-                  Delete
-                </button>
-              </template>
-
-              <template v-else>
-                <div class="px-3 py-2 text-[10px] text-white/60">Confirm delete?</div>
-                <button
-                  type="button"
-                  class="w-full px-3 py-2 text-left text-xs text-red-300 hover:bg-white/10 transition"
-                  @click="confirmAndDelete"
-                >
-                  Confirm delete
-                </button>
-                <button
-                  type="button"
-                  class="w-full px-3 py-2 text-left text-xs text-white/70 hover:bg-white/10 transition"
-                  @click="closeMenu"
-                >
-                  Cancel
-                </button>
-              </template>
+              <button
+                type="button"
+                class="w-full px-3 py-2 text-left text-xs text-red-300 hover:bg-white/10 transition"
+                @click="handleDelete"
+              >
+                Delete
+              </button>
             </div>
           </div>
         </div>
