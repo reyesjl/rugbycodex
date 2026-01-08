@@ -3,6 +3,7 @@ import { S3Client } from "@aws-sdk/client-s3";
 import { Upload } from "@aws-sdk/lib-storage";
 import type { UploadJob, } from "@/modules/media/types/UploadStatus";
 import { supabase } from "@/lib/supabaseClient";
+import { handleSupabaseEdgeError } from "@/lib/handleSupabaseEdgeError";
 import { getMediaDurationSeconds, sanitizeFileName } from "@/modules/media/utils/assetUtilities";
 import { mediaService } from "@/modules/media/services/mediaService";
 
@@ -34,7 +35,7 @@ export async function buildUploadJob(
   });
 
   if (response.error) {
-    throw new Error(response.error.message);
+    throw await handleSupabaseEdgeError(response.error, "Failed to create upload session.");
   }
 
   const { credentials, storage_path, media_id } = response.data;

@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabaseClient";
+import { handleSupabaseEdgeError } from "@/lib/handleSupabaseEdgeError";
 import type { OrgMediaAsset } from "@/modules/media/types/OrgMediaAsset";
 import type { PostgrestError } from "@supabase/supabase-js";
 
@@ -126,7 +127,7 @@ async function fetchSignedHlsPlaylist(mediaId: string): Promise<string> {
   });
 
   if (response.error) {
-    throw response.error;
+    throw await handleSupabaseEdgeError(response.error, "Unable to fetch playlist.");
   }
 
   return typeof response.data === "string" ? response.data : String(response.data ?? "");
@@ -147,7 +148,7 @@ async function fetchPresignedHlsPlaylistUrl(
   });
 
   if (response.error) {
-    throw response.error;
+    throw await handleSupabaseEdgeError(response.error, "Unable to fetch playlist URL.");
   }
 
   const data = response.data as unknown;

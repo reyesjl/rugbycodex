@@ -7,12 +7,18 @@ function parseJson(text: string | null | undefined) {
   }
 }
 
+export interface NormalizedError extends Error {
+  code?: string;
+  status?: number;
+}
+
 export async function handleSupabaseEdgeError(
   error: any,
   fallbackMessage = "Unexpected error communicating with server."
-): Promise<Error & { code?: string; status?: number }> {
+): Promise<NormalizedError> {
   let parsed: any = null;
 
+  // Try multiple paths to find the error body
   if (error?.context) {
     if (typeof error.context === "string") {
       parsed = parseJson(error.context);
@@ -23,35 +29,39 @@ export async function handleSupabaseEdgeError(
       } catch {}
     } else if (typeof error.context?.body === "string") {
       parsed = parseJson(error.context.body);
+    } else if (typeof error.context?.body === "object" && error.context.body !== null) {
+      // Body might already be parsed
+      parsed = error.context.body;
     }
   }
 
-  if (!parsed) {
+  if (!parsed && error?.context?.response?.body) {
     parsed = parseJson(error?.context?.response?.body);
   }
 
+  // Extract message from parsed error structure
   const message =
     parsed?.error?.message ||
     parsed?.message ||
     error?.message ||
     fallbackMessage;
 
-  const normalized = new Error(message) as Error & {
-    code?: string;
-    status?: number;
-  };
+  // Create normalized error with better typing
+  const normalized = new Error(message) as NormalizedError;
 
+  // Attach code and status if available
   normalized.code =
     parsed?.error?.code ||
     parsed?.code ||
     error?.code ||
-    null;
+    undefined;
 
   normalized.status =
     error?.status ||
     parsed?.status ||
     error?.context?.status ||
-    error?.context?.statusCode;
+    error?.context?.statusCode ||
+    undefined;
 
   return normalized;
 }

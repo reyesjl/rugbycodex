@@ -13,25 +13,6 @@ const code = ref('');
 const loading = ref(false);
 const error = ref<string | null>(null);
 
-function getJoinOrgErrorMessage(err: unknown, fallback: string) {
-    const code = (err as any)?.code as string | undefined;
-
-    // Map only what you *want* to special-case in UI.
-    const map: Record<string, string> = {
-        AUTH_REQUIRED: "You must be signed in.",
-        JOIN_CODE_REQUIRED: "Please enter a join code.",
-        JOIN_CODE_EMPTY: "Please enter a join code.",
-        JOIN_CODE_INVALID: "That join code isn’t valid.",
-        JOIN_CODE_EXPIRED: "That join code has expired, ask your coach to generate a new one.",
-    };
-
-    if (code && map[code]) return map[code];
-
-    // Otherwise, show the real message (from Edge function or generic Error)
-    if (err instanceof Error && err.message) return err.message;
-
-    return fallback;
-}
 
 const submit = async () => {
     if (!code.value.trim()) {
@@ -62,8 +43,8 @@ const submit = async () => {
             router.push(`/organizations/${result.org.slug}`);
         }
     } catch (err) {
-        console.log("Join error:", err);
-        error.value = getJoinOrgErrorMessage(err, "Failed to join organization.");
+        // Simple error handling: service layer has already normalized the message
+        error.value = err instanceof Error ? err.message : "Failed to join organization.";
     } finally {
         loading.value = false;
     }

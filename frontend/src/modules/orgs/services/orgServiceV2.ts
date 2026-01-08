@@ -793,23 +793,7 @@ export const orgService = {
     });
 
     if (error) {
-      // Parse structured error from edge function
-      if (error.context?.body) {
-        try {
-          // Check if body is already an object
-          const errorBody = typeof error.context.body === 'string' 
-            ? JSON.parse(error.context.body) 
-            : error.context.body;
-          
-          if (errorBody?.error?.message) {
-            throw new Error(errorBody.error.message);
-          }
-        } catch (parseError) {
-          // If parsing fails, just use the original error message
-          console.warn('Failed to parse edge function error:', parseError);
-        }
-      }
-      throw new Error(error.message || 'Failed to change member role.');
+      throw await handleSupabaseEdgeError(error, "Failed to change member role.");
     }
 
     if (!data?.membership || !data?.profile) {
@@ -848,7 +832,7 @@ export const orgService = {
     });
 
     if (error) {
-      throw error;
+      throw await handleSupabaseEdgeError(error, "Failed to transfer ownership.");
     }
 
     return data;
@@ -879,7 +863,7 @@ export const orgService = {
     });
 
     if (error) {
-      throw error;
+      throw await handleSupabaseEdgeError(error, "Failed to leave organization.");
     }
 
     return;
@@ -1022,7 +1006,7 @@ export const orgService = {
     });
 
     if (error) {
-      throw error;
+      throw await handleSupabaseEdgeError(error, "Failed to load organization requests.");
     }
 
     return data;
@@ -1055,7 +1039,7 @@ export const orgService = {
     });
 
     if (error) {
-      throw error;
+      throw await handleSupabaseEdgeError(error, "Failed to approve organization request.");
     }
 
     return data;
@@ -1089,7 +1073,7 @@ export const orgService = {
     });
 
     if (error) {
-      throw error;
+      throw await handleSupabaseEdgeError(error, "Failed to reject organization request.");
     }
 
     return data;
@@ -1148,7 +1132,7 @@ export const orgService = {
     });
 
     if (error) {
-      throw error;
+      throw await handleSupabaseEdgeError(error, "Failed to create organization.");
     }
 
     return data;
@@ -1181,7 +1165,7 @@ export const orgService = {
     });
 
     if (error) {
-      throw error;
+      throw await handleSupabaseEdgeError(error, "Failed to approve and create organization.");
     }
 
     return data;
@@ -1213,7 +1197,7 @@ export const orgService = {
     });
 
     if (error) {
-      throw error;
+      throw await handleSupabaseEdgeError(error, "Failed to assign organization owner.");
     }
 
     return data;
@@ -1388,7 +1372,7 @@ export const orgService = {
     });
 
     if (error) {
-      throw error;
+      throw await handleSupabaseEdgeError(error, "Failed to check upload eligibility.");
     }
 
     return data;
@@ -1425,7 +1409,7 @@ export const orgService = {
     });
 
     if (error) {
-      throw error;
+      throw await handleSupabaseEdgeError(error, "Failed to load organization overview.");
     }
 
     return data;
@@ -1457,7 +1441,7 @@ export const orgService = {
     });
 
     if (error) {
-      throw error;
+      throw await handleSupabaseEdgeError(error, "Failed to load organization statistics.");
     }
 
     return data;
@@ -1523,7 +1507,7 @@ export const orgService = {
     });
 
     if (error) {
-      throw error;
+      throw await handleSupabaseEdgeError(error, "Failed to load job summary.");
     }
 
     return data;
@@ -1560,7 +1544,7 @@ export const orgService = {
     });
 
     if (error) {
-      throw error;
+      throw await handleSupabaseEdgeError(error, "Failed to load organizations.");
     }
 
     return data;
@@ -1593,7 +1577,7 @@ export const orgService = {
     });
 
     if (error) {
-      throw error;
+      throw await handleSupabaseEdgeError(error, "Failed to load organization health.");
     }
 
     return data;
@@ -1621,7 +1605,7 @@ export const orgService = {
     const { data, error } = await supabase.functions.invoke("get-organizations-near-limits", {});
 
     if (error) {
-      throw error;
+      throw await handleSupabaseEdgeError(error, "Failed to load organizations near limits.");
     }
 
     return data;
@@ -1648,7 +1632,7 @@ export const orgService = {
     const { data, error } = await supabase.functions.invoke("get-recently-created-organizations", {});
 
     if (error) {
-      throw error;
+      throw await handleSupabaseEdgeError(error, "Failed to load recently created organizations.");
     }
 
     return data;
@@ -1677,7 +1661,7 @@ export const orgService = {
     const { data, error } = await supabase.functions.invoke("get-inactive-organizations", {});
 
     if (error) {
-      throw error;
+      throw await handleSupabaseEdgeError(error, "Failed to load inactive organizations.");
     }
 
     return data;
