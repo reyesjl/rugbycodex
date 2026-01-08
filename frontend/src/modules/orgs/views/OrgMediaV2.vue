@@ -10,9 +10,11 @@ import { buildUploadJob, useUploadManager } from '@/modules/media/composables/us
 import { mediaService } from '@/modules/media/services/mediaService';
 import MediaAssetCard from '@/modules/orgs/components/MediaAssetCard.vue';
 import AddMediaAssetModal from '@/modules/orgs/components/AddMediaAssetModal.vue';
+import EditMediaAssetModal from '@/modules/orgs/components/EditMediaAssetModal.vue';
 import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
 import { toast } from '@/lib/toast';
 import type { MediaAssetKind } from '@/modules/media/types/MediaAssetKind';
+import type { OrgMediaAsset } from '@/modules/media/types/OrgMediaAsset';
 
 defineProps<{ slug?: string | string[] }>();
 
@@ -35,11 +37,13 @@ const canManage = computed(() => {
 });
 
 const showAddMedia = ref(false);
+const showEditMedia = ref(false);
 const showConfirmDelete = ref(false);
 const showReattachModal = ref(false);
 const deleteError = ref<string | null>(null);
 const isDeleting = ref(false);
 const assetToDelete = ref<{ id: string; name: string } | null>(null);
+const assetToEdit = ref<OrgMediaAsset | null>(null);
 const assetToReattach = ref<{ assetId: string; fileName: string; hasExistingJob: boolean } | null>(null);
 
 const uploadManager = useUploadManager();
@@ -79,6 +83,28 @@ function openAsset(assetId: string) {
 
 function closeAddMedia() {
   showAddMedia.value = false;
+}
+
+function openEditMedia(assetId: string) {
+  if (!canManage.value) {
+    toast({
+      variant: 'error',
+      message: 'You do not have permission to edit media.',
+      durationMs: 3500,
+    });
+    return;
+  }
+
+  const asset = assets.value.find(a => a.id === assetId);
+  if (!asset) return;
+
+  assetToEdit.value = asset;
+  showEditMedia.value = true;
+}
+
+function closeEditMedia() {
+  showEditMedia.value = false;
+  assetToEdit.value = null;
 }
 
 async function handleUploadStarted() {
@@ -260,6 +286,38 @@ async function handleUploadSubmit(payload: { file: globalThis.File; kind: MediaA
   }
 }
 
+async function handleEditSubmit(payload: { file_name: string; kind: MediaAssetKind }) {
+  if (!assetToEdit.value) return;
+  if (!canManage.value) return;
+
+  try {
+    const { error: updateError } = await mediaService.updateMediaAsset(assetToEdit.value.id, {
+      file_name: payload.file_name,
+      kind: payload.kind,
+    });
+
+    if (updateError) {
+      throw new Error(updateError.message);
+    }
+
+    toast({
+      variant: 'success',
+      message: 'Media updated successfully.',
+      durationMs: 2500,
+    });
+
+    mediaStore.reset();
+    await mediaStore.loadForActiveOrg();
+    closeEditMedia();
+  } catch (err) {
+    toast({
+      variant: 'error',
+      message: err instanceof Error ? err.message : 'Failed to update media.',
+      durationMs: 3500,
+    });
+  }
+}
+
 watch(
   () => uploadManager.completedUploads.value,
   async (completed) => {
@@ -395,6 +453,7 @@ watch(activeOrgId, (orgId, prevOrgId) => {
             :can-manage="canManage"
             :upload-metrics="uploadMetricsByAssetId.get(asset.id)"
             @open="openAsset"
+            @edit="openEditMedia"
             @delete="openConfirmDelete"
             @reattach="openReattachModal"
           />
@@ -407,6 +466,13 @@ watch(activeOrgId, (orgId, prevOrgId) => {
     v-if="showAddMedia && activeOrgId && canManage"
     @close="closeAddMedia"
     @submit="handleUploadSubmit"
+  />
+
+  <EditMediaAssetModal
+    v-if="showEditMedia && assetToEdit && canManage"
+    :asset="assetToEdit"
+    @close="closeEditMedia"
+    @submit="handleEditSubmit"
   />
 
   <ConfirmDeleteModal
