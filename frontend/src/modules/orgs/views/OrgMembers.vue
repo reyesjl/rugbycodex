@@ -8,6 +8,7 @@ import AddMemberModal from '@/modules/orgs/components/AddMemberModal.vue';
 import MemberPill from '@/modules/orgs/components/MemberPill.vue';
 import MembersActionBar from '@/modules/orgs/components/MembersActionBar.vue';
 import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
+import { Icon } from "@iconify/vue";
 import { toast } from '@/lib/toast';
 
 // Role hierarchy for client-side validation
@@ -55,13 +56,13 @@ async function handleAddMember(payload: { username: string; role: 'member' | 'st
 
   try {
     await orgService.addMemberByUsername(orgId.value, payload.username, payload.role);
-    
+
     toast({
       variant: 'success',
       message: `Member ${payload.username} added as ${payload.role}.`,
       durationMs: 2500,
     });
-    
+
     closeAddMember();
     void load();
   } catch (e) {
@@ -90,7 +91,7 @@ const hasSelection = computed(() => selectedMemberIds.value.size > 0);
 
 async function handlePromote() {
   if (!orgId.value) return;
-  
+
   const myRole = role.value as 'member' | 'staff' | 'manager' | 'owner';
   const myRank = ROLE_RANK[myRole];
 
@@ -100,16 +101,16 @@ async function handlePromote() {
     .filter(m => {
       const currentRank = ROLE_RANK[m.membership.role as keyof typeof ROLE_RANK];
       const nextRank = currentRank + 1;
-      
+
       // Can't promote if already at max
       if (m.membership.role === 'owner') return false;
-      
+
       // Can't promote if result would be higher than our own role
       if (nextRank > myRank) return false;
-      
+
       return true;
     });
-  
+
   if (promotable.length === 0) {
     toast({
       variant: 'error',
@@ -151,7 +152,7 @@ async function handlePromote() {
       message: `${promotable.length} member${promotable.length === 1 ? '' : 's'} promoted.`,
       durationMs: 2500,
     });
-    
+
     selectedMemberIds.value.clear();
     void load();
   } catch (e) {
@@ -167,7 +168,7 @@ async function handlePromote() {
 
 async function handleDemote() {
   if (!orgId.value) return;
-  
+
   const myRole = role.value as 'member' | 'staff' | 'manager' | 'owner';
   const myRank = ROLE_RANK[myRole];
 
@@ -176,16 +177,16 @@ async function handleDemote() {
     .filter(m => selectedMemberIds.value.has(m.profile.id))
     .filter(m => {
       const currentRank = ROLE_RANK[m.membership.role as keyof typeof ROLE_RANK];
-      
+
       // Can't demote if already at min
       if (m.membership.role === 'member') return false;
-      
+
       // Can't demote if their current rank is higher than ours
       if (currentRank > myRank) return false;
-      
+
       return true;
     });
-  
+
   if (demotable.length === 0) {
     toast({
       variant: 'error',
@@ -224,7 +225,7 @@ async function handleDemote() {
       message: `${demotable.length} member${demotable.length === 1 ? '' : 's'} demoted.`,
       durationMs: 2500,
     });
-    
+
     selectedMemberIds.value.clear();
     void load();
   } catch (e) {
@@ -351,51 +352,42 @@ watch(orgId, (next, prev) => {
         <div>
           <h1 class="text-white text-3xl tracking-tight">Members</h1>
         </div>
+        <button v-if="canManage" type="button"
+          class="flex gap-2 items-center rounded-lg px-2 py-1 text-white border border-green-500 bg-green-500/70 hover:bg-green-700/70 text-xs transition disabled:opacity-50"
+          :disabled="loading || !orgId" @click="openAddMember">
+          <Icon icon="carbon:add" width="15" height="15" />
+          Add Member
+        </button>
+      </div>
+
+      <div class="flex justify-end py-5">
+        <!-- Fetch using orgServiceV2 -->
+        <p>Join code: </p>
       </div>
 
       <!-- Action bar with Add / Promote / Demote / Remove controls -->
-      <MembersActionBar
-        :can-manage="canManage"
-        :has-selection="hasSelection"
-        :selected-count="selectedMemberIds.size"
-        :loading="loading"
-        :org-id="orgId"
-        @add="openAddMember"
-        @promote="handlePromote"
-        @demote="handleDemote"
-        @remove="openConfirmRemove"
-      />
+      <MembersActionBar :can-manage="canManage" :has-selection="hasSelection" :selected-count="selectedMemberIds.size"
+        :loading="loading" :org-id="orgId" @promote="handlePromote" @demote="handleDemote"
+        @remove="openConfirmRemove" />
 
       <div v-if="error" class="mb-6 rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">
         {{ error }}
       </div>
 
       <div v-if="sortedMembers.length" class="flex flex-wrap gap-2">
-        <MemberPill
-          v-for="m in sortedMembers"
-          :key="m.profile.id"
-          :member="m"
-          :selected="isSelected(m.profile.id)"
-          :can-manage="canManage"
-          @toggle="toggleMemberSelection(m.profile.id)"
-        />
+        <MemberPill v-for="m in sortedMembers" :key="m.profile.id" :member="m" :selected="isSelected(m.profile.id)"
+          :can-manage="canManage" @toggle="toggleMemberSelection(m.profile.id)" />
       </div>
 
       <p v-else class="text-sm text-gray-500">No members found.</p>
     </div>
 
     <AddMemberModal v-if="showAddMember && canManage" @close="closeAddMember" @submit="handleAddMember" />
-    
-    <ConfirmDeleteModal
-      :show="showConfirmRemove"
+
+    <ConfirmDeleteModal :show="showConfirmRemove"
       :item-name="`${selectedMemberIds.size} member${selectedMemberIds.size === 1 ? '' : 's'}`"
-      popup-title="Remove Members"
-      :is-deleting="isDeleting"
-      :error="deleteError"
-      @confirm="confirmRemoveMembers"
-      @cancel="closeConfirmRemove"
-      @close="closeConfirmRemove"
-    />
+      popup-title="Remove Members" :is-deleting="isDeleting" :error="deleteError" @confirm="confirmRemoveMembers"
+      @cancel="closeConfirmRemove" @close="closeConfirmRemove" />
   </div>
 </template>
 

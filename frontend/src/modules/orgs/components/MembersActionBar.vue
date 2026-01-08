@@ -10,7 +10,6 @@ defineProps<{
 }>();
 
 const emit = defineEmits<{
-  add: [];
   promote: [];
   demote: [];
   remove: [];
@@ -19,24 +18,10 @@ const emit = defineEmits<{
 
 <template>
   <div>
-    <!-- Add member button -->
-    <div class="flex gap-2 items-center justify-end mb-6">
-      <button
-        v-if="canManage"
-        type="button"
-        class="flex gap-2 items-center rounded-lg px-2 py-1 text-white border border-green-500 bg-green-500/70 hover:bg-green-700/70 text-xs transition disabled:opacity-50"
-        :disabled="loading || !orgId"
-        @click="emit('add')"
-      >
-        <Icon icon="carbon:add" width="15" height="15" />
-        Add Member
-      </button>
-    </div>
-
     <!-- Selection control bar -->
     <div
       v-if="canManage && hasSelection"
-      class="flex items-center justify-between py-2 border-t border-b border-white/20 mb-6"
+      class="flex md:flex-row flex-col md:items-center gap-2 justify-between py-2 border-t border-b border-white/20 mb-6"
     >
       <div>
         <p class="text-sm text-white/70">
