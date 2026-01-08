@@ -33,6 +33,35 @@ type SegmentRow = {
     | null;
 };
 
+type MediaAssetRow = {
+  id: string;
+  org_id: string;
+  uploader_id: string;
+  bucket: string;
+  storage_path: string;
+  streaming_ready: boolean;
+  thumbnail_path: string | null;
+  file_size_bytes: number;
+  mime_type: string;
+  duration_seconds: number;
+  checksum: string;
+  source: string;
+  file_name: string;
+  kind: string;
+  status: string;
+  created_at: string | Date | null;
+  base_org_storage_path: string;
+};
+
+type SegmentOnlyRow = {
+  id: string;
+  media_asset_id: string;
+  segment_index: number;
+  start_seconds: number;
+  end_seconds: number;
+  created_at: string | Date | null;
+};
+
 export type OrgSegmentFeedItem = {
   segment: MediaAssetSegment;
   asset: OrgMediaAsset;
@@ -54,6 +83,12 @@ function shuffleInPlace<T>(arr: T[]): void {
     const j = Math.floor(Math.random() * (i + 1));
     [arr[i], arr[j]] = [arr[j]!, arr[i]!];
   }
+}
+
+function pickRandom<T>(arr: T[]): T | null {
+  if (arr.length === 0) return null;
+  const idx = Math.floor(Math.random() * arr.length);
+  return arr[idx] ?? null;
 }
 
 export const segmentService = {
@@ -143,10 +178,102 @@ export const segmentService = {
   },
 
   async getRandomFeedItemsForOrg(orgId: string, count = 3): Promise<OrgSegmentFeedItem[]> {
-    const items = await this.listFeedItemsForOrg(orgId, { maxRows: 100 });
-    if (items.length <= count) return items;
-    const copy = [...items];
-    shuffleInPlace(copy);
-    return copy.slice(0, count);
+    // IMPORTANT: randomize media_assets first (org-scoped), then pick ONE random segment per asset.
+    const MAX_ASSET_ROWS = 100;
+    const MAX_SEGMENT_ROWS_PER_ASSET = 250;
+
+    const { data: assetData, error: assetError } = (await supabase
+      .from('media_assets')
+      .select(
+        `
+        id,
+        org_id,
+        uploader_id,
+        bucket,
+        storage_path,
+        streaming_ready,
+        thumbnail_path,
+        file_size_bytes,
+        mime_type,
+        duration_seconds,
+        checksum,
+        source,
+        file_name,
+        kind,
+        status,
+        created_at,
+        base_org_storage_path
+      `
+      )
+      .eq('org_id', orgId)
+      .eq('status', 'ready')
+      .order('created_at', { ascending: false })
+      .limit(MAX_ASSET_ROWS)) as { data: MediaAssetRow[] | null; error: PostgrestError | null };
+
+    if (assetError) throw assetError;
+
+    const assets = assetData ?? [];
+    if (assets.length === 0) return [];
+
+    // Shuffle assets client-side (equivalent to ORDER BY random()).
+    const shuffledAssets = [...assets];
+    shuffleInPlace(shuffledAssets);
+
+    const results: OrgSegmentFeedItem[] = [];
+
+    for (const assetRow of shuffledAssets) {
+      if (results.length >= count) break;
+
+      const { data: segData, error: segError } = (await supabase
+        .from('media_asset_segments')
+        .select('id, media_asset_id, segment_index, start_seconds, end_seconds, created_at')
+        .eq('media_asset_id', assetRow.id)
+        .order('created_at', { ascending: false })
+        .limit(MAX_SEGMENT_ROWS_PER_ASSET)) as {
+        data: SegmentOnlyRow[] | null;
+        error: PostgrestError | null;
+      };
+
+      if (segError) throw segError;
+      const segments = segData ?? [];
+      if (segments.length === 0) continue;
+
+      const chosenSegment = pickRandom(segments);
+      if (!chosenSegment) continue;
+
+      const asset: OrgMediaAsset = {
+        id: assetRow.id,
+        org_id: assetRow.org_id,
+        uploader_id: assetRow.uploader_id,
+        bucket: assetRow.bucket,
+        storage_path: assetRow.storage_path,
+        streaming_ready: assetRow.streaming_ready,
+        thumbnail_path: assetRow.thumbnail_path ?? null,
+        file_size_bytes: assetRow.file_size_bytes,
+        mime_type: assetRow.mime_type,
+        duration_seconds: assetRow.duration_seconds,
+        checksum: assetRow.checksum,
+        source: assetRow.source,
+        file_name: assetRow.file_name,
+        title: null,
+        kind: assetRow.kind,
+        status: assetRow.status,
+        created_at: asDate(assetRow.created_at, 'media asset creation'),
+        base_org_storage_path: assetRow.base_org_storage_path,
+      };
+
+      const segment: MediaAssetSegment = {
+        id: chosenSegment.id,
+        media_asset_id: chosenSegment.media_asset_id,
+        segment_index: chosenSegment.segment_index,
+        start_seconds: chosenSegment.start_seconds,
+        end_seconds: chosenSegment.end_seconds,
+        created_at: asDate(chosenSegment.created_at, 'segment creation'),
+      };
+
+      results.push({ asset, segment });
+    }
+
+    return results;
   },
 };
