@@ -69,16 +69,19 @@ serve(async (req) => {
 
     const { mediaAssetId } = body;
 
-    if (!mediaAssetId || typeof mediaAssetId !== "string" || !mediaAssetId.trim()) {
-      return new Response(
-        JSON.stringify({
-          error: {
-            code: "INVALID_REQUEST",
-            message: "mediaAssetId is required and must be a non-empty string.",
-          },
-        }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    // Validate mediaAssetId if provided
+    if (mediaAssetId !== undefined && mediaAssetId !== null) {
+      if (typeof mediaAssetId !== "string" || !mediaAssetId.trim()) {
+        return new Response(
+          JSON.stringify({
+            error: {
+              code: "INVALID_REQUEST",
+              message: "mediaAssetId must be a non-empty string when provided.",
+            },
+          }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
     }
 
     // Initialize Supabase client
@@ -87,141 +90,156 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Fetch the media asset
-    const { data: mediaAsset, error: fetchError } = await supabase
-      .from("media_assets")
-      .select("id, org_id, duration_seconds, streaming_ready")
-      .eq("id", mediaAssetId.trim())
-      .maybeSingle();
+    // Fetch media assets to process
+    let mediaAssets: Array<{ id: string; duration_seconds: number; streaming_ready: boolean }>;
+    
+    if (mediaAssetId) {
+      // Single asset mode
+      const { data: mediaAsset, error: fetchError } = await supabase
+        .from("media_assets")
+        .select("id, duration_seconds, streaming_ready")
+        .eq("id", mediaAssetId.trim())
+        .maybeSingle();
 
-    if (fetchError) {
-      console.error("Error fetching media asset:", fetchError);
-      return new Response(
-        JSON.stringify({
-          error: {
-            code: "FETCH_FAILED",
-            message: "Failed to fetch media asset.",
-          },
-        }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      if (fetchError) {
+        console.error("Error fetching media asset:", fetchError);
+        return new Response(
+          JSON.stringify({
+            error: {
+              code: "FETCH_FAILED",
+              message: "Failed to fetch media asset.",
+            },
+          }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      if (!mediaAsset) {
+        return new Response(
+          JSON.stringify({
+            error: {
+              code: "NOT_FOUND",
+              message: "Media asset not found.",
+            },
+          }),
+          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      mediaAssets = [mediaAsset];
+    } else {
+      // Batch mode - get all eligible assets
+      const { data: allAssets, error: fetchError } = await supabase
+        .from("media_assets")
+        .select("id, duration_seconds, streaming_ready")
+        .eq("streaming_ready", true)
+        .gt("duration_seconds", 0);
+
+      if (fetchError) {
+        console.error("Error fetching media assets:", fetchError);
+        return new Response(
+          JSON.stringify({
+            error: {
+              code: "FETCH_FAILED",
+              message: "Failed to fetch media assets.",
+            },
+          }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      mediaAssets = allAssets ?? [];
     }
 
-    if (!mediaAsset) {
-      return new Response(
-        JSON.stringify({
-          error: {
-            code: "NOT_FOUND",
-            message: "Media asset not found.",
-          },
-        }),
-        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    // Validate and filter assets
+    const validAssets = mediaAssets.filter(asset => {
+      return asset.streaming_ready && asset.duration_seconds > 0;
+    });
 
-    // Validate streaming_ready
-    if (!mediaAsset.streaming_ready) {
-      return new Response(
-        JSON.stringify({
-          error: {
-            code: "NOT_STREAMING_READY",
-            message: "Media asset is not ready for streaming.",
-          },
-        }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Validate duration
-    if (!mediaAsset.duration_seconds || mediaAsset.duration_seconds <= 0) {
-      return new Response(
-        JSON.stringify({
-          error: {
-            code: "INVALID_DURATION",
-            message: "Media asset has invalid or zero duration.",
-          },
-        }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Check if segments already exist
-    const { data: existingSegments, error: segmentsCheckError } = await supabase
-      .from("media_asset_segments")
-      .select("id")
-      .eq("media_asset_id", mediaAssetId.trim())
-      .limit(1);
-
-    if (segmentsCheckError) {
-      console.error("Error checking existing segments:", segmentsCheckError);
-      return new Response(
-        JSON.stringify({
-          error: {
-            code: "SEGMENTS_CHECK_FAILED",
-            message: "Failed to check existing segments.",
-          },
-        }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // If segments already exist, return skipped
-    if (existingSegments && existingSegments.length > 0) {
+    if (validAssets.length === 0) {
       return new Response(
         JSON.stringify({
           status: "skipped",
-          reason: "already_segmented",
+          reason: "no_eligible_assets",
+          assets_processed: 0,
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Generate uniform segments
-    const durationSeconds = mediaAsset.duration_seconds;
-    const segments = [];
-    let segmentIndex = 0;
-    let currentStart = 0;
+    // Process each asset
+    let assetsProcessed = 0;
+    let totalSegmentsCreated = 0;
+    let assetsSkipped = 0;
+    const errors: Array<{ asset_id: string; error: string }> = [];
 
-    while (currentStart < durationSeconds) {
-      const end = Math.min(currentStart + SEGMENT_DURATION_SECONDS, durationSeconds);
-      
-      segments.push({
-        media_asset_id: mediaAssetId.trim(),
-        segment_index: segmentIndex,
-        start_seconds: currentStart,
-        end_seconds: end,
-      });
+    for (const asset of validAssets) {
+      try {
+        // Check if segments already exist
+        const { data: existingSegments, error: segmentsCheckError } = await supabase
+          .from("media_asset_segments")
+          .select("id")
+          .eq("media_asset_id", asset.id)
+          .limit(1);
 
-      currentStart = end;
-      segmentIndex++;
+        if (segmentsCheckError) {
+          errors.push({ asset_id: asset.id, error: "Failed to check existing segments" });
+          continue;
+        }
+
+        // Skip if segments already exist
+        if (existingSegments && existingSegments.length > 0) {
+          assetsSkipped++;
+          continue;
+        }
+
+        // Generate uniform segments
+        const segments = [];
+        let segmentIndex = 0;
+        let currentStart = 0;
+
+        while (currentStart < asset.duration_seconds) {
+          const end = Math.min(currentStart + SEGMENT_DURATION_SECONDS, asset.duration_seconds);
+          
+          segments.push({
+            media_asset_id: asset.id,
+            segment_index: segmentIndex,
+            start_seconds: currentStart,
+            end_seconds: end,
+          });
+
+          currentStart = end;
+          segmentIndex++;
+        }
+
+        // Insert segments (use upsert for idempotency)
+        const { error: insertError } = await supabase
+          .from("media_asset_segments")
+          .upsert(segments, {
+            onConflict: "media_asset_id,segment_index",
+            ignoreDuplicates: false,
+          });
+
+        if (insertError) {
+          errors.push({ asset_id: asset.id, error: "Failed to insert segments" });
+          continue;
+        }
+
+        assetsProcessed++;
+        totalSegmentsCreated += segments.length;
+      } catch (err) {
+        errors.push({ asset_id: asset.id, error: String(err) });
+      }
     }
 
-    // Insert segments (use upsert for idempotency)
-    const { error: insertError } = await supabase
-      .from("media_asset_segments")
-      .upsert(segments, {
-        onConflict: "media_asset_id,segment_index",
-        ignoreDuplicates: false,
-      });
-
-    if (insertError) {
-      console.error("Error inserting segments:", insertError);
-      return new Response(
-        JSON.stringify({
-          error: {
-            code: "INSERT_FAILED",
-            message: "Failed to insert segments.",
-          },
-        }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Return success
+    // Return success with stats
     return new Response(
       JSON.stringify({
-        status: "created",
-        count: segments.length,
+        status: "completed",
+        assets_processed: assetsProcessed,
+        assets_skipped: assetsSkipped,
+        total_segments_created: totalSegmentsCreated,
+        errors: errors.length > 0 ? errors : undefined,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

@@ -409,4 +409,29 @@ export const mediaService = {
     return URL.createObjectURL(blob);
   },
 
+  /**
+   * Generates media segments for media assets by calling the edge function.
+   * If mediaAssetId is provided, processes that single asset.
+   * If omitted, processes all eligible media assets that don't have segments yet.
+   */
+  async generateMediaSegments(mediaAssetId?: string): Promise<{
+    status: string;
+    count?: number;
+    reason?: string;
+    assets_processed?: number;
+    assets_skipped?: number;
+    total_segments_created?: number;
+    errors?: Array<{ asset_id: string; error: string }>;
+  }> {
+    const response = await supabase.functions.invoke("generate-media-segments", {
+      body: mediaAssetId ? { mediaAssetId } : {},
+    });
+
+    if (response.error) {
+      throw await handleSupabaseEdgeError(response.error, "Failed to generate media segments.");
+    }
+
+    return response.data;
+  },
+
 }
