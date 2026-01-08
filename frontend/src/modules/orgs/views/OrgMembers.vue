@@ -43,7 +43,17 @@ function closeAddMember() {
 function handleAddMember(payload: { username: string; role: 'member' | 'staff' | 'manager' | 'owner' }) {
   // Stub: backend logic to be implemented
   console.log('Add member:', payload);
+  
+  // TODO: Remove stub and implement actual API call
+  toast({
+    variant: 'success',
+    message: `Member ${payload.username} added as ${payload.role}.`,
+    durationMs: 2500,
+  });
+  
   closeAddMember();
+  // After real implementation: reload members list
+  // void load();
 }
 
 function toggleMemberSelection(memberId: string) {
@@ -64,13 +74,45 @@ const hasSelection = computed(() => selectedMemberIds.value.size > 0);
 function handlePromote() {
   const selected = members.value.filter(m => selectedMemberIds.value.has(m.profile.id));
   console.log('Promote members:', selected.map(m => ({ id: m.profile.id, username: displayName(m), role: m.membership.role })));
+  
   // Stub: backend logic to be implemented
+  // TODO: Implement actual API call for promotion
+  toast({
+    variant: 'error',
+    message: 'Promote feature not yet implemented.',
+    durationMs: 3000,
+  });
+  
+  // After implementation:
+  // toast({
+  //   variant: 'success',
+  //   message: `${selected.length} member${selected.length === 1 ? '' : 's'} promoted.`,
+  //   durationMs: 2500,
+  // });
+  // selectedMemberIds.value.clear();
+  // void load();
 }
 
 function handleDemote() {
   const selected = members.value.filter(m => selectedMemberIds.value.has(m.profile.id));
   console.log('Demote members:', selected.map(m => ({ id: m.profile.id, username: displayName(m), role: m.membership.role })));
+  
   // Stub: backend logic to be implemented
+  // TODO: Implement actual API call for demotion
+  toast({
+    variant: 'error',
+    message: 'Demote feature not yet implemented.',
+    durationMs: 3000,
+  });
+  
+  // After implementation:
+  // toast({
+  //   variant: 'success',
+  //   message: `${selected.length} member${selected.length === 1 ? '' : 's'} demoted.`,
+  //   durationMs: 2500,
+  // });
+  // selectedMemberIds.value.clear();
+  // void load();
 }
 
 function openConfirmRemove() {

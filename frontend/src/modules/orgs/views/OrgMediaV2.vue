@@ -99,7 +99,7 @@ function openConfirmDelete(assetId: string) {
 
   assetToDelete.value = {
     id: asset.id,
-    name: asset.title || asset.original_filename || 'this asset',
+    name: asset.title || 'this asset',
   };
   deleteError.value = null;
   showConfirmDelete.value = true;
@@ -120,11 +120,13 @@ async function confirmDeleteAsset() {
 
   try {
     await mediaService.deleteById(assetToDelete.value.id);
+    
     toast({
       variant: 'success',
       message: 'Media deleted.',
       durationMs: 2500,
     });
+    
     mediaStore.reset();
     void mediaStore.loadForActiveOrg();
     showConfirmDelete.value = false;
