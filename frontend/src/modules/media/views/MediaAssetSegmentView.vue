@@ -11,6 +11,7 @@ import type { OrgMediaAsset } from '@/modules/media/types/OrgMediaAsset';
 import type { MediaAssetSegment } from '@/modules/narrations/types/MediaAssetSegment';
 import type { Narration } from '@/modules/narrations/types/Narration';
 import { supabase } from '@/lib/supabaseClient';
+import { formatMinutesSeconds } from '@/lib/duration';
 
 const DEBUG = import.meta.env.DEV;
 
@@ -424,65 +425,72 @@ watch([playlistObjectUrl, segment], () => {
       </div>
 
       <!-- Custom Controls -->
-      <div class="flex gap-2 items-center justify-center">
-        <button
-          type="button"
-          class="flex items-center rounded-lg px-2 py-1 text-white border border-emerald-500 bg-emerald-500/70 hover:bg-emerald-700/70 hover:cursor-pointer text-xs transition"
-          @click="handleRestart"
-          title="Restart segment"
-        >
-          <Icon icon="carbon:restart" width="15" height="15" />
-        </button>
-        <button
-          type="button"
-          class="flex items-center rounded-lg px-2 py-1 text-white border border-indigo-500 bg-indigo-500/70 hover:bg-indigo-700/70 hover:cursor-pointer text-xs transition"
-          @click="handleBack"
-          title="Back 5 seconds"
-        >
-          <Icon icon="carbon:skip-back" width="15" height="15" />
-        </button>
-        <button
-          type="button"
-          :class="[
-            'flex items-center rounded-lg px-2 py-1 text-white text-xs transition border hover:cursor-pointer',
-            isPlaying
-              ? 'border-amber-500 bg-amber-500/70 hover:bg-amber-700/70'
-              : 'border-sky-500 bg-sky-500/70 hover:bg-sky-700/70',
-          ]"
-          @click="handlePlayPause"
-          :title="isPlaying ? 'Pause' : 'Play'"
-        >
-          <Icon :icon="isPlaying ? 'carbon:pause' : 'carbon:play'" width="15" height="15" />
-        </button>
-        <button
-          type="button"
-          class="flex items-center rounded-lg px-2 py-1 text-white border border-indigo-500 bg-indigo-500/70 hover:bg-indigo-700/70 hover:cursor-pointer text-xs transition"
-          @click="handleForward"
-          title="Forward 5 seconds"
-        >
-          <Icon icon="carbon:skip-forward" width="15" height="15" />
-        </button>
+      <div class="flex items-center justify-center gap-5">
+        <div class="flex items-center">
+          <button
+            type="button"
+            class="flex items-center rounded-lg px-2 py-1 text-white border border-emerald-500 bg-emerald-500/70 hover:bg-emerald-700/70 hover:cursor-pointer text-xs transition"
+            @click="handleRestart"
+            title="Restart segment"
+          >
+            <Icon icon="carbon:restart" width="15" height="15" />
+          </button>
+        </div>
 
-        <button
-          type="button"
-          :class="[
-            'flex items-center rounded-lg px-2 py-1 text-white text-xs transition border hover:cursor-pointer',
-            isRecording
-              ? 'border-rose-500 bg-rose-600/90 hover:bg-rose-700/90'
-              : 'border-white/20 bg-white/10 text-white/70 hover:bg-white/15',
-          ]"
-          @click="handleRecordToggle"
-          :title="isRecording ? 'Stop recording' : 'Record'"
-        >
-          <Icon icon="carbon:microphone" width="15" height="15" />
-        </button>
+        <div class="flex items-center gap-2">
+          <button
+            type="button"
+            class="flex items-center rounded-lg px-2 py-1 text-white border border-indigo-500 bg-indigo-500/70 hover:bg-indigo-700/70 hover:cursor-pointer text-xs transition"
+            @click="handleBack"
+            title="Back 5 seconds"
+          >
+            <Icon icon="carbon:skip-back" width="15" height="15" />
+          </button>
+          <button
+            type="button"
+            :class="[
+              'flex items-center rounded-lg px-2 py-1 text-white text-xs transition border hover:cursor-pointer',
+              isPlaying
+                ? 'border-amber-500 bg-amber-500/70 hover:bg-amber-700/70'
+                : 'border-sky-500 bg-sky-500/70 hover:bg-sky-700/70',
+            ]"
+            @click="handlePlayPause"
+            :title="isPlaying ? 'Pause' : 'Play'"
+          >
+            <Icon :icon="isPlaying ? 'carbon:pause' : 'carbon:play'" width="15" height="15" />
+          </button>
+          <button
+            type="button"
+            class="flex items-center rounded-lg px-2 py-1 text-white border border-indigo-500 bg-indigo-500/70 hover:bg-indigo-700/70 hover:cursor-pointer text-xs transition"
+            @click="handleForward"
+            title="Forward 5 seconds"
+          >
+            <Icon icon="carbon:skip-forward" width="15" height="15" />
+          </button>
+        </div>
+
+        <div class="flex items-center">
+          <button
+            type="button"
+            :class="[
+              'flex items-center rounded-lg px-2 py-1 text-white text-xs transition border hover:cursor-pointer',
+              isRecording
+                ? 'border-rose-500 bg-rose-600/90 hover:bg-rose-700/90'
+                : 'border-white/20 bg-white/10 text-white/70 hover:bg-white/15',
+            ]"
+            @click="handleRecordToggle"
+            :title="isRecording ? 'Stop recording' : 'Record'"
+          >
+            <Icon icon="carbon:microphone" width="15" height="15" />
+          </button>
+        </div>
       </div>
 
       <!-- Segment Info -->
       <div class="space-y-1">
         <h1 class="text-white text-xl font-semibold">{{ title }}</h1>
         <div class="text-xs font-medium tracking-wide text-white/50">
-          Segment {{ segment.segment_index + 1 }} · {{ segment.start_seconds }}s - {{ segment.end_seconds }}s
+          Segment {{ segment.segment_index + 1 }} · {{ formatMinutesSeconds(segment.start_seconds) }} - {{ formatMinutesSeconds(segment.end_seconds) }}
         </div>
       </div>
 
