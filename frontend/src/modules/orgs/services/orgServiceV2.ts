@@ -7,6 +7,7 @@ import type {
   DiscoverableOrganization,
   OrgEditableFields,
   OrgHealth,
+  OrgJoinCode,
   OrgJoinRequest,
   OrgJobSummary,
   OrgMediaAssetSummary,
@@ -560,6 +561,74 @@ export const orgService = {
     }
 
     return data;
+  },
+
+  /**
+   * Retrieves the join code for an organization.
+   *
+   * Problem it solves:
+   * - Fetches the org invite/join code for privileged users to share with potential members.
+   *
+   * Conceptual tables:
+   * - organizations.join_code
+   * - organizations.join_code_set_at
+   *
+   * Allowed caller:
+   * - Org owner/manager or platform admin; enforced server-side.
+   *
+   * Implementation:
+   * - Edge Function (privileged read).
+   *
+   * @param orgId - Organization ID.
+   * @returns The organization's current join code with expiration timestamp.
+   */
+  async getJoinCode(orgId: string): Promise<OrgJoinCode> {
+    const { data, error } = await supabase.functions.invoke("get-org-join-code", {
+      body: { orgId },
+    });
+
+    if (error) {
+      throw await handleSupabaseEdgeError(error, "Unable to retrieve join code.");
+    }
+
+    return {
+      joinCode: data.joinCode,
+      joinCodeSetAt: data.joinCodeSetAt,
+    };
+  },
+
+  /**
+   * Refreshes (regenerates) the join code for an organization.
+   *
+   * Problem it solves:
+   * - Allows privileged users to regenerate expired or compromised join codes.
+   *
+   * Conceptual tables:
+   * - organizations.join_code
+   * - organizations.join_code_set_at
+   *
+   * Allowed caller:
+   * - Org owner/manager/staff or platform admin; enforced server-side.
+   *
+   * Implementation:
+   * - Edge Function (privileged write).
+   *
+   * @param orgId - Organization ID.
+   * @returns The organization's new join code with timestamp.
+   */
+  async refreshJoinCode(orgId: string): Promise<OrgJoinCode> {
+    const { data, error } = await supabase.functions.invoke("refresh-org-join-code", {
+      body: { orgId },
+    });
+
+    if (error) {
+      throw await handleSupabaseEdgeError(error, "Unable to refresh join code.");
+    }
+
+    return {
+      joinCode: data.joinCode,
+      joinCodeSetAt: data.joinCodeSetAt,
+    };
   },
 
   /**

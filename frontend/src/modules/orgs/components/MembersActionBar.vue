@@ -21,7 +21,7 @@ const emit = defineEmits<{
     <!-- Selection control bar -->
     <div
       v-if="canManage && hasSelection"
-      class="flex md:flex-row flex-col md:items-center gap-2 justify-between py-2 border-t border-b border-white/20 mb-6"
+      class="flex md:flex-row flex-col md:items-center gap-2 justify-between py-2 border-t border-white/20 mb-6"
     >
       <div>
         <p class="text-sm text-white/70">

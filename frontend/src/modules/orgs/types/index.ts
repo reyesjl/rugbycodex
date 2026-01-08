@@ -17,6 +17,7 @@ export type { OrgHealthStatus } from "./OrgHealthStatus";
 export type { OrgId } from "./OrgId";
 export type { OrgJob } from "./OrgJob";
 export type { OrgJobSummary } from "./OrgJobSummary";
+export type { OrgJoinCode } from "./OrgJoinCode";
 export type { OrgJoinRequest } from "./OrgJoinRequest";
 export type { OrgJoinRequestStatus } from "./OrgJoinRequestStatus";
 export type { OrgMediaAsset } from "../../media/types/OrgMediaAsset";

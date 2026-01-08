@@ -4,6 +4,7 @@ import { orgService } from "@/modules/orgs/services/orgServiceV2";
 import { useActiveOrganizationStore } from "@/modules/orgs/stores/useActiveOrganizationStore";
 import { useAuthStore } from '@/auth/stores/useAuthStore';
 import type { OrgMember } from "@/modules/orgs/types";
+import type { OrgJoinCode } from "@/modules/orgs/types";
 import AddMemberModal from '@/modules/orgs/components/AddMemberModal.vue';
 import MemberPill from '@/modules/orgs/components/MemberPill.vue';
 import MembersActionBar from '@/modules/orgs/components/MembersActionBar.vue';
@@ -40,6 +41,17 @@ const selectedMemberIds = ref<Set<string>>(new Set());
 const showConfirmRemove = ref(false);
 const deleteError = ref<string | null>(null);
 const isDeleting = ref(false);
+const joinCodeData = ref<OrgJoinCode | null>(null);
+const loadingJoinCode = ref(false);
+const joinCodeError = ref<string | null>(null);
+
+const isJoinCodeExpired = computed(() => {
+  if (!joinCodeData.value?.joinCodeSetAt) return true;
+  const setAt = new Date(joinCodeData.value.joinCodeSetAt);
+  const now = new Date();
+  const hoursSinceSet = (now.getTime() - setAt.getTime()) / (1000 * 60 * 60);
+  return hoursSinceSet >= 24;
+});
 
 function openAddMember() {
   if (!orgId.value) return;
@@ -334,6 +346,71 @@ async function load() {
   } finally {
     loading.value = false;
   }
+
+  // Fetch join code only if user has management permissions
+  if (canManage.value) {
+    void loadJoinCode();
+  }
+}
+
+async function loadJoinCode() {
+  if (!orgId.value || !canManage.value) return;
+
+  loadingJoinCode.value = true;
+  joinCodeError.value = null;
+
+  try {
+    joinCodeData.value = await orgService.getJoinCode(orgId.value);
+  } catch (e) {
+    joinCodeError.value = e instanceof Error ? e.message : "Failed to load join code.";
+    joinCodeData.value = null;
+  } finally {
+    loadingJoinCode.value = false;
+  }
+}
+
+async function copyJoinCode() {
+  if (!joinCodeData.value?.joinCode) return;
+
+  try {
+    await navigator.clipboard.writeText(joinCodeData.value.joinCode);
+    toast({
+      variant: 'success',
+      message: 'Join code copied to clipboard.',
+      durationMs: 2000,
+    });
+  } catch (e) {
+    toast({
+      variant: 'error',
+      message: 'Failed to copy join code.',
+      durationMs: 2500,
+    });
+  }
+}
+async function refreshJoinCode() {
+  if (!orgId.value) return;
+
+  loadingJoinCode.value = true;
+  joinCodeError.value = null;
+
+  try {
+    // Call service to refresh the join code
+    joinCodeData.value = await orgService.refreshJoinCode(orgId.value);
+
+    toast({
+      variant: 'success',
+      message: 'Join code refreshed successfully.',
+      durationMs: 2000,
+    });
+  } catch (e) {
+    toast({
+      variant: 'error',
+      message: e instanceof Error ? e.message : 'Failed to refresh join code.',
+      durationMs: 3500,
+    });
+  } finally {
+    loadingJoinCode.value = false;
+  }
 }
 
 onMounted(() => {
@@ -348,21 +425,40 @@ watch(orgId, (next, prev) => {
 <template>
   <div>
     <div class="container py-6">
-      <div class="mb-6 flex md:flex-row flex-col md:items-end justify-between gap-4">
+      <div class="flex flex-col md:flex-row md:items-center justify-between mb-5 gap-3">
         <div>
           <h1 class="text-white text-3xl tracking-tight">Members</h1>
         </div>
-        <button v-if="canManage" type="button"
-          class="flex gap-2 items-center rounded-lg px-2 py-1 text-white border border-green-500 bg-green-500/70 hover:bg-green-700/70 text-xs transition disabled:opacity-50"
-          :disabled="loading || !orgId" @click="openAddMember">
-          <Icon icon="carbon:add" width="15" height="15" />
-          Add Member
-        </button>
-      </div>
-
-      <div class="flex justify-end py-5">
-        <!-- Fetch using orgServiceV2 -->
-        <p>Join code: </p>
+        <div v-if="canManage" class="flex flex-row flex-wrap gap-3">
+          <!-- Refresh button for expired code -->
+          <button
+            v-if="isJoinCodeExpired && joinCodeData"
+            type="button"
+            class="flex gap-2 items-center text-white rounded-lg px-2 py-1 border border-red-500 bg-red-500/70 hover:bg-red-700/70 text-xs cursor-pointer transition disabled:opacity-50 w-fit"
+            :disabled="loadingJoinCode"
+            @click="refreshJoinCode">
+            <Icon icon="carbon:renew" width="15" height="15" />
+            <div>Refresh expired code</div>
+          </button>
+          <!-- Copy button for valid code -->
+          <button
+            v-else
+            type="button"
+            class="flex gap-2 items-center text-white rounded-lg px-2 py-1 border border-sky-500 bg-sky-500/70 hover:bg-sky-700/70 text-xs cursor-pointer transition disabled:opacity-50 w-fit"
+            :disabled="!joinCodeData || loadingJoinCode"
+            @click="copyJoinCode">
+            <Icon icon="carbon:copy" width="15" height="15" />
+            <div>Copy invite code</div>
+          </button>
+          <button
+            type="button"
+            class="flex gap-2 items-center rounded-lg px-2 py-1 text-white border border-green-500 bg-green-500/70 hover:bg-green-700/70 cursor-pointer text-xs transition disabled:opacity-50 w-fit"
+            :disabled="loading || !orgId"
+            @click="openAddMember">
+            <Icon icon="carbon:add" width="15" height="15" />
+            Add Member
+          </button>
+        </div>
       </div>
 
       <!-- Action bar with Add / Promote / Demote / Remove controls -->
@@ -374,7 +470,7 @@ watch(orgId, (next, prev) => {
         {{ error }}
       </div>
 
-      <div v-if="sortedMembers.length" class="flex flex-wrap gap-2">
+      <div v-if="sortedMembers.length" class="flex flex-wrap gap-2 border-t border-white/20 pt-4">
         <MemberPill v-for="m in sortedMembers" :key="m.profile.id" :member="m" :selected="isSelected(m.profile.id)"
           :can-manage="canManage" @toggle="toggleMemberSelection(m.profile.id)" />
       </div>
