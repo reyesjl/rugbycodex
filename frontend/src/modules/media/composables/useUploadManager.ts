@@ -1,13 +1,15 @@
 import { computed, shallowRef, triggerRef } from "vue";
 import { S3Client } from "@aws-sdk/client-s3";
 import { Upload } from "@aws-sdk/lib-storage";
-import type { UploadJob, } from "@/modules/media/types/UploadStatus";
+import type { UploadJob, UploadJobMeta } from "@/modules/media/types/UploadStatus";
 import { supabase } from "@/lib/supabaseClient";
 import { handleSupabaseEdgeError } from "@/lib/handleSupabaseEdgeError";
 import { getMediaDurationSeconds, sanitizeFileName } from "@/modules/media/utils/assetUtilities";
 import { mediaService } from "@/modules/media/services/mediaService";
 
 const MAX_CONCURRENT_UPLOADS = 3;
+const MAX_QUEUED_UPLOADS = 5;
+const STORAGE_KEY = "rugbycodex:upload-queue";
 
 const uploads = shallowRef<UploadJob[]>([]);
 
@@ -18,13 +20,71 @@ const completedUploads = computed(() =>
   uploads.value.filter(u => u.state === "completed")
 );
 
+function persistQueue() {
+  const meta: UploadJobMeta[] = uploads.value.map(job => ({
+    id: job.id,
+    mediaId: job.mediaId,
+    orgId: job.orgId,
+    fileName: job.fileName,
+    fileSize: job.fileSize,
+    bucket: job.bucket,
+    storagePath: job.storagePath,
+    state: job.state,
+    progress: job.progress,
+    createdAt: job.createdAt,
+    credentials: job.credentials,
+  }));
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(meta));
+  } catch (err) {
+    console.error("Failed to persist upload queue:", err);
+  }
+}
+
+async function rehydrateQueue(): Promise<UploadJob[]> {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    const meta: UploadJobMeta[] = JSON.parse(raw);
+    
+    const jobs = meta.map(m => ({
+      ...m,
+      state: m.state === "uploading" ? ("abandoned" as const) : m.state,
+      file: undefined,
+      bytesUploaded: 0,
+      uploadSpeedBps: 0,
+      _uploader: undefined,
+    }));
+
+    // Sync database for abandoned uploads
+    const abandonedJobs = jobs.filter(j => j.state === 'abandoned');
+    for (const job of abandonedJobs) {
+      try {
+        await mediaService.updateMediaAsset(job.mediaId, {
+          status: 'interrupted'
+        });
+      } catch (err) {
+        console.error(`Failed to mark ${job.mediaId} as interrupted:`, err);
+      }
+    }
+
+    return jobs;
+  } catch (err) {
+    console.error("Failed to rehydrate upload queue:", err);
+    return [];
+  }
+}
+
+rehydrateQueue().then(jobs => {
+  uploads.value = jobs;
+});
+
 export async function buildUploadJob(
   file: globalThis.File,
   org_id: string,
   bucket: string
 ): Promise<UploadJob> {
   const duration_seconds = await getMediaDurationSeconds(file);
-  console.log("Determined media duration (seconds):", duration_seconds);
   const response = await supabase.functions.invoke('get-wasabi-upload-session', {
     body: {
       org_id,
@@ -42,12 +102,17 @@ export async function buildUploadJob(
 
   return {
     id: media_id,
+    mediaId: media_id,
+    orgId: org_id,
+    fileName: sanitizeFileName(file.name),
+    fileSize: file.size,
     bucket,
-    storage_path,
+    storagePath: storage_path,
     credentials,
     file,
     state: 'queued',
     progress: 0,
+    createdAt: new Date().toISOString(),
     _uploader: undefined
   };
 };
@@ -57,26 +122,37 @@ export async function buildUploadJob(
  * ======================================================= */
 
 export function useUploadManager() {
-  async function enqueue(job: UploadJob) {
+  function enqueue(job: UploadJob) {
+    const inFlight = uploads.value.filter(u => u.state === "uploading").length;
+    const totalQueued = uploads.value.filter(u => u.state === "queued" || u.state === "uploading").length;
+
+    if (inFlight >= MAX_CONCURRENT_UPLOADS && totalQueued >= MAX_QUEUED_UPLOADS) {
+      throw new Error(`Upload limit reached. Maximum ${MAX_QUEUED_UPLOADS} uploads allowed (${MAX_CONCURRENT_UPLOADS} concurrent).`);
+    }
+
+    if (totalQueued >= MAX_QUEUED_UPLOADS) {
+      throw new Error(`Upload queue full. Maximum ${MAX_QUEUED_UPLOADS} uploads allowed.`);
+    }
+
     uploads.value.push(job);
+    persistQueue();
     processQueue();
   }
 
-  function pause(id: string) {
-    const job: UploadJob | undefined = uploads.value.find(u => u.id === id);
-    if (!job) return;
-
-    job._uploader?.abort();
-    job.state = "paused";
-    triggerRef(uploads);
-  }
-
-  function resume(id: string, file: File) {
+  function reattachFile(id: string, file: File) {
     const job = uploads.value.find(u => u.id === id);
     if (!job) return;
 
+    if (job.state !== "abandoned") {
+      throw new Error("Can only reattach files to abandoned uploads.");
+    }
+
     job.file = file;
     job.state = "queued";
+    job.progress = 0;
+    job.bytesUploaded = 0;
+    job.uploadSpeedBps = 0;
+    persistQueue();
     triggerRef(uploads);
     processQueue();
   }
@@ -86,12 +162,24 @@ export function useUploadManager() {
     if (!job) return;
 
     job._uploader?.abort();
-    job.state = "cancelled";
+    job.state = "failed";
+    persistQueue();
     triggerRef(uploads);
   }
 
   function remove(id: string) {
     uploads.value = uploads.value.filter(u => u.id !== id);
+    persistQueue();
+  }
+
+  function clearCompleted() {
+    uploads.value = uploads.value.filter(u => u.state !== "completed");
+    persistQueue();
+  }
+
+  function clearFailed() {
+    uploads.value = uploads.value.filter(u => u.state !== "failed");
+    persistQueue();
   }
 
   return {
@@ -99,10 +187,11 @@ export function useUploadManager() {
     activeUploads,
     completedUploads,
     enqueue,
-    pause,
-    resume,
+    reattachFile,
     cancel,
-    remove
+    remove,
+    clearCompleted,
+    clearFailed,
   };
 }
 
@@ -111,15 +200,18 @@ export function useUploadManager() {
  * ======================================================= */
 
 function processQueue() {
-  if (activeUploads.value.length >= MAX_CONCURRENT_UPLOADS) return;
+  const inFlight = activeUploads.value.length;
+  if (inFlight >= MAX_CONCURRENT_UPLOADS) return;
 
-  const next = uploads.value.find(
-    u => u.state === "queued" && u.file
-  );
+  const available = MAX_CONCURRENT_UPLOADS - inFlight;
+  const queued = uploads.value.filter(u => u.state === "queued" && u.file);
 
-  if (!next) return;
-
-  startUpload(next);
+  for (let i = 0; i < Math.min(available, queued.length); i++) {
+    const job = queued[i];
+    if (job) {
+      startUpload(job);
+    }
+  }
 }
 
 /* =========================================================
@@ -127,21 +219,26 @@ function processQueue() {
  * ======================================================= */
 
 async function startUpload(job: UploadJob) {
-
   if (!job.file) {
     console.error('No file associated with upload job', job.id);
     job.state = "failed";
+    persistQueue();
+    triggerRef(uploads);
     processQueue();
     return;
   }
 
+  if (job.state !== "queued") {
+    console.warn('Attempted to start non-queued job', job.id, job.state);
+    return;
+  }
+
   job.state = "uploading";
+  persistQueue();
   triggerRef(uploads);
 
-  // const checksum = await calculateFileChecksum(job.file);
-
   const { error } = await mediaService.updateMediaAsset(job.id, {
-    storage_path: job.storage_path,
+    storage_path: job.storagePath,
     file_size_bytes: job.file.size,
     mime_type: job.file.type,
     checksum: "TODO",
@@ -150,9 +247,12 @@ async function startUpload(job: UploadJob) {
 
   if (error) {
     console.error('Failed to update media asset status:', error);
+    job.state = "failed";
+    persistQueue();
+    triggerRef(uploads);
+    processQueue();
+    return;
   }
-
-  triggerRef(uploads);
 
   const client = new S3Client({
     region: "us-east-1",
@@ -160,48 +260,48 @@ async function startUpload(job: UploadJob) {
     credentials: job.credentials
   });
 
-  const new_uploader = new Upload({
+  const uploader = new Upload({
     client,
     params: {
       Bucket: job.bucket,
-      Key: job.storage_path,
-      Body: job.file!,
-      ContentType: job.file!.type
+      Key: job.storagePath,
+      Body: job.file,
+      ContentType: job.file.type
     },
     queueSize: 4,
     partSize: 10 * 1024 * 1024,
     leavePartsOnError: true
   });
 
-  job._uploader = new_uploader;
+  job._uploader = uploader;
 
-  // Track upload start time
   const uploadStartTime = Date.now();
 
-  new_uploader.on("httpUploadProgress", (e) => {
+  uploader.on("httpUploadProgress", (e) => {
     if (e.total && e.loaded) {
       job.progress = Math.round((e.loaded / e.total) * 100);
       job.bytesUploaded = e.loaded;
 
-      // Calculate average upload speed from start
       const elapsedSeconds = (Date.now() - uploadStartTime) / 1000;
       if (elapsedSeconds > 0) {
-        job.uploadSpeedBps = e.loaded / elapsedSeconds; // bytes per second
+        job.uploadSpeedBps = e.loaded / elapsedSeconds;
       }
 
+      persistQueue();
       triggerRef(uploads);
     }
   });
 
   try {
-    await new_uploader.done();
+    await uploader.done();
     job.state = "completed";
     job.progress = 100;
+    persistQueue();
   } catch (err) {
     console.error('Upload failed for job', job.id, err);
-    // State may have been changed to paused/cancelled during upload
     if (job.state === "uploading") {
       job.state = "failed";
+      persistQueue();
     }
   } finally {
     job._uploader = undefined;

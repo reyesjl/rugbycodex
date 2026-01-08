@@ -36,9 +36,11 @@ const canManage = computed(() => {
 
 const showAddMedia = ref(false);
 const showConfirmDelete = ref(false);
+const showReattachModal = ref(false);
 const deleteError = ref<string | null>(null);
 const isDeleting = ref(false);
 const assetToDelete = ref<{ id: string; name: string } | null>(null);
+const assetToReattach = ref<{ assetId: string; fileName: string; hasExistingJob: boolean } | null>(null);
 
 const uploadManager = useUploadManager();
 
@@ -79,9 +81,9 @@ function closeAddMedia() {
   showAddMedia.value = false;
 }
 
-function handleUploadStarted() {
+async function handleUploadStarted() {
   mediaStore.reset();
-  void mediaStore.loadForActiveOrg();
+  await mediaStore.loadForActiveOrg();
 }
 
 function openConfirmDelete(assetId: string) {
@@ -112,6 +114,86 @@ function closeConfirmDelete() {
   assetToDelete.value = null;
 }
 
+function openReattachModal(assetId: string) {
+  const asset = assets.value.find(a => a.id === assetId);
+  if (!asset) return;
+
+  const existingJob = uploadManager.uploads.value.find(u => u.mediaId === assetId);
+
+  assetToReattach.value = {
+    assetId: asset.id,
+    fileName: existingJob?.fileName ?? asset.file_name,
+    hasExistingJob: !!existingJob,
+  };
+  showReattachModal.value = true;
+}
+
+function closeReattachModal() {
+  showReattachModal.value = false;
+  assetToReattach.value = null;
+}
+
+async function handleReattachFile(event: Event) {
+  const target = event.target as HTMLInputElement;
+  const file = target.files?.[0];
+  
+  if (!file || !assetToReattach.value || !activeOrgId.value) return;
+
+  try {
+    if (assetToReattach.value.hasExistingJob) {
+      // Job exists in upload manager - reattach file
+      const existingJob = uploadManager.uploads.value.find(u => u.mediaId === assetToReattach.value!.assetId);
+      if (existingJob) {
+        uploadManager.reattachFile(existingJob.id, file);
+      }
+    } else {
+      // No job exists - get new credentials but cleanup duplicate
+      const tempJob = await buildUploadJob(file, activeOrgId.value, 'rugbycodex');
+      
+      // Delete the newly created media_assets row (we only want the original)
+      await mediaService.deleteById(tempJob.mediaId);
+      
+      // Update the original interrupted asset with new upload session
+      await mediaService.updateMediaAsset(assetToReattach.value.assetId, {
+        storage_path: tempJob.storagePath,
+        file_size_bytes: file.size,
+        mime_type: file.type,
+        status: 'uploading'
+      });
+
+      // Build job using original asset ID and new credentials
+      const resumedJob = {
+        ...tempJob,
+        id: assetToReattach.value.assetId,
+        mediaId: assetToReattach.value.assetId,
+        fileName: assetToReattach.value.fileName,
+      };
+      
+      uploadManager.enqueue(resumedJob);
+    }
+    
+    closeReattachModal();
+    
+    toast({
+      variant: 'success',
+      message: 'Upload resumed.',
+      durationMs: 2500,
+    });
+
+    await handleUploadStarted();
+  } catch (err) {
+    toast({
+      variant: 'error',
+      message: err instanceof Error ? err.message : 'Failed to resume upload.',
+      durationMs: 3500,
+    });
+  }
+
+  if (target) {
+    target.value = '';
+  }
+}
+
 async function confirmDeleteAsset() {
   if (!assetToDelete.value) return;
 
@@ -119,6 +201,12 @@ async function confirmDeleteAsset() {
   deleteError.value = null;
 
   try {
+    // Remove from upload queue if it exists
+    const uploadJob = uploadManager.uploads.value.find(u => u.mediaId === assetToDelete.value!.id);
+    if (uploadJob) {
+      uploadManager.remove(uploadJob.id);
+    }
+
     await mediaService.deleteById(assetToDelete.value.id);
     
     toast({
@@ -161,15 +249,14 @@ async function handleUploadSubmit(payload: { file: globalThis.File; kind: MediaA
       durationMs: 2500,
     });
 
-    handleUploadStarted();
+    await handleUploadStarted();
+    closeAddMedia();
   } catch (err) {
     toast({
       variant: 'error',
       message: err instanceof Error ? err.message : 'Failed to start upload.',
       durationMs: 3500,
     });
-  } finally {
-    closeAddMedia();
   }
 }
 
@@ -178,13 +265,12 @@ watch(
   async (completed) => {
     if (completed.length === 0) return;
 
-    // Copy before we mutate the uploadManager list.
     const jobs = [...completed];
 
     await Promise.all(
       jobs.map((job) =>
         mediaService.updateMediaAsset(job.id, {
-          storage_path: job.storage_path,
+          storage_path: job.storagePath,
           status: 'ready',
         })
       )
@@ -194,14 +280,44 @@ watch(
       uploadManager.remove(job.id);
     }
 
-    // Reload assets after uploads complete
     mediaStore.reset();
     void mediaStore.loadForActiveOrg();
   }
 );
 
-onMounted(() => {
-  void mediaStore.loadForActiveOrg();
+async function cleanupOrphanedUploads() {
+  if (!activeOrgId.value) return;
+
+  try {
+    const orphanedAssets = assets.value.filter(asset => {
+      if (asset.status !== 'uploading') return false;
+      
+      // Check if this asset has an active upload session
+      const hasActiveUpload = uploadManager.uploads.value.some(
+        job => job.mediaId === asset.id
+      );
+      
+      return !hasActiveUpload;
+    });
+
+    for (const asset of orphanedAssets) {
+      await mediaService.updateMediaAsset(asset.id, {
+        status: 'interrupted'
+      });
+    }
+
+    if (orphanedAssets.length > 0) {
+      mediaStore.reset();
+      void mediaStore.loadForActiveOrg();
+    }
+  } catch (err) {
+    console.error('Failed to cleanup orphaned uploads:', err);
+  }
+}
+
+onMounted(async () => {
+  await mediaStore.loadForActiveOrg();
+  await cleanupOrphanedUploads();
 });
 
 watch(activeOrgId, (orgId, prevOrgId) => {
@@ -274,6 +390,7 @@ watch(activeOrgId, (orgId, prevOrgId) => {
             :upload-metrics="uploadMetricsByAssetId.get(asset.id)"
             @open="openAsset"
             @delete="openConfirmDelete"
+            @reattach="openReattachModal"
           />
         </div>
       </div>
@@ -296,6 +413,56 @@ watch(activeOrgId, (orgId, prevOrgId) => {
     @cancel="closeConfirmDelete"
     @close="closeConfirmDelete"
   />
+
+  <Teleport v-if="showReattachModal && assetToReattach" to="body">
+    <div
+      class="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 px-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Resume upload"
+      @click.self="closeReattachModal"
+    >
+      <div class="bg-black border border-white/20 rounded w-full max-w-md text-white">
+        <header class="p-4 border-b border-b-white/20">
+          <h2 class="text-lg font-semibold">Resume Upload</h2>
+          <p class="text-sm text-gray-400 mt-1">
+            Upload was interrupted. Please reselect the file to continue.
+          </p>
+        </header>
+
+        <div class="p-4 space-y-4">
+          <div>
+            <div class="text-sm text-white/70 mb-2">File:</div>
+            <div class="text-sm font-medium text-white">{{ assetToReattach.fileName }}</div>
+          </div>
+
+          <div>
+            <label
+              class="block w-full text-center px-4 py-3 text-sm rounded-lg border border-white/20 bg-white/10 hover:bg-white/20 transition cursor-pointer"
+            >
+              <span>Choose file</span>
+              <input
+                type="file"
+                accept="video/mp4,.mp4"
+                class="hidden"
+                @change="handleReattachFile"
+              />
+            </label>
+          </div>
+        </div>
+
+        <div class="flex justify-end gap-2 p-4 border-t border-t-white/20">
+          <button
+            type="button"
+            @click="closeReattachModal"
+            class="px-3 py-1.5 text-xs rounded-lg border border-white/20 bg-white/10 hover:bg-white/20 transition"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
 </template>
 
 <style scoped>

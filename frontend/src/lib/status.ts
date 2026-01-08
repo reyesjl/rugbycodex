@@ -2,6 +2,7 @@ export type StatusDisplay = {
   label: string;
   icon: string | null;
   iconClass?: string;
+  textClass?: string;
 };
 
 function titleCaseFromToken(token: string): string {
@@ -20,19 +21,22 @@ export function getMediaAssetStatusDisplay(status: string | null | undefined): S
 
   switch (normalized) {
     case 'processing':
-      return { label: 'Processing', icon: 'ei:spinner', iconClass: 'animate-spin' };
+      return { label: 'Processing', icon: 'ei:spinner', iconClass: 'animate-spin', textClass: 'text-amber-400/80' };
     case 'ready':
-      return { label: 'Ready', icon: 'carbon:radio-button-checked' };
+      return { label: 'Ready', icon: 'carbon:radio-button-checked', textClass: 'text-emerald-400/80' };
     case 'uploading':
-      return { label: 'Uploading', icon: 'carbon:cloud-upload' };
+      return { label: 'Uploading', icon: 'carbon:cloud-upload', textClass: 'text-blue-400/80' };
+    case 'interrupted':
+      return { label: 'Upload interrupted.', icon: 'carbon:warning-alt', iconClass: 'text-yellow-500/70', textClass: 'text-yellow-500/80' };
     case 'failed':
-      return { label: 'Failed', icon: 'carbon:warning-alt' };
+      return { label: 'Failed', icon: 'carbon:warning-alt', textClass: 'text-red-400/80' };
     case 'intent':
-      return { label: 'Intent', icon: 'carbon:radio-button' };
+      return { label: 'Intent', icon: 'carbon:radio-button', textClass: 'text-white/40' };
     default:
       return {
         label: normalized ? titleCaseFromToken(normalized) : 'Unknown',
         icon: null,
+        textClass: 'text-white/40',
       };
   }
 }

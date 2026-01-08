@@ -3,10 +3,9 @@ import { Upload } from "@aws-sdk/lib-storage";
 export type UploadState =
   | "queued"
   | "uploading"
-  | "paused"
   | "completed"
   | "failed"
-  | "cancelled";
+  | "abandoned";
 
 export interface S3Credentials {
   accessKeyId: string;
@@ -16,25 +15,29 @@ export interface S3Credentials {
 }
 
 /**
- * Runtime-only job (used by Vue + AWS SDK)
+ * Persistable upload job metadata
  */
-export interface UploadJob {
+export interface UploadJobMeta {
   id: string;
+  mediaId: string;
+  orgId: string;
+  fileName: string;
+  fileSize: number;
   bucket: string;
-  storage_path: string;
-
-  file?: File;
-
+  storagePath: string;
   state: UploadState;
   progress: number;
-
-  // Speed tracking
-  bytesUploaded?: number;
-  uploadSpeedBps?: number; // bytes per second
-
+  createdAt: string;
   credentials: S3Credentials;
+}
 
-  // Runtime-only (NEVER persisted)
+/**
+ * Runtime job (includes File reference)
+ */
+export interface UploadJob extends UploadJobMeta {
+  file?: File;
+  bytesUploaded?: number;
+  uploadSpeedBps?: number;
   _uploader?: Upload;
 }
 

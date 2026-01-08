@@ -18,14 +18,13 @@ const props = defineProps<{
   };
 }>();
 
-const emit = defineEmits<{
-  open: [assetId: string];
-  delete: [assetId: string];
-}>();
+const emit = defineEmits(['open', 'delete', 'reattach']);
 
 const statusDisplay = computed(() => getMediaAssetStatusDisplay(props.asset.status));
 
 const isInteractive = computed(() => props.asset.status === 'ready' && props.asset.streaming_ready);
+
+const isActivelyUploading = computed(() => props.uploadMetrics?.state === 'uploading');
 
 const STORAGE_BASE_URL = 'https://cdn.rugbycodex.com';
 
@@ -40,20 +39,32 @@ const isStreamingProcessing = computed(
   () => props.asset.status === 'ready' && !props.asset.streaming_ready
 );
 
+const isAbandoned = computed(() => {
+  // If actively uploading, not abandoned
+  if (props.uploadMetrics?.state === 'uploading') return false;
+  // Check both database status and upload state
+  return props.asset.status === 'interrupted' || props.uploadMetrics?.state === 'abandoned';
+});
+
 const overlayIconName = computed(() => {
+  if (isAbandoned.value) return 'carbon:warning-alt';
   const status = props.asset.status;
-  if (status === 'ready' && !props.asset.streaming_ready) return 'ei:spinner';
+  if (status === 'processing') return 'carbon:ibm-data-power';
+  if (status === 'ready' && !props.asset.streaming_ready) return 'carbon:ibm-data-power';
   if (status === 'ready') return 'carbon:play-filled-alt';
-  if (status === 'processing' || status === 'uploading') return 'ei:spinner';
+  if (status === 'uploading') return 'ei:spinner';
   return statusDisplay.value.icon ?? 'ei:spinner';
 });
 
 const overlayIconClass = computed(() => {
+  if (isAbandoned.value) return 'text-yellow-500/70';
   const status = props.asset.status;
   if (status === 'ready' && props.asset.streaming_ready) return 'text-white/30';
-  const shouldSpin =
-    status === 'processing' || status === 'uploading' || (status === 'ready' && !props.asset.streaming_ready);
-  return `text-white/40${shouldSpin ? ' animate-spin' : ''}`;
+  if (status === 'processing' || (status === 'ready' && !props.asset.streaming_ready)) {
+    return 'text-blue-400/70 animate-spin';
+  }
+  if (status === 'uploading') return 'text-white/40 animate-spin';
+  return 'text-white/40';
 });
 
 const contextProgressStyle = computed(() => {
@@ -107,8 +118,17 @@ function handleDelete() {
   emit('delete', props.asset.id);
 }
 
+function handleReattach() {
+  closeMenu();
+  emit('reattach', props.asset.id);
+}
+
 function handleCardClick() {
   closeMenu();
+  if (isAbandoned.value) {
+    handleReattach();
+    return;
+  }
   if (isInteractive.value) {
     emit('open', props.asset.id);
   }
@@ -125,7 +145,7 @@ function clipTitle(fileName: string) {
   <article
     class="group overflow-hidden rounded-lg bg-white/5 ring-1 ring-white/10 transition"
     :class="
-      isInteractive
+      isInteractive || isAbandoned || isActivelyUploading
         ? 'hover:cursor-pointer hover:bg-white/10 hover:ring-white/20'
         : 'opacity-60'
     "
@@ -181,17 +201,22 @@ function clipTitle(fileName: string) {
 
         <!-- Status -->
         <div class="flex items-center justify-between gap-2">
-          <div class="inline-flex items-center gap-1 text-xs text-white/40 min-w-0">
+          <div class="inline-flex items-center gap-1 text-xs min-w-0">
             <Icon
               v-if="statusDisplay.icon"
               :icon="statusDisplay.icon!"
               class="h-3.5 w-3.5"
               :class="statusDisplay.iconClass"
             />
-            <span class="truncate">
-              {{ isStreamingProcessing ? 'Processing' : statusDisplay.label }}
-              <span v-if="showUploadProgress"> • {{ uploadMetrics!.progress }}%</span>
-              <span v-if="showUploadProgress && uploadSpeedLabel"> • {{ uploadSpeedLabel }}</span>
+            <span class="truncate" :class="statusDisplay.textClass || 'text-white/40'">
+              <template v-if="isAbandoned">
+                <span class="text-yellow-500/80">Upload interrupted. Click to retry.</span>
+              </template>
+              <template v-else>
+                {{ isStreamingProcessing ? 'Processing' : statusDisplay.label }}
+                <span v-if="showUploadProgress"> • {{ uploadMetrics!.progress }}%</span>
+                <span v-if="showUploadProgress && uploadSpeedLabel"> • {{ uploadSpeedLabel }}</span>
+              </template>
             </span>
           </div>
 
