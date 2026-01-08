@@ -56,6 +56,12 @@ export const orgRoutes: RouteRecordRaw = {
           props: true,
         },
         {
+          path: 'segments/:segmentId',
+          name: 'MediaAssetSegment',
+          component: () => import('@/modules/media/views/MediaAssetSegmentView.vue'),
+          props: true,
+        },
+        {
           path: 'members',
           name: 'OrgMembers',
           component: () => import('@/modules/orgs/views/OrgMembers.vue'),
