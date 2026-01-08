@@ -1,15 +1,14 @@
 <script setup lang="ts">
-import { ref } from 'vue'
 import { RouterView } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import MainNav from '@/modules/app/components/MainNav.vue'
 import Sidebar from '@/modules/app/components/Sidebar.vue'
 import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrganizationStore'
+import { useSidebarStore } from '@/stores/useSidebarStore'
 
-const isSidebarOpen = ref(true)
-const toggleSidebar = () => {
-  isSidebarOpen.value = !isSidebarOpen.value
-}
+const sidebarStore = useSidebarStore()
+const { isOpen: isSidebarOpen } = storeToRefs(sidebarStore)
+const toggleSidebar = () => sidebarStore.toggle()
 
 const activeOrgStore = useActiveOrganizationStore()
 const { resolving } = storeToRefs(activeOrgStore)

@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import MainNav from '@/modules/app/components/MainNav.vue';
 import Sidebar from '@/modules/app/components/Sidebar.vue';
-import { ref } from 'vue';
+import { storeToRefs } from 'pinia';
+import { useSidebarStore } from '@/stores/useSidebarStore';
 
-const isSidebarOpen = ref(false);
-const toggleSidebar = () => {
-  isSidebarOpen.value = !isSidebarOpen.value;
-};
+const sidebarStore = useSidebarStore();
+const { isOpen: isSidebarOpen } = storeToRefs(sidebarStore);
+const toggleSidebar = () => sidebarStore.toggle();
 </script>
 
 <template>
