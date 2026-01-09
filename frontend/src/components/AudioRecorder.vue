@@ -200,11 +200,11 @@ async function handleTranscribe() {
     </div>
 
     <!-- Start Recording Button -->
-    <div v-else class="space-y-2">
+    <div v-else class="space-y-2 flex justify-end">
       <button @click="handleStartRecording"
-        class="flex items-center gap-2 rounded-lg px-3 py-2 text-white border border-red-500 bg-red-500/70 hover:bg-red-700/70 hover:cursor-pointer text-sm transition">
+        class="flex items-center gap-2 rounded-lg px-2 py-1 text-white border border-red-500 bg-red-500/70 hover:bg-red-700/70 hover:cursor-pointer text-xs transition">
         <Icon icon="carbon:microphone" width="16" height="16" />
-        <span>Start Recording</span>
+        <span>Record</span>
       </button>
 
       <!-- Microphone Error -->
