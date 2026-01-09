@@ -15,7 +15,7 @@ interface Emits {
   (e: 'recording-stopped'): void;
 }
 
-const props = defineProps<Props>();
+defineProps<Props>();
 const emit = defineEmits<Emits>();
 
 const {
@@ -40,7 +40,7 @@ const transcribing = ref(false);
 const transcriptionError = ref<string | null>(null);
 const hasTranscribed = ref(false);
 
-const { value: typewriterText, typing: isTyping, typeText } = useTypewriter();
+const { value: typewriterText, typeText } = useTypewriter();
 
 // Sync typewriter text to modelValue as it types
 watch(typewriterText, (newText) => {

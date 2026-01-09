@@ -67,12 +67,19 @@ function showSeekLimitOverlay(edge: 'start' | 'end') {
   showPlayerOverlay({ kind: 'seek-limit', edge }, 900);
 }
 
-const title = computed(() => {
+const assetTitle = computed(() => {
   if (asset.value?.title?.trim()) return asset.value.title;
   const fileName = asset.value?.file_name ?? '';
   const lastSegment = fileName.split('/').pop() ?? fileName;
   const withoutExtension = lastSegment.replace(/\.[^/.]+$/, '');
   return withoutExtension.replace(/[-_]+/g, ' ').trim() || 'Untitled clip';
+});
+
+const segmentTitle = computed(() => {
+  if (!segment.value) return '';
+  return `Segment ${segment.value.segment_index + 1} · ${formatMinutesSeconds(
+    segment.value.start_seconds
+  )} - ${formatMinutesSeconds(segment.value.end_seconds)}`;
 });
 
 function handlePlayerError(message: string) {
@@ -215,11 +222,6 @@ function handleNarrationRecordingStarted() {
 
 function handleNarrationRecordingStopped() {
   // No action needed when recording stops
-}
-
-function handleRecordToggle() {
-  // This button is no longer used - recording is handled in NarrationView
-  // Keeping for backward compatibility
 }
 
 function updatePlayingState() {
@@ -419,10 +421,9 @@ watch([playlistObjectUrl, segment], () => {
 
       <!-- Segment Info -->
       <div class="space-y-1">
-        <h1 class="text-white text-xl font-semibold">{{ title }}</h1>
+        <h1 class="text-white text-xl font-semibold">{{ segmentTitle }}</h1>
         <div class="text-xs font-medium tracking-wide text-white/50">
-          Segment {{ segment.segment_index + 1 }} · {{ formatMinutesSeconds(segment.start_seconds) }} - {{
-            formatMinutesSeconds(segment.end_seconds) }}
+          {{ assetTitle }}
         </div>
       </div>
 

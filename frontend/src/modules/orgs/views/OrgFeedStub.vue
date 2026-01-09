@@ -140,12 +140,12 @@ watch(activeOrgId, () => {
 
           <div class="min-w-0 flex-1">
             <div class="text-sm font-semibold text-white truncate">
-              {{ assetTitle(item) }}
-            </div>
-            <div class="mt-1 text-xs font-medium tracking-wide text-white/50">
               Segment {{ item.segment.segment_index + 1 }} ·
               {{ formatMinutesSeconds(item.segment.start_seconds) }} -
               {{ formatMinutesSeconds(item.segment.end_seconds) }}
+            </div>
+            <div class="mt-1 text-xs font-medium tracking-wide text-white/50 truncate">
+              {{ assetTitle(item) }}
             </div>
 
             <div class="mt-3 flex items-center justify-between gap-3">
