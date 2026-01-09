@@ -15,7 +15,10 @@ export async function transcribeAudio(
   audioBlob: Blob
 ): Promise<TranscriptionResponse> {
   const formData = new FormData();
-  formData.append('file', audioBlob, 'audio.webm');
+
+  const mime = (audioBlob.type || '').toLowerCase();
+  const fileName = mime.includes('mp4') ? 'audio.m4a' : mime.includes('wav') ? 'audio.wav' : 'audio.webm';
+  formData.append('file', audioBlob, fileName);
 
   const { data, error } = await supabase.functions.invoke('transcribe-webm-file', {
     body: formData,

@@ -20,6 +20,8 @@ export function useAudioRecording() {
   const error = ref<string | null>(null);
   const audioLevel = ref(0);
 
+  const selectedMimeType = ref<string | null>(null);
+
   let mediaRecorder: MediaRecorder | null = null;
   let mediaStream: MediaStream | null = null;
   let audioChunks: Blob[] = [];
@@ -124,22 +126,56 @@ export function useAudioRecording() {
     try {
       error.value = null;
 
-      // Request microphone access optimized for speech (Whisper transcription)
-      mediaStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          channelCount: 1, // Mono audio for Whisper
-          sampleRate: 16000, // Optimal for Whisper
-          echoCancellation: true, // Remove echo
-          noiseSuppression: true, // Remove background noise
-          autoGainControl: true, // Normalize volume levels
-        },
-      });
+      if (typeof MediaRecorder === 'undefined') {
+        error.value = 'Audio recording is not supported in this browser.';
+        return;
+      }
 
-      // Create MediaRecorder with optimal settings for speech
-      const options = {
-        mimeType: 'audio/webm;codecs=opus',
-        audioBitsPerSecond: 16000, // Good quality for speech
+      // Prefer iOS/Safari-friendly containers when available.
+      const preferredMimeTypes = [
+        'audio/mp4;codecs=mp4a.40.2',
+        'audio/mp4',
+        'audio/webm;codecs=opus',
+        'audio/webm',
+      ];
+
+      selectedMimeType.value =
+        preferredMimeTypes.find((type) => {
+          try {
+            return MediaRecorder.isTypeSupported(type);
+          } catch {
+            return false;
+          }
+        }) ?? null;
+
+      // Request microphone access.
+      // Note: iOS/Safari can be picky about advanced constraints like `sampleRate`.
+      // We'll try “speech-friendly” constraints first, then fall back to plain audio.
+      const primaryConstraints: MediaStreamConstraints = {
+        audio: {
+          channelCount: 1,
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
       };
+
+      try {
+        mediaStream = await navigator.mediaDevices.getUserMedia(primaryConstraints);
+      } catch (primaryErr) {
+        console.warn('getUserMedia(primary) failed, retrying with fallback constraints', primaryErr);
+        mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      }
+
+      // Create MediaRecorder. Some browsers throw if you pass an unsupported mimeType,
+      // so only pass it when we've positively detected support.
+      const options: MediaRecorderOptions = {
+        audioBitsPerSecond: 16000,
+      };
+      if (selectedMimeType.value) {
+        options.mimeType = selectedMimeType.value;
+      }
+
       mediaRecorder = new MediaRecorder(mediaStream, options);
 
       audioChunks = [];
@@ -151,7 +187,8 @@ export function useAudioRecording() {
       };
 
       mediaRecorder.onstop = () => {
-        const blob = new Blob(audioChunks, { type: 'audio/webm' });
+        const blobType = selectedMimeType.value ?? mediaRecorder?.mimeType ?? 'audio/webm';
+        const blob = new Blob(audioChunks, { type: blobType });
         audioBlob.value = blob;
 
         // Create URL for playback

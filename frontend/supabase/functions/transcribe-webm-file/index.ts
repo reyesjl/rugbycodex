@@ -24,23 +24,31 @@ serve(async (req) => {
       return jsonResponse({ error: "No file provided" }, 400);
     }
 
-    // Validate file type - only accept WebM
-    const fileType = file.type || '';
-    const isWebM = fileType.includes('webm') || file.name.endsWith('.webm');
+    // Validate file type.
+    // WebM is common on Chromium; iOS/Safari typically records as MP4/AAC (often using .m4a extension).
+    const uploadedType = (file.type || '').toLowerCase();
+    const uploadedName = (file.name || '').toLowerCase();
 
-    if (!isWebM) {
-      return jsonResponse({ error: "Invalid file type. Only WebM audio files are supported." }, 400);
+    const isWebM = uploadedType.includes('webm') || uploadedName.endsWith('.webm');
+    const isMp4 = uploadedType.includes('mp4') || uploadedName.endsWith('.mp4') || uploadedName.endsWith('.m4a');
+
+    if (!isWebM && !isMp4) {
+      return jsonResponse(
+        { error: 'Invalid file type. Supported: WebM (.webm) and MP4/AAC (.m4a, .mp4).' },
+        400
+      );
     }
 
     const arrayBuffer = await file.arrayBuffer();
-    const blob = new Blob([
-      arrayBuffer
-    ], {
-      type: 'audio/webm'
-    });
+
+    const fallbackType = isMp4 ? 'audio/mp4' : 'audio/webm';
+    const blob = new Blob([arrayBuffer], { type: uploadedType || fallbackType });
+
     // Call OpenAI Whisper API
     const form = new FormData();
-    form.append("file", blob, 'audio.webm');
+
+    const fallbackName = isMp4 ? 'audio.m4a' : 'audio.webm';
+    form.append('file', blob, uploadedName || fallbackName);
     form.append("model", "whisper-1");
     const response = await fetch("https://api.openai.com/v1/audio/transcriptions", {
       method: "POST",
