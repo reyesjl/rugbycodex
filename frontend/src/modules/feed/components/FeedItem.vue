@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { Icon } from '@iconify/vue';
 import type { FeedItem as FeedItemType } from '@/modules/feed/types/FeedItem';
 import HlsSurfacePlayer from '@/modules/media/components/HlsSurfacePlayer.vue';
 import FeedGestureLayer from '@/modules/feed/components/FeedGestureLayer.vue';
@@ -30,6 +31,48 @@ const authStore = useAuthStore();
 const currentUserId = computed(() => authStore.user?.id ?? null);
 
 const playerRef = ref<InstanceType<typeof HlsSurfacePlayer> | null>(null);
+const surfaceEl = ref<HTMLElement | null>(null);
+
+const isFullscreen = ref(false);
+const canFullscreen = computed(() => {
+  const el = surfaceEl.value as any;
+  const doc = document as any;
+  if (!el) return false;
+  return Boolean(
+    el.requestFullscreen ||
+    el.webkitRequestFullscreen ||
+    el.msRequestFullscreen ||
+    doc.fullscreenEnabled ||
+    doc.webkitFullscreenEnabled
+  );
+});
+
+function getFullscreenElement(): Element | null {
+  const doc = document as any;
+  return (document.fullscreenElement ?? doc.webkitFullscreenElement ?? null) as Element | null;
+}
+
+function syncFullscreenState() {
+  const active = getFullscreenElement();
+  isFullscreen.value = Boolean(active && surfaceEl.value && active === surfaceEl.value);
+}
+
+async function toggleFullscreen() {
+  const el = surfaceEl.value as any;
+  const doc = document as any;
+  if (!el) return;
+
+  try {
+    if (getFullscreenElement()) {
+      await Promise.resolve((document.exitFullscreen?.() ?? doc.webkitExitFullscreen?.()) as any);
+      return;
+    }
+    // Request fullscreen on the container so overlays remain visible.
+    await Promise.resolve((el.requestFullscreen?.() ?? el.webkitRequestFullscreen?.() ?? el.msRequestFullscreen?.()) as any);
+  } catch {
+    // Silent in feed; lack of fullscreen support isn't fatal.
+  }
+}
 
 const isBuffering = ref(false);
 const suppressBufferingUntilMs = ref(0);
@@ -82,10 +125,33 @@ function onNarrationButtonHoverEnter(e: PointerEvent) {
 
 onBeforeUnmount(() => {
   hideOverlay();
+  if (flashTimer !== null) {
+    window.clearTimeout(flashTimer);
+    flashTimer = null;
+  }
+  document.removeEventListener('fullscreenchange', syncFullscreenState);
+  document.removeEventListener('webkitfullscreenchange' as any, syncFullscreenState);
+});
+
+onMounted(() => {
+  document.addEventListener('fullscreenchange', syncFullscreenState);
+  document.addEventListener('webkitfullscreenchange' as any, syncFullscreenState);
+  syncFullscreenState();
 });
 
 // Playback state for overlay
 const isPlaying = ref(false);
+const flashIcon = ref<'play' | 'pause' | null>(null);
+let flashTimer: number | null = null;
+
+function flashPlayPause(kind: 'play' | 'pause') {
+  flashIcon.value = kind;
+  if (flashTimer !== null) window.clearTimeout(flashTimer);
+  flashTimer = window.setTimeout(() => {
+    flashIcon.value = null;
+    flashTimer = null;
+  }, 350);
+}
 const currentTime = ref(0);
 const duration = ref(0);
 const hasSeekedToStart = ref(false);
@@ -280,6 +346,7 @@ watch([volume01, muted], () => {
 
 function handlePlay() {
   isPlaying.value = true;
+  flashPlayPause('play');
   // Once playing, clear ended state.
   endedWithinSegment.value = false;
 }
@@ -287,6 +354,7 @@ function handlePlay() {
 function handlePause() {
   isPlaying.value = false;
   isBuffering.value = false;
+  flashPlayPause('pause');
 
   // If we've paused at (or beyond) the segment end, show restart affordances.
   const end = segmentEnd.value;
@@ -541,7 +609,9 @@ function handleBuffering(next: boolean) {
     <div class="px-0 pt-0 shrink-0 md:px-6 md:pt-6">
       <div class="relative w-full bg-black md:mx-auto md:max-w-5xl">
         <div
-          class="relative aspect-video w-full overflow-hidden bg-black ring-1 ring-white/10 md:rounded-xl"
+          ref="surfaceEl"
+          class="relative w-full overflow-hidden bg-black ring-1 ring-white/10 md:rounded-xl"
+          :class="isFullscreen ? 'h-full w-full' : 'aspect-video'"
           @pointermove="onHoverMove"
           @pointerleave="onHoverLeave"
         >
@@ -563,6 +633,25 @@ function handleBuffering(next: boolean) {
             @swipeUp="emit('next')"
             @swipeDown="emit('prev')"
           >
+            <Transition
+              enter-active-class="transition duration-150 ease-out"
+              enter-from-class="opacity-0 scale-90"
+              enter-to-class="opacity-100 scale-100"
+              leave-active-class="transition duration-150 ease-in"
+              leave-from-class="opacity-100 scale-100"
+              leave-to-class="opacity-0 scale-95"
+            >
+              <div
+                v-if="flashIcon && !isBuffering"
+                class="pointer-events-none absolute inset-0 z-40 flex items-center justify-center"
+                aria-hidden="true"
+              >
+                <div class="rounded-full bg-black/45 backdrop-blur px-5 py-4 ring-1 ring-white/15">
+                  <Icon :icon="flashIcon === 'play' ? 'carbon:play' : 'carbon:pause'" width="44" height="44" class="text-white" />
+                </div>
+              </div>
+            </Transition>
+
             <FeedOverlayControls
               :visible="overlayVisible && !isBuffering"
               :is-playing="isPlaying"
@@ -572,6 +661,8 @@ function handleBuffering(next: boolean) {
               :can-prev="canPrev"
               :can-next="canNext"
               :show-restart="endedWithinSegment"
+              :can-fullscreen="canFullscreen"
+              :is-fullscreen="isFullscreen"
               :volume01="volume01"
               :muted="muted"
               @togglePlay="togglePlay"
@@ -583,6 +674,7 @@ function handleBuffering(next: boolean) {
               @scrubToSeconds="scrubToSegmentSeconds"
               @setVolume01="setVolume"
               @toggleMute="toggleMute"
+              @toggleFullscreen="toggleFullscreen"
             />
 
             <div

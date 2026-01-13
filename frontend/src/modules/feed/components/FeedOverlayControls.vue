@@ -9,6 +9,8 @@ const props = withDefaults(defineProps<{
   canPrev: boolean;
   canNext: boolean;
   showRestart?: boolean;
+  canFullscreen?: boolean;
+  isFullscreen?: boolean;
   /** segment-relative current time (seconds) */
   currentSeconds?: number;
   /** segment-relative duration (seconds) */
@@ -21,6 +23,8 @@ const props = withDefaults(defineProps<{
   durationSeconds: 0,
   volume01: 1,
   muted: false,
+  canFullscreen: false,
+  isFullscreen: false,
 });
 
 const emit = defineEmits<{
@@ -35,6 +39,7 @@ const emit = defineEmits<{
   (e: 'scrubEnd'): void;
   (e: 'setVolume01', volume01: number): void;
   (e: 'toggleMute'): void;
+  (e: 'toggleFullscreen'): void;
 }>();
 
 const barEl = ref<HTMLDivElement | null>(null);
@@ -194,8 +199,8 @@ function endScrub(e: PointerEvent) {
       </div>
 
       <!-- Bottom controls (YouTube-style) -->
-      <div class="absolute bottom-3 left-3 right-3 flex items-center justify-start gap-3">
-        <div class="flex items-center gap-2">
+      <div class="absolute bottom-3 left-3 right-3 flex items-center justify-between gap-3">
+        <div class="flex items-center gap-2 min-w-0">
           <button
             type="button"
             class="rounded-full bg-black/35 p-1.5 text-white ring-1 ring-white/10 hover:bg-black/45"
@@ -229,6 +234,18 @@ function endScrub(e: PointerEvent) {
           <div class="ml-2 inline-flex items-center rounded-full bg-black/25 px-2 py-3 text-xs leading-none text-white/85 tabular-nums ring-1 ring-white/10">
             {{ formatTime(effectiveCurrent) }} / {{ formatTime(durationSeconds ?? 0) }}
           </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button
+            v-if="canFullscreen"
+            type="button"
+            class="rounded-full bg-black/35 p-1.5 text-white ring-1 ring-white/10 hover:bg-black/45"
+            @click.stop="emit('toggleFullscreen')"
+            :title="isFullscreen ? 'Exit fullscreen' : 'Fullscreen'"
+          >
+            <Icon :icon="isFullscreen ? 'ri:fullscreen-exit-fill' : 'carbon:fit-to-screen'" width="22" height="22" />
+          </button>
         </div>
       </div>
 

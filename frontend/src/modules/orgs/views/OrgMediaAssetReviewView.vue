@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { Icon } from '@iconify/vue';
 import { storeToRefs } from 'pinia';
 import { useRoute } from 'vue-router';
 
@@ -54,6 +55,48 @@ const narrationsDrawerHeightClass = computed(() => (narrationsDrawerOpen.value ?
 const narrationCount = computed(() => (narrations.value as any[])?.length ?? 0);
 
 const playerRef = ref<InstanceType<typeof HlsSurfacePlayer> | null>(null);
+const surfaceEl = ref<HTMLElement | null>(null);
+
+const isFullscreen = ref(false);
+const canFullscreen = computed(() => {
+  const el = surfaceEl.value as any;
+  const doc = document as any;
+  if (!el) return false;
+  return Boolean(
+    el.requestFullscreen ||
+    el.webkitRequestFullscreen ||
+    el.msRequestFullscreen ||
+    doc.fullscreenEnabled ||
+    doc.webkitFullscreenEnabled
+  );
+});
+
+function getFullscreenElement(): Element | null {
+  const doc = document as any;
+  return (document.fullscreenElement ?? doc.webkitFullscreenElement ?? null) as Element | null;
+}
+
+function syncFullscreenState() {
+  const active = getFullscreenElement();
+  isFullscreen.value = Boolean(active && surfaceEl.value && active === surfaceEl.value);
+}
+
+async function toggleFullscreen() {
+  const el = surfaceEl.value as any;
+  const doc = document as any;
+  if (!el) return;
+
+  try {
+    if (getFullscreenElement()) {
+      await Promise.resolve((document.exitFullscreen?.() ?? doc.webkitExitFullscreen?.()) as any);
+      return;
+    }
+    // IMPORTANT: request fullscreen on the container, not the <video>, so overlays + record button stay visible.
+    await Promise.resolve((el.requestFullscreen?.() ?? el.webkitRequestFullscreen?.() ?? el.msRequestFullscreen?.()) as any);
+  } catch {
+    toast({ message: 'Fullscreen is not available in this browser.', variant: 'info', durationMs: 2500 });
+  }
+}
 
 const isBuffering = ref(false);
 const suppressBufferingUntilMs = ref(0);
@@ -62,6 +105,18 @@ const suppressOverlayRevealUntilMs = ref(0);
 const currentTime = ref(0);
 const duration = ref(0);
 const isPlaying = ref(false);
+
+const flashIcon = ref<'play' | 'pause' | null>(null);
+let flashTimer: number | null = null;
+
+function flashPlayPause(kind: 'play' | 'pause') {
+  flashIcon.value = kind;
+  if (flashTimer !== null) window.clearTimeout(flashTimer);
+  flashTimer = window.setTimeout(() => {
+    flashIcon.value = null;
+    flashTimer = null;
+  }, 350);
+}
 
 // Volume (YouTube-style)
 const volume01 = ref(1);
@@ -136,6 +191,18 @@ function onNarrationButtonHoverEnter(e: PointerEvent) {
 
 onBeforeUnmount(() => {
   hideOverlay();
+  if (flashTimer !== null) {
+    window.clearTimeout(flashTimer);
+    flashTimer = null;
+  }
+  document.removeEventListener('fullscreenchange', syncFullscreenState);
+  document.removeEventListener('webkitfullscreenchange' as any, syncFullscreenState);
+});
+
+onMounted(() => {
+  document.addEventListener('fullscreenchange', syncFullscreenState);
+  document.addEventListener('webkitfullscreenchange' as any, syncFullscreenState);
+  syncFullscreenState();
 });
 
 const progress01 = computed(() => {
@@ -259,11 +326,13 @@ watch([volume01, muted], () => {
 
 function handlePlay() {
   isPlaying.value = true;
+  flashPlayPause('play');
 }
 
 function handlePause() {
   isPlaying.value = false;
   isBuffering.value = false;
+  flashPlayPause('pause');
 }
 
 function togglePlay() {
@@ -471,7 +540,9 @@ async function handleDeleteNarration(narrationId: string) {
           <div class="-mx-4 md:mx-0">
             <div class="overflow-hidden bg-black ring-1 ring-white/10 md:rounded-xl md:bg-white/5">
               <div
-                class="relative aspect-video bg-black"
+                ref="surfaceEl"
+                class="relative bg-black"
+                :class="isFullscreen ? 'h-full w-full' : 'aspect-video'"
                 @pointermove="onHoverMove"
                 @pointerleave="onHoverLeave"
               >
@@ -489,6 +560,25 @@ async function handleDeleteNarration(narrationId: string) {
               />
 
               <FeedGestureLayer @tap="onTap" @swipeDown="() => {}" @swipeUp="() => {}">
+                <Transition
+                  enter-active-class="transition duration-150 ease-out"
+                  enter-from-class="opacity-0 scale-90"
+                  enter-to-class="opacity-100 scale-100"
+                  leave-active-class="transition duration-150 ease-in"
+                  leave-from-class="opacity-100 scale-100"
+                  leave-to-class="opacity-0 scale-95"
+                >
+                  <div
+                    v-if="flashIcon && !isBuffering"
+                    class="pointer-events-none absolute inset-0 z-40 flex items-center justify-center"
+                    aria-hidden="true"
+                  >
+                    <div class="">
+                      <Icon :icon="flashIcon === 'play' ? 'carbon:play-filled-alt' : 'carbon:pause-filled'" width="44" height="44" class="text-white" />
+                    </div>
+                  </div>
+                </Transition>
+
                 <!-- Reuse feed overlay controls as a minimal transport + scrubber -->
                 <FeedOverlayControls
                   :visible="overlayVisible && !isBuffering"
@@ -497,6 +587,8 @@ async function handleDeleteNarration(narrationId: string) {
                   :can-prev="false"
                   :can-next="false"
                   :show-restart="false"
+                  :can-fullscreen="canFullscreen"
+                  :is-fullscreen="isFullscreen"
                   :current-seconds="currentTime"
                   :duration-seconds="duration"
                   :volume01="volume01"
@@ -512,6 +604,7 @@ async function handleDeleteNarration(narrationId: string) {
                   @scrubEnd="() => showOverlay(1500)"
                   @setVolume01="setVolume"
                   @toggleMute="toggleMute"
+                  @toggleFullscreen="toggleFullscreen"
                 />
 
                 <div
