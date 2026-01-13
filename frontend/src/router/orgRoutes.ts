@@ -56,6 +56,13 @@ export const orgRoutes: RouteRecordRaw = {
           props: true,
         },
         {
+          path: 'media/:mediaAssetId/review',
+          name: 'OrgMediaAssetReview',
+          component: () => import('@/modules/orgs/views/OrgMediaAssetReviewView.vue'),
+          props: true,
+          meta: { minOrgRole: 'staff' },
+        },
+        {
           path: 'segments/:segmentId',
           name: 'MediaAssetSegment',
           component: () => import('@/modules/media/views/MediaAssetSegmentView.vue'),

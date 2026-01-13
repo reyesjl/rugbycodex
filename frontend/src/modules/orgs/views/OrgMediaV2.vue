@@ -81,6 +81,18 @@ function openAsset(assetId: string) {
   });
 }
 
+function openReview(assetId: string) {
+  const slug = route.params.slug;
+  if (!slug) return;
+  void router.push({
+    name: 'OrgMediaAssetReview',
+    params: {
+      slug,
+      mediaAssetId: assetId,
+    },
+  });
+}
+
 function closeAddMedia() {
   showAddMedia.value = false;
 }
@@ -453,6 +465,7 @@ watch(activeOrgId, (orgId, prevOrgId) => {
             :can-manage="canManage"
             :upload-metrics="uploadMetricsByAssetId.get(asset.id)"
             @open="openAsset"
+            @review="openReview"
             @edit="openEditMedia"
             @delete="openConfirmDelete"
             @reattach="openReattachModal"

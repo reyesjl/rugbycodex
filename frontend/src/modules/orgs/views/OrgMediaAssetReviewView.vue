@@ -1,0 +1,414 @@
+<script setup lang="ts">
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { storeToRefs } from 'pinia';
+import { useRoute } from 'vue-router';
+
+import HlsSurfacePlayer from '@/modules/media/components/HlsSurfacePlayer.vue';
+import FeedGestureLayer from '@/modules/feed/components/FeedGestureLayer.vue';
+import FeedOverlayControls from '@/modules/feed/components/FeedOverlayControls.vue';
+import NarrationRecorder from '@/modules/narration/components/NarrationRecorder.vue';
+
+import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrganizationStore';
+import { mediaService } from '@/modules/media/services/mediaService';
+import { segmentService } from '@/modules/media/services/segmentService';
+import { narrationService } from '@/modules/narrations/services/narrationService';
+import { toast } from '@/lib/toast';
+
+import { useNarrationRecorder, type NarrationListItem } from '@/modules/narration/composables/useNarrationRecorder';
+import type { OrgMediaAsset } from '@/modules/media/types/OrgMediaAsset';
+import type { MediaAssetSegment } from '@/modules/narrations/types/MediaAssetSegment';
+import type { Narration } from '@/modules/narrations/types/Narration';
+
+import { formatMinutesSeconds } from '@/lib/duration';
+import MediaAssetReviewTimeline from '@/modules/media/components/MediaAssetReviewTimeline.vue';
+import MediaAssetReviewNarrationList from '@/modules/media/components/MediaAssetReviewNarrationList.vue';
+
+const BUFFER_SECONDS = 5;
+
+const route = useRoute();
+const activeOrgStore = useActiveOrganizationStore();
+const { orgContext } = storeToRefs(activeOrgStore);
+
+const activeOrgId = computed(() => orgContext.value?.organization?.id ?? null);
+
+const mediaAssetId = computed(() => String(route.params.mediaAssetId ?? ''));
+
+const loading = ref(true);
+const error = ref<string | null>(null);
+
+const asset = ref<OrgMediaAsset | null>(null);
+const playlistUrl = ref<string>('');
+
+const segments = ref<MediaAssetSegment[]>([]);
+const narrations = ref<Array<Narration | NarrationListItem>>([]);
+
+const playerRef = ref<InstanceType<typeof HlsSurfacePlayer> | null>(null);
+
+const currentTime = ref(0);
+const duration = ref(0);
+const isPlaying = ref(false);
+
+// Overlay visibility (reused pattern from FeedItem)
+const overlayVisible = ref(false);
+let overlayTimer: number | null = null;
+function showOverlay(durationMs: number | null = 2500) {
+  overlayVisible.value = true;
+  if (overlayTimer !== null) window.clearTimeout(overlayTimer);
+  if (durationMs === null) return;
+  overlayTimer = window.setTimeout(() => {
+    overlayVisible.value = false;
+    overlayTimer = null;
+  }, durationMs);
+}
+
+function hideOverlay() {
+  overlayVisible.value = false;
+  if (overlayTimer !== null) {
+    window.clearTimeout(overlayTimer);
+    overlayTimer = null;
+  }
+}
+
+onBeforeUnmount(() => {
+  hideOverlay();
+});
+
+const progress01 = computed(() => {
+  const d = duration.value;
+  if (!d) return 0;
+  return Math.min(1, Math.max(0, (currentTime.value ?? 0) / d));
+});
+
+const timeLabel = computed(() => {
+  return `${formatMinutesSeconds(currentTime.value ?? 0)} / ${formatMinutesSeconds(duration.value ?? 0)}`;
+});
+
+const segmentsWithNarrations = computed(() => {
+  const set = new Set<string>();
+  for (const n of narrations.value as any[]) {
+    const sid = String(n.media_asset_segment_id ?? '');
+    if (sid) set.add(sid);
+  }
+  return set;
+});
+
+const activeSegmentId = computed(() => {
+  const t = currentTime.value ?? 0;
+  const found = segments.value.find((s) => t >= (s.start_seconds ?? 0) && t <= (s.end_seconds ?? 0));
+  return found ? String(found.id) : null;
+});
+
+function findFocusedSegmentId(seconds: number): string | null {
+  const list = segments.value;
+  if (!list.length) return null;
+
+  // Prefer a segment that contains the time.
+  const inside = list.find((s) => seconds >= (s.start_seconds ?? 0) && seconds <= (s.end_seconds ?? 0));
+  if (inside) return String(inside.id);
+
+  // Otherwise choose the nearest segment start.
+  let bestId: string | null = null;
+  let bestDist = Number.POSITIVE_INFINITY;
+  for (const s of list) {
+    const dist = Math.abs((s.start_seconds ?? 0) - seconds);
+    if (dist < bestDist) {
+      bestDist = dist;
+      bestId = String(s.id);
+    }
+  }
+  return bestId;
+}
+
+const focusedSegmentId = ref<string | null>(null);
+
+async function load() {
+  if (!activeOrgId.value || !mediaAssetId.value) return;
+  loading.value = true;
+  error.value = null;
+  asset.value = null;
+  playlistUrl.value = '';
+  segments.value = [];
+  narrations.value = [];
+
+  try {
+    const found = await mediaService.getById(activeOrgId.value, mediaAssetId.value);
+    asset.value = found;
+
+    playlistUrl.value = await mediaService.getPresignedHlsPlaylistUrl(activeOrgId.value, found.id, found.bucket);
+
+    // Load existing segments and narrations for this asset.
+    const [segList, narList] = await Promise.all([
+      segmentService.listSegmentsForMediaAsset(found.id),
+      narrationService.listNarrationsForMediaAsset(found.id),
+    ]);
+
+    segments.value = segList;
+    narrations.value = narList;
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Unable to load review.';
+  } finally {
+    loading.value = false;
+  }
+}
+
+watch([activeOrgId, mediaAssetId], () => {
+  if (!activeOrgId.value || !mediaAssetId.value) return;
+  void load();
+}, { immediate: true });
+
+function handleTimeupdate(p: { currentTime: number; duration: number }) {
+  currentTime.value = p.currentTime ?? 0;
+  if (p.duration) duration.value = p.duration;
+
+  // Keep focused segment aligned with playback, but don't force it if unset and no segments.
+  focusedSegmentId.value = findFocusedSegmentId(currentTime.value);
+}
+
+function handleLoadedMetadata(p: { duration: number }) {
+  if (p.duration) duration.value = p.duration;
+}
+
+function handlePlay() {
+  isPlaying.value = true;
+}
+
+function handlePause() {
+  isPlaying.value = false;
+}
+
+function togglePlay() {
+  showOverlay();
+  playerRef.value?.togglePlayback();
+}
+
+function scrubToSeconds(seconds: number) {
+  focusedSegmentId.value = findFocusedSegmentId(seconds);
+  playerRef.value?.setCurrentTime(seconds);
+}
+
+function onTap() {
+  if (overlayVisible.value) hideOverlay();
+  else showOverlay();
+}
+
+// Recording (reuse useNarrationRecorder)
+const recorder = useNarrationRecorder();
+const recordError = ref<string | null>(null);
+
+function getTimeSeconds(): number {
+  return playerRef.value?.getCurrentTime() ?? 0;
+}
+
+async function beginRecording() {
+  recordError.value = null;
+
+  if (!activeOrgId.value || !asset.value) {
+    recordError.value = 'Missing organization or media asset.';
+    return;
+  }
+
+  const t = getTimeSeconds();
+  const d = duration.value ?? 0;
+
+  const startSeconds = Math.max(0, t - BUFFER_SECONDS);
+  const endSeconds = d > 0 ? Math.min(d, t + BUFFER_SECONDS) : (t + BUFFER_SECONDS);
+
+  // Create a coach segment FIRST so the narration has a segment to attach to.
+  const created = await segmentService.createCoachSegment({
+    mediaAssetId: asset.value.id,
+    startSeconds,
+    endSeconds,
+  });
+
+  // Optimistic segment insert.
+  segments.value = [...segments.value, created].sort((a, b) => (a.start_seconds ?? 0) - (b.start_seconds ?? 0));
+
+  // Start recording with segment context.
+  await recorder.startRecording({
+    orgId: activeOrgId.value,
+    mediaAssetId: asset.value.id,
+    mediaAssetSegmentId: String(created.id),
+    timeSeconds: t,
+  });
+}
+
+function endRecordingNonBlocking() {
+  const result = recorder.stopRecording();
+  if (!result) return;
+
+  // optimistic insert into the overall narrations list
+  narrations.value = [...narrations.value, result.optimistic as any];
+
+  result.promise
+    .then((saved) => {
+      narrations.value = (narrations.value as any[]).map((n) => (n.id === result.optimistic.id ? saved : n));
+    })
+    .catch((err) => {
+      const message = err instanceof Error ? err.message : 'Failed to process narration.';
+      narrations.value = (narrations.value as any[]).map((n) => {
+        if (n.id !== result.optimistic.id) return n;
+        return {
+          ...result.optimistic,
+          status: 'error',
+          transcript_raw: 'Upload failed',
+          errorMessage: message,
+        };
+      });
+    });
+}
+
+async function toggleRecord() {
+  showOverlay(null);
+  if (recorder.isRecording.value) {
+    endRecordingNonBlocking();
+  } else {
+    try {
+      await beginRecording();
+    } catch (err) {
+      recordError.value = err instanceof Error ? err.message : 'Failed to start recording.';
+    }
+  }
+}
+
+function jumpToSegment(seg: MediaAssetSegment) {
+  focusedSegmentId.value = String(seg.id);
+  scrubToSeconds(seg.start_seconds ?? 0);
+  showOverlay();
+}
+
+async function handleEditNarration(narrationId: string, transcriptRaw: string) {
+  try {
+    const updated = await narrationService.updateNarrationText(narrationId, transcriptRaw);
+    narrations.value = (narrations.value as any[]).map((n) => (String(n.id) === narrationId ? updated : n));
+    toast({ message: 'Narration updated.', variant: 'success', durationMs: 1500 });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Failed to update narration.';
+    toast({ message, variant: 'error' });
+  }
+}
+
+async function handleDeleteNarration(narrationId: string) {
+  try {
+    await narrationService.deleteNarration(narrationId);
+    narrations.value = (narrations.value as any[]).filter((n) => String(n.id) !== narrationId);
+    toast({ message: 'Narration deleted.', variant: 'success', durationMs: 1500 });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Failed to delete narration.';
+    toast({ message, variant: 'error' });
+  }
+}
+</script>
+
+<template>
+  <div class="w-full bg-black md:min-h-[calc(100dvh-var(--main-nav-height))]">
+    <div class="container-lg py-6 pb-20 text-white space-y-4">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <div class="text-2xl font-semibold">Review</div>
+          <div class="mt-1 text-sm text-white/60">
+            Full-match review with coach narrations
+          </div>
+        </div>
+
+        <div class="text-right">
+          <div class="text-xs text-white/50">Time</div>
+          <div class="text-sm tabular-nums">{{ timeLabel }}</div>
+        </div>
+      </div>
+
+      <div v-if="loading" class="rounded-lg border border-white/10 bg-white/5 p-6 text-white/70">
+        Loading media…
+      </div>
+
+      <div v-else-if="error" class="rounded-lg border border-white/10 bg-white/5 p-6 text-rose-200">
+        {{ error }}
+      </div>
+
+      <div v-else class="grid grid-cols-1 gap-4 md:grid-cols-5">
+        <!-- Player column -->
+        <div class="md:col-span-3 space-y-3">
+          <div class="overflow-hidden rounded-xl bg-white/5 ring-1 ring-white/10">
+            <div class="relative aspect-video bg-black">
+              <HlsSurfacePlayer
+                ref="playerRef"
+                :src="playlistUrl"
+                :autoplay="false"
+                class="h-full w-full"
+                @timeupdate="handleTimeupdate"
+                @loadedmetadata="handleLoadedMetadata"
+                @play="handlePlay"
+                @pause="handlePause"
+                @error="(m) => (error = m)"
+              />
+
+              <FeedGestureLayer @tap="onTap" @swipeDown="() => {}" @swipeUp="() => {}">
+                <!-- Reuse feed overlay controls as a minimal transport + scrubber -->
+                <FeedOverlayControls
+                  :visible="overlayVisible"
+                  :is-playing="isPlaying"
+                  :progress01="progress01"
+                  :can-prev="false"
+                  :can-next="false"
+                  :show-restart="false"
+                  :current-seconds="currentTime"
+                  :duration-seconds="duration"
+                  @togglePlay="togglePlay"
+                  @prev="() => {}"
+                  @next="() => {}"
+                  @restart="() => scrubToSeconds(0)"
+                  @cc="() => {}"
+                  @settings="() => {}"
+                  @scrubToSeconds="scrubToSeconds"
+                  @scrubStart="() => showOverlay(null)"
+                  @scrubEnd="() => showOverlay(1500)"
+                />
+
+                <NarrationRecorder
+                  :is-recording="recorder.isRecording.value"
+                  :audio-level01="recorder.audioLevel.value"
+                  @toggle="toggleRecord"
+                />
+              </FeedGestureLayer>
+            </div>
+          </div>
+
+          <MediaAssetReviewTimeline
+            :duration-seconds="duration"
+            :current-seconds="currentTime"
+            :segments="segments"
+            :segments-with-narrations="segmentsWithNarrations"
+            @seek="scrubToSeconds"
+          />
+
+          <div v-if="recordError" class="text-xs text-rose-200">
+            {{ recordError }}
+          </div>
+          <div v-else-if="recorder.lastError.value" class="text-xs text-rose-200">
+            {{ recorder.lastError.value }}
+          </div>
+
+          <div class="text-xs text-white/40">
+            Tap video to show controls. Click timeline to seek.
+          </div>
+        </div>
+
+        <!-- Right column: segments + narrations -->
+        <div class="md:col-span-2">
+          <div
+            class="rounded-xl border border-white/10 bg-white/5 p-4 max-h-[60dvh] md:sticky md:top-6 md:max-h-[calc(100dvh-var(--main-nav-height)-3rem)] overflow-y-auto overscroll-contain"
+          >
+            <MediaAssetReviewNarrationList
+              :segments="segments"
+              :narrations="(narrations as any)"
+              :active-segment-id="activeSegmentId"
+              :focused-segment-id="focusedSegmentId"
+              @jumpToSegment="jumpToSegment"
+              @editNarration="handleEditNarration"
+              @deleteNarration="handleDeleteNarration"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>

@@ -154,6 +154,23 @@ export const narrationService = {
   },
 
   /**
+   * Lists all narrations for a media asset (across all segments).
+   */
+  async listNarrationsForMediaAsset(mediaAssetId: string): Promise<Narration[]> {
+    if (!mediaAssetId) return [];
+
+    const rows = await getList<NarrationRow>(
+      supabase
+        .from('narrations')
+        .select('*')
+        .eq('media_asset_id', mediaAssetId)
+        .order('created_at', { ascending: true })
+    );
+
+    return rows.map(toNarration);
+  },
+
+  /**
    * Updates the raw transcript text for an existing narration.
    *
    * Authorization:

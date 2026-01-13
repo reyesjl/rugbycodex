@@ -6,6 +6,11 @@ import type { Narration } from '@/modules/narrations/types/Narration';
 
 export type OptimisticNarration = {
   id: string;
+  org_id: string;
+  media_asset_id: string;
+  media_asset_segment_id: string;
+  author_id: string | null;
+  audio_storage_path: string | null;
   created_at: Date;
   transcript_raw: string;
   status: 'uploading' | 'error';
@@ -70,6 +75,11 @@ export function useNarrationRecorder() {
     const optimisticId = `optimistic-${Date.now()}-${Math.random().toString(16).slice(2)}`;
     const optimistic: OptimisticNarration = {
       id: optimisticId,
+      org_id: ctx.orgId,
+      media_asset_id: ctx.mediaAssetId,
+      media_asset_segment_id: ctx.mediaAssetSegmentId,
+      author_id: null,
+      audio_storage_path: null,
       created_at: new Date(),
       transcript_raw: 'Uploading…',
       status: 'uploading',

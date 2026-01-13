@@ -8,6 +8,8 @@ import { orgRoutes } from './orgRoutes';
 import { adminRoutes } from './adminRoutes';
 import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrganizationStore';
 import { toast } from '@/lib/toast';
+import { hasOrgAccess } from '@/modules/orgs/composables/useOrgCapabilities';
+import type { MembershipRole } from '@/modules/profiles/types';
 
 
 const router = createRouter({
@@ -61,6 +63,24 @@ router.beforeEach(async (to) => {
       return {
         name: 'Organizations',
       };
+    }
+
+    // Optional per-route org role enforcement.
+    // Example: { meta: { minOrgRole: 'staff' } } allows owner/manager/staff.
+    const minOrgRole = (to.meta as any)?.minOrgRole as MembershipRole | undefined;
+    if (minOrgRole) {
+      const role = activeOrganizationStore.orgContext?.membership?.role as MembershipRole | null | undefined;
+      if (!hasOrgAccess(role, minOrgRole)) {
+        toast({
+          variant: 'info',
+          message: 'You do not have permission to access that page.',
+          durationMs: 2500,
+        });
+        return {
+          name: 'OrgOverview',
+          params: { slug: orgSlug },
+        };
+      }
     }
   }
 

@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabaseClient';
 import type { PostgrestError } from '@supabase/supabase-js';
 import type { MediaAssetSegment } from '@/modules/narrations/types/MediaAssetSegment';
 import type { OrgMediaAsset } from '@/modules/media/types/OrgMediaAsset';
+import { requireUserId } from '@/modules/auth/identity';
 
 type SegmentRow = {
   id: string;
@@ -62,6 +63,11 @@ type SegmentOnlyRow = {
   created_at: string | Date | null;
 };
 
+type SegmentDetailRow = SegmentOnlyRow & {
+  source_type?: string | null;
+  created_by_profile_id?: string | null;
+};
+
 export type OrgSegmentFeedItem = {
   segment: MediaAssetSegment;
   asset: OrgMediaAsset;
@@ -92,6 +98,90 @@ function pickRandom<T>(arr: T[]): T | null {
 }
 
 export const segmentService = {
+  async listSegmentsForMediaAsset(mediaAssetId: string): Promise<MediaAssetSegment[]> {
+    if (!mediaAssetId) return [];
+
+    const { data, error } = (await supabase
+      .from('media_asset_segments')
+      .select(
+        'id, media_asset_id, segment_index, start_seconds, end_seconds, created_at, source_type, created_by_profile_id'
+      )
+      .eq('media_asset_id', mediaAssetId)
+      .order('start_seconds', { ascending: true })) as {
+      data: SegmentDetailRow[] | null;
+      error: PostgrestError | null;
+    };
+
+    if (error) throw error;
+    const rows = data ?? [];
+
+    return rows.map((row) => {
+      const segment: MediaAssetSegment = {
+        id: row.id,
+        media_asset_id: row.media_asset_id,
+        segment_index: row.segment_index,
+        start_seconds: row.start_seconds,
+        end_seconds: row.end_seconds,
+        created_at: asDate(row.created_at, 'segment creation'),
+        source_type: (row.source_type as any) ?? null,
+        created_by_profile_id: (row.created_by_profile_id as any) ?? null,
+      };
+      return segment;
+    });
+  },
+
+  async createCoachSegment(input: {
+    mediaAssetId: string;
+    startSeconds: number;
+    endSeconds: number;
+  }): Promise<MediaAssetSegment> {
+    const userId = requireUserId();
+    if (!input.mediaAssetId) throw new Error('Missing mediaAssetId.');
+
+    const startSeconds = Math.max(0, input.startSeconds ?? 0);
+    const endSeconds = Math.max(startSeconds, input.endSeconds ?? startSeconds);
+
+    // Compute next segment_index (best-effort; DB triggers may override).
+    const { data: lastRow, error: lastErr } = (await supabase
+      .from('media_asset_segments')
+      .select('segment_index')
+      .eq('media_asset_id', input.mediaAssetId)
+      .order('segment_index', { ascending: false })
+      .limit(1)
+      .maybeSingle()) as { data: { segment_index: number } | null; error: PostgrestError | null };
+    if (lastErr) throw lastErr;
+    const nextIndex = (lastRow?.segment_index ?? -1) + 1;
+
+    const { data, error } = (await supabase
+      .from('media_asset_segments')
+      .insert({
+        media_asset_id: input.mediaAssetId,
+        segment_index: nextIndex,
+        start_seconds: startSeconds,
+        end_seconds: endSeconds,
+        source_type: 'coach',
+        created_by_profile_id: userId,
+      })
+      .select(
+        'id, media_asset_id, segment_index, start_seconds, end_seconds, created_at, source_type, created_by_profile_id'
+      )
+      .single()) as { data: SegmentDetailRow | null; error: PostgrestError | null };
+
+    if (error) throw error;
+    if (!data) throw new Error('Failed to create segment.');
+
+    return {
+      id: data.id,
+      media_asset_id: data.media_asset_id,
+      segment_index: data.segment_index,
+      start_seconds: data.start_seconds,
+      end_seconds: data.end_seconds,
+      created_at: asDate(data.created_at, 'segment creation'),
+      source_type: (data.source_type as any) ?? 'coach',
+      created_by_profile_id: (data.created_by_profile_id as any) ?? userId,
+    };
+  },
+
   async listFeedItemsForOrg(
     orgId: string,
     options?: { maxRows?: number }

@@ -18,7 +18,7 @@ const props = defineProps<{
   };
 }>();
 
-const emit = defineEmits(['open', 'delete', 'reattach', 'edit']);
+const emit = defineEmits(['open', 'review', 'delete', 'reattach', 'edit']);
 
 const statusDisplay = computed(() => getMediaAssetStatusDisplay(props.asset.status));
 
@@ -116,6 +116,13 @@ function handleEdit() {
   if (!canManage.value) return;
   closeMenu();
   emit('edit', props.asset.id);
+}
+
+function handleReview() {
+  if (!canManage.value) return;
+  if (!isInteractive.value) return;
+  closeMenu();
+  emit('review', props.asset.id);
 }
 
 function handleDelete() {
@@ -242,6 +249,14 @@ function clipTitle(fileName: string) {
               class="absolute right-0 bottom-full mb-2 min-w-28 rounded-md border border-white/20 bg-black text-white shadow-none"
               @click.stop
             >
+              <button
+                type="button"
+                class="w-full px-3 py-2 text-left text-xs hover:bg-white/10 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                :disabled="!isInteractive"
+                @click="handleReview"
+              >
+                Review
+              </button>
               <button
                 type="button"
                 class="w-full px-3 py-2 text-left text-xs hover:bg-white/10 transition"
