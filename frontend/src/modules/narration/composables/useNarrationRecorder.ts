@@ -72,6 +72,10 @@ export function useNarrationRecorder() {
 
     const blobPromise = audio.stopRecordingAndGetBlob();
 
+    const ctx = context.value;
+    context.value = null;
+    isUploading.value = true;
+
     const optimisticId = `optimistic-${Date.now()}-${Math.random().toString(16).slice(2)}`;
     const optimistic: OptimisticNarration = {
       id: optimisticId,
@@ -84,10 +88,6 @@ export function useNarrationRecorder() {
       transcript_raw: 'Uploading…',
       status: 'uploading',
     };
-
-    const ctx = context.value;
-    context.value = null;
-    isUploading.value = true;
 
     const promise = (async () => {
       try {
