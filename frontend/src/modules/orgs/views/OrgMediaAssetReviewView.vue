@@ -63,6 +63,34 @@ const currentTime = ref(0);
 const duration = ref(0);
 const isPlaying = ref(false);
 
+// Volume (YouTube-style)
+const volume01 = ref(1);
+const muted = ref(false);
+const volumeBeforeMute01 = ref(0.7);
+
+function applyVolumeToPlayer() {
+  playerRef.value?.setMuted?.(muted.value);
+  playerRef.value?.setVolume01?.(volume01.value);
+}
+
+function toggleMute() {
+  if (muted.value || volume01.value <= 0) {
+    muted.value = false;
+    if (volume01.value <= 0) volume01.value = volumeBeforeMute01.value || 0.7;
+  } else {
+    if (volume01.value > 0) volumeBeforeMute01.value = volume01.value;
+    muted.value = true;
+  }
+  applyVolumeToPlayer();
+}
+
+function setVolume(next: number) {
+  const v = Math.max(0, Math.min(1, next));
+  volume01.value = v;
+  muted.value = v <= 0;
+  applyVolumeToPlayer();
+}
+
 // Overlay visibility (reused pattern from FeedItem)
 const overlayVisible = ref(false);
 let overlayTimer: number | null = null;
@@ -211,7 +239,23 @@ function handleTimeupdate(p: { currentTime: number; duration: number }) {
 
 function handleLoadedMetadata(p: { duration: number }) {
   if (p.duration) duration.value = p.duration;
+
+  // Sync volume state from the actual video element once it's available.
+  const currentVol = playerRef.value?.getVolume01?.();
+  const currentMuted = playerRef.value?.getMuted?.();
+  if (typeof currentVol === 'number') {
+    volume01.value = Math.max(0, Math.min(1, currentVol));
+    if (volume01.value > 0) volumeBeforeMute01.value = volume01.value;
+  }
+  if (typeof currentMuted === 'boolean') {
+    muted.value = currentMuted;
+  }
+  applyVolumeToPlayer();
 }
+
+watch([volume01, muted], () => {
+  applyVolumeToPlayer();
+});
 
 function handlePlay() {
   isPlaying.value = true;
@@ -455,6 +499,8 @@ async function handleDeleteNarration(narrationId: string) {
                   :show-restart="false"
                   :current-seconds="currentTime"
                   :duration-seconds="duration"
+                  :volume01="volume01"
+                  :muted="muted"
                   @togglePlay="togglePlay"
                   @prev="() => {}"
                   @next="() => {}"
@@ -464,6 +510,8 @@ async function handleDeleteNarration(narrationId: string) {
                   @scrubToSeconds="scrubToSeconds"
                   @scrubStart="() => showOverlay(null)"
                   @scrubEnd="() => showOverlay(1500)"
+                  @setVolume01="setVolume"
+                  @toggleMute="toggleMute"
                 />
 
                 <div

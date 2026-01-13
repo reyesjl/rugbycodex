@@ -130,6 +130,40 @@ function setCurrentTime(seconds: number): void {
   video.currentTime = clamped;
 }
 
+function clamp(n: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, n));
+}
+
+function getVolume01(): number {
+  const video = videoEl.value;
+  return video?.volume ?? 1;
+}
+
+function setVolume01(volume01: number): void {
+  const video = videoEl.value;
+  if (!video) return;
+  try {
+    video.volume = clamp(volume01, 0, 1);
+  } catch {
+    // Some environments may block programmatic volume changes.
+  }
+}
+
+function getMuted(): boolean {
+  const video = videoEl.value;
+  return video?.muted ?? false;
+}
+
+function setMuted(muted: boolean): void {
+  const video = videoEl.value;
+  if (!video) return;
+  try {
+    video.muted = Boolean(muted);
+  } catch {
+    // ignore
+  }
+}
+
 function onTimeUpdate() {
   const video = videoEl.value;
   if (!video) return;
@@ -266,6 +300,10 @@ defineExpose({
   getCurrentTime,
   getDuration,
   setCurrentTime,
+  getVolume01,
+  setVolume01,
+  getMuted,
+  setMuted,
   getVideoElement: () => videoEl.value,
 });
 </script>

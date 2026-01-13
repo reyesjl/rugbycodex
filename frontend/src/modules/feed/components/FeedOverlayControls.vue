@@ -13,9 +13,14 @@ const props = withDefaults(defineProps<{
   currentSeconds?: number;
   /** segment-relative duration (seconds) */
   durationSeconds?: number;
+  /** 0..1 */
+  volume01?: number;
+  muted?: boolean;
 }>(), {
   currentSeconds: 0,
   durationSeconds: 0,
+  volume01: 1,
+  muted: false,
 });
 
 const emit = defineEmits<{
@@ -28,6 +33,8 @@ const emit = defineEmits<{
   (e: 'scrubToSeconds', seconds: number): void;
   (e: 'scrubStart'): void;
   (e: 'scrubEnd'): void;
+  (e: 'setVolume01', volume01: number): void;
+  (e: 'toggleMute'): void;
 }>();
 
 const barEl = ref<HTMLDivElement | null>(null);
@@ -64,6 +71,22 @@ function formatTime(seconds: number): string {
 function clamp(n: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, n));
 }
+
+function onVolumeInput(e: Event) {
+  const el = e.target as HTMLInputElement | null;
+  if (!el) return;
+  const n = Number(el.value);
+  if (!Number.isFinite(n)) return;
+  emit('setVolume01', clamp(n, 0, 1));
+}
+
+const volumeIcon = computed(() => {
+  const v = props.volume01 ?? 1;
+  const muted = Boolean(props.muted);
+  if (muted || v <= 0) return 'carbon:volume-mute';
+  if (v < 0.5) return 'carbon:volume-down';
+  return 'carbon:volume-up';
+});
 
 function pctToSeconds(pct01: number): number {
   const d = props.durationSeconds ?? 0;
@@ -127,7 +150,7 @@ function endScrub(e: PointerEvent) {
       <div class="absolute right-3 top-3 flex items-center gap-2">
         <button
           type="button"
-          class="rounded-full bg-black/35 p-2 text-white/90 ring-1 ring-white/10 hover:bg-black/45"
+          class="rounded-full bg-black/25 p-1.5 text-white/90 ring-1 ring-white/10 hover:bg-black/35"
           @click.stop="emit('cc')"
           title="Captions (placeholder)"
         >
@@ -135,7 +158,7 @@ function endScrub(e: PointerEvent) {
         </button>
         <button
           type="button"
-          class="rounded-full bg-black/35 p-2 text-white/90 ring-1 ring-white/10 hover:bg-black/45"
+          class="rounded-full bg-black/25 p-1.5 text-white/90 ring-1 ring-white/10 hover:bg-black/35"
           @click.stop="emit('settings')"
           title="Settings (placeholder)"
         >
@@ -143,12 +166,12 @@ function endScrub(e: PointerEvent) {
         </button>
       </div>
 
-      <!-- Center cluster (prev / play / next) -->
+      <!-- Center cluster (prev / next) -->
       <div class="absolute inset-0 flex items-center justify-center">
-        <div class="flex items-center gap-6">
+        <div class="flex items-center gap-8">
           <button
             type="button"
-            class="rounded-full bg-black/45 p-3 text-white ring-1 ring-white/10 hover:bg-black/55 disabled:opacity-40 sm:p-4"
+            class="rounded-full bg-black/30 p-2.5 text-white ring-1 ring-white/10 hover:bg-black/40 disabled:opacity-40 sm:p-3"
             :disabled="!canPrev"
             @click.stop="emit('prev')"
             title="Previous clip"
@@ -159,27 +182,7 @@ function endScrub(e: PointerEvent) {
 
           <button
             type="button"
-            class="rounded-full bg-black/55 p-4 text-white ring-1 ring-white/10 hover:bg-black/65 sm:p-5"
-            @click.stop="emit('togglePlay')"
-            :title="isPlaying ? 'Pause' : 'Play'"
-          >
-            <Icon
-              :icon="isPlaying ? 'carbon:pause' : (showRestart ? 'carbon:restart' : 'carbon:play')"
-              width="24"
-              height="24"
-              class="sm:hidden"
-            />
-            <Icon
-              :icon="isPlaying ? 'carbon:pause' : (showRestart ? 'carbon:restart' : 'carbon:play')"
-              width="28"
-              height="28"
-              class="hidden sm:inline"
-            />
-          </button>
-
-          <button
-            type="button"
-            class="rounded-full bg-black/45 p-3 text-white ring-1 ring-white/10 hover:bg-black/55 disabled:opacity-40 sm:p-4"
+            class="rounded-full bg-black/30 p-2.5 text-white ring-1 ring-white/10 hover:bg-black/40 disabled:opacity-40 sm:p-3"
             :disabled="!canNext"
             @click.stop="emit('next')"
             title="Next clip"
@@ -190,8 +193,47 @@ function endScrub(e: PointerEvent) {
         </div>
       </div>
 
-      <!-- Bottom progress (scrubbable, segment-relative) -->
-      <div class="absolute bottom-2 left-3 right-3">
+      <!-- Bottom controls (YouTube-style) -->
+      <div class="absolute bottom-3 left-3 right-3 flex items-center justify-start gap-3">
+        <div class="flex items-center gap-2">
+          <button
+            type="button"
+            class="rounded-full bg-black/35 p-1.5 text-white ring-1 ring-white/10 hover:bg-black/45"
+            @click.stop="emit('togglePlay')"
+            :title="isPlaying ? 'Pause' : (showRestart ? 'Restart' : 'Play')"
+          >
+            <Icon :icon="isPlaying ? 'carbon:pause' : (showRestart ? 'carbon:restart' : 'carbon:play')" width="22" height="22" />
+          </button>
+
+          <div class="ml-2 flex items-center rounded-full bg-black/25 px-1.5 py-0.5 ring-1 ring-white/10">
+            <button
+              type="button"
+              class="rounded-full p-1.5 text-white/90 hover:bg-black/35"
+              @click.stop="emit('toggleMute')"
+              :title="(muted || (volume01 ?? 0) <= 0) ? 'Unmute' : 'Mute'"
+            >
+              <Icon :icon="volumeIcon" width="18" height="18" />
+            </button>
+
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.01"
+              class="hidden sm:block w-24 h-1 accent-white"
+              :value="(muted ? 0 : (volume01 ?? 1))"
+              @input.stop="onVolumeInput"
+            />
+          </div>
+
+          <div class="ml-2 inline-flex items-center rounded-full bg-black/25 px-2 py-3 text-xs leading-none text-white/85 tabular-nums ring-1 ring-white/10">
+            {{ formatTime(effectiveCurrent) }} / {{ formatTime(durationSeconds ?? 0) }}
+          </div>
+        </div>
+      </div>
+
+      <!-- Progress (scrubbable, segment-relative) ABOVE the control row -->
+      <div class="absolute bottom-12 left-3 right-3">
         <div
           ref="barEl"
           class="relative h-8 flex items-center"

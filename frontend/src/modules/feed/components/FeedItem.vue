@@ -92,6 +92,34 @@ const hasSeekedToStart = ref(false);
 const endedWithinSegment = ref(false);
 const suppressEndClampUntilMs = ref(0);
 
+// Volume (YouTube-style)
+const volume01 = ref(1);
+const muted = ref(false);
+const volumeBeforeMute01 = ref(0.7);
+
+function applyVolumeToPlayer() {
+  playerRef.value?.setMuted?.(muted.value);
+  playerRef.value?.setVolume01?.(volume01.value);
+}
+
+function toggleMute() {
+  if (muted.value || volume01.value <= 0) {
+    muted.value = false;
+    if (volume01.value <= 0) volume01.value = volumeBeforeMute01.value || 0.7;
+  } else {
+    if (volume01.value > 0) volumeBeforeMute01.value = volume01.value;
+    muted.value = true;
+  }
+  applyVolumeToPlayer();
+}
+
+function setVolume(next: number) {
+  const v = Math.max(0, Math.min(1, next));
+  volume01.value = v;
+  muted.value = v <= 0;
+  applyVolumeToPlayer();
+}
+
 const END_EPSILON_SECONDS = 0.05;
 
 const segmentStart = computed(() => Math.max(0, props.feedItem.startSeconds ?? 0));
@@ -224,6 +252,19 @@ function handleLoadedMetadata(p: { duration: number }) {
   duration.value = p.duration;
   hasSeekedToStart.value = false;
   endedWithinSegment.value = false;
+
+  // Sync volume state from the actual video element once it's available.
+  const currentVol = playerRef.value?.getVolume01?.();
+  const currentMuted = playerRef.value?.getMuted?.();
+  if (typeof currentVol === 'number') {
+    volume01.value = Math.max(0, Math.min(1, currentVol));
+    if (volume01.value > 0) volumeBeforeMute01.value = volume01.value;
+  }
+  if (typeof currentMuted === 'boolean') {
+    muted.value = currentMuted;
+  }
+  applyVolumeToPlayer();
+
   if (!props.isActive) return;
   const start = props.feedItem.startSeconds ?? 0;
   if (start > 0) {
@@ -232,6 +273,10 @@ function handleLoadedMetadata(p: { duration: number }) {
     playerRef.value?.setCurrentTime(start);
   }
 }
+
+watch([volume01, muted], () => {
+  applyVolumeToPlayer();
+});
 
 function handlePlay() {
   isPlaying.value = true;
@@ -527,6 +572,8 @@ function handleBuffering(next: boolean) {
               :can-prev="canPrev"
               :can-next="canNext"
               :show-restart="endedWithinSegment"
+              :volume01="volume01"
+              :muted="muted"
               @togglePlay="togglePlay"
               @prev="emit('prev')"
               @next="emit('next')"
@@ -534,6 +581,8 @@ function handleBuffering(next: boolean) {
               @scrubStart="onScrubStart"
               @scrubEnd="onScrubEnd"
               @scrubToSeconds="scrubToSegmentSeconds"
+              @setVolume01="setVolume"
+              @toggleMute="toggleMute"
             />
 
             <div
