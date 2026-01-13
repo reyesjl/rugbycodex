@@ -491,7 +491,7 @@ async function handleDeleteNarration(narrationId: string) {
             :default-source-type="isStaffOrAbove ? 'coach' : 'member'"
             :can-moderate-narrations="isStaffOrAbove"
             :current-user-id="currentUserId"
-            @jumpToSegment="jumpToSegment"
+            @jumpToSegment="(seg) => { jumpToSegment(seg); narrationsDrawerOpen = false; }"
             @editNarration="handleEditNarration"
             @deleteNarration="handleDeleteNarration"
           />

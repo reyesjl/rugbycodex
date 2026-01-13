@@ -22,6 +22,7 @@ const emit = defineEmits<{
   (e: 'submitText', text: string): void;
   (e: 'updateText', payload: { id: string; transcriptRaw: string }): void;
   (e: 'delete', id: string): void;
+  (e: 'selectNarration', id: string): void;
 }>();
 
 function isOptimistic(item: NarrationListItem): item is Exclude<NarrationListItem, Narration> {
@@ -129,6 +130,7 @@ function submit() {
         v-for="item in narrations"
         :key="item.id"
         class="rounded-xl border border-white/10 bg-white/5 p-3"
+        @click="emit('selectNarration', item.id)"
       >
         <div class="flex items-start justify-between gap-3">
           <div class="text-[11px] text-white/50">
@@ -145,7 +147,7 @@ function submit() {
               type="button"
               class="text-[11px] text-white/60 hover:text-white"
               :disabled="saving"
-              @click="beginEdit(item)"
+              @click.stop="beginEdit(item)"
             >
               Edit
             </button>
@@ -153,7 +155,7 @@ function submit() {
               type="button"
               class="text-[11px] text-red-300/80 hover:text-red-200"
               :disabled="saving"
-              @click="requestDelete(item)"
+              @click.stop="requestDelete(item)"
             >
               Trash
             </button>
@@ -166,13 +168,14 @@ function submit() {
             rows="3"
             class="w-full resize-none rounded-lg bg-black/20 p-2 text-sm text-white placeholder-white/40 ring-1 ring-white/10 focus:outline-none"
             :disabled="saving"
+            @click.stop
           />
           <div class="mt-2 flex items-center justify-end gap-2">
             <button
               type="button"
               class="rounded-md px-3 py-1 text-xs text-white/70 ring-1 ring-white/10 hover:bg-white/5"
               :disabled="saving"
-              @click="cancelEdit"
+              @click.stop="cancelEdit"
             >
               Cancel
             </button>
@@ -180,7 +183,7 @@ function submit() {
               type="button"
               class="rounded-md px-3 py-1 text-xs text-black bg-white hover:bg-white/90"
               :disabled="saving || !editDraft.trim()"
-              @click="saveEdit"
+              @click.stop="saveEdit"
             >
               Save
             </button>

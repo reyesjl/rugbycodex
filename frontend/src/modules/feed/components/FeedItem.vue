@@ -543,6 +543,7 @@ function onTap() {
           @submitText="submitTypedNarration"
           @delete="onDeleteNarration"
           @updateText="onUpdateNarrationText"
+          @selectNarration="() => { narrationsDrawerOpen = false; }"
         />
       </div>
     </div>

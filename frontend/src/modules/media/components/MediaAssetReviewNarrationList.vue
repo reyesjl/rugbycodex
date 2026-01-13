@@ -276,6 +276,7 @@ function formatCreatedAt(value: any): string {
               v-for="n in visibleNarrationsForSegment(String(seg.id))"
               :key="String((n as any).id)"
               class="rounded-md bg-black/25 ring-1 ring-white/5 p-2 transition cursor-pointer hover:bg-black/30 hover:ring-white/10"
+              @click="emit('jumpToSegment', seg)"
             >
               <div class="flex items-start justify-between gap-3">
                 <div class="text-[11px] text-white/40">
@@ -309,6 +310,7 @@ function formatCreatedAt(value: any): string {
                   v-model="editingText"
                   rows="3"
                   class="w-full rounded-md bg-black/30 ring-1 ring-white/10 px-2 py-1 text-sm text-white placeholder:text-white/30"
+                  @click.stop
                 />
                 <div class="flex items-center justify-end gap-2">
                   <button
