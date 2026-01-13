@@ -7,7 +7,7 @@ import { onBeforeUnmount, ref } from 'vue';
  */
 
 const emit = defineEmits<{
-  (e: 'tap'): void;
+  (e: 'tap', payload: { pointerType: PointerEvent['pointerType'] }): void;
   (e: 'swipeUp'): void;
   (e: 'swipeDown'): void;
 }>();
@@ -18,12 +18,22 @@ const pointerDown = ref(false);
 let startX = 0;
 let startY = 0;
 let startAt = 0;
+let startPointerType: PointerEvent['pointerType'] = 'touch';
+
+function shouldIgnoreGestureTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return false;
+  return Boolean(target.closest('button, a, input, textarea, select, [role="button"], [data-gesture-ignore]'));
+}
 
 function onPointerDown(e: PointerEvent) {
+  // If the user is interacting with overlay controls (buttons, inputs, etc),
+  // don't treat it as a tap/swipe on the video surface.
+  if (shouldIgnoreGestureTarget(e.target)) return;
   pointerDown.value = true;
   startX = e.clientX;
   startY = e.clientY;
   startAt = Date.now();
+  startPointerType = e.pointerType;
 }
 
 function onPointerMove() {
@@ -49,7 +59,7 @@ function finishPointer(e: PointerEvent) {
 
   // Tap (quick, minimal movement)
   if (elapsed < 500 && absX < SWIPE_PX && absY < SWIPE_PX) {
-    emit('tap');
+    emit('tap', { pointerType: startPointerType });
   }
 }
 

@@ -24,7 +24,7 @@ function barHeight(i: number, level: number): string {
       <!-- Always-visible floating record button -->
       <button
         type="button"
-        class="flex h-12 w-12 items-center justify-center rounded-full bg-black/40 ring-1 ring-white/15 backdrop-blur hover:bg-black/50"
+        class="flex h-12 w-12 items-center justify-center rounded-full bg-black/40 ring-1 ring-white/15 backdrop-blur hover:bg-black/50 cursor-pointer"
         @click.stop="emit('toggle')"
         :title="isRecording ? 'Stop narration' : 'Record narration'"
       >

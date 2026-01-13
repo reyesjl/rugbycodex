@@ -39,10 +39,34 @@ const videoEl = computed(() => playerRef.value?.getVideoElement() ?? null);
 
 const isBuffering = ref(false);
 
+let bufferingTimer: number | null = null;
+let lastTimeUpdateSeconds = 0;
+
+function cancelBufferingTimer() {
+  if (bufferingTimer === null) return;
+  window.clearTimeout(bufferingTimer);
+  bufferingTimer = null;
+}
+
 function setBuffering(next: boolean) {
   if (isBuffering.value === next) return;
   isBuffering.value = next;
   emit('buffering', next);
+}
+
+function requestBuffering() {
+  // Some browsers fire transient `waiting`/`stalled` even while playback
+  // continues smoothly. Debounce so we only show buffering if it persists.
+  if (bufferingTimer !== null) return;
+  bufferingTimer = window.setTimeout(() => {
+    bufferingTimer = null;
+    const video = videoEl.value;
+    if (!video) return;
+    if (video.paused || video.ended) return;
+    // HAVE_FUTURE_DATA (3) means enough buffered to keep playing.
+    if ((video.readyState ?? 0) >= 3) return;
+    setBuffering(true);
+  }, 200);
 }
 
 let pendingSeekSeconds: number | null = null;
@@ -109,6 +133,15 @@ function setCurrentTime(seconds: number): void {
 function onTimeUpdate() {
   const video = videoEl.value;
   if (!video) return;
+  // If time is still advancing, we are not buffering.
+  if (isBuffering.value) {
+    const t = video.currentTime || 0;
+    if (t > lastTimeUpdateSeconds + 0.02) {
+      cancelBufferingTimer();
+      setBuffering(false);
+    }
+  }
+  lastTimeUpdateSeconds = video.currentTime || 0;
   emit('timeupdate', { currentTime: video.currentTime || 0, duration: video.duration || 0 });
 }
 
@@ -135,35 +168,39 @@ function onPlay() {
 
 function onPause() {
   emit('pause');
+  cancelBufferingTimer();
   setBuffering(false);
 }
 
 function onWaiting() {
   // `waiting` fires when playback has stopped because data is not available.
   // Show a simple spinner overlay so the user understands what's happening.
-  setBuffering(true);
+  requestBuffering();
 }
 
 function onStalled() {
   // Network stall; show buffering until we can play again.
-  setBuffering(true);
+  requestBuffering();
 }
 
 function onSeeking() {
   // Seeking often causes a brief rebuffer; treat it as buffering.
-  setBuffering(true);
+  requestBuffering();
 }
 
 function onCanPlay() {
   // Enough data to play.
+  cancelBufferingTimer();
   setBuffering(false);
 }
 
 function onPlaying() {
+  cancelBufferingTimer();
   setBuffering(false);
 }
 
 function onEnded() {
+  cancelBufferingTimer();
   setBuffering(false);
 }
 
@@ -211,11 +248,14 @@ watch(
   () => props.src,
   () => {
     pendingSeekSeconds = null;
+    cancelBufferingTimer();
+    lastTimeUpdateSeconds = 0;
     setBuffering(false);
   }
 );
 
 onBeforeUnmount(() => {
+  cancelBufferingTimer();
   bindVideoListeners(null, videoEl.value);
 });
 

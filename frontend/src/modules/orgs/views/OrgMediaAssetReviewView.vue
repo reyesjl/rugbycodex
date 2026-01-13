@@ -57,6 +57,7 @@ const playerRef = ref<InstanceType<typeof HlsSurfacePlayer> | null>(null);
 
 const isBuffering = ref(false);
 const suppressBufferingUntilMs = ref(0);
+const suppressOverlayRevealUntilMs = ref(0);
 
 const currentTime = ref(0);
 const duration = ref(0);
@@ -81,6 +82,28 @@ function hideOverlay() {
     window.clearTimeout(overlayTimer);
     overlayTimer = null;
   }
+}
+
+function isMousePointer(e: PointerEvent): boolean {
+  return e.pointerType === 'mouse';
+}
+
+function onHoverMove(e: PointerEvent) {
+  if (!isMousePointer(e)) return;
+  if (isBuffering.value) return;
+  if (Date.now() < suppressOverlayRevealUntilMs.value) return;
+  showOverlay(null);
+}
+
+function onHoverLeave(e: PointerEvent) {
+  if (!isMousePointer(e)) return;
+  if (isBuffering.value) return;
+  showOverlay(800);
+}
+
+function onNarrationButtonHoverEnter(e: PointerEvent) {
+  if (!isMousePointer(e)) return;
+  hideOverlay();
 }
 
 onBeforeUnmount(() => {
@@ -200,7 +223,16 @@ function handlePause() {
 }
 
 function togglePlay() {
-  showOverlay();
+  // UX: when the user presses Play, dismiss controls immediately.
+  // When pausing, keep controls visible so they can act.
+  const video = playerRef.value?.getVideoElement?.() ?? null;
+  const willPlay = video ? video.paused : !isPlaying.value;
+  if (willPlay) {
+    hideOverlay();
+    // After pressing play, ignore mouse-move reveal for a moment.
+    suppressOverlayRevealUntilMs.value = Date.now() + 600;
+  }
+  else showOverlay(null);
   playerRef.value?.togglePlayback();
 }
 
@@ -209,8 +241,15 @@ function scrubToSeconds(seconds: number) {
   playerRef.value?.setCurrentTime(seconds);
 }
 
-function onTap() {
+function onTap(payload: { pointerType: PointerEvent['pointerType'] }) {
   if (isBuffering.value) return;
+  // Desktop: click toggles play/pause.
+  // Mobile: tap toggles controls visibility (only way to show controls).
+  if (payload.pointerType === 'mouse') {
+    togglePlay();
+    return;
+  }
+
   if (overlayVisible.value) hideOverlay();
   else showOverlay();
 }
@@ -387,7 +426,11 @@ async function handleDeleteNarration(narrationId: string) {
           <!-- Mobile: full-bleed video surface (like Feed); md+: rounded container -->
           <div class="-mx-4 md:mx-0">
             <div class="overflow-hidden bg-black ring-1 ring-white/10 md:rounded-xl md:bg-white/5">
-              <div class="relative aspect-video bg-black">
+              <div
+                class="relative aspect-video bg-black"
+                @pointermove="onHoverMove"
+                @pointerleave="onHoverLeave"
+              >
               <HlsSurfacePlayer
                 ref="playerRef"
                 :src="playlistUrl"
@@ -423,12 +466,19 @@ async function handleDeleteNarration(narrationId: string) {
                   @scrubEnd="() => showOverlay(1500)"
                 />
 
-                <NarrationRecorder
+                <div
                   v-show="!isBuffering"
-                  :is-recording="recorder.isRecording.value"
-                  :audio-level01="recorder.audioLevel.value"
-                  @toggle="toggleRecord"
-                />
+                  data-gesture-ignore
+                  @pointerenter.stop="onNarrationButtonHoverEnter"
+                  @pointermove.stop
+                  @pointerleave.stop
+                >
+                  <NarrationRecorder
+                    :is-recording="recorder.isRecording.value"
+                    :audio-level01="recorder.audioLevel.value"
+                    @toggle="toggleRecord"
+                  />
+                </div>
               </FeedGestureLayer>
 
               <!-- Buffering overlay: sits above ALL controls -->
@@ -463,7 +513,7 @@ async function handleDeleteNarration(narrationId: string) {
           </div>
 
           <div class="text-xs text-white/40">
-            Tap video to show controls. Click timeline to seek.
+            Tap video to play/pause. Click timeline to seek.
           </div>
         </div>
 

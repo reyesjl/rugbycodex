@@ -39,6 +39,15 @@ const effectiveCurrent = computed(() => {
   return scrubbing.value ? scrubSeconds.value : (props.currentSeconds ?? 0);
 });
 
+const effectiveProgress01 = computed(() => {
+  const d = props.durationSeconds ?? 0;
+  if (scrubbing.value) {
+    if (!d) return 0;
+    return Math.min(1, Math.max(0, scrubSeconds.value / d));
+  }
+  return Math.min(1, Math.max(0, props.progress01 ?? 0));
+});
+
 const thumbLeftPct = computed(() => {
   const d = props.durationSeconds ?? 0;
   if (!d) return 0;
@@ -61,16 +70,16 @@ function pctToSeconds(pct01: number): number {
   return clamp(pct01, 0, 1) * d;
 }
 
-function updateFromEvent(e: PointerEvent) {
+function updateFromEvent(e: PointerEvent): number {
   const el = barEl.value;
-  if (!el) return;
+  if (!el) return scrubSeconds.value;
   const rect = el.getBoundingClientRect();
-  if (!rect.width) return;
+  if (!rect.width) return scrubSeconds.value;
   const x = clamp(e.clientX - rect.left, 0, rect.width);
   const pct01 = x / rect.width;
   const seconds = pctToSeconds(pct01);
   scrubSeconds.value = seconds;
-  emit('scrubToSeconds', seconds);
+  return seconds;
 }
 
 function onPointerDown(e: PointerEvent) {
@@ -95,10 +104,11 @@ function onPointerMove(e: PointerEvent) {
 
 function endScrub(e: PointerEvent) {
   if (!scrubbing.value) return;
-  updateFromEvent(e);
+  const seconds = updateFromEvent(e);
   scrubbing.value = false;
   activePointerId.value = null;
   (e.currentTarget as HTMLElement | null)?.releasePointerCapture?.(e.pointerId);
+  emit('scrubToSeconds', seconds);
   emit('scrubEnd');
 }
 </script>
@@ -185,6 +195,7 @@ function endScrub(e: PointerEvent) {
         <div
           ref="barEl"
           class="relative h-8 flex items-center"
+          :class="scrubbing ? 'cursor-grabbing' : 'cursor-grab'"
           style="touch-action: none"
           @pointerdown.stop="onPointerDown"
           @pointermove.stop="onPointerMove"
@@ -196,7 +207,7 @@ function endScrub(e: PointerEvent) {
           <div class="h-1 w-full rounded-full bg-white/25">
             <div
               class="h-full rounded-full bg-white/80"
-              :style="{ width: `${Math.min(100, Math.max(0, progress01 * 100))}%` }"
+              :style="{ width: `${Math.min(100, Math.max(0, effectiveProgress01 * 100))}%` }"
             />
           </div>
 

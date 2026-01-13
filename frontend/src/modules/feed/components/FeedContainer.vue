@@ -87,7 +87,7 @@ defineExpose({
 
       <!-- Final completion page (reachable by swiping up past the last clip). -->
       <div class="relative h-full w-full">
-        <FeedGestureLayer @swipeDown="goPrev" @swipeUp="goNext" @tap="() => {}">
+        <FeedGestureLayer @swipeDown="goPrev" @swipeUp="goNext" @tap="(_p) => {}">
           <FeedDoneScreen @back="goPrev" @restart="restart" />
         </FeedGestureLayer>
       </div>
