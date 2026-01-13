@@ -108,7 +108,8 @@ function onHoverMove(e: PointerEvent) {
   if (isBuffering.value) return;
   if (Date.now() < suppressOverlayRevealUntilMs.value) return;
   // Any movement over the surface should reveal controls.
-  showOverlay(null);
+  // Use a timeout so the overlay hides when the mouse becomes idle.
+  showOverlay(2500);
 }
 
 function onHoverLeave(e: PointerEvent) {
@@ -129,6 +130,10 @@ onBeforeUnmount(() => {
     window.clearTimeout(flashTimer);
     flashTimer = null;
   }
+  if (pendingMouseSingleTapTimer !== null) {
+    window.clearTimeout(pendingMouseSingleTapTimer);
+    pendingMouseSingleTapTimer = null;
+  }
   document.removeEventListener('fullscreenchange', syncFullscreenState);
   document.removeEventListener('webkitfullscreenchange' as any, syncFullscreenState);
 });
@@ -141,7 +146,15 @@ onMounted(() => {
 
 // Playback state for overlay
 const isPlaying = ref(false);
-const flashIcon = ref<'play' | 'pause' | null>(null);
+const flashIcon = ref<
+  | 'play'
+  | 'pause'
+  | 'rew5'
+  | 'rew10'
+  | 'ff5'
+  | 'ff10'
+  | null
+>(null);
 let flashTimer: number | null = null;
 
 function flashPlayPause(kind: 'play' | 'pause') {
@@ -150,7 +163,31 @@ function flashPlayPause(kind: 'play' | 'pause') {
   flashTimer = window.setTimeout(() => {
     flashIcon.value = null;
     flashTimer = null;
-  }, 350);
+  }, 180);
+}
+
+function flashSeek(kind: 'ff' | 'rew', amountSeconds: number) {
+  const a = amountSeconds >= 10 ? 10 : 5;
+  flashIcon.value = kind === 'rew'
+    ? (a === 10 ? 'rew10' : 'rew5')
+    : (a === 10 ? 'ff10' : 'ff5');
+  if (flashTimer !== null) window.clearTimeout(flashTimer);
+  flashTimer = window.setTimeout(() => {
+    flashIcon.value = null;
+    flashTimer = null;
+  }, 180);
+}
+
+function seekRelative(deltaSeconds: number) {
+  const t = (playerRef.value?.getCurrentTime?.() ?? currentTime.value ?? 0) + deltaSeconds;
+  const start = segmentStart.value;
+  const end = segmentEnd.value;
+  const d = duration.value ?? 0;
+  const maxEnd = end > start ? end : (d > 0 ? d : Number.POSITIVE_INFINITY);
+  const clamped = Math.max(start, Math.min(maxEnd, Math.max(0, t)));
+  endedWithinSegment.value = false;
+  suppressEndClampUntilMs.value = Date.now() + 750;
+  playerRef.value?.setCurrentTime(clamped);
 }
 const currentTime = ref(0);
 const duration = ref(0);
@@ -582,12 +619,72 @@ async function onUpdateNarrationText(payload: { id: string; transcriptRaw: strin
   }
 }
 
-function onTap(payload: { pointerType: PointerEvent['pointerType'] }) {
+let lastTapAtMs = 0;
+let lastTapSide: 'left' | 'right' | null = null;
+let lastSeekDoubleAtMs = 0;
+let lastSeekSide: 'left' | 'right' | null = null;
+let seekRampLevel = 0; // 0=>5, 1=>10
+let pendingMouseSingleTapTimer: number | null = null;
+
+const DOUBLE_TAP_WINDOW_MS = 280;
+// Only ramp if the user keeps double-clicking quickly.
+const SEEK_RAMP_WINDOW_MS = 450;
+
+watch(overlayVisible, (v) => {
+  // If controls disappear, restart ramp back at 5s.
+  if (v) return;
+  seekRampLevel = 0;
+  lastSeekDoubleAtMs = 0;
+  lastSeekSide = null;
+});
+
+function nextSeekAmountSeconds(nowMs: number, side: 'left' | 'right'): number {
+  const isContinuous = (nowMs - lastSeekDoubleAtMs) <= SEEK_RAMP_WINDOW_MS && lastSeekSide === side;
+  if (!isContinuous) {
+    seekRampLevel = 0;
+  } else {
+    seekRampLevel = Math.min(1, seekRampLevel + 1);
+  }
+  lastSeekDoubleAtMs = nowMs;
+  lastSeekSide = side;
+  return seekRampLevel === 0 ? 5 : 10;
+}
+
+function onTap(payload: { pointerType: PointerEvent['pointerType']; xPct: number; yPct: number }) {
   if (isBuffering.value) return;
-  // Desktop: click toggles play/pause.
-  // Mobile: tap toggles controls visibility (only way to show controls).
+  const now = Date.now();
+  const side: 'left' | 'right' = (payload.xPct ?? 0.5) < 0.5 ? 'left' : 'right';
+  const isDoubleTap = (now - lastTapAtMs) <= DOUBLE_TAP_WINDOW_MS && lastTapSide === side;
+  lastTapAtMs = now;
+  lastTapSide = side;
+
+  // Desktop: single click toggles play/pause. Double click seeks.
   if (payload.pointerType === 'mouse') {
-    togglePlay();
+    if (isDoubleTap) {
+      if (pendingMouseSingleTapTimer !== null) {
+        window.clearTimeout(pendingMouseSingleTapTimer);
+        pendingMouseSingleTapTimer = null;
+      }
+      const amount = nextSeekAmountSeconds(now, side);
+      seekRelative(side === 'left' ? -amount : amount);
+      flashSeek(side === 'left' ? 'rew' : 'ff', amount);
+      return;
+    }
+
+    // Delay single-click so a second click can be treated as a double-click seek.
+    if (pendingMouseSingleTapTimer !== null) window.clearTimeout(pendingMouseSingleTapTimer);
+    pendingMouseSingleTapTimer = window.setTimeout(() => {
+      pendingMouseSingleTapTimer = null;
+      togglePlay();
+    }, DOUBLE_TAP_WINDOW_MS + 20);
+    return;
+  }
+
+  // Touch: single tap toggles overlay, double tap seeks.
+  if (isDoubleTap) {
+    const amount = nextSeekAmountSeconds(now, side);
+    seekRelative(side === 'left' ? -amount : amount);
+    flashSeek(side === 'left' ? 'rew' : 'ff', amount);
     return;
   }
 
@@ -646,9 +743,22 @@ function handleBuffering(next: boolean) {
                 class="pointer-events-none absolute inset-0 z-40 flex items-center justify-center"
                 aria-hidden="true"
               >
-                <div class="rounded-full bg-black/45 backdrop-blur px-5 py-4 ring-1 ring-white/15">
-                  <Icon :icon="flashIcon === 'play' ? 'carbon:play' : 'carbon:pause'" width="44" height="44" class="text-white" />
-                </div>
+                <Icon
+                  :icon="flashIcon === 'play'
+                    ? 'carbon:play'
+                    : flashIcon === 'pause'
+                      ? 'carbon:pause'
+                      : flashIcon === 'rew5'
+                        ? 'carbon:rewind-5'
+                        : flashIcon === 'rew10'
+                          ? 'carbon:rewind-10'
+                          : flashIcon === 'ff5'
+                            ? 'carbon:forward-5'
+                            : 'carbon:forward-10'"
+                  width="52"
+                  height="52"
+                  class="text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.65)]"
+                />
               </div>
             </Transition>
 

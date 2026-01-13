@@ -8,6 +8,7 @@ const props = withDefaults(defineProps<{
   progress01: number; // 0..1
   canPrev: boolean;
   canNext: boolean;
+  showPrevNext?: boolean;
   showRestart?: boolean;
   canFullscreen?: boolean;
   isFullscreen?: boolean;
@@ -25,6 +26,7 @@ const props = withDefaults(defineProps<{
   muted: false,
   canFullscreen: false,
   isFullscreen: false,
+  showPrevNext: true,
 });
 
 const emit = defineEmits<{
@@ -150,7 +152,7 @@ function endScrub(e: PointerEvent) {
     leave-from-class="opacity-100"
     leave-to-class="opacity-0"
   >
-    <div v-if="visible" class="absolute inset-0 bg-black/25 backdrop-blur-[1px]">
+    <div v-if="visible" class="absolute inset-0 bg-black/25"> 
       <!-- Top-right icons (placeholders) -->
       <div class="absolute right-3 top-3 flex items-center gap-2">
         <button
@@ -172,7 +174,7 @@ function endScrub(e: PointerEvent) {
       </div>
 
       <!-- Center cluster (prev / next) -->
-      <div class="absolute inset-0 flex items-center justify-center">
+      <div v-if="showPrevNext" class="absolute inset-0 flex items-center justify-center">
         <div class="flex items-center gap-8">
           <button
             type="button"

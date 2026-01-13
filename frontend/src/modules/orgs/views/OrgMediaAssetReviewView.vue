@@ -106,7 +106,15 @@ const currentTime = ref(0);
 const duration = ref(0);
 const isPlaying = ref(false);
 
-const flashIcon = ref<'play' | 'pause' | null>(null);
+const flashIcon = ref<
+  | 'play'
+  | 'pause'
+  | 'rew5'
+  | 'rew10'
+  | 'ff5'
+  | 'ff10'
+  | null
+>(null);
 let flashTimer: number | null = null;
 
 function flashPlayPause(kind: 'play' | 'pause') {
@@ -115,7 +123,29 @@ function flashPlayPause(kind: 'play' | 'pause') {
   flashTimer = window.setTimeout(() => {
     flashIcon.value = null;
     flashTimer = null;
-  }, 350);
+  }, 180);
+}
+
+function flashSeek(kind: 'ff' | 'rew', amountSeconds: number) {
+  const a = amountSeconds >= 10 ? 10 : 5;
+  flashIcon.value = kind === 'rew'
+    ? (a === 10 ? 'rew10' : 'rew5')
+    : (a === 10 ? 'ff10' : 'ff5');
+  if (flashTimer !== null) window.clearTimeout(flashTimer);
+  flashTimer = window.setTimeout(() => {
+    flashIcon.value = null;
+    flashTimer = null;
+  }, 180);
+}
+
+function seekRelative(deltaSeconds: number) {
+  const t = (playerRef.value?.getCurrentTime?.() ?? currentTime.value ?? 0) + deltaSeconds;
+  const d = duration.value ?? 0;
+  const maxEnd = d > 0 ? d : Number.POSITIVE_INFINITY;
+  const clamped = Math.max(0, Math.min(maxEnd, t));
+  suppressBufferingUntilMs.value = Date.now() + 500;
+  isBuffering.value = false;
+  playerRef.value?.setCurrentTime(clamped);
 }
 
 // Volume (YouTube-style)
@@ -175,7 +205,8 @@ function onHoverMove(e: PointerEvent) {
   if (!isMousePointer(e)) return;
   if (isBuffering.value) return;
   if (Date.now() < suppressOverlayRevealUntilMs.value) return;
-  showOverlay(null);
+  // Use a timeout so the overlay hides when the mouse becomes idle.
+  showOverlay(2500);
 }
 
 function onHoverLeave(e: PointerEvent) {
@@ -194,6 +225,10 @@ onBeforeUnmount(() => {
   if (flashTimer !== null) {
     window.clearTimeout(flashTimer);
     flashTimer = null;
+  }
+  if (pendingMouseSingleTapTimer !== null) {
+    window.clearTimeout(pendingMouseSingleTapTimer);
+    pendingMouseSingleTapTimer = null;
   }
   document.removeEventListener('fullscreenchange', syncFullscreenState);
   document.removeEventListener('webkitfullscreenchange' as any, syncFullscreenState);
@@ -354,12 +389,71 @@ function scrubToSeconds(seconds: number) {
   playerRef.value?.setCurrentTime(seconds);
 }
 
-function onTap(payload: { pointerType: PointerEvent['pointerType'] }) {
+let lastTapAtMs = 0;
+let lastTapSide: 'left' | 'right' | null = null;
+let lastSeekDoubleAtMs = 0;
+let lastSeekSide: 'left' | 'right' | null = null;
+let seekRampLevel = 0; // 0=>5, 1=>10
+let pendingMouseSingleTapTimer: number | null = null;
+
+const DOUBLE_TAP_WINDOW_MS = 280;
+// Only ramp if the user keeps double-clicking quickly.
+const SEEK_RAMP_WINDOW_MS = 450;
+
+watch(overlayVisible, (v) => {
+  // If controls disappear, restart ramp back at 5s.
+  if (v) return;
+  seekRampLevel = 0;
+  lastSeekDoubleAtMs = 0;
+  lastSeekSide = null;
+});
+
+function nextSeekAmountSeconds(nowMs: number, side: 'left' | 'right'): number {
+  const isContinuous = (nowMs - lastSeekDoubleAtMs) <= SEEK_RAMP_WINDOW_MS && lastSeekSide === side;
+  if (!isContinuous) {
+    seekRampLevel = 0;
+  } else {
+    seekRampLevel = Math.min(1, seekRampLevel + 1);
+  }
+  lastSeekDoubleAtMs = nowMs;
+  lastSeekSide = side;
+  return seekRampLevel === 0 ? 5 : 10;
+}
+
+function onTap(payload: { pointerType: PointerEvent['pointerType']; xPct: number; yPct: number }) {
   if (isBuffering.value) return;
-  // Desktop: click toggles play/pause.
-  // Mobile: tap toggles controls visibility (only way to show controls).
+  const now = Date.now();
+  const side: 'left' | 'right' = (payload.xPct ?? 0.5) < 0.5 ? 'left' : 'right';
+  const isDoubleTap = (now - lastTapAtMs) <= DOUBLE_TAP_WINDOW_MS && lastTapSide === side;
+  lastTapAtMs = now;
+  lastTapSide = side;
+
+  // Desktop: single click toggles play/pause. Double click seeks.
   if (payload.pointerType === 'mouse') {
-    togglePlay();
+    if (isDoubleTap) {
+      if (pendingMouseSingleTapTimer !== null) {
+        window.clearTimeout(pendingMouseSingleTapTimer);
+        pendingMouseSingleTapTimer = null;
+      }
+      const amount = nextSeekAmountSeconds(now, side);
+      seekRelative(side === 'left' ? -amount : amount);
+      flashSeek(side === 'left' ? 'rew' : 'ff', amount);
+      return;
+    }
+
+    if (pendingMouseSingleTapTimer !== null) window.clearTimeout(pendingMouseSingleTapTimer);
+    pendingMouseSingleTapTimer = window.setTimeout(() => {
+      pendingMouseSingleTapTimer = null;
+      togglePlay();
+    }, DOUBLE_TAP_WINDOW_MS + 20);
+    return;
+  }
+
+  // Touch: single tap toggles overlay, double tap seeks.
+  if (isDoubleTap) {
+    const amount = nextSeekAmountSeconds(now, side);
+    seekRelative(side === 'left' ? -amount : amount);
+    flashSeek(side === 'left' ? 'rew' : 'ff', amount);
     return;
   }
 
@@ -573,9 +667,22 @@ async function handleDeleteNarration(narrationId: string) {
                     class="pointer-events-none absolute inset-0 z-40 flex items-center justify-center"
                     aria-hidden="true"
                   >
-                    <div class="">
-                      <Icon :icon="flashIcon === 'play' ? 'carbon:play-filled-alt' : 'carbon:pause-filled'" width="44" height="44" class="text-white" />
-                    </div>
+                    <Icon
+                      :icon="flashIcon === 'play'
+                        ? 'carbon:play-filled-alt'
+                        : flashIcon === 'pause'
+                          ? 'carbon:pause-filled'
+                          : flashIcon === 'rew5'
+                            ? 'carbon:rewind-5'
+                            : flashIcon === 'rew10'
+                              ? 'carbon:rewind-10'
+                              : flashIcon === 'ff5'
+                                ? 'carbon:forward-5'
+                                : 'carbon:forward-10'"
+                      width="52"
+                      height="52"
+                      class="text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.65)]"
+                    />
                   </div>
                 </Transition>
 
@@ -586,6 +693,7 @@ async function handleDeleteNarration(narrationId: string) {
                   :progress01="progress01"
                   :can-prev="false"
                   :can-next="false"
+                  :show-prev-next="false"
                   :show-restart="false"
                   :can-fullscreen="canFullscreen"
                   :is-fullscreen="isFullscreen"

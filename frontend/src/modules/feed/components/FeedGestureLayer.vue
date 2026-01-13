@@ -7,7 +7,11 @@ import { onBeforeUnmount, ref } from 'vue';
  */
 
 const emit = defineEmits<{
-  (e: 'tap', payload: { pointerType: PointerEvent['pointerType'] }): void;
+  (e: 'tap', payload: {
+    pointerType: PointerEvent['pointerType'];
+    xPct: number;
+    yPct: number;
+  }): void;
   (e: 'swipeUp'): void;
   (e: 'swipeDown'): void;
 }>();
@@ -44,6 +48,11 @@ function finishPointer(e: PointerEvent) {
   if (!pointerDown.value) return;
   pointerDown.value = false;
 
+  const el = e.currentTarget as HTMLElement | null;
+  const rect = el?.getBoundingClientRect?.() ?? null;
+  const xPct = rect && rect.width ? Math.max(0, Math.min(1, (startX - rect.left) / rect.width)) : 0.5;
+  const yPct = rect && rect.height ? Math.max(0, Math.min(1, (startY - rect.top) / rect.height)) : 0.5;
+
   const dx = e.clientX - startX;
   const dy = e.clientY - startY;
   const absX = Math.abs(dx);
@@ -59,7 +68,7 @@ function finishPointer(e: PointerEvent) {
 
   // Tap (quick, minimal movement)
   if (elapsed < 500 && absX < SWIPE_PX && absY < SWIPE_PX) {
-    emit('tap', { pointerType: startPointerType });
+    emit('tap', { pointerType: startPointerType, xPct, yPct });
   }
 }
 
