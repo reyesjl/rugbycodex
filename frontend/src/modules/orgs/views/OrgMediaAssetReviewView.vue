@@ -330,12 +330,12 @@ async function handleDeleteNarration(narrationId: string) {
 
 <template>
   <div class="w-full bg-black md:min-h-[calc(100dvh-var(--main-nav-height))]">
-    <div class="container-lg py-6 pb-20 text-white space-y-4">
+    <div class="container-lg py-4 pb-20 text-white space-y-4">
       <div class="flex items-start justify-between gap-3">
         <div>
           <div class="text-2xl font-semibold">Review</div>
           <div class="mt-1 text-sm text-white/60">
-            Full-match review with coach narrations
+            Full-match review
           </div>
         </div>
 
@@ -356,8 +356,10 @@ async function handleDeleteNarration(narrationId: string) {
       <div v-else class="grid grid-cols-1 gap-4 md:grid-cols-5">
         <!-- Player column -->
         <div class="md:col-span-3 space-y-3">
-          <div class="overflow-hidden rounded-xl bg-white/5 ring-1 ring-white/10">
-            <div class="relative aspect-video bg-black">
+          <!-- Mobile: full-bleed video surface (like Feed); md+: rounded container -->
+          <div class="-mx-4 md:mx-0">
+            <div class="overflow-hidden bg-black ring-1 ring-white/10 md:rounded-xl md:bg-white/5">
+              <div class="relative aspect-video bg-black">
               <HlsSurfacePlayer
                 ref="playerRef"
                 :src="playlistUrl"
@@ -398,6 +400,7 @@ async function handleDeleteNarration(narrationId: string) {
                   @toggle="toggleRecord"
                 />
               </FeedGestureLayer>
+              </div>
             </div>
           </div>
 
@@ -424,7 +427,7 @@ async function handleDeleteNarration(narrationId: string) {
         <!-- Right column: segments + narrations -->
         <div class="md:col-span-2">
           <div
-            class="rounded-xl border border-white/10 bg-white/5 p-4 max-h-[60dvh] md:sticky md:top-6 md:max-h-[calc(100dvh-var(--main-nav-height)-3rem)] overflow-y-auto overscroll-contain"
+            class="-mx-4 px-4 md:mx-0 md:px-4 bg-black md:rounded-xl md:border md:border-white/10 md:bg-white/5 md:p-4 md:sticky md:top-6 md:max-h-[calc(100dvh-var(--main-nav-height)-3rem)] md:overflow-y-auto overscroll-contain"
           >
             <MediaAssetReviewNarrationList
               :segments="segments"

@@ -240,7 +240,7 @@ function onWheel(e: WheelEvent) {
     <div class="mb-1 flex items-center justify-between text-[11px] text-white/50">
       <div>Timeline</div>
       <div v-if="durationSeconds" class="tabular-nums flex items-center gap-2">
-        <span>{{ Math.round(durationSeconds) }}s</span>
+        <span>{{ (Math.round(durationSeconds) / 60).toFixed() }} mins</span>
         <span class="text-white/35">•</span>
         <span title="Scroll to zoom">Zoom {{ zoom.toFixed(1) }}×</span>
       </div>
