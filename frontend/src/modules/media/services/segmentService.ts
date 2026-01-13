@@ -177,7 +177,7 @@ export const segmentService = {
       });
   },
 
-  async getRandomFeedItemsForOrg(orgId: string, count = 3): Promise<OrgSegmentFeedItem[]> {
+  async getRandomFeedItemsForOrg(orgId: string, count = 25): Promise<OrgSegmentFeedItem[]> {
     // IMPORTANT: randomize media_assets first (org-scoped), then pick ONE random segment per asset.
     const MAX_ASSET_ROWS = 100;
     const MAX_SEGMENT_ROWS_PER_ASSET = 250;

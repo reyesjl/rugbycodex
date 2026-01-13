@@ -152,4 +152,41 @@ export const narrationService = {
 
     return rows.map(toNarration);
   },
+
+  /**
+   * Updates the raw transcript text for an existing narration.
+   *
+   * Authorization:
+   * - Enforced via Supabase RLS.
+   * - Typical policy is: author can update own narration.
+   */
+  async updateNarrationText(narrationId: string, transcriptRaw: string): Promise<Narration> {
+    const data = await getSingle<NarrationRow>(
+      supabase
+        .from('narrations')
+        .update({ transcript_raw: transcriptRaw })
+        .eq('id', narrationId)
+        .select('*')
+        .single(),
+      'Failed to update narration.'
+    );
+
+    return toNarration(data);
+  },
+
+  /**
+   * Deletes an existing narration.
+   *
+   * Authorization:
+   * - Enforced via Supabase RLS.
+   * - Typical policies are: author can delete own narration; org managers may delete within org.
+   */
+  async deleteNarration(narrationId: string): Promise<void> {
+    const { error } = await supabase
+      .from('narrations')
+      .delete()
+      .eq('id', narrationId);
+
+    if (error) throw error;
+  },
 };

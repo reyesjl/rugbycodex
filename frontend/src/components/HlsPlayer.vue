@@ -4,9 +4,19 @@ import Hls from 'hls.js';
 
 defineOptions({ inheritAttrs: false });
 
-const props = defineProps<{
-  src: string;
-}>();
+const props = withDefaults(
+  defineProps<{
+    src: string;
+    /**
+     * When false, this becomes a "surface-only" player meant to be controlled by external UI.
+     * Defaults to true to preserve existing behavior.
+     */
+    controls?: boolean;
+  }>(),
+  {
+    controls: true,
+  }
+);
 
 const emit = defineEmits<{
   (e: 'error', message: string): void;
@@ -57,15 +67,18 @@ function configureVideoElement(video: VideoElement) {
   video.playsInline = true;
   video.preload = 'metadata';
 
-  // Ensure controls is present before user-gesture play calls.
-  // (If already present, this is a no-op.)
-  video.controls = true;
+  // Controls are optional; default on for existing views.
+  video.controls = Boolean(props.controls);
 
   video.setAttribute('muted', '');
   video.setAttribute('playsinline', '');
   video.setAttribute('webkit-playsinline', '');
   video.setAttribute('preload', 'metadata');
-  video.setAttribute('controls', '');
+  if (props.controls) {
+    video.setAttribute('controls', '');
+  } else {
+    video.removeAttribute('controls');
+  }
 }
 
 function emitError(message: string) {
@@ -275,6 +288,12 @@ onBeforeUnmount(() => {
   nativeGestureHandler = null;
   destroyPlayer();
 });
+
+function getVideoElement(): VideoElement | null {
+  return videoEl.value;
+}
+
+defineExpose({ getVideoElement });
 </script>
 
 <template>
@@ -285,6 +304,6 @@ onBeforeUnmount(() => {
     playsinline
     webkit-playsinline
     preload="metadata"
-    controls
+    :controls="props.controls"
   />
 </template>

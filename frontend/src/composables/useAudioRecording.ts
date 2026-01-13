@@ -32,6 +32,11 @@ export function useAudioRecording() {
   let analyser: AnalyserNode | null = null;
   let animationFrameId: number | null = null;
 
+  let pendingStopPromise: Promise<Blob> | null = null;
+  let pendingStopResolve: ((blob: Blob) => void) | null = null;
+  let pendingStopReject: ((err: unknown) => void) | null = null;
+  let pendingStopTimer: number | null = null;
+
   const hasRecording = computed(() => audioBlob.value !== null);
 
   const state = computed<AudioRecordingState>(() => ({
@@ -126,6 +131,15 @@ export function useAudioRecording() {
     try {
       error.value = null;
 
+      // Starting a new recording invalidates any previous stop waiters.
+      pendingStopPromise = null;
+      pendingStopResolve = null;
+      pendingStopReject = null;
+      if (pendingStopTimer !== null) {
+        window.clearTimeout(pendingStopTimer);
+        pendingStopTimer = null;
+      }
+
       if (typeof MediaRecorder === 'undefined') {
         error.value = 'Audio recording is not supported in this browser.';
         return;
@@ -176,18 +190,20 @@ export function useAudioRecording() {
         options.mimeType = selectedMimeType.value;
       }
 
-      mediaRecorder = new MediaRecorder(mediaStream, options);
+      const recorder = new MediaRecorder(mediaStream, options);
+      const stream = mediaStream;
+      mediaRecorder = recorder;
 
       audioChunks = [];
 
-      mediaRecorder.ondataavailable = (event) => {
+      recorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
           audioChunks.push(event.data);
         }
       };
 
-      mediaRecorder.onstop = () => {
-        const blobType = selectedMimeType.value ?? mediaRecorder?.mimeType ?? 'audio/webm';
+      recorder.onstop = () => {
+        const blobType = selectedMimeType.value ?? recorder.mimeType ?? 'audio/webm';
         const blob = new Blob(audioChunks, { type: blobType });
         audioBlob.value = blob;
 
@@ -198,16 +214,53 @@ export function useAudioRecording() {
         audioUrl.value = URL.createObjectURL(blob);
 
         stopTimer();
+
+        // Resolve any awaited stop.
+        if (pendingStopResolve) {
+          pendingStopResolve(blob);
+        }
+        pendingStopPromise = null;
+        pendingStopResolve = null;
+        pendingStopReject = null;
+        if (pendingStopTimer !== null) {
+          window.clearTimeout(pendingStopTimer);
+          pendingStopTimer = null;
+        }
+
+        // Stop all tracks only after MediaRecorder has finalized.
+        try {
+          stream?.getTracks().forEach((track) => track.stop());
+        } catch {
+          // best-effort
+        }
+        if (mediaStream === stream) {
+          mediaStream = null;
+        }
+        if (mediaRecorder === recorder) {
+          mediaRecorder = null;
+        }
       };
 
-      mediaRecorder.onerror = (event) => {
+      recorder.onerror = (event) => {
         error.value = 'Recording error occurred';
         console.error('MediaRecorder error:', event);
+
+        if (pendingStopReject) {
+          pendingStopReject(new Error('Recording error occurred'));
+        }
+        pendingStopPromise = null;
+        pendingStopResolve = null;
+        pendingStopReject = null;
+        if (pendingStopTimer !== null) {
+          window.clearTimeout(pendingStopTimer);
+          pendingStopTimer = null;
+        }
+
         stopRecording();
       };
 
       // Start recording
-      mediaRecorder.start();
+      recorder.start();
       isRecording.value = true;
       isPaused.value = false;
       startTime = Date.now();
@@ -265,21 +318,43 @@ export function useAudioRecording() {
   function stopRecording() {
     if (!mediaRecorder) return;
 
-    if (mediaRecorder.state !== 'inactive') {
-      mediaRecorder.stop();
+    const recorder = mediaRecorder;
+    if (recorder.state !== 'inactive') {
+      recorder.stop();
     }
 
     isRecording.value = false;
     isPaused.value = false;
     stopAudioLevelMonitoring();
+  }
 
-    // Stop all tracks
-    if (mediaStream) {
-      mediaStream.getTracks().forEach((track) => track.stop());
-      mediaStream = null;
+  async function stopRecordingAndGetBlob(timeoutMs = 8000): Promise<Blob> {
+    if (audioBlob.value) return audioBlob.value;
+    if (!mediaRecorder) {
+      throw new Error('No active recording to stop.');
     }
 
-    mediaRecorder = null;
+    if (!pendingStopPromise) {
+      pendingStopPromise = new Promise<Blob>((resolve, reject) => {
+        pendingStopResolve = resolve;
+        pendingStopReject = reject;
+      });
+
+      // Safety timeout so we don't hang forever if onstop never fires.
+      pendingStopTimer = window.setTimeout(() => {
+        if (pendingStopReject) {
+          pendingStopReject(new Error('Timed out waiting for recorded audio.'));
+        }
+        pendingStopPromise = null;
+        pendingStopResolve = null;
+        pendingStopReject = null;
+        pendingStopTimer = null;
+      }, timeoutMs);
+
+      stopRecording();
+    }
+
+    return pendingStopPromise;
   }
 
   function resetRecording() {
@@ -322,6 +397,7 @@ export function useAudioRecording() {
     pauseRecording,
     resumeRecording,
     stopRecording,
+    stopRecordingAndGetBlob,
     resetRecording,
     getAudioBlob,
   };
