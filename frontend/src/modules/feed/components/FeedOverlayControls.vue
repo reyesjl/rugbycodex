@@ -209,7 +209,7 @@ function endScrub(e: PointerEvent) {
             @click.stop="emit('togglePlay')"
             :title="isPlaying ? 'Pause' : (showRestart ? 'Restart' : 'Play')"
           >
-            <Icon :icon="isPlaying ? 'carbon:pause' : (showRestart ? 'carbon:restart' : 'carbon:play')" width="22" height="22" />
+            <Icon :icon="isPlaying ? 'carbon:pause-filled' : (showRestart ? 'carbon:restart' : 'carbon:play-filled-alt')" width="22" height="22" />
           </button>
 
           <div class="ml-2 flex items-center rounded-full bg-black/25 px-1.5 py-0.5 ring-1 ring-white/10">

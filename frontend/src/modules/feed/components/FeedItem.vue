@@ -745,9 +745,9 @@ function handleBuffering(next: boolean) {
               >
                 <Icon
                   :icon="flashIcon === 'play'
-                    ? 'carbon:play'
+                    ? 'carbon:play-filled-alt'
                     : flashIcon === 'pause'
-                      ? 'carbon:pause'
+                      ? 'carbon:pause-filled'
                       : flashIcon === 'rew5'
                         ? 'carbon:rewind-5'
                         : flashIcon === 'rew10'
