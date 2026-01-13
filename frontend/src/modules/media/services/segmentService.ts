@@ -130,13 +130,15 @@ export const segmentService = {
     });
   },
 
-  async createCoachSegment(input: {
+  async createSegment(input: {
     mediaAssetId: string;
     startSeconds: number;
     endSeconds: number;
+    sourceType: MediaAssetSegment['source_type'];
   }): Promise<MediaAssetSegment> {
     const userId = requireUserId();
     if (!input.mediaAssetId) throw new Error('Missing mediaAssetId.');
+    if (!input.sourceType) throw new Error('Missing sourceType.');
 
     const startSeconds = Math.max(0, input.startSeconds ?? 0);
     const endSeconds = Math.max(startSeconds, input.endSeconds ?? startSeconds);
@@ -159,7 +161,7 @@ export const segmentService = {
         segment_index: nextIndex,
         start_seconds: startSeconds,
         end_seconds: endSeconds,
-        source_type: 'coach',
+        source_type: input.sourceType,
         created_by_profile_id: userId,
       })
       .select(
@@ -177,9 +179,31 @@ export const segmentService = {
       start_seconds: data.start_seconds,
       end_seconds: data.end_seconds,
       created_at: asDate(data.created_at, 'segment creation'),
-      source_type: (data.source_type as any) ?? 'coach',
+      source_type: (data.source_type as any) ?? input.sourceType,
       created_by_profile_id: (data.created_by_profile_id as any) ?? userId,
     };
+  },
+
+  async createCoachSegment(input: {
+    mediaAssetId: string;
+    startSeconds: number;
+    endSeconds: number;
+  }): Promise<MediaAssetSegment> {
+    return this.createSegment({
+      ...input,
+      sourceType: 'coach',
+    });
+  },
+
+  async createMemberSegment(input: {
+    mediaAssetId: string;
+    startSeconds: number;
+    endSeconds: number;
+  }): Promise<MediaAssetSegment> {
+    return this.createSegment({
+      ...input,
+      sourceType: 'member',
+    });
   },
 
   async listFeedItemsForOrg(

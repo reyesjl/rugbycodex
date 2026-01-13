@@ -9,6 +9,8 @@ import FeedOverlayControls from '@/modules/feed/components/FeedOverlayControls.v
 import NarrationRecorder from '@/modules/narration/components/NarrationRecorder.vue';
 
 import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrganizationStore';
+import { useAuthStore } from '@/auth/stores/useAuthStore';
+import { hasOrgAccess } from '@/modules/orgs/composables/useOrgCapabilities';
 import { mediaService } from '@/modules/media/services/mediaService';
 import { segmentService } from '@/modules/media/services/segmentService';
 import { narrationService } from '@/modules/narrations/services/narrationService';
@@ -27,9 +29,13 @@ const BUFFER_SECONDS = 5;
 
 const route = useRoute();
 const activeOrgStore = useActiveOrganizationStore();
+const authStore = useAuthStore();
 const { orgContext } = storeToRefs(activeOrgStore);
 
 const activeOrgId = computed(() => orgContext.value?.organization?.id ?? null);
+const membershipRole = computed(() => (orgContext.value?.membership?.role ?? null) as any);
+const isStaffOrAbove = computed(() => hasOrgAccess(membershipRole.value, 'staff'));
+const currentUserId = computed(() => authStore.user?.id ?? null);
 
 const mediaAssetId = computed(() => String(route.params.mediaAssetId ?? ''));
 
@@ -213,12 +219,19 @@ async function beginRecording() {
   const startSeconds = Math.max(0, t - BUFFER_SECONDS);
   const endSeconds = d > 0 ? Math.min(d, t + BUFFER_SECONDS) : (t + BUFFER_SECONDS);
 
-  // Create a coach segment FIRST so the narration has a segment to attach to.
-  const created = await segmentService.createCoachSegment({
+  // Create a segment FIRST so the narration has a segment to attach to.
+  // Staff+ uses coach segments; members use member segments.
+  const created = await (isStaffOrAbove.value
+    ? segmentService.createCoachSegment({
+        mediaAssetId: asset.value.id,
+        startSeconds,
+        endSeconds,
+      })
+    : segmentService.createMemberSegment({
     mediaAssetId: asset.value.id,
     startSeconds,
     endSeconds,
-  });
+      }));
 
   // Optimistic segment insert.
   segments.value = [...segments.value, created].sort((a, b) => (a.start_seconds ?? 0) - (b.start_seconds ?? 0));
@@ -277,6 +290,14 @@ function jumpToSegment(seg: MediaAssetSegment) {
 }
 
 async function handleEditNarration(narrationId: string, transcriptRaw: string) {
+  const existing = (narrations.value as any[]).find((n) => String(n?.id) === narrationId) as Narration | undefined;
+  if (!isStaffOrAbove.value) {
+    const authorId = existing?.author_id ?? null;
+    if (!authorId || !currentUserId.value || authorId !== currentUserId.value) {
+      toast({ message: 'You can only edit your own narrations.', variant: 'info', durationMs: 2500 });
+      return;
+    }
+  }
   try {
     const updated = await narrationService.updateNarrationText(narrationId, transcriptRaw);
     narrations.value = (narrations.value as any[]).map((n) => (String(n.id) === narrationId ? updated : n));
@@ -288,6 +309,14 @@ async function handleEditNarration(narrationId: string, transcriptRaw: string) {
 }
 
 async function handleDeleteNarration(narrationId: string) {
+  const existing = (narrations.value as any[]).find((n) => String(n?.id) === narrationId) as Narration | undefined;
+  if (!isStaffOrAbove.value) {
+    const authorId = existing?.author_id ?? null;
+    if (!authorId || !currentUserId.value || authorId !== currentUserId.value) {
+      toast({ message: 'You can only delete your own narrations.', variant: 'info', durationMs: 2500 });
+      return;
+    }
+  }
   try {
     await narrationService.deleteNarration(narrationId);
     narrations.value = (narrations.value as any[]).filter((n) => String(n.id) !== narrationId);
@@ -402,6 +431,9 @@ async function handleDeleteNarration(narrationId: string) {
               :narrations="(narrations as any)"
               :active-segment-id="activeSegmentId"
               :focused-segment-id="focusedSegmentId"
+              :default-source-type="isStaffOrAbove ? 'coach' : 'member'"
+              :can-moderate-narrations="isStaffOrAbove"
+              :current-user-id="currentUserId"
               @jumpToSegment="jumpToSegment"
               @editNarration="handleEditNarration"
               @deleteNarration="handleDeleteNarration"

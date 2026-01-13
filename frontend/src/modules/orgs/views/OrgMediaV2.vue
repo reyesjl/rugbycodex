@@ -73,10 +73,10 @@ function openAsset(assetId: string) {
   const slug = route.params.slug;
   if (!slug) return;
   void router.push({
-    name: 'OrgMediaAsset',
+    name: 'OrgMediaAssetReview',
     params: {
       slug,
-      mediaId: assetId,
+      mediaAssetId: assetId,
     },
   });
 }

@@ -60,7 +60,7 @@ export const orgRoutes: RouteRecordRaw = {
           name: 'OrgMediaAssetReview',
           component: () => import('@/modules/orgs/views/OrgMediaAssetReviewView.vue'),
           props: true,
-          meta: { minOrgRole: 'staff' },
+          meta: { minOrgRole: 'member' },
         },
         {
           path: 'segments/:segmentId',

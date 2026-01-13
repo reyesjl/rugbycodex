@@ -11,6 +11,12 @@ const props = defineProps<{
   activeSegmentId?: string | null;
   /** Segment to scroll into view when user seeks/selects. */
   focusedSegmentId?: string | null;
+  /** When not showing all sources, which segment source_type to show. */
+  defaultSourceType?: 'coach' | 'member';
+  /** Staff+ can edit/delete any narration; members only their own. */
+  canModerateNarrations?: boolean;
+  /** Supabase auth user id (Narration.author_id). */
+  currentUserId?: string | null;
 }>();
 
 const emit = defineEmits<{
@@ -22,6 +28,22 @@ const emit = defineEmits<{
 const editingNarrationId = ref<string | null>(null);
 const editingText = ref('');
 
+// Per-segment expand/collapse for narration lists.
+// Only used when a segment has 2+ narrations.
+const expandedSegmentIds = ref(new Set<string>());
+
+function isSegmentExpanded(segmentId: string): boolean {
+  return expandedSegmentIds.value.has(segmentId);
+}
+
+function toggleSegmentExpanded(segmentId: string) {
+  const set = expandedSegmentIds.value;
+  if (set.has(segmentId)) set.delete(segmentId);
+  else set.add(segmentId);
+  // Trigger reactivity for Set mutation
+  expandedSegmentIds.value = new Set(set);
+}
+
 function isSavedNarration(n: NarrationListItem): n is Narration {
   // Optimistic narrations have a `status` field; saved narrations don't.
   return !(n as any)?.status;
@@ -30,7 +52,13 @@ function isSavedNarration(n: NarrationListItem): n is Narration {
 function canEditOrDelete(n: NarrationListItem): boolean {
   // On this screen, controls should always be visible.
   // Disable actions only for optimistic (uploading/error) placeholders.
-  return isSavedNarration(n);
+  if (!isSavedNarration(n)) return false;
+
+  if (props.canModerateNarrations) return true;
+
+  const authorId = (n as Narration).author_id;
+  const userId = props.currentUserId ?? null;
+  return Boolean(authorId && userId && authorId === userId);
 }
 
 function startEditing(n: Narration) {
@@ -63,8 +91,13 @@ function requestDelete(n: Narration) {
 // Default: show only segments that have narrations.
 const showEmptySegments = ref(false);
 
-// Default: show only coach segments (coach narrations attach to coach-created segments).
+// Default: show only a single source type (role-based: coach for staff+, member for players).
 const showAllSources = ref(false);
+
+const defaultSourceTypeLabel = computed(() => {
+  const only = props.defaultSourceType ?? 'coach';
+  return only === 'member' ? 'Member' : 'Coach';
+});
 
 const segmentElById = ref(new Map<string, HTMLElement>());
 
@@ -109,10 +142,18 @@ const narrationsBySegment = computed(() => {
   return map;
 });
 
+function visibleNarrationsForSegment(segId: string): NarrationListItem[] {
+  const list = narrationsBySegment.value.get(String(segId)) ?? [];
+  if (list.length <= 1) return list;
+  if (isSegmentExpanded(String(segId))) return list;
+  return list.slice(0, 1);
+}
+
 const sourceFilteredSegments = computed(() => {
   const base = props.segments ?? [];
   if (showAllSources.value) return base;
-  return base.filter((s) => String(s.source_type ?? '') === 'coach');
+  const only = props.defaultSourceType ?? 'coach';
+  return base.filter((s) => String(s.source_type ?? '') === only);
 });
 
 const orderedSegments = computed(() => {
@@ -162,9 +203,9 @@ function formatCreatedAt(value: any): string {
           class="text-[11px] transition cursor-pointer rounded-full px-2 py-1 ring-1 ring-transparent hover:bg-white/5 hover:ring-white/10"
           :class="showAllSources ? 'text-white/80' : 'text-white/60'"
           @click="showAllSources = !showAllSources"
-          :title="showAllSources ? 'Show only coach segments' : 'Show all segment sources'"
+          :title="showAllSources ? `Show only ${defaultSourceTypeLabel} segments` : 'Show all segment sources'"
         >
-          {{ showAllSources ? 'All sources' : 'Coach only' }}
+          {{ showAllSources ? 'All sources' : `${defaultSourceTypeLabel} only` }}
         </button>
         <button
           type="button"
@@ -194,12 +235,12 @@ function formatCreatedAt(value: any): string {
         :ref="(el) => setSegmentEl(String(seg.id), el)"
         :class="activeSegmentId && String(seg.id) === activeSegmentId ? 'ring-1 ring-yellow-300/30 bg-yellow-300/5' : ''"
       >
-        <button
-          type="button"
-          class="w-full px-3 py-2 flex items-center justify-between text-left cursor-pointer hover:bg-white/5 transition"
-          @click="emit('jumpToSegment', seg)"
-        >
-          <div class="flex items-center gap-2 min-w-0">
+        <div class="w-full px-3 py-2 flex items-center justify-between text-left hover:bg-white/5 transition">
+          <button
+            type="button"
+            class="min-w-0 flex-1 flex items-center gap-2 text-left cursor-pointer"
+            @click="emit('jumpToSegment', seg)"
+          >
             <div
               v-if="activeSegmentId && String(seg.id) === activeSegmentId"
               class="shrink-0 rounded-full bg-yellow-300/15 px-2 py-0.5 text-[10px] font-semibold text-yellow-100"
@@ -210,16 +251,29 @@ function formatCreatedAt(value: any): string {
             <div class="text-xs font-semibold text-white/80 truncate">
               {{ labelForSegment(seg) }}
             </div>
+          </button>
+
+          <div class="shrink-0 flex items-center gap-2">
+            <div class="text-[11px] text-white/50" :title="`${(narrationsBySegment.get(String(seg.id)) ?? []).length} narration(s)`">
+              {{ (narrationsBySegment.get(String(seg.id)) ?? []).length }}
+            </div>
+
+            <button
+              v-if="(narrationsBySegment.get(String(seg.id)) ?? []).length > 1"
+              type="button"
+              class="text-[11px] text-white/50 hover:text-white/80 transition cursor-pointer"
+              @click.stop="toggleSegmentExpanded(String(seg.id))"
+              :title="isSegmentExpanded(String(seg.id)) ? 'Collapse narrations' : 'Expand narrations'"
+            >
+              {{ isSegmentExpanded(String(seg.id)) ? 'Collapse' : 'Expand' }}
+            </button>
           </div>
-          <div class="text-[11px] text-white/50">
-            {{ (narrationsBySegment.get(String(seg.id)) ?? []).length }}
-          </div>
-        </button>
+        </div>
 
         <div v-if="(narrationsBySegment.get(String(seg.id)) ?? []).length" class="border-t border-white/10">
           <div class="px-3 py-2 space-y-2">
             <div
-              v-for="n in (narrationsBySegment.get(String(seg.id)) ?? [])"
+              v-for="n in visibleNarrationsForSegment(String(seg.id))"
               :key="String((n as any).id)"
               class="rounded-md bg-black/25 ring-1 ring-white/5 p-2 transition cursor-pointer hover:bg-black/30 hover:ring-white/10"
             >
@@ -278,6 +332,13 @@ function formatCreatedAt(value: any): string {
               <div v-else class="mt-1 text-sm text-white whitespace-pre-wrap">
                 {{ (n as any).transcript_raw }}
               </div>
+            </div>
+
+            <div
+              v-if="(narrationsBySegment.get(String(seg.id)) ?? []).length > 1 && !isSegmentExpanded(String(seg.id))"
+              class="text-[11px] text-white/40"
+            >
+              Showing 1 of {{ (narrationsBySegment.get(String(seg.id)) ?? []).length }} narrations.
             </div>
           </div>
         </div>
