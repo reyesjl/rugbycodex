@@ -30,11 +30,20 @@ const emit = defineEmits<{
   (e: 'play'): void;
   (e: 'pause'): void;
   (e: 'loadedmetadata', payload: { duration: number }): void;
+  (e: 'buffering', isBuffering: boolean): void;
 }>();
 
 const playerRef = ref<InstanceType<typeof HlsPlayer> | null>(null);
 
 const videoEl = computed(() => playerRef.value?.getVideoElement() ?? null);
+
+const isBuffering = ref(false);
+
+function setBuffering(next: boolean) {
+  if (isBuffering.value === next) return;
+  isBuffering.value = next;
+  emit('buffering', next);
+}
 
 let pendingSeekSeconds: number | null = null;
 
@@ -126,6 +135,36 @@ function onPlay() {
 
 function onPause() {
   emit('pause');
+  setBuffering(false);
+}
+
+function onWaiting() {
+  // `waiting` fires when playback has stopped because data is not available.
+  // Show a simple spinner overlay so the user understands what's happening.
+  setBuffering(true);
+}
+
+function onStalled() {
+  // Network stall; show buffering until we can play again.
+  setBuffering(true);
+}
+
+function onSeeking() {
+  // Seeking often causes a brief rebuffer; treat it as buffering.
+  setBuffering(true);
+}
+
+function onCanPlay() {
+  // Enough data to play.
+  setBuffering(false);
+}
+
+function onPlaying() {
+  setBuffering(false);
+}
+
+function onEnded() {
+  setBuffering(false);
 }
 
 function bindVideoListeners(video: HTMLVideoElement | null, previous: HTMLVideoElement | null) {
@@ -134,6 +173,12 @@ function bindVideoListeners(video: HTMLVideoElement | null, previous: HTMLVideoE
     previous.removeEventListener('loadedmetadata', onLoadedMetadata);
     previous.removeEventListener('play', onPlay);
     previous.removeEventListener('pause', onPause);
+    previous.removeEventListener('waiting', onWaiting);
+    previous.removeEventListener('stalled', onStalled);
+    previous.removeEventListener('seeking', onSeeking);
+    previous.removeEventListener('canplay', onCanPlay);
+    previous.removeEventListener('playing', onPlaying);
+    previous.removeEventListener('ended', onEnded);
   }
 
   if (!video) return;
@@ -141,6 +186,12 @@ function bindVideoListeners(video: HTMLVideoElement | null, previous: HTMLVideoE
   video.addEventListener('loadedmetadata', onLoadedMetadata);
   video.addEventListener('play', onPlay);
   video.addEventListener('pause', onPause);
+  video.addEventListener('waiting', onWaiting);
+  video.addEventListener('stalled', onStalled);
+  video.addEventListener('seeking', onSeeking);
+  video.addEventListener('canplay', onCanPlay);
+  video.addEventListener('playing', onPlaying);
+  video.addEventListener('ended', onEnded);
 }
 
 watch(videoEl, (video, prev) => {
@@ -160,6 +211,7 @@ watch(
   () => props.src,
   () => {
     pendingSeekSeconds = null;
+    setBuffering(false);
   }
 );
 

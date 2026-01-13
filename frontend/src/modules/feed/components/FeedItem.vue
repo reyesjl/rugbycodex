@@ -31,6 +31,9 @@ const currentUserId = computed(() => authStore.user?.id ?? null);
 
 const playerRef = ref<InstanceType<typeof HlsSurfacePlayer> | null>(null);
 
+const isBuffering = ref(false);
+const suppressBufferingUntilMs = ref(0);
+
 // Overlay visibility (YouTube-style: tap to show, auto-hide)
 const overlayVisible = ref(false);
 let overlayTimer: number | null = null;
@@ -165,6 +168,10 @@ function handlePlayerTimeupdate(p: { currentTime: number; duration: number }) {
   const end = props.feedItem.endSeconds ?? 0;
   const endClamped = end > 0 && p.duration > 0 ? Math.min(end, p.duration) : end;
   if (endClamped > 0 && p.currentTime >= endClamped - END_EPSILON_SECONDS) {
+    // Some browsers emit `waiting`/`seeking` around this clamp; don't let that
+    // hide the restart affordance.
+    suppressBufferingUntilMs.value = Date.now() + 1000;
+    isBuffering.value = false;
     playerRef.value?.pause();
     playerRef.value?.setCurrentTime(endClamped);
     endedWithinSegment.value = true;
@@ -200,6 +207,7 @@ function handlePlay() {
 
 function handlePause() {
   isPlaying.value = false;
+  isBuffering.value = false;
 
   // If we've paused at (or beyond) the segment end, show restart affordances.
   const end = segmentEnd.value;
@@ -428,9 +436,17 @@ async function onUpdateNarrationText(payload: { id: string; transcriptRaw: strin
 }
 
 function onTap() {
+  if (isBuffering.value) return;
   // Tap toggles overlay visibility.
   if (overlayVisible.value) hideOverlay();
   else showOverlay();
+}
+
+function handleBuffering(next: boolean) {
+  if (Date.now() < suppressBufferingUntilMs.value) return;
+  if (next && endedWithinSegment.value) return;
+  isBuffering.value = next;
+  if (next) hideOverlay();
 }
 </script>
 
@@ -439,7 +455,7 @@ function onTap() {
     <!-- Video surface (16:9) -->
     <div class="px-0 pt-0 shrink-0 md:px-6 md:pt-6">
       <div class="relative w-full bg-black md:mx-auto md:max-w-5xl">
-        <div class="aspect-video w-full overflow-hidden bg-black ring-1 ring-white/10 md:rounded-xl">
+        <div class="relative aspect-video w-full overflow-hidden bg-black ring-1 ring-white/10 md:rounded-xl">
           <HlsSurfacePlayer
             ref="playerRef"
             :src="src"
@@ -449,6 +465,7 @@ function onTap() {
             @loadedmetadata="handleLoadedMetadata"
             @play="handlePlay"
             @pause="handlePause"
+            @buffering="handleBuffering"
           />
 
           <!-- Gesture + overlays live above the video -->
@@ -458,7 +475,7 @@ function onTap() {
             @swipeDown="emit('prev')"
           >
             <FeedOverlayControls
-              :visible="overlayVisible"
+              :visible="overlayVisible && !isBuffering"
               :is-playing="isPlaying"
               :progress01="progress01"
               :current-seconds="segmentCurrentSeconds"
@@ -476,11 +493,21 @@ function onTap() {
             />
 
             <NarrationRecorder
+              v-show="!isBuffering"
               :is-recording="recorder.isRecording.value"
               :audio-level01="recorder.audioLevel.value"
               @toggle="toggleRecord"
             />
           </FeedGestureLayer>
+
+          <!-- Buffering overlay: sits above ALL controls -->
+          <div
+            v-show="isBuffering"
+            class="pointer-events-none absolute inset-0 z-50 grid place-items-center bg-black/40"
+            aria-label="Buffering"
+          >
+            <div class="h-12 w-12 rounded-full border-2 border-white/25 border-t-white/95 animate-spin" />
+          </div>
         </div>
 
         <div v-if="srcError" class="px-4 py-3 text-sm text-red-200 bg-red-500/10 ring-1 ring-red-300/20">

@@ -55,6 +55,9 @@ const narrationCount = computed(() => (narrations.value as any[])?.length ?? 0);
 
 const playerRef = ref<InstanceType<typeof HlsSurfacePlayer> | null>(null);
 
+const isBuffering = ref(false);
+const suppressBufferingUntilMs = ref(0);
+
 const currentTime = ref(0);
 const duration = ref(0);
 const isPlaying = ref(false);
@@ -171,6 +174,14 @@ function handleTimeupdate(p: { currentTime: number; duration: number }) {
   currentTime.value = p.currentTime ?? 0;
   if (p.duration) duration.value = p.duration;
 
+  // When we're essentially at the end, some browsers can briefly emit `waiting`.
+  // Don't show buffering over a natural end-of-playback pause.
+  const d = duration.value ?? 0;
+  if (d > 0 && currentTime.value >= d - 0.05) {
+    suppressBufferingUntilMs.value = Date.now() + 1000;
+    isBuffering.value = false;
+  }
+
   // Keep focused segment aligned with playback, but don't force it if unset and no segments.
   focusedSegmentId.value = findFocusedSegmentId(currentTime.value);
 }
@@ -185,6 +196,7 @@ function handlePlay() {
 
 function handlePause() {
   isPlaying.value = false;
+  isBuffering.value = false;
 }
 
 function togglePlay() {
@@ -198,8 +210,15 @@ function scrubToSeconds(seconds: number) {
 }
 
 function onTap() {
+  if (isBuffering.value) return;
   if (overlayVisible.value) hideOverlay();
   else showOverlay();
+}
+
+function handleBuffering(next: boolean) {
+  if (Date.now() < suppressBufferingUntilMs.value) return;
+  isBuffering.value = next;
+  if (next) hideOverlay();
 }
 
 // Recording (reuse useNarrationRecorder)
@@ -379,12 +398,13 @@ async function handleDeleteNarration(narrationId: string) {
                 @play="handlePlay"
                 @pause="handlePause"
                 @error="(m) => (error = m)"
+                @buffering="handleBuffering"
               />
 
               <FeedGestureLayer @tap="onTap" @swipeDown="() => {}" @swipeUp="() => {}">
                 <!-- Reuse feed overlay controls as a minimal transport + scrubber -->
                 <FeedOverlayControls
-                  :visible="overlayVisible"
+                  :visible="overlayVisible && !isBuffering"
                   :is-playing="isPlaying"
                   :progress01="progress01"
                   :can-prev="false"
@@ -404,11 +424,21 @@ async function handleDeleteNarration(narrationId: string) {
                 />
 
                 <NarrationRecorder
+                  v-show="!isBuffering"
                   :is-recording="recorder.isRecording.value"
                   :audio-level01="recorder.audioLevel.value"
                   @toggle="toggleRecord"
                 />
               </FeedGestureLayer>
+
+              <!-- Buffering overlay: sits above ALL controls -->
+              <div
+                v-show="isBuffering"
+                class="pointer-events-none absolute inset-0 z-50 grid place-items-center bg-black/40"
+                aria-label="Buffering"
+              >
+                <div class="h-12 w-12 rounded-full border-2 border-white/25 border-t-white/95 animate-spin" />
+              </div>
               </div>
             </div>
           </div>
