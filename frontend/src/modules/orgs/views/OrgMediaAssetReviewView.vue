@@ -48,6 +48,11 @@ const playlistUrl = ref<string>('');
 const segments = ref<MediaAssetSegment[]>([]);
 const narrations = ref<Array<Narration | NarrationListItem>>([]);
 
+// Mobile: narrations as a bottom drawer so video stays visible.
+const narrationsDrawerOpen = ref(false);
+const narrationsDrawerHeightClass = computed(() => (narrationsDrawerOpen.value ? 'h-[70dvh]' : 'h-14'));
+const narrationCount = computed(() => (narrations.value as any[])?.length ?? 0);
+
 const playerRef = ref<InstanceType<typeof HlsSurfacePlayer> | null>(null);
 
 const currentTime = ref(0);
@@ -329,9 +334,13 @@ async function handleDeleteNarration(narrationId: string) {
 </script>
 
 <template>
-  <div class="w-full bg-black md:min-h-[calc(100dvh-var(--main-nav-height))]">
-    <div class="container-lg py-4 pb-20 text-white space-y-4">
-      <div class="flex items-start justify-between gap-3">
+  <div
+    class="w-full bg-black
+           h-[calc(100dvh-var(--main-nav-height))] overflow-hidden
+           md:h-auto md:overflow-visible md:min-h-[calc(100dvh-var(--main-nav-height))]"
+  >
+    <div class="container-lg pb-16 md:pb-20 text-white space-y-4 h-full">
+      <!-- <div class="flex items-start justify-between gap-3">
         <div>
           <div class="text-2xl font-semibold">Review</div>
           <div class="mt-1 text-sm text-white/60">
@@ -343,7 +352,7 @@ async function handleDeleteNarration(narrationId: string) {
           <div class="text-xs text-white/50">Time</div>
           <div class="text-sm tabular-nums">{{ timeLabel }}</div>
         </div>
-      </div>
+      </div> -->
 
       <div v-if="loading" class="rounded-lg border border-white/10 bg-white/5 p-6 text-white/70">
         Loading media…
@@ -412,6 +421,10 @@ async function handleDeleteNarration(narrationId: string) {
             @seek="scrubToSeconds"
           />
 
+          <div class="md:hidden text-xs text-white/50 tabular-nums">
+            {{ timeLabel }}
+          </div>
+
           <div v-if="recordError" class="text-xs text-rose-200">
             {{ recordError }}
           </div>
@@ -425,7 +438,7 @@ async function handleDeleteNarration(narrationId: string) {
         </div>
 
         <!-- Right column: segments + narrations -->
-        <div class="md:col-span-2">
+        <div class="hidden md:block md:col-span-2">
           <div
             class="-mx-4 px-4 md:mx-0 md:px-4 bg-black md:rounded-xl md:border md:border-white/10 md:bg-white/5 md:p-4 md:sticky md:top-6 md:max-h-[calc(100dvh-var(--main-nav-height)-3rem)] md:overflow-y-auto overscroll-contain"
           >
@@ -442,6 +455,46 @@ async function handleDeleteNarration(narrationId: string) {
               @deleteNarration="handleDeleteNarration"
             />
           </div>
+        </div>
+      </div>
+
+      <!-- Mobile-only narrations drawer -->
+      <div
+        class="md:hidden fixed left-0 right-0 bottom-0 z-40 bg-black/95 backdrop-blur border-t border-white/10 transition-[height] duration-200 ease-out"
+        :class="narrationsDrawerHeightClass"
+      >
+        <button
+          type="button"
+          class="w-full px-4 h-14 flex items-center justify-between text-left"
+          @click="narrationsDrawerOpen = !narrationsDrawerOpen"
+          :aria-expanded="narrationsDrawerOpen ? 'true' : 'false'"
+        >
+          <div class="flex items-center gap-3 min-w-0">
+            <div class="h-1 w-8 rounded-full bg-white/20" aria-hidden="true" />
+            <div class="text-sm font-semibold text-white truncate">Narrations</div>
+            <div class="text-xs text-white/50">({{ narrationCount }})</div>
+          </div>
+          <div class="text-xs text-white/60">
+            {{ narrationsDrawerOpen ? 'Close' : 'Open' }}
+          </div>
+        </button>
+
+        <div
+          v-show="narrationsDrawerOpen"
+          class="h-[calc(70dvh-3.5rem)] overflow-y-auto overscroll-contain px-4 pb-6"
+        >
+          <MediaAssetReviewNarrationList
+            :segments="segments"
+            :narrations="(narrations as any)"
+            :active-segment-id="activeSegmentId"
+            :focused-segment-id="focusedSegmentId"
+            :default-source-type="isStaffOrAbove ? 'coach' : 'member'"
+            :can-moderate-narrations="isStaffOrAbove"
+            :current-user-id="currentUserId"
+            @jumpToSegment="jumpToSegment"
+            @editNarration="handleEditNarration"
+            @deleteNarration="handleDeleteNarration"
+          />
         </div>
       </div>
     </div>
