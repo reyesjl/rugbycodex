@@ -65,6 +65,7 @@ watch(
 watch(
   () => props.currentSeconds ?? 0,
   (tRaw) => {
+    if (scrubbing.value) return;
     if (zoom.value <= 1) return;
     const d = props.durationSeconds ?? 0;
     const w = windowSeconds.value;
@@ -105,32 +106,57 @@ const orderedSegments = computed(() => {
   return [...(props.segments ?? [])].sort((a, b) => (a.start_seconds ?? 0) - (b.start_seconds ?? 0));
 });
 
-function onTrackPointer(e: PointerEvent) {
+const scrubbing = ref(false);
+const scrubSeconds = ref(0);
+
+const effectivePlayheadSeconds = computed(() => {
+  return scrubbing.value ? scrubSeconds.value : (props.currentSeconds ?? 0);
+});
+
+function secondsFromPointer(e: PointerEvent): number {
   const el = (trackEl.value ?? (e.currentTarget as HTMLElement | null)) as HTMLElement | null;
-  if (!el) return;
+  if (!el) return scrubSeconds.value;
   const rect = el.getBoundingClientRect();
-  if (!rect.width) return;
-  const x = clamp(e.clientX - rect.left, 0, rect.width);
-  const pct = x / rect.width;
+  if (!rect.width) return scrubSeconds.value;
+  const xRaw = e.clientX - rect.left;
+  const pctRaw = rect.width ? xRaw / rect.width : 0;
+  const pct = clamp(pctRaw, 0, 1);
   const d = props.durationSeconds ?? 0;
   const w = windowSeconds.value;
+
+  // When zoomed, allow scrubbing past the visible ends by panning the window while dragging.
+  if (scrubbing.value && zoom.value > 1 && w > 0) {
+    const extraPct = pctRaw - pct; // negative when left of track, positive when right of track
+    if (extraPct !== 0) {
+      const maxStart = Math.max(0, d - w);
+      windowStartSeconds.value = clamp(windowStartSeconds.value + extraPct * w, 0, maxStart);
+    }
+  }
+
   const seconds = zoom.value <= 1 || !w ? pct * d : windowStart.value + pct * w;
-  emit('seek', seconds);
+  return clamp(seconds, 0, Math.max(0, d));
 }
 
 let activePointerId: number | null = null;
 function onPointerDown(e: PointerEvent) {
   // left click only for mouse
   if (e.pointerType === 'mouse' && e.button !== 0) return;
+  if ((props.durationSeconds ?? 0) <= 0) return;
   activePointerId = e.pointerId;
+  scrubbing.value = true;
   (e.currentTarget as HTMLElement | null)?.setPointerCapture?.(e.pointerId);
-  onTrackPointer(e);
+  scrubSeconds.value = secondsFromPointer(e);
 }
 
 function onPointerMove(e: PointerEvent) {
   if (activePointerId === null) return;
   if (e.pointerId !== activePointerId) return;
-  onTrackPointer(e);
+  // If the mouse button is no longer pressed, don't keep scrubbing.
+  if (e.pointerType === 'mouse' && (e.buttons ?? 0) === 0) {
+    onPointerUp(e);
+    return;
+  }
+  scrubSeconds.value = secondsFromPointer(e);
 }
 
 function onPointerUp(e: PointerEvent) {
@@ -138,6 +164,15 @@ function onPointerUp(e: PointerEvent) {
   if (e.pointerId !== activePointerId) return;
   (e.currentTarget as HTMLElement | null)?.releasePointerCapture?.(e.pointerId);
   activePointerId = null;
+
+  if (!scrubbing.value) return;
+  scrubbing.value = false;
+  emit('seek', scrubSeconds.value);
+}
+
+function onLostPointerCapture() {
+  activePointerId = null;
+  scrubbing.value = false;
 }
 
 // Pinch to zoom on touch devices.
@@ -242,18 +277,20 @@ function onWheel(e: WheelEvent) {
       <div v-if="durationSeconds" class="tabular-nums flex items-center gap-2">
         <span>{{ (Math.round(durationSeconds) / 60).toFixed() }} mins</span>
         <span class="text-white/35">•</span>
-        <span title="Scroll to zoom">Zoom {{ zoom.toFixed(1) }}×</span>
+        <span title="Scroll/pinch to zoom">Zoom {{ zoom.toFixed(1) }}×</span>
       </div>
     </div>
 
     <div
       class="relative h-8 w-full rounded-lg bg-white/5 ring-1 ring-white/10"
+      :class="scrubbing ? 'cursor-grabbing' : 'cursor-grab'"
       style="touch-action: none"
       ref="trackEl"
       @pointerdown.stop.prevent="onPointerDown"
       @pointermove.stop.prevent="onPointerMove"
       @pointerup.stop.prevent="onPointerUp"
       @pointercancel.stop.prevent="onPointerUp"
+      @lostpointercapture.stop.prevent="onLostPointerCapture"
       @touchstart.stop.prevent="onTouchStart"
       @touchmove.stop.prevent="onTouchMove"
       @touchend.stop.prevent
@@ -264,7 +301,7 @@ function onWheel(e: WheelEvent) {
       <div
         v-if="durationSeconds"
         class="absolute top-0 bottom-0 w-0.5 bg-white/60"
-        :style="{ left: `${pctForSeconds(currentSeconds ?? 0)}%` }"
+        :style="{ left: `${pctForSeconds(effectivePlayheadSeconds)}%` }"
         title="Current time"
       />
 

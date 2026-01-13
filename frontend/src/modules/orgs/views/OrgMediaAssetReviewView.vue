@@ -560,8 +560,16 @@ async function handleDeleteNarration(narrationId: string) {
             {{ recorder.lastError.value }}
           </div>
 
-          <div class="text-xs text-white/40">
-            Tap video to play/pause. Click timeline to seek.
+          <div class="text-xs text-white/40 space-y-1">
+            <div>
+              Desktop: click video to play/pause. Touch: tap video to show controls, then tap play/pause.
+            </div>
+            <div>
+              Seek: drag the scrubber controls or drag the timeline. Zoom: scroll/pinch the timeline; while zoomed you can drag past the ends to keep scrubbing.
+            </div>
+            <div>
+              Narration: use the mic button to start/stop recording a voice note tied to the current moment.
+            </div>
           </div>
         </div>
 
