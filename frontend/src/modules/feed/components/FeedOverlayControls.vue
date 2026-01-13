@@ -33,6 +33,7 @@ const emit = defineEmits<{
 const barEl = ref<HTMLDivElement | null>(null);
 const scrubbing = ref(false);
 const scrubSeconds = ref(0);
+const activePointerId = ref<number | null>(null);
 
 const effectiveCurrent = computed(() => {
   return scrubbing.value ? scrubSeconds.value : (props.currentSeconds ?? 0);
@@ -75,6 +76,7 @@ function updateFromEvent(e: PointerEvent) {
 function onPointerDown(e: PointerEvent) {
   if ((props.durationSeconds ?? 0) <= 0) return;
   scrubbing.value = true;
+  activePointerId.value = e.pointerId;
   emit('scrubStart');
   (e.currentTarget as HTMLElement | null)?.setPointerCapture?.(e.pointerId);
   updateFromEvent(e);
@@ -82,6 +84,12 @@ function onPointerDown(e: PointerEvent) {
 
 function onPointerMove(e: PointerEvent) {
   if (!scrubbing.value) return;
+  if (activePointerId.value !== null && e.pointerId !== activePointerId.value) return;
+  // If the mouse button is no longer pressed, don't keep scrubbing.
+  if (e.pointerType === 'mouse' && (e.buttons ?? 0) === 0) {
+    endScrub(e);
+    return;
+  }
   updateFromEvent(e);
 }
 
@@ -89,6 +97,8 @@ function endScrub(e: PointerEvent) {
   if (!scrubbing.value) return;
   updateFromEvent(e);
   scrubbing.value = false;
+  activePointerId.value = null;
+  (e.currentTarget as HTMLElement | null)?.releasePointerCapture?.(e.pointerId);
   emit('scrubEnd');
 }
 </script>
@@ -180,6 +190,7 @@ function endScrub(e: PointerEvent) {
           @pointermove.stop="onPointerMove"
           @pointerup.stop="endScrub"
           @pointercancel.stop="endScrub"
+          @lostpointercapture.stop="endScrub"
         >
           <!-- Track -->
           <div class="h-1 w-full rounded-full bg-white/25">
