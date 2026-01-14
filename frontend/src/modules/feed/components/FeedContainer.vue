@@ -20,6 +20,10 @@ const props = defineProps<{
   items: FeedItemType[];
 }>();
 
+const emit = defineEmits<{
+  (e: 'watchedHalf', payload: { index: number }): void;
+}>();
+
 const items = computed(() => props.items ?? []);
 
 // Add one extra "done" page after the last clip.
@@ -82,6 +86,7 @@ defineExpose({
           :can-next="nav.hasNext.value"
           @next="goNext"
           @prev="goPrev"
+          @watchedHalf="emit('watchedHalf', { index })"
         />
       </div>
 
@@ -110,6 +115,7 @@ defineExpose({
       :can-next="nav.hasNext.value"
       @next="goNext"
       @prev="goPrev"
+      @watchedHalf="emit('watchedHalf', { index: nav.activeIndex.value })"
     />
   </div>
 </template>

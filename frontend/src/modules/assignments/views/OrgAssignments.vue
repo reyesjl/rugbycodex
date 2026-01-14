@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import { storeToRefs } from 'pinia';
-import { Icon } from '@iconify/vue';
-import { toast } from '@/lib/toast';
+import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/auth/stores/useAuthStore';
 import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrganizationStore';
 import { orgService } from '@/modules/orgs/services/orgServiceV2';
@@ -11,17 +10,23 @@ import type { OrgMember } from '@/modules/orgs/types';
 import { groupsService } from '@/modules/groups/services/groupsService';
 import type { OrgGroup } from '@/modules/groups/types';
 
-import { assignmentsService } from '@/modules/assignments/services/assignmentsService';
-import type { AssignmentTargetType, OrgAssignmentListItem } from '@/modules/assignments/types';
-
+import {
+  assignmentsService,
+  type AssignmentProgressRow,
+  type AssignmentTargetInput,
+} from '@/modules/assignments/services/assignmentsService';
+import type { AssignmentTargetType, OrgAssignmentListItem, OrgAssignmentTarget } from '@/modules/assignments/types';
 import CreateAssignmentModal from '@/modules/assignments/components/CreateAssignmentModal.vue';
 
-const activeOrgStore = useActiveOrganizationStore();
+const route = useRoute();
+const router = useRouter();
 const authStore = useAuthStore();
+
+const activeOrgStore = useActiveOrganizationStore();
 const { orgContext } = storeToRefs(activeOrgStore);
 
 const orgId = computed(() => orgContext.value?.organization.id ?? null);
-
+const orgSlug = computed(() => String(route.params.slug ?? ''));
 const canManage = computed(() => {
   if (authStore.isAdmin) return true;
   const role = orgContext.value?.membership?.role;
@@ -32,10 +37,14 @@ const loading = ref(false);
 const error = ref<string | null>(null);
 
 const members = ref<OrgMember[]>([]);
-const groups = ref<OrgGroup[]>([]);
+const groups = ref<Array<{ group: OrgGroup; memberIds: string[] }>>([]);
 const assignments = ref<OrgAssignmentListItem[]>([]);
+const progressRows = ref<AssignmentProgressRow[]>([]);
+const editingAssignment = ref<OrgAssignmentListItem | null>(null);
 
-const showCreate = ref(false);
+const statusFilter = ref<'all' | 'overdue' | 'due_soon' | 'completed'>('all');
+const targetFilter = ref<'all' | 'team' | 'group' | 'player'>('all');
+const groupFilter = ref('all');
 
 async function load() {
   if (!orgId.value) return;
@@ -51,61 +60,302 @@ async function load() {
     ]);
 
     members.value = memberRows;
-    groups.value = groupRows.map((g) => g.group);
+    groups.value = groupRows;
     assignments.value = assignmentRows;
+
+    progressRows.value = assignmentRows.length > 0
+      ? await assignmentsService.getAssignmentProgress(assignmentRows.map((a) => a.id))
+      : [];
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Failed to load assignments.';
     assignments.value = [];
+    progressRows.value = [];
   } finally {
     loading.value = false;
   }
 }
 
-function openCreate() {
-  if (!orgId.value || !canManage.value) return;
-  showCreate.value = true;
-}
-
-function closeCreate() {
-  showCreate.value = false;
-}
-
-function formatDue(value: string | null) {
+function formatDue(value: Date | null): string {
   if (!value) return '';
-  const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString();
+  return Number.isNaN(value.getTime()) ? '' : value.toLocaleDateString();
 }
 
-function formatTargets(item: OrgAssignmentListItem) {
-  if (!item.targets || item.targets.length === 0) return '—';
+function clipLabel(count: number): string {
+  return count === 1 ? '1 clip' : `${count} clips`;
+}
 
-  const parts = item.targets.map((t) => {
-    if (t.target_type === 'team') return 'Team';
-    if (t.target_type === 'player') return 'Player';
-    if (t.target_type === 'group') return 'Group';
-    return 'Target';
+const memberNameById = computed(() => {
+  const map = new Map<string, string>();
+  for (const member of members.value) {
+    const name = member.profile.name || member.profile.username || 'Player';
+    map.set(member.profile.id, name);
+  }
+  return map;
+});
+
+const groupById = computed(() => {
+  return new Map(groups.value.map((g) => [g.group.id, g]));
+});
+
+const assignmentById = computed(() => {
+  return new Map(assignments.value.map((assignment) => [assignment.id, assignment]));
+});
+
+const completedByAssignment = computed(() => {
+  const map = new Map<string, Set<string>>();
+  for (const row of progressRows.value) {
+    if (!row.completed) continue;
+    const set = map.get(row.assignment_id) ?? new Set<string>();
+    set.add(row.profile_id);
+    map.set(row.assignment_id, set);
+  }
+  return map;
+});
+
+function assignmentTargetLabels(item: OrgAssignmentListItem): string[] {
+  const labels: string[] = [];
+  const memberNames = memberNameById.value;
+  const groupsById = groupById.value;
+
+  for (const target of item.targets ?? []) {
+    if (target.target_type === 'team') {
+      labels.push('Team');
+    } else if (target.target_type === 'player') {
+      const name = memberNames.get(String(target.target_id ?? ''));
+      labels.push(name || 'Player');
+    } else if (target.target_type === 'group') {
+      const group = groupsById.get(String(target.target_id ?? ''));
+      labels.push(group?.group.name || 'Group');
+    }
+  }
+
+  return Array.from(new Set(labels)).filter(Boolean);
+}
+
+function assignmentAssignees(item: OrgAssignmentListItem): Set<string> {
+  const ids = new Set<string>();
+  const memberIds = members.value.map((m) => m.profile.id);
+  const groupsById = groupById.value;
+
+  for (const target of item.targets ?? []) {
+    if (target.target_type === 'team') {
+      for (const id of memberIds) ids.add(id);
+    }
+    if (target.target_type === 'player' && target.target_id) {
+      ids.add(String(target.target_id));
+    }
+    if (target.target_type === 'group' && target.target_id) {
+      const group = groupsById.get(String(target.target_id));
+      for (const id of group?.memberIds ?? []) ids.add(id);
+    }
+  }
+
+  return ids;
+}
+
+function assignmentTargetTypes(item: OrgAssignmentListItem): Set<string> {
+  const types = new Set<string>();
+  for (const target of item.targets ?? []) {
+    types.add(target.target_type);
+  }
+  return types;
+}
+
+function assignmentTargetGroupIds(item: OrgAssignmentListItem): Set<string> {
+  const ids = new Set<string>();
+  for (const target of item.targets ?? []) {
+    if (target.target_type === 'group' && target.target_id) {
+      ids.add(String(target.target_id));
+    }
+  }
+  return ids;
+}
+
+function primaryTarget(item: OrgAssignmentListItem): { type: AssignmentTargetType; id?: string | null } {
+  const targets = item.targets ?? [];
+  const teamTarget = targets.find((t) => t.target_type === 'team');
+  if (teamTarget) return { type: 'team' };
+  const groupTarget = targets.find((t) => t.target_type === 'group');
+  if (groupTarget) return { type: 'group', id: groupTarget.target_id ?? null };
+  const playerTarget = targets.find((t) => t.target_type === 'player');
+  if (playerTarget) return { type: 'player', id: playerTarget.target_id ?? null };
+  return { type: 'team' };
+}
+
+type AssignmentStatus = 'overdue' | 'due_soon' | 'completed' | 'upcoming';
+
+type AssignmentRow = {
+  id: string;
+  title: string;
+  description: string | null;
+  clipCount: number;
+  dueAt: Date | null;
+  targetLabel: string;
+  totalAssignees: number;
+  completedCount: number;
+  progress01: number;
+  status: AssignmentStatus;
+  targetTypes: Set<string>;
+  targetGroupIds: Set<string>;
+};
+
+const assignmentRows = computed<AssignmentRow[]>(() => {
+  const now = new Date();
+  const dueSoonCutoff = new Date(now);
+  dueSoonCutoff.setDate(now.getDate() + 7);
+  const completedMap = completedByAssignment.value;
+
+  return assignments.value.map((item) => {
+    const assignees = assignmentAssignees(item);
+    const completedSet = completedMap.get(item.id) ?? new Set<string>();
+    let completedCount = 0;
+    for (const id of assignees) {
+      if (completedSet.has(id)) completedCount += 1;
+    }
+
+    const totalAssignees = assignees.size;
+    const isCompleted = totalAssignees > 0 && completedCount >= totalAssignees;
+    const dueAt = item.due_at ? new Date(item.due_at) : null;
+
+    let status: AssignmentStatus = 'upcoming';
+    if (isCompleted) {
+      status = 'completed';
+    } else if (dueAt && dueAt < now) {
+      status = 'overdue';
+    } else if (dueAt && dueAt <= dueSoonCutoff) {
+      status = 'due_soon';
+    }
+
+    const targetLabels = assignmentTargetLabels(item);
+    const targetLabel = targetLabels.length > 0 ? targetLabels.join(', ') : 'Team';
+    const progress01 = totalAssignees > 0 ? completedCount / totalAssignees : 0;
+
+    return {
+      id: item.id,
+      title: item.title?.trim() || 'Untitled assignment',
+      description: item.description ?? null,
+      clipCount: item.clipCount,
+      dueAt,
+      targetLabel,
+      totalAssignees,
+      completedCount,
+      progress01,
+      status,
+      targetTypes: assignmentTargetTypes(item),
+      targetGroupIds: assignmentTargetGroupIds(item),
+    } satisfies AssignmentRow;
   });
+});
 
-  return Array.from(new Set(parts)).join(', ');
+const filteredRows = computed(() => {
+  return assignmentRows.value.filter((row) => {
+    if (statusFilter.value !== 'all' && row.status !== statusFilter.value) return false;
+    if (targetFilter.value !== 'all' && !row.targetTypes.has(targetFilter.value)) return false;
+    if (groupFilter.value !== 'all' && !row.targetGroupIds.has(groupFilter.value)) return false;
+    return true;
+  });
+});
+
+const sections = computed(() => {
+  const rows = filteredRows.value;
+  return {
+    overdue: rows.filter((row) => row.status === 'overdue'),
+    dueSoon: rows.filter((row) => row.status === 'due_soon' || (statusFilter.value === 'all' && row.status === 'upcoming')),
+    completed: rows.filter((row) => row.status === 'completed'),
+  };
+});
+
+const hasResults = computed(() => {
+  return sections.value.overdue.length > 0 || sections.value.dueSoon.length > 0 || sections.value.completed.length > 0;
+});
+
+function metaLine(row: AssignmentRow): string {
+  const parts = [row.targetLabel, clipLabel(row.clipCount)];
+  const dueLabel = formatDue(row.dueAt);
+  if (dueLabel) parts.push(`Due ${dueLabel}`);
+  return parts.join(' • ');
 }
 
-async function handleCreate(payload: {
+const editInitial = computed(() => {
+  if (!editingAssignment.value) return null;
+  const target = primaryTarget(editingAssignment.value);
+  return {
+    title: editingAssignment.value.title ?? '',
+    description: editingAssignment.value.description ?? null,
+    dueAt: editingAssignment.value.due_at ?? null,
+    targetType: target.type,
+    targetId: target.id ?? null,
+  };
+});
+
+function openEdit(assignmentId: string) {
+  if (!canManage.value) return;
+  const assignment = assignmentById.value.get(assignmentId);
+  if (!assignment) return;
+  editingAssignment.value = assignment;
+}
+
+function closeEdit() {
+  editingAssignment.value = null;
+}
+
+function mapTargets(assignmentId: string, targets: AssignmentTargetInput[]): OrgAssignmentTarget[] {
+  return targets.map((target) => ({
+    assignment_id: assignmentId,
+    target_type: target.type,
+    target_id: target.type === 'team' ? null : (target.id ?? null),
+  }));
+}
+
+async function handleEdit(payload: {
   title: string;
   description: string | null;
   dueAt: string | null;
-  targets: Array<{ type: AssignmentTargetType; id?: string | null }>;
+  targets: AssignmentTargetInput[];
 }) {
-  if (!orgId.value) return;
+  if (!editingAssignment.value) return;
 
   try {
-    await assignmentsService.createAssignment(orgId.value, payload);
-    toast({ variant: 'success', message: 'Assignment created.', durationMs: 2500 });
-    closeCreate();
-    void load();
+    const assignmentId = editingAssignment.value.id;
+    await assignmentsService.updateAssignment(assignmentId, {
+      title: payload.title,
+      description: payload.description ?? null,
+      dueAt: payload.dueAt ?? null,
+    });
+    await assignmentsService.replaceAssignmentTargets(assignmentId, payload.targets);
+
+    assignments.value = assignments.value.map((assignment) => {
+      if (assignment.id !== assignmentId) return assignment;
+      return {
+        ...assignment,
+        title: payload.title,
+        description: payload.description ?? null,
+        due_at: payload.dueAt ?? null,
+        targets: mapTargets(assignmentId, payload.targets),
+      };
+    });
+    closeEdit();
   } catch (e) {
-    toast({ variant: 'error', message: e instanceof Error ? e.message : 'Failed to create assignment.', durationMs: 3500 });
+    error.value = e instanceof Error ? e.message : 'Failed to update assignment.';
   }
 }
+
+function openAssignment(assignmentId: string) {
+  if (!orgSlug.value) return;
+  void router.push({
+    name: 'OrgFeedView',
+    params: { slug: orgSlug.value },
+    query: { source: 'assignments', assignmentId },
+  });
+}
+
+const groupOptions = computed(() => {
+  return groups.value.map((g) => ({ id: g.group.id, name: g.group.name }));
+});
+
+const groupList = computed(() => {
+  return groups.value.map((g) => g.group);
+});
 
 onMounted(() => {
   void load();
@@ -117,73 +367,224 @@ watch(orgId, (next, prev) => {
 </script>
 
 <template>
-  <div>
-    <div class="container py-6">
-      <div class="flex flex-col md:flex-row md:items-center justify-between mb-5 gap-3">
-        <div>
-          <h1 class="text-white text-3xl tracking-tight">Assignments</h1>
-        </div>
+  <div class="container py-8 text-white">
+    <div class="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+      <div>
+        <h1 class="text-3xl tracking-tight">Assignments</h1>
+        <p class="text-sm text-white/50">Track what was assigned, who is behind, and what’s due soon.</p>
+      </div>
 
-        <div v-if="canManage" class="flex flex-row flex-wrap gap-3">
-          <button
-            type="button"
-            class="flex gap-2 items-center rounded-lg px-2 py-1 text-white border border-green-500 bg-green-500/70 hover:bg-green-700/70 cursor-pointer text-xs transition disabled:opacity-50 w-fit"
-            :disabled="loading || !orgId"
-            @click="openCreate"
+      <div class="flex flex-wrap items-center gap-3 text-xs text-white/70">
+        <label class="flex items-center gap-2">
+          <span class="text-white/40">Status</span>
+          <select
+            v-model="statusFilter"
+            class="rounded bg-black/70 px-2 py-1 text-white ring-1 ring-white/10"
           >
-            <Icon icon="carbon:add" width="15" height="15" />
-            Create Assignment
-          </button>
-        </div>
-      </div>
+            <option value="all">All</option>
+            <option value="overdue">Overdue</option>
+            <option value="due_soon">Due Soon</option>
+            <option value="completed">Completed</option>
+          </select>
+        </label>
 
-      <div v-if="error" class="mb-6 rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">
-        {{ error }}
-      </div>
+        <label class="flex items-center gap-2">
+          <span class="text-white/40">Target</span>
+          <select
+            v-model="targetFilter"
+            class="rounded bg-black/70 px-2 py-1 text-white ring-1 ring-white/10"
+          >
+            <option value="all">All</option>
+            <option value="team">Team</option>
+            <option value="group">Group</option>
+            <option value="player">Player</option>
+          </select>
+        </label>
 
-      <div v-if="loading" class="text-white/60">Loading assignments…</div>
-
-      <div v-else-if="assignments.length === 0" class="text-sm text-gray-500">No assignments yet.</div>
-
-      <div v-else class="space-y-3">
-        <div
-          v-for="a in assignments"
-          :key="a.id"
-          class="rounded-lg border border-white/10 bg-white/5 p-4"
-        >
-          <div class="flex items-start justify-between gap-4">
-            <div>
-              <div class="text-white text-lg leading-snug">{{ a.title }}</div>
-              <div v-if="a.description" class="mt-1 text-sm text-white/60">{{ a.description }}</div>
-
-              <div class="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-xs text-white/60">
-                <div>
-                  <span class="text-white/40">Targets:</span>
-                  {{ formatTargets(a) }}
-                </div>
-                <div>
-                  <span class="text-white/40">Clips:</span>
-                  {{ a.clipCount }}
-                </div>
-                <div v-if="a.due_at">
-                  <span class="text-white/40">Due:</span>
-                  {{ formatDue(a.due_at) }}
-                </div>
-              </div>
-            </div>
-
-            <div class="text-xs text-white/40">Coach view</div>
-          </div>
-        </div>
+        <label v-if="groupOptions.length > 0" class="flex items-center gap-2">
+          <span class="text-white/40">Group</span>
+          <select
+            v-model="groupFilter"
+            class="rounded bg-black/70 px-2 py-1 text-white ring-1 ring-white/10"
+          >
+            <option value="all">All</option>
+            <option v-for="g in groupOptions" :key="g.id" :value="g.id">
+              {{ g.name }}
+            </option>
+          </select>
+        </label>
       </div>
     </div>
 
+    <div v-if="error" class="mt-6 text-sm text-red-200">
+      {{ error }}
+    </div>
+
+    <div v-else-if="loading" class="mt-6 text-white/60">Loading assignments…</div>
+
+    <div v-else-if="assignments.length === 0" class="mt-6 text-white/50">
+      No assignments yet.
+    </div>
+
+    <div v-else class="mt-8 space-y-10">
+      <div v-if="!hasResults" class="text-white/50">No assignments match your filters.</div>
+
+      <section v-if="sections.overdue.length > 0" class="space-y-4">
+        <h2 class="text-lg text-white/80">Overdue</h2>
+        <div class="space-y-4">
+          <div
+            v-for="row in sections.overdue"
+            :key="row.id"
+            class="group cursor-pointer rounded-lg px-2 py-3 transition hover:bg-white/5"
+            role="button"
+            tabindex="0"
+            @click="openAssignment(row.id)"
+            @keydown.enter.prevent="openAssignment(row.id)"
+          >
+            <div class="flex items-start justify-between gap-6">
+              <div class="min-w-0">
+                <div class="text-base text-white line-clamp-1">
+                  {{ row.title }}
+                </div>
+                <div class="mt-1 text-xs text-white/50 line-clamp-1">
+                  {{ metaLine(row) }}
+                </div>
+                <div v-if="row.description" class="mt-2 text-xs text-white/40 line-clamp-2">
+                  {{ row.description }}
+                </div>
+              </div>
+
+              <div class="shrink-0 text-right">
+                <div class="text-xs text-white/60">
+                  {{ row.completedCount }} / {{ row.totalAssignees }} reviewed
+                </div>
+                <div class="mt-2 h-1 w-24 rounded-full bg-white/10">
+                  <div
+                    class="h-full rounded-full bg-white/40"
+                    :style="{ width: `${Math.round(row.progress01 * 100)}%` }"
+                  />
+                </div>
+                <button
+                  v-if="canManage"
+                  type="button"
+                  class="mt-3 text-xs text-white/50 transition hover:text-white/80 hover:cursor-pointer"
+                  @click.stop="openEdit(row.id)"
+                >
+                  Edit
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section v-if="sections.dueSoon.length > 0" class="space-y-4">
+        <h2 class="text-lg text-white/80">Due Soon</h2>
+        <div class="space-y-4">
+          <div
+            v-for="row in sections.dueSoon"
+            :key="row.id"
+            class="group cursor-pointer rounded-lg px-2 py-3 transition hover:bg-white/5"
+            role="button"
+            tabindex="0"
+            @click="openAssignment(row.id)"
+            @keydown.enter.prevent="openAssignment(row.id)"
+          >
+            <div class="flex items-start justify-between gap-6">
+              <div class="min-w-0">
+                <div class="text-base text-white line-clamp-1">
+                  {{ row.title }}
+                </div>
+                <div class="mt-1 text-xs text-white/50 line-clamp-1">
+                  {{ metaLine(row) }}
+                </div>
+                <div v-if="row.description" class="mt-2 text-xs text-white/40 line-clamp-2">
+                  {{ row.description }}
+                </div>
+              </div>
+
+              <div class="shrink-0 text-right">
+                <div class="text-xs text-white/60">
+                  {{ row.completedCount }} / {{ row.totalAssignees }} reviewed
+                </div>
+                <div class="mt-2 h-1 w-24 rounded-full bg-white/10">
+                  <div
+                    class="h-full rounded-full bg-white/40"
+                    :style="{ width: `${Math.round(row.progress01 * 100)}%` }"
+                  />
+                </div>
+                <button
+                  v-if="canManage"
+                  type="button"
+                  class="mt-3 text-xs text-white/50 transition hover:text-white/80 hover:cursor-pointer"
+                  @click.stop="openEdit(row.id)"
+                >
+                  Edit
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section v-if="sections.completed.length > 0" class="space-y-4">
+        <h2 class="text-lg text-white/80">Completed</h2>
+        <div class="space-y-4">
+          <div
+            v-for="row in sections.completed"
+            :key="row.id"
+            class="group cursor-pointer rounded-lg px-2 py-3 transition hover:bg-white/5"
+            role="button"
+            tabindex="0"
+            @click="openAssignment(row.id)"
+            @keydown.enter.prevent="openAssignment(row.id)"
+          >
+            <div class="flex items-start justify-between gap-6">
+              <div class="min-w-0">
+                <div class="text-base text-white line-clamp-1">
+                  {{ row.title }}
+                </div>
+                <div class="mt-1 text-xs text-white/50 line-clamp-1">
+                  {{ metaLine(row) }}
+                </div>
+                <div v-if="row.description" class="mt-2 text-xs text-white/40 line-clamp-2">
+                  {{ row.description }}
+                </div>
+              </div>
+
+              <div class="shrink-0 text-right">
+                <div class="text-xs text-white/60">
+                  {{ row.completedCount }} / {{ row.totalAssignees }} reviewed
+                </div>
+                <div class="mt-2 h-1 w-24 rounded-full bg-white/10">
+                  <div
+                    class="h-full rounded-full bg-white/40"
+                    :style="{ width: `${Math.round(row.progress01 * 100)}%` }"
+                  />
+                </div>
+                <button
+                  v-if="canManage"
+                  type="button"
+                  class="mt-3 text-xs text-white/50 transition hover:text-white/80 hover:cursor-pointer"
+                  @click.stop="openEdit(row.id)"
+                >
+                  Edit
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
     <CreateAssignmentModal
-      v-if="showCreate && canManage"
+      v-if="editingAssignment"
+      mode="edit"
       :members="members"
-      :groups="groups"
-      @close="closeCreate"
-      @submit="handleCreate"
+      :groups="groupList"
+      :initial="editInitial"
+      @close="closeEdit"
+      @submit="handleEdit"
     />
   </div>
 </template>

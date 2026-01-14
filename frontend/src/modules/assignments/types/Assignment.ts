@@ -29,10 +29,12 @@ export type FeedAssignment = {
 
   /** Primary segment to open when clicking from the feed (MVP: first attached segment). */
   segment_id: string | null;
+  thumbnail_path?: string | null;
 
   assigned_to: 'player' | 'team' | 'group';
 
   completed: boolean;
+  completed_at?: string | null;
 };
 
 export type UserAssignmentFeed = {

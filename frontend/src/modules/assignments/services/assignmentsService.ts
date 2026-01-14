@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabaseClient';
+import type { PostgrestError } from '@supabase/supabase-js';
 import type {
   AssignmentTargetType,
   FeedAssignment,
@@ -7,6 +8,90 @@ import type {
   OrgAssignmentTarget,
   UserAssignmentFeed,
 } from '@/modules/assignments/types';
+import type { OrgMediaAsset } from '@/modules/media/types/OrgMediaAsset';
+import type { MediaAssetSegment } from '@/modules/narrations/types/MediaAssetSegment';
+
+type SegmentRow = {
+  id: string;
+  media_asset_id: string;
+  segment_index: number;
+  start_seconds: number;
+  end_seconds: number;
+  created_at: string | Date | null;
+  media_assets:
+    | {
+        id: string;
+        org_id: string;
+        uploader_id: string;
+        bucket: string;
+        storage_path: string;
+        streaming_ready: boolean;
+        thumbnail_path: string | null;
+        file_size_bytes: number;
+        mime_type: string;
+        duration_seconds: number;
+        checksum: string;
+        source: string;
+        file_name: string;
+        kind: string;
+        status: string;
+        created_at: string | Date | null;
+        base_org_storage_path: string;
+      }
+    | null;
+};
+
+export type AssignmentFeedMode = 'assigned_to_you' | 'assigned_to_team' | 'group';
+
+export type AssignmentFeedEntry = {
+  assignment: FeedAssignment;
+  asset: OrgMediaAsset;
+  segment: MediaAssetSegment;
+};
+
+export type AssignmentProgressRow = {
+  assignment_id: string;
+  profile_id: string;
+  completed: boolean;
+};
+
+export type AssignmentTargetInput = { type: AssignmentTargetType; id?: string | null };
+
+function asDate(value: string | Date | null, context: string): Date {
+  if (!value) {
+    throw new Error(`Missing ${context} timestamp.`);
+  }
+  const parsed = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error(`Invalid ${context} timestamp.`);
+  }
+  return parsed;
+}
+
+function reorderByStartId<T extends { id: string }>(list: T[], startId?: string | null): T[] {
+  const id = startId ? String(startId) : '';
+  if (!id) return list;
+  const index = list.findIndex((item) => item.id === id);
+  if (index <= 0) return list;
+  return [list[index]!, ...list.slice(0, index), ...list.slice(index + 1)];
+}
+
+const FALLBACK_ASSIGNMENT_TITLE = 'Clip review';
+export function normalizeAssignmentTitle(raw: string | null | undefined): string {
+  const title = String(raw ?? '').trim();
+  if (!title) return FALLBACK_ASSIGNMENT_TITLE;
+  let cleaned = title;
+  cleaned = cleaned.replace(/\b(coach|member|staff)\b/gi, '');
+  cleaned = cleaned.replace(/\bvs\b\s+[A-Z0-9\s]+/g, '');
+  cleaned = cleaned.replace(/\bsegment\s*\d+\b/gi, '');
+  cleaned = cleaned.replace(/\bclip\s*\d+\b/gi, '');
+  cleaned = cleaned.replace(/\b\d{1,2}:\d{2}(?::\d{2})?\s*[–-]\s*\d{1,2}:\d{2}(?::\d{2})?\b/g, '');
+  cleaned = cleaned.replace(/\b\d{1,2}:\d{2}(?::\d{2})?\b/g, '');
+  cleaned = cleaned.replace(/[•]/g, ' ');
+  cleaned = cleaned.replace(/\s*[–-]\s*/g, ' ');
+  cleaned = cleaned.replace(/\s{2,}/g, ' ').trim();
+  return cleaned || FALLBACK_ASSIGNMENT_TITLE;
+}
 
 export const assignmentsService = {
   async getAssignmentsForOrg(orgId: string): Promise<OrgAssignmentListItem[]> {
@@ -56,6 +141,40 @@ export const assignmentsService = {
         clipCount: segmentCountByAssignment.get(id) ?? 0,
       };
     });
+  },
+
+  async updateAssignment(
+    assignmentId: string,
+    payload: { title: string; description?: string | null; dueAt?: string | null }
+  ): Promise<OrgAssignment> {
+    const { data, error } = await supabase
+      .from('assignments')
+      .update({
+        title: payload.title,
+        description: payload.description ?? null,
+        due_at: payload.dueAt ?? null,
+      })
+      .eq('id', assignmentId)
+      .select('id, org_id, created_by, title, description, due_at, created_at')
+      .single();
+
+    if (error) throw error;
+    return data as OrgAssignment;
+  },
+
+  async replaceAssignmentTargets(assignmentId: string, targets: AssignmentTargetInput[]): Promise<void> {
+    const { error: deleteError } = await supabase.from('assignment_targets').delete().eq('assignment_id', assignmentId);
+    if (deleteError) throw deleteError;
+
+    if (!targets || targets.length === 0) return;
+    const rows = targets.map((t) => ({
+      assignment_id: assignmentId,
+      target_type: t.type,
+      target_id: t.type === 'team' ? null : (t.id ?? null),
+    }));
+
+    const { error: insertError } = await supabase.from('assignment_targets').insert(rows);
+    if (insertError) throw insertError;
   },
 
   async createAssignment(
@@ -187,17 +306,20 @@ export const assignmentsService = {
 
     const { data: progressRows, error: progressError } = await supabase
       .from('assignment_progress')
-      .select('assignment_id, completed')
+      .select('assignment_id, completed, completed_at')
       .eq('profile_id', userId)
       .in('assignment_id', relevantIds);
 
     if (progressError) throw progressError;
 
-    const completed = new Set(
-      (progressRows ?? [])
-        .filter((r: any) => Boolean(r.completed))
-        .map((r: any) => r.assignment_id as string),
-    );
+    const completed = new Set<string>();
+    const completedAtByAssignment = new Map<string, string | null>();
+    for (const row of (progressRows ?? []) as Array<{ assignment_id: string; completed: boolean; completed_at?: string | null }>) {
+      const assignmentId = String(row.assignment_id ?? '');
+      if (!assignmentId) continue;
+      if (row.completed) completed.add(assignmentId);
+      if (row.completed_at) completedAtByAssignment.set(assignmentId, row.completed_at);
+    }
 
     const { data: segmentRows, error: segmentError } = await supabase
       .from('assignment_segments')
@@ -207,20 +329,50 @@ export const assignmentsService = {
     if (segmentError) throw segmentError;
 
     const segmentIdByAssignment = new Map<string, string>();
-    for (const s of (segmentRows ?? []) as Array<{ assignment_id: string; media_segment_id: string }>) {
-      const assignmentId = String((s as any).assignment_id);
+    for (const s of (segmentRows ?? []) as Array<{ assignment_id: string; media_segment_id: string | null }>) {
+      const assignmentId = String(s.assignment_id ?? '');
       if (!assignmentId || segmentIdByAssignment.has(assignmentId)) continue;
-      segmentIdByAssignment.set(assignmentId, String((s as any).media_segment_id));
+      const segmentId = String(s.media_segment_id ?? '');
+      if (!segmentId) continue;
+      segmentIdByAssignment.set(assignmentId, segmentId);
+    }
+
+    const segmentIds = Array.from(new Set(segmentIdByAssignment.values())).filter(Boolean);
+    const thumbnailBySegmentId = new Map<string, string | null>();
+    if (segmentIds.length > 0) {
+      const { data: segmentThumbRows, error: segmentThumbError } = (await supabase
+        .from('media_asset_segments')
+        .select(
+          `
+          id,
+          media_assets (
+            thumbnail_path
+          )
+        `
+        )
+        .in('id', segmentIds)) as { data: Array<{ id: string; media_assets: { thumbnail_path: string | null } | null }> | null; error: PostgrestError | null };
+
+      if (segmentThumbError) throw segmentThumbError;
+      for (const row of segmentThumbRows ?? []) {
+        thumbnailBySegmentId.set(String(row.id), row.media_assets?.thumbnail_path ?? null);
+      }
+    }
+
+    const thumbnailByAssignment = new Map<string, string | null>();
+    for (const [assignmentId, segmentId] of segmentIdByAssignment.entries()) {
+      thumbnailByAssignment.set(assignmentId, thumbnailBySegmentId.get(segmentId) ?? null);
     }
 
     const toFeed = (row: any, assigned_to: 'player' | 'team' | 'group'): FeedAssignment => ({
       id: row.id,
-      title: row.title,
+      title: normalizeAssignmentTitle(row.title),
       created_at: row.created_at,
       due_at: row.due_at,
       segment_id: segmentIdByAssignment.get(String(row.id)) ?? null,
+      thumbnail_path: thumbnailByAssignment.get(String(row.id)) ?? null,
       assigned_to,
       completed: completed.has(row.id),
+      completed_at: completedAtByAssignment.get(String(row.id)) ?? null,
     });
 
     const byId = new Map<string, any>();
@@ -250,6 +402,273 @@ export const assignmentsService = {
       .sort((a, b) => a.groupName.toLowerCase().localeCompare(b.groupName.toLowerCase()));
 
     return { assignedToYou, assignedToTeam, assignedToGroups };
+  },
+
+  async getAssignmentProgress(assignmentIds: string[]): Promise<AssignmentProgressRow[]> {
+    const ids = Array.from(new Set(assignmentIds.map((id) => String(id)).filter(Boolean)));
+    if (ids.length === 0) return [];
+
+    const { data, error } = await supabase
+      .from('assignment_progress')
+      .select('assignment_id, profile_id, completed')
+      .in('assignment_id', ids);
+
+    if (error) throw error;
+    return (data ?? []) as AssignmentProgressRow[];
+  },
+
+  async getAssignmentFeed(options: {
+    orgId: string;
+    userId: string;
+    mode: AssignmentFeedMode;
+    groupId?: string | null;
+    startAssignmentId?: string | null;
+  }): Promise<AssignmentFeedEntry[]> {
+    const { orgId, userId, mode } = options;
+    if (!orgId || !userId) return [];
+
+    const feed = await this.getAssignmentsForUser(orgId, userId);
+
+    let assignments: FeedAssignment[] = [];
+    if (mode === 'assigned_to_you') {
+      assignments = feed.assignedToYou;
+    } else if (mode === 'assigned_to_team') {
+      assignments = feed.assignedToTeam;
+    } else if (mode === 'group') {
+      const groupId = String(options.groupId ?? '');
+      if (!groupId) {
+        throw new Error('Missing groupId for group assignments.');
+      }
+      const group = feed.assignedToGroups.find((g) => g.groupId === groupId);
+      assignments = group?.assignments ?? [];
+    }
+
+    const playableAssignments = assignments.filter((a) => Boolean(a.segment_id));
+    const orderedAssignments = reorderByStartId(playableAssignments, options.startAssignmentId);
+
+    const segmentIds = Array.from(
+      new Set(orderedAssignments.map((a) => a.segment_id).filter(Boolean))
+    ) as string[];
+    if (segmentIds.length === 0) return [];
+
+    const { data, error } = (await supabase
+      .from('media_asset_segments')
+      .select(
+        `
+        id,
+        media_asset_id,
+        segment_index,
+        start_seconds,
+        end_seconds,
+        created_at,
+        media_assets (
+          id,
+          org_id,
+          uploader_id,
+          bucket,
+          storage_path,
+          streaming_ready,
+          thumbnail_path,
+          file_size_bytes,
+          mime_type,
+          duration_seconds,
+          checksum,
+          source,
+          file_name,
+          kind,
+          status,
+          created_at,
+          base_org_storage_path
+        )
+      `
+      )
+      .eq('media_assets.org_id', orgId)
+      .in('id', segmentIds)) as { data: SegmentRow[] | null; error: PostgrestError | null };
+
+    if (error) throw error;
+
+    const segmentById = new Map<string, { asset: OrgMediaAsset; segment: MediaAssetSegment }>();
+    for (const row of data ?? []) {
+      if (!row.media_assets) continue;
+      const assetRow = row.media_assets;
+      const asset: OrgMediaAsset = {
+        id: assetRow.id,
+        org_id: assetRow.org_id,
+        uploader_id: assetRow.uploader_id,
+        bucket: assetRow.bucket,
+        storage_path: assetRow.storage_path,
+        streaming_ready: assetRow.streaming_ready,
+        thumbnail_path: assetRow.thumbnail_path ?? null,
+        file_size_bytes: assetRow.file_size_bytes,
+        mime_type: assetRow.mime_type,
+        duration_seconds: assetRow.duration_seconds,
+        checksum: assetRow.checksum,
+        source: assetRow.source,
+        file_name: assetRow.file_name,
+        title: null,
+        kind: assetRow.kind,
+        status: assetRow.status,
+        created_at: asDate(assetRow.created_at, 'media asset creation'),
+        base_org_storage_path: assetRow.base_org_storage_path,
+      };
+
+      const segment: MediaAssetSegment = {
+        id: row.id,
+        media_asset_id: row.media_asset_id,
+        segment_index: row.segment_index,
+        start_seconds: row.start_seconds,
+        end_seconds: row.end_seconds,
+        created_at: asDate(row.created_at, 'segment creation'),
+      };
+
+      segmentById.set(String(row.id), { asset, segment });
+    }
+
+    return orderedAssignments
+      .map((assignment) => {
+        const segmentId = String(assignment.segment_id ?? '');
+        const entry = segmentById.get(segmentId);
+        if (!entry) return null;
+        return { assignment, ...entry };
+      })
+      .filter(Boolean) as AssignmentFeedEntry[];
+  },
+
+  async getAssignmentFeedById(options: {
+    orgId: string;
+    assignmentId: string;
+  }): Promise<AssignmentFeedEntry[]> {
+    const { orgId, assignmentId } = options;
+    if (!orgId || !assignmentId) return [];
+
+    const { data: assignmentRow, error: assignmentError } = await supabase
+      .from('assignments')
+      .select('id, title, created_at, due_at')
+      .eq('org_id', orgId)
+      .eq('id', assignmentId)
+      .single();
+
+    if (assignmentError) throw assignmentError;
+    if (!assignmentRow) return [];
+
+    const { data: targetRows, error: targetError } = await supabase
+      .from('assignment_targets')
+      .select('target_type')
+      .eq('assignment_id', assignmentId);
+
+    if (targetError) throw targetError;
+
+    const hasTeam = (targetRows ?? []).some((t: any) => t.target_type === 'team');
+    const hasGroup = (targetRows ?? []).some((t: any) => t.target_type === 'group');
+    const assignedTo: FeedAssignment['assigned_to'] = hasTeam ? 'team' : hasGroup ? 'group' : 'player';
+
+    const { data: assignmentSegments, error: segmentsError } = await supabase
+      .from('assignment_segments')
+      .select('media_segment_id')
+      .eq('assignment_id', assignmentId);
+
+    if (segmentsError) throw segmentsError;
+
+    const segmentIds = Array.from(
+      new Set((assignmentSegments ?? []).map((s: any) => String(s.media_segment_id ?? '')).filter(Boolean))
+    );
+    if (segmentIds.length === 0) return [];
+
+    const { data, error } = (await supabase
+      .from('media_asset_segments')
+      .select(
+        `
+        id,
+        media_asset_id,
+        segment_index,
+        start_seconds,
+        end_seconds,
+        created_at,
+        media_assets (
+          id,
+          org_id,
+          uploader_id,
+          bucket,
+          storage_path,
+          streaming_ready,
+          thumbnail_path,
+          file_size_bytes,
+          mime_type,
+          duration_seconds,
+          checksum,
+          source,
+          file_name,
+          kind,
+          status,
+          created_at,
+          base_org_storage_path
+        )
+      `
+      )
+      .eq('media_assets.org_id', orgId)
+      .in('id', segmentIds)) as { data: SegmentRow[] | null; error: PostgrestError | null };
+
+    if (error) throw error;
+
+    const rows = (data ?? [])
+      .filter((row) => Boolean(row.media_assets))
+      .map((row) => ({
+        row,
+        segmentIndex: row.segment_index ?? 0,
+      }))
+      .sort((a, b) => a.segmentIndex - b.segmentIndex)
+      .map(({ row }) => row);
+
+    const baseAssignment: FeedAssignment = {
+      id: assignmentRow.id,
+      title: normalizeAssignmentTitle((assignmentRow as any).title),
+      created_at: (assignmentRow as any).created_at,
+      due_at: (assignmentRow as any).due_at ?? null,
+      segment_id: null,
+      thumbnail_path: null,
+      assigned_to: assignedTo,
+      completed: false,
+      completed_at: null,
+    };
+
+    return rows.map((row) => {
+      const assetRow = row.media_assets!;
+      const asset: OrgMediaAsset = {
+        id: assetRow.id,
+        org_id: assetRow.org_id,
+        uploader_id: assetRow.uploader_id,
+        bucket: assetRow.bucket,
+        storage_path: assetRow.storage_path,
+        streaming_ready: assetRow.streaming_ready,
+        thumbnail_path: assetRow.thumbnail_path ?? null,
+        file_size_bytes: assetRow.file_size_bytes,
+        mime_type: assetRow.mime_type,
+        duration_seconds: assetRow.duration_seconds,
+        checksum: assetRow.checksum,
+        source: assetRow.source,
+        file_name: assetRow.file_name,
+        title: null,
+        kind: assetRow.kind,
+        status: assetRow.status,
+        created_at: asDate(assetRow.created_at, 'media asset creation'),
+        base_org_storage_path: assetRow.base_org_storage_path,
+      };
+
+      const segment: MediaAssetSegment = {
+        id: row.id,
+        media_asset_id: row.media_asset_id,
+        segment_index: row.segment_index,
+        start_seconds: row.start_seconds,
+        end_seconds: row.end_seconds,
+        created_at: asDate(row.created_at, 'segment creation'),
+      };
+
+      return {
+        assignment: { ...baseAssignment, segment_id: segment.id },
+        asset,
+        segment,
+      } satisfies AssignmentFeedEntry;
+    });
   },
 
   async markAssignmentComplete(assignmentId: string, userId: string): Promise<void> {

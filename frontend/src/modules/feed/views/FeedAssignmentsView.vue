@@ -6,7 +6,9 @@ import { useAuthStore } from '@/auth/stores/useAuthStore';
 import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrganizationStore';
 import { assignmentsService } from '@/modules/assignments/services/assignmentsService';
 import type { FeedAssignment } from '@/modules/assignments/types';
+import { Icon } from '@iconify/vue';
 import { toast } from '@/lib/toast';
+import { CDN_BASE } from '@/lib/cdn';
 import AssignmentThumbnail from '@/modules/feed/components/AssignmentThumbnail.vue';
 
 const authStore = useAuthStore();
@@ -53,52 +55,59 @@ function isCompleted(assignment: FeedAssignment): boolean {
   return Boolean(assignment.completed ?? false);
 }
 
-function formatDate(value: string | Date) {
-  const date = value instanceof Date ? value : new Date(value);
-  return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString();
+function thumbnailUrl(assignment: FeedAssignment) {
+  if (!assignment.thumbnail_path) return null;
+  return `${CDN_BASE}/${assignment.thumbnail_path}`;
 }
 
-function setCompletedLocally(assignmentId: string) {
-  const update = (list: FeedAssignment[]) => list.map((a) => (a.id === assignmentId ? { ...a, completed: true } : a));
-  assignedToYou.value = update(assignedToYou.value);
-  assignedToTeam.value = update(assignedToTeam.value);
-  assignedToGroups.value = assignedToGroups.value.map((g) => ({
-    ...g,
-    assignments: update(g.assignments),
-  }));
+type AssignmentFeedMode = 'assigned_to_you' | 'assigned_to_team' | 'group';
+
+function routeToFeed(options: {
+  mode: AssignmentFeedMode;
+  groupId?: string;
+  startAssignmentId?: string;
+}) {
+  const query: Record<string, string> = {
+    source: 'assignments',
+    mode: options.mode,
+  };
+  if (options.groupId) query.groupId = options.groupId;
+  if (options.startAssignmentId) query.startAssignmentId = options.startAssignmentId;
+
+  return router.push({
+    name: 'OrgFeedView',
+    params: { slug: orgSlug.value },
+    query,
+  });
 }
 
-async function openAssignment(assignment: FeedAssignment) {
+async function openAssignment(assignment: FeedAssignment, mode: AssignmentFeedMode, groupId?: string) {
   if (!userId.value) return;
   if (!assignment.segment_id) {
     toast({ variant: 'info', message: 'This assignment has no clips yet.', durationMs: 2500 });
     return;
   }
 
-  setCompletedLocally(assignment.id);
-  try {
-    await assignmentsService.markAssignmentComplete(assignment.id, userId.value);
-  } catch {
-    // MVP: ignore failures; still navigate.
-  }
-
-  await router.push({
-    name: 'MediaAssetSegment',
-    params: { slug: orgSlug.value, segmentId: assignment.segment_id },
-  });
+  await routeToFeed({ mode, groupId, startAssignmentId: assignment.id });
 }
 
-function viewAll(sectionType: 'assigned-to-you' | 'assigned-to-team') {
-  void router.push({ name: 'OrgFeedSection', params: { slug: orgSlug.value, sectionType } });
+const scrollerClass = 'flex gap-5 overflow-x-auto no-scrollbar scroll-smooth snap-x snap-mandatory pb-2 touch-pan-x pr-6 pl-4 scroll-pl-4 sm:pl-[calc((100vw-640px)/2+1rem)] sm:scroll-pl-[calc((100vw-640px)/2+1rem)] md:pl-[calc((100vw-768px)/2+1rem)] md:scroll-pl-[calc((100vw-768px)/2+1rem)] lg:pl-[calc((100vw-1024px)/2+1rem)] lg:scroll-pl-[calc((100vw-1024px)/2+1rem)] xl:pl-[calc((100vw-1280px)/2+1rem)] xl:scroll-pl-[calc((100vw-1280px)/2+1rem)] 2xl:pl-[calc((100vw-1536px)/2+1rem)] 2xl:scroll-pl-[calc((100vw-1536px)/2+1rem)]';
+const scrollerRefs = ref<Record<string, HTMLElement | null>>({});
+
+function setScrollerRef(key: string, el: Element | null) {
+  scrollerRefs.value[key] = el as HTMLElement | null;
 }
 
-function viewAllGroup(groupId: string) {
-  void router.push({ name: 'OrgFeedSection', params: { slug: orgSlug.value, sectionType: 'group' }, query: { groupId } });
+function scrollSection(key: string, direction: number) {
+  const el = scrollerRefs.value[key];
+  if (!el) return;
+  const amount = Math.max(220, el.clientWidth * 0.85);
+  el.scrollBy({ left: amount * direction, behavior: 'smooth' });
 }
 </script>
 
 <template>
-  <div class="py-6">
+  <div class="py-8 overflow-x-hidden">
     <div v-if="!activeOrgId" class="container-lg h-full w-full flex items-center justify-center text-white/60">
       Select an organization to view assignments.
     </div>
@@ -114,55 +123,77 @@ function viewAllGroup(groupId: string) {
 
       <div
         v-else
-        class="space-y-10"
+        class="space-y-12"
       >
         <section v-if="assignedToYou.length > 0">
           <div class="container-lg flex items-end justify-between gap-4">
-            <h2 class="text-3xl text-white">Assigned to you</h2>
-            <button
-              type="button"
-              class="text-xs text-white/60 hover:text-white/80 transition"
-              @click="viewAll('assigned-to-you')"
-            >
-              View all
-            </button>
+            <h2 class="text-2xl md:text-3xl text-white">Assigned to you</h2>
+            <div class="flex items-center gap-2">
+              <button
+                type="button"
+                class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/5 text-white/70 transition hover:bg-white/10 hover:text-white/90 hover:cursor-pointer"
+                aria-label="Scroll assigned to you left"
+                @click="scrollSection('assigned_to_you', -1)"
+              >
+                <Icon icon="carbon:chevron-left" class="h-5 w-5" />
+              </button>
+              <button
+                type="button"
+                class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/5 text-white/70 transition hover:bg-white/10 hover:text-white/90 hover:cursor-pointer"
+                aria-label="Scroll assigned to you right"
+                @click="scrollSection('assigned_to_you', 1)"
+              >
+                <Icon icon="carbon:chevron-right" class="h-5 w-5" />
+              </button>
+            </div>
           </div>
 
-          <div class="mt-4 w-screen relative left-1/2 right-1/2 -ml-[50vw] -mr-[50vw]">
-            <div class="flex gap-4 overflow-x-auto px-4 py-1 touch-pan-x">
+          <div class="mt-5 w-screen relative left-1/2 right-1/2 -ml-[50vw] -mr-[50vw]">
+            <div :ref="(el) => setScrollerRef('assigned_to_you', el)" :class="scrollerClass">
               <AssignmentThumbnail
                 v-for="assignment in assignedToYou"
                 :key="assignment.id"
                 :assignment="assignment"
                 :completed="isCompleted(assignment)"
-                :meta-line="formatDate(assignment.created_at)"
-                :on-click="() => openAssignment(assignment)"
+                :thumbnail-url="thumbnailUrl(assignment)"
+                :on-click="() => openAssignment(assignment, 'assigned_to_you')"
               />
             </div>
           </div>
         </section>
 
-        <section v-if="assignedToTeam.length > 0" class="border-t border-white/50 pt-5">
+        <section v-if="assignedToTeam.length > 0">
           <div class="container-lg flex items-end justify-between gap-4">
-            <h2 class="text-3xl text-white">Assigned to team</h2>
-            <button
-              type="button"
-              class="text-xs text-white/60 hover:text-white/80 transition"
-              @click="viewAll('assigned-to-team')"
-            >
-              View all
-            </button>
+            <h2 class="text-2xl md:text-3xl text-white">Assigned to team</h2>
+            <div class="flex items-center gap-2">
+              <button
+                type="button"
+                class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/5 text-white/70 transition hover:bg-white/10 hover:text-white/90 hover:cursor-pointer"
+                aria-label="Scroll assigned to team left"
+                @click="scrollSection('assigned_to_team', -1)"
+              >
+                <Icon icon="carbon:chevron-left" class="h-5 w-5" />
+              </button>
+              <button
+                type="button"
+                class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/5 text-white/70 transition hover:bg-white/10 hover:text-white/90 hover:cursor-pointer"
+                aria-label="Scroll assigned to team right"
+                @click="scrollSection('assigned_to_team', 1)"
+              >
+                <Icon icon="carbon:chevron-right" class="h-5 w-5" />
+              </button>
+            </div>
           </div>
 
-          <div class="mt-4 w-screen relative left-1/2 right-1/2 -ml-[50vw] -mr-[50vw]">
-            <div class="flex gap-4 overflow-x-auto px-4 py-1 touch-pan-x">
+          <div class="mt-5 w-screen relative left-1/2 right-1/2 -ml-[50vw] -mr-[50vw]">
+            <div :ref="(el) => setScrollerRef('assigned_to_team', el)" :class="scrollerClass">
               <AssignmentThumbnail
                 v-for="assignment in assignedToTeam"
                 :key="assignment.id"
                 :assignment="assignment"
                 :completed="isCompleted(assignment)"
-                :meta-line="formatDate(assignment.created_at)"
-                :on-click="() => openAssignment(assignment)"
+                :thumbnail-url="thumbnailUrl(assignment)"
+                :on-click="() => openAssignment(assignment, 'assigned_to_team')"
               />
             </div>
           </div>
@@ -172,28 +203,38 @@ function viewAllGroup(groupId: string) {
           v-for="g in assignedToGroups"
           :key="g.groupId"
           v-show="g.assignments.length > 0"
-          class="border-t border-white/50 pt-5"
         >
           <div class="container-lg flex items-end justify-between gap-4">
-            <h2 class="text-3xl text-white">{{ g.groupName }}</h2>
-            <button
-              type="button"
-              class="text-xs text-white/60 hover:text-white/80 transition"
-              @click="viewAllGroup(g.groupId)"
-            >
-              View all
-            </button>
+            <h2 class="text-2xl md:text-3xl text-white">{{ g.groupName }}</h2>
+            <div class="flex items-center gap-2">
+              <button
+                type="button"
+                class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/5 text-white/70 transition hover:bg-white/10 hover:text-white/90 hover:cursor-pointer"
+                :aria-label="`Scroll ${g.groupName} left`"
+                @click="scrollSection(g.groupId, -1)"
+              >
+                <Icon icon="carbon:chevron-left" class="h-5 w-5" />
+              </button>
+              <button
+                type="button"
+                class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/5 text-white/70 transition hover:bg-white/10 hover:text-white/90 hover:cursor-pointer"
+                :aria-label="`Scroll ${g.groupName} right`"
+                @click="scrollSection(g.groupId, 1)"
+              >
+                <Icon icon="carbon:chevron-right" class="h-5 w-5" />
+              </button>
+            </div>
           </div>
 
-          <div class="mt-4 w-screen relative left-1/2 right-1/2 -ml-[50vw] -mr-[50vw]">
-            <div class="flex gap-4 overflow-x-auto px-4 py-1 touch-pan-x">
+          <div class="mt-5 w-screen relative left-1/2 right-1/2 -ml-[50vw] -mr-[50vw]">
+            <div :ref="(el) => setScrollerRef(g.groupId, el)" :class="scrollerClass">
               <AssignmentThumbnail
                 v-for="assignment in g.assignments"
                 :key="assignment.id"
                 :assignment="assignment"
                 :completed="isCompleted(assignment)"
-                :meta-line="formatDate(assignment.created_at)"
-                :on-click="() => openAssignment(assignment)"
+                :thumbnail-url="thumbnailUrl(assignment)"
+                :on-click="() => openAssignment(assignment, 'group', g.groupId)"
               />
             </div>
           </div>

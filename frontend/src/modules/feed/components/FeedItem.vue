@@ -25,6 +25,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'next'): void;
   (e: 'prev'): void;
+  (e: 'watchedHalf'): void;
 }>();
 
 const authStore = useAuthStore();
@@ -232,6 +233,9 @@ const duration = ref(0);
 const hasSeekedToStart = ref(false);
 const endedWithinSegment = ref(false);
 const suppressEndClampUntilMs = ref(0);
+const watchedSeconds = ref(0);
+const lastWatchedTime = ref<number | null>(null);
+const hasReportedHalf = ref(false);
 
 // Volume (YouTube-style)
 const volume01 = ref(1);
@@ -373,6 +377,20 @@ function handlePlayerTimeupdate(p: { currentTime: number; duration: number }) {
   // Segment-bounded playback (MVP): clamp/stop within start/end.
   if (!props.isActive) return;
 
+  const prev = lastWatchedTime.value;
+  if (isPlaying.value) {
+    const delta = typeof prev === 'number' ? p.currentTime - prev : 0;
+    if (delta > 0 && delta < 2.5) {
+      watchedSeconds.value += delta;
+    }
+    const len = segmentLength.value;
+    if (!hasReportedHalf.value && len > 0 && watchedSeconds.value / len >= 0.5) {
+      hasReportedHalf.value = true;
+      emit('watchedHalf');
+    }
+  }
+  lastWatchedTime.value = p.currentTime;
+
   // After we issue a restart/seek, some browsers emit a timeupdate before the
   // seek takes effect. Avoid immediately re-triggering the "end" clamp.
   if (Date.now() < suppressEndClampUntilMs.value) {
@@ -454,6 +472,22 @@ function handlePause() {
   }
 }
 
+function resetWatchTracking() {
+  watchedSeconds.value = 0;
+  lastWatchedTime.value = null;
+  hasReportedHalf.value = false;
+}
+
+function resetForActiveItem() {
+  endedWithinSegment.value = false;
+  hasSeekedToStart.value = false;
+  lastWatchedTime.value = segmentStart.value;
+  playerRef.value?.pause();
+  suppressEndClampUntilMs.value = Date.now() + 1000;
+  playerRef.value?.setCurrentTime(segmentStart.value);
+  showOverlay(6000);
+}
+
 // Ensure only the active item plays.
 watch(
   () => props.isActive,
@@ -465,14 +499,20 @@ watch(
       return;
     }
     // When a new feed item becomes active, restart to segment start and show controls.
-    endedWithinSegment.value = false;
-    hasSeekedToStart.value = false;
-    playerRef.value?.pause();
-    suppressEndClampUntilMs.value = Date.now() + 1000;
-    playerRef.value?.setCurrentTime(segmentStart.value);
-    showOverlay(6000);
+    resetForActiveItem();
   },
   { immediate: true }
+);
+
+watch(
+  () => props.feedItem.mediaAssetSegmentId,
+  (next, prev) => {
+    if (!next || next === prev) return;
+    resetWatchTracking();
+    if (!props.isActive) return;
+    // Desktop view reuses a single FeedItem instance; re-seek when the item changes.
+    resetForActiveItem();
+  }
 );
 
 watch(
@@ -483,6 +523,7 @@ watch(
     endedWithinSegment.value = false;
     currentTime.value = 0;
     duration.value = 0;
+    resetWatchTracking();
   }
 );
 

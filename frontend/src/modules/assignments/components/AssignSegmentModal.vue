@@ -11,6 +11,8 @@ import type { OrgGroup } from '@/modules/groups/types';
 
 import { assignmentsService } from '@/modules/assignments/services/assignmentsService';
 import type { AssignmentTargetType } from '@/modules/assignments/types';
+import { narrationService } from '@/modules/narration/services/narrationService';
+import type { Narration } from '@/modules/narrations/types/Narration';
 
 import MemberPill from '@/modules/orgs/components/MemberPill.vue';
 
@@ -31,16 +33,12 @@ const groups = ref<OrgGroup[]>([]);
 const title = ref('');
 const description = ref('');
 const dueAt = ref<string>('');
+const titleTouched = ref(false);
+const autoTitle = ref('Clip review');
 
 const targetType = ref<AssignmentTargetType>('team');
 const selectedPlayerId = ref<string>('');
 const selectedGroupId = ref<string>('');
-
-const defaultTitle = computed(() => {
-  const base = props.segmentLabel?.trim();
-  if (base) return base;
-  return 'Segment assignment';
-});
 
 const sortedMembers = computed(() => {
   return [...members.value].sort((a, b) => {
@@ -53,6 +51,34 @@ const sortedMembers = computed(() => {
 const sortedGroups = computed(() => {
   return [...groups.value].sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
 });
+
+function cleanTitleCandidate(input: string): string {
+  let value = input.trim();
+  if (!value) return '';
+  value = value.replace(/\b(coach|member|staff)\b/gi, '');
+  value = value.replace(/\bvs\b\s+[A-Z0-9\s]+/g, '');
+  value = value.replace(/\b\d{1,2}:\d{2}(?::\d{2})?\s*[–-]\s*\d{1,2}:\d{2}(?::\d{2})?\b/g, '');
+  value = value.replace(/\b\d{1,2}:\d{2}(?::\d{2})?\b/g, '');
+  value = value.replace(/\bsegment\s*\d+\b/gi, '');
+  value = value.replace(/\bclip\s*\d+\b/gi, '');
+  value = value.replace(/[•]/g, ' ');
+  value = value.replace(/\s*[–-]\s*/g, ' ');
+  value = value.replace(/\s{2,}/g, ' ').trim();
+  return value;
+}
+
+function extractNarrationTitle(narrations: Narration[]): string | null {
+  const sorted = [...narrations].sort((a, b) => b.created_at.getTime() - a.created_at.getTime());
+  for (const n of sorted) {
+    const text = (n.transcript_clean || n.transcript_raw || '').trim();
+    if (!text) continue;
+    const sentenceMatch = text.match(/[^.!?]+[.!?]/);
+    const candidate = (sentenceMatch?.[0] ?? text).trim();
+    const cleaned = cleanTitleCandidate(candidate);
+    if (cleaned) return cleaned;
+  }
+  return null;
+}
 
 function selectPlayer(profileId: string) {
   selectedPlayerId.value = selectedPlayerId.value === profileId ? '' : profileId;
@@ -67,13 +93,20 @@ async function load() {
   error.value = null;
 
   try {
-    const [memberRows, groupRows] = await Promise.all([
+    const [memberRows, groupRows, narrations] = await Promise.all([
       orgService.listMembers(props.orgId),
       groupsService.getGroupsForOrg(props.orgId),
+      narrationService.listNarrationsForSegment(props.segmentId).catch(() => []),
     ]);
 
     members.value = memberRows;
     groups.value = groupRows.map((g) => g.group);
+
+    const narrationTitle = extractNarrationTitle(narrations);
+    autoTitle.value = narrationTitle || 'Clip review';
+    if (!titleTouched.value || !title.value.trim()) {
+      title.value = autoTitle.value;
+    }
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Failed to load members and groups.';
   } finally {
@@ -82,10 +115,8 @@ async function load() {
 }
 
 async function submit() {
-  if (!title.value.trim()) {
-    error.value = 'Please enter a title.';
-    return;
-  }
+  const trimmedTitle = title.value.trim();
+  const finalTitle = trimmedTitle || autoTitle.value || 'Clip review';
 
   if (targetType.value === 'player' && !selectedPlayerId.value) {
     error.value = 'Please select a player.';
@@ -111,7 +142,7 @@ async function submit() {
           : { type: 'group' as const, id: selectedGroupId.value };
 
     const created = await assignmentsService.createAssignment(props.orgId, {
-      title: title.value.trim(),
+      title: finalTitle,
       description: description.value.trim() ? description.value.trim() : null,
       dueAt: dueAtIso,
       targets: [target],
@@ -139,7 +170,7 @@ async function submit() {
 }
 
 onMounted(() => {
-  title.value = defaultTitle.value;
+  title.value = autoTitle.value;
   void load();
 });
 </script>
@@ -167,6 +198,7 @@ onMounted(() => {
                 v-model="title"
                 class="text-sm w-full rounded bg-white/10 border border-white/20 px-2 py-1 focus:border-white outline-none"
                 placeholder="Assignment title"
+                @input="titleTouched = true"
               />
             </div>
           </div>

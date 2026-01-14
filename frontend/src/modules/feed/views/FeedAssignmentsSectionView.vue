@@ -39,27 +39,11 @@ const title = computed(() => {
   return 'Assignments';
 });
 
-function metaLine(a: FeedAssignment): string {
-  const d = new Date(a.created_at);
-  return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString();
-}
-
-function setCompletedLocally(assignmentId: string) {
-  assignments.value = assignments.value.map((a) => (a.id === assignmentId ? { ...a, completed: true } : a));
-}
-
 async function openAssignment(a: FeedAssignment) {
   if (!userId.value) return;
   if (!a.segment_id) {
     toast({ variant: 'info', message: 'This assignment has no clips yet.', durationMs: 2500 });
     return;
-  }
-
-  setCompletedLocally(a.id);
-  try {
-    await assignmentsService.markAssignmentComplete(a.id, userId.value);
-  } catch {
-    // MVP: ignore failures; the navigation is more important.
   }
 
   await router.push({
@@ -131,7 +115,6 @@ watch([orgId, userId, () => props.sectionType, groupId], () => {
           :key="a.id"
           :assignment="a"
           :completed="Boolean(a.completed)"
-          :meta-line="metaLine(a)"
           :on-click="() => openAssignment(a)"
         />
       </div>
