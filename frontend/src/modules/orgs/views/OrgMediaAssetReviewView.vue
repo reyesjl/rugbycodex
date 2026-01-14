@@ -57,17 +57,24 @@ const narrationCount = computed(() => (narrations.value as any[])?.length ?? 0);
 const playerRef = ref<InstanceType<typeof HlsSurfacePlayer> | null>(null);
 const surfaceEl = ref<HTMLElement | null>(null);
 
+const videoEl = computed(() => (playerRef.value?.getVideoElement?.() ?? null) as HTMLVideoElement | null);
+
 const isFullscreen = ref(false);
 const canFullscreen = computed(() => {
   const el = surfaceEl.value as any;
+  const video = videoEl.value as any;
   const doc = document as any;
-  if (!el) return false;
+
+  // iOS Safari often doesn't support element fullscreen, but does support
+  // native video fullscreen via `webkitEnterFullscreen`.
+  if (!el && !video) return false;
   return Boolean(
-    el.requestFullscreen ||
-    el.webkitRequestFullscreen ||
-    el.msRequestFullscreen ||
+    el?.requestFullscreen ||
+    el?.webkitRequestFullscreen ||
+    el?.msRequestFullscreen ||
     doc.fullscreenEnabled ||
-    doc.webkitFullscreenEnabled
+    doc.webkitFullscreenEnabled ||
+    video?.webkitEnterFullscreen
   );
 });
 
@@ -78,24 +85,49 @@ function getFullscreenElement(): Element | null {
 
 function syncFullscreenState() {
   const active = getFullscreenElement();
-  isFullscreen.value = Boolean(active && surfaceEl.value && active === surfaceEl.value);
+  const video = videoEl.value as any;
+  const isNativeVideoFullscreen = Boolean(video?.webkitDisplayingFullscreen);
+  isFullscreen.value = isNativeVideoFullscreen || Boolean(active && surfaceEl.value && active === surfaceEl.value);
 }
 
 async function toggleFullscreen() {
   const el = surfaceEl.value as any;
+  const video = videoEl.value as any;
   const doc = document as any;
-  if (!el) return;
+  if (!el && !video) return;
 
   try {
-    if (getFullscreenElement()) {
-      await Promise.resolve((document.exitFullscreen?.() ?? doc.webkitExitFullscreen?.()) as any);
+    const isNativeVideoFullscreen = Boolean(video?.webkitDisplayingFullscreen);
+
+    if (getFullscreenElement() || isNativeVideoFullscreen) {
+      await Promise.resolve((document.exitFullscreen?.() ?? doc.webkitExitFullscreen?.() ?? video?.webkitExitFullscreen?.()) as any);
       return;
     }
     // IMPORTANT: request fullscreen on the container, not the <video>, so overlays + record button stay visible.
-    await Promise.resolve((el.requestFullscreen?.() ?? el.webkitRequestFullscreen?.() ?? el.msRequestFullscreen?.()) as any);
+
+    if (el?.requestFullscreen || el?.webkitRequestFullscreen || el?.msRequestFullscreen) {
+      await Promise.resolve((el.requestFullscreen?.() ?? el.webkitRequestFullscreen?.() ?? el.msRequestFullscreen?.()) as any);
+      return;
+    }
+
+    // iOS fallback: enter native video fullscreen (overlays won't persist).
+    if (video?.webkitEnterFullscreen) {
+      video.webkitEnterFullscreen();
+      return;
+    }
   } catch {
     toast({ message: 'Fullscreen is not available in this browser.', variant: 'info', durationMs: 2500 });
   }
+}
+
+function bindVideoFullscreenListeners(video: any, previous: any) {
+  if (previous) {
+    previous.removeEventListener?.('webkitbeginfullscreen', syncFullscreenState);
+    previous.removeEventListener?.('webkitendfullscreen', syncFullscreenState);
+  }
+  if (!video) return;
+  video.addEventListener?.('webkitbeginfullscreen', syncFullscreenState);
+  video.addEventListener?.('webkitendfullscreen', syncFullscreenState);
 }
 
 const isBuffering = ref(false);
@@ -222,6 +254,7 @@ function onNarrationButtonHoverEnter(e: PointerEvent) {
 
 onBeforeUnmount(() => {
   hideOverlay();
+  bindVideoFullscreenListeners(null, videoEl.value as any);
   if (flashTimer !== null) {
     window.clearTimeout(flashTimer);
     flashTimer = null;
@@ -239,6 +272,11 @@ onMounted(() => {
   document.addEventListener('webkitfullscreenchange' as any, syncFullscreenState);
   syncFullscreenState();
 });
+
+watch(videoEl, (video, prev) => {
+  bindVideoFullscreenListeners(video as any, prev as any);
+  syncFullscreenState();
+}, { immediate: true });
 
 const progress01 = computed(() => {
   const d = duration.value;

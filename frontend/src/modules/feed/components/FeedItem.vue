@@ -33,17 +33,23 @@ const currentUserId = computed(() => authStore.user?.id ?? null);
 const playerRef = ref<InstanceType<typeof HlsSurfacePlayer> | null>(null);
 const surfaceEl = ref<HTMLElement | null>(null);
 
+const videoEl = computed(() => (playerRef.value?.getVideoElement?.() ?? null) as HTMLVideoElement | null);
+
 const isFullscreen = ref(false);
 const canFullscreen = computed(() => {
-  const el = surfaceEl.value as any;
+  const surface = surfaceEl.value as any;
+  const video = videoEl.value as any;
   const doc = document as any;
-  if (!el) return false;
+
+  // iOS Safari often does NOT support element fullscreen, but does support
+  // native video fullscreen via `webkitEnterFullscreen`.
   return Boolean(
-    el.requestFullscreen ||
-    el.webkitRequestFullscreen ||
-    el.msRequestFullscreen ||
+    surface?.requestFullscreen ||
+    surface?.webkitRequestFullscreen ||
+    surface?.msRequestFullscreen ||
     doc.fullscreenEnabled ||
-    doc.webkitFullscreenEnabled
+    doc.webkitFullscreenEnabled ||
+    video?.webkitEnterFullscreen
   );
 });
 
@@ -54,25 +60,55 @@ function getFullscreenElement(): Element | null {
 
 function syncFullscreenState() {
   const active = getFullscreenElement();
-  isFullscreen.value = Boolean(active && surfaceEl.value && active === surfaceEl.value);
+  const video = videoEl.value as any;
+  const isNativeVideoFullscreen = Boolean(video?.webkitDisplayingFullscreen);
+  isFullscreen.value = isNativeVideoFullscreen || Boolean(active && surfaceEl.value && active === surfaceEl.value);
 }
 
 async function toggleFullscreen() {
   const el = surfaceEl.value as any;
+  const video = videoEl.value as any;
   const doc = document as any;
-  if (!el) return;
+  if (!el && !video) return;
 
   try {
-    if (getFullscreenElement()) {
-      await Promise.resolve((document.exitFullscreen?.() ?? doc.webkitExitFullscreen?.()) as any);
+    const isNativeVideoFullscreen = Boolean(video?.webkitDisplayingFullscreen);
+
+    if (getFullscreenElement() || isNativeVideoFullscreen) {
+      await Promise.resolve((document.exitFullscreen?.() ?? doc.webkitExitFullscreen?.() ?? video?.webkitExitFullscreen?.()) as any);
       return;
     }
-    // Request fullscreen on the container so overlays remain visible.
-    await Promise.resolve((el.requestFullscreen?.() ?? el.webkitRequestFullscreen?.() ?? el.msRequestFullscreen?.()) as any);
+
+    // Prefer fullscreen on the container so overlays remain visible.
+    if (el?.requestFullscreen || el?.webkitRequestFullscreen || el?.msRequestFullscreen) {
+      await Promise.resolve((el.requestFullscreen?.() ?? el.webkitRequestFullscreen?.() ?? el.msRequestFullscreen?.()) as any);
+      return;
+    }
+
+    // iOS fallback: enter native video fullscreen.
+    if (video?.webkitEnterFullscreen) {
+      video.webkitEnterFullscreen();
+      return;
+    }
   } catch {
     // Silent in feed; lack of fullscreen support isn't fatal.
   }
 }
+
+function bindVideoFullscreenListeners(video: any, previous: any) {
+  if (previous) {
+    previous.removeEventListener?.('webkitbeginfullscreen', syncFullscreenState);
+    previous.removeEventListener?.('webkitendfullscreen', syncFullscreenState);
+  }
+  if (!video) return;
+  video.addEventListener?.('webkitbeginfullscreen', syncFullscreenState);
+  video.addEventListener?.('webkitendfullscreen', syncFullscreenState);
+}
+
+watch(videoEl, (video, prev) => {
+  bindVideoFullscreenListeners(video as any, prev as any);
+  syncFullscreenState();
+}, { immediate: true });
 
 const isBuffering = ref(false);
 const suppressBufferingUntilMs = ref(0);
@@ -126,6 +162,7 @@ function onNarrationButtonHoverEnter(e: PointerEvent) {
 
 onBeforeUnmount(() => {
   hideOverlay();
+  bindVideoFullscreenListeners(null, videoEl.value as any);
   if (flashTimer !== null) {
     window.clearTimeout(flashTimer);
     flashTimer = null;
