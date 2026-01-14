@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { toRef } from 'vue';
+import { computed, toRef } from 'vue';
 import { Icon } from '@iconify/vue';
 import { RouterLink } from 'vue-router';
 import { isPlatformAdmin } from "@/modules/auth/identity";
+import { useAuthStore } from '@/auth/stores/useAuthStore';
 import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrganizationStore';
 import { storeToRefs } from 'pinia';
 import { useSidebarGestures } from '@/modules/app/composables/useSidebarGestures';
@@ -17,8 +18,15 @@ const emit = defineEmits<{
 
 const handleSidebarToggle = () => emit('toggle-sidebar');
 
+const authStore = useAuthStore();
 const activeOrgStore = useActiveOrganizationStore();
 const { orgContext, hasActiveOrg } = storeToRefs(activeOrgStore);
+
+const canManageOrgTools = computed(() => {
+  if (authStore.isAdmin) return true;
+  const role = orgContext.value?.membership?.role;
+  return role === 'owner' || role === 'manager' || role === 'staff';
+});
 
 const {
   mobileSheetRef,
@@ -34,7 +42,7 @@ const {
   onToggle: handleSidebarToggle,
 });
 
-mobileSheetRef.value;
+void mobileSheetRef.value;
 </script>
 
 <template>
@@ -73,6 +81,20 @@ mobileSheetRef.value;
                 class="flex items-center px-4 py-2 hover:bg-white/10 rounded">
                 <Icon icon="carbon:connection-signal" width="20" height="20" class="mr-5" />
                 Feed
+              </RouterLink>
+            </li>
+            <li v-if="canManageOrgTools">
+              <RouterLink :to="`/organizations/${orgContext?.organization.slug}/assignments`"
+                class="flex items-center px-4 py-2 hover:bg-white/10 rounded">
+                <Icon icon="carbon:task" width="20" height="20" class="mr-5" />
+                Assignments
+              </RouterLink>
+            </li>
+            <li v-if="canManageOrgTools">
+              <RouterLink :to="`/organizations/${orgContext?.organization.slug}/groups`"
+                class="flex items-center px-4 py-2 hover:bg-white/10 rounded">
+                <Icon icon="carbon:group" width="20" height="20" class="mr-5" />
+                Groups
               </RouterLink>
             </li>
             <li>
@@ -175,6 +197,20 @@ mobileSheetRef.value;
                   class="flex items-center px-4 py-2 hover:bg-white/10 rounded">
                   <Icon icon="carbon:connection-signal" width="20" height="20" class="mr-5" />
                   Feed
+                </RouterLink>
+              </li>
+              <li v-if="canManageOrgTools">
+                <RouterLink :to="`/organizations/${orgContext?.organization.slug}/assignments`"
+                  class="flex items-center px-4 py-2 hover:bg-white/10 rounded" @click="handleSidebarToggle">
+                  <Icon icon="carbon:task" width="20" height="20" class="mr-5" />
+                  Assignments
+                </RouterLink>
+              </li>
+              <li v-if="canManageOrgTools">
+                <RouterLink :to="`/organizations/${orgContext?.organization.slug}/groups`"
+                  class="flex items-center px-4 py-2 hover:bg-white/10 rounded" @click="handleSidebarToggle">
+                  <Icon icon="carbon:group" width="20" height="20" class="mr-5" />
+                  Groups
                 </RouterLink>
               </li>
               <li>

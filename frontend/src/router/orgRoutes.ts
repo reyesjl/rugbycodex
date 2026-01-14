@@ -81,6 +81,20 @@ export const orgRoutes: RouteRecordRaw = {
           props: true,
         },
         {
+          path: 'assignments',
+          name: 'OrgAssignments',
+          component: () => import('@/modules/assignments/views/OrgAssignments.vue'),
+          props: true,
+          meta: { minOrgRole: 'staff' },
+        },
+        {
+          path: 'groups',
+          name: 'OrgGroups',
+          component: () => import('@/modules/groups/views/OrgGroups.vue'),
+          props: true,
+          meta: { minOrgRole: 'staff' },
+        },
+        {
           path: 'settings',
           name: 'OrgSettings',
           component: () => import('@/modules/orgs/views/OrgSettingsStub.vue'),

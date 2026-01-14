@@ -1,18 +1,19 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { storeToRefs } from 'pinia';
-import { useRoute, useRouter } from 'vue-router';
+import { useAuthStore } from '@/auth/stores/useAuthStore';
 import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrganizationStore';
-import { assignmentService, type FeedAssignment } from '@/modules/feed/services/assignmentService';
+import { assignmentsService } from '@/modules/assignments/services/assignmentsService';
+import type { FeedAssignment } from '@/modules/assignments/types';
 import AssignmentThumbnail from '@/modules/feed/components/AssignmentThumbnail.vue';
 
-const router = useRouter();
-const route = useRoute();
+const authStore = useAuthStore();
 
 const activeOrgStore = useActiveOrganizationStore();
 const { orgContext } = storeToRefs(activeOrgStore);
 
 const activeOrgId = computed(() => orgContext.value?.organization?.id ?? null);
+const userId = computed(() => authStore.user?.id ?? null);
 
 const loading = ref(false);
 const error = ref<string | null>(null);
@@ -21,19 +22,15 @@ const assignedToYou = ref<FeedAssignment[]>([]);
 const assignedToTeam = ref<FeedAssignment[]>([]);
 
 async function loadAssignments() {
-  if (!activeOrgId.value) return;
+  if (!activeOrgId.value || !userId.value) return;
 
   loading.value = true;
   error.value = null;
 
   try {
-    const [userAssignments, teamAssignments] = await Promise.all([
-      assignmentService.listAssignmentsForUser(activeOrgId.value),
-      assignmentService.listAssignmentsForTeam(activeOrgId.value),
-    ]);
-
-    assignedToYou.value = userAssignments;
-    assignedToTeam.value = teamAssignments;
+    const feed = await assignmentsService.getAssignmentsForUser(activeOrgId.value, userId.value);
+    assignedToYou.value = feed.assignedToYou;
+    assignedToTeam.value = feed.assignedToTeam;
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Failed to load assignments.';
   } finally {
@@ -41,21 +38,12 @@ async function loadAssignments() {
   }
 }
 
-watch(activeOrgId, () => {
+watch([activeOrgId, userId], () => {
   void loadAssignments();
 }, { immediate: true });
 
-function openFeed(mode: 'personal' | 'team') {
-  const slug = route.params.slug;
-  void router.push({
-    name: 'OrgFeedView',
-    params: { slug },
-    query: { mode },
-  });
-}
-
 function isCompleted(assignment: FeedAssignment): boolean {
-  return Boolean(assignment.completed ?? assignment.watched ?? assignment.reviewed ?? false);
+  return Boolean(assignment.completed ?? false);
 }
 
 function formatDate(value: string | Date) {
@@ -102,7 +90,6 @@ function formatDate(value: string | Date) {
                 :assignment="assignment"
                 :completed="isCompleted(assignment)"
                 :meta-line="formatDate(assignment.created_at)"
-                :on-click="() => openFeed('personal')"
               />
             </div>
           </div>
@@ -132,7 +119,6 @@ function formatDate(value: string | Date) {
                 :assignment="assignment"
                 :completed="isCompleted(assignment)"
                 :meta-line="formatDate(assignment.created_at)"
-                :on-click="() => openFeed('team')"
               />
             </div>
           </div>

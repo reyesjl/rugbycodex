@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
+import { Icon } from '@iconify/vue';
 import type { Narration } from '@/modules/narrations/types/Narration';
 import type { MediaAssetSegment } from '@/modules/narrations/types/MediaAssetSegment';
 import { formatMinutesSeconds } from '@/lib/duration';
@@ -21,6 +22,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'jumpToSegment', segment: MediaAssetSegment): void;
+  (e: 'assignSegment', segment: MediaAssetSegment): void;
   (e: 'editNarration', narrationId: string, transcriptRaw: string): void;
   (e: 'deleteNarration', narrationId: string): void;
 }>();
@@ -275,6 +277,17 @@ function formatCreatedAt(value: any): string {
             <div class="text-[11px] text-white/50" :title="`${(narrationsBySegment.get(String(seg.id)) ?? []).length} narration(s)`">
               {{ (narrationsBySegment.get(String(seg.id)) ?? []).length }}
             </div>
+
+            <button
+              v-if="props.canModerateNarrations"
+              type="button"
+              class="flex items-center gap-1 text-[11px] text-white/50 hover:text-white/80 transition cursor-pointer"
+              title="Assign this segment"
+              @click.stop="emit('assignSegment', seg)"
+            >
+              <Icon icon="carbon:task" width="13" height="13" />
+              Assign
+            </button>
 
             <button
               v-if="(narrationsBySegment.get(String(seg.id)) ?? []).length > 1"

@@ -29,6 +29,7 @@ import type { Narration } from '@/modules/narrations/types/Narration';
 import { formatMinutesSeconds } from '@/lib/duration';
 import MediaAssetReviewTimeline from '@/modules/media/components/MediaAssetReviewTimeline.vue';
 import MediaAssetReviewNarrationList from '@/modules/media/components/MediaAssetReviewNarrationList.vue';
+import AssignSegmentModal from '@/modules/assignments/components/AssignSegmentModal.vue';
 
 const BUFFER_SECONDS = 5;
 
@@ -64,6 +65,25 @@ const playlistUrl = ref<string>('');
 
 const segments = ref<MediaAssetSegment[]>([]);
 const narrations = ref<Array<Narration | NarrationListItem>>([]);
+
+const activeOrgIdOrEmpty = computed(() => activeOrgId.value ?? '');
+const assigningSegment = ref<MediaAssetSegment | null>(null);
+
+function labelForSegment(seg: MediaAssetSegment): string {
+  const start = formatMinutesSeconds(seg.start_seconds ?? 0);
+  const end = formatMinutesSeconds(seg.end_seconds ?? 0);
+  const kind = seg.source_type ? String(seg.source_type).toUpperCase() : 'SEG';
+  return `${kind} • ${start}–${end}`;
+}
+
+function openAssignSegment(seg: MediaAssetSegment) {
+  if (!isStaffOrAbove.value) return;
+  assigningSegment.value = seg;
+}
+
+function closeAssignSegment() {
+  assigningSegment.value = null;
+}
 
 // Match summary (AI)
 const matchSummary = ref<MatchSummary | null>(null);
@@ -934,6 +954,7 @@ async function handleDeleteNarration(narrationId: string) {
               :can-moderate-narrations="isStaffOrAbove"
               :current-user-id="currentUserId"
               @jumpToSegment="jumpToSegment"
+              @assignSegment="openAssignSegment"
               @editNarration="handleEditNarration"
               @deleteNarration="handleDeleteNarration"
             />
@@ -990,11 +1011,21 @@ async function handleDeleteNarration(narrationId: string) {
             :can-moderate-narrations="isStaffOrAbove"
             :current-user-id="currentUserId"
             @jumpToSegment="(seg) => { jumpToSegment(seg); narrationsDrawerOpen = false; }"
+            @assignSegment="openAssignSegment"
             @editNarration="handleEditNarration"
             @deleteNarration="handleDeleteNarration"
           />
         </div>
       </div>
+
+      <AssignSegmentModal
+        v-if="assigningSegment && activeOrgIdOrEmpty"
+        :org-id="activeOrgIdOrEmpty"
+        :segment-id="String(assigningSegment.id)"
+        :segment-label="labelForSegment(assigningSegment)"
+        :on-close="closeAssignSegment"
+        :on-assigned="closeAssignSegment"
+      />
     </div>
   </div>
 </template>
