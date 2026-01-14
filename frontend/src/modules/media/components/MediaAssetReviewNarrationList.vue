@@ -12,7 +12,7 @@ const props = defineProps<{
   /** Segment to scroll into view when user seeks/selects. */
   focusedSegmentId?: string | null;
   /** When not showing all sources, which segment source_type to show. */
-  defaultSourceType?: 'coach' | 'member';
+  defaultSourceType?: NonNullable<MediaAssetSegment['source_type']>;
   /** Staff+ can edit/delete any narration; members only their own. */
   canModerateNarrations?: boolean;
   /** Supabase auth user id (Narration.author_id). */
@@ -96,7 +96,12 @@ const showAllSources = ref(false);
 
 const defaultSourceTypeLabel = computed(() => {
   const only = props.defaultSourceType ?? 'coach';
-  return only === 'member' ? 'Member' : 'Coach';
+  if (only === 'member') return 'Member';
+  if (only === 'coach') return 'Coach';
+  if (only === 'staff') return 'Staff';
+  if (only === 'ai') return 'AI';
+  if (only === 'auto') return 'Auto';
+  return String(only).toUpperCase();
 });
 
 const segmentElById = ref(new Map<string, HTMLElement>());
@@ -153,6 +158,15 @@ const sourceFilteredSegments = computed(() => {
   const base = props.segments ?? [];
   if (showAllSources.value) return base;
   const only = props.defaultSourceType ?? 'coach';
+
+  // Back-compat: historically staff segments were tagged as 'coach'.
+  if (only === 'staff') {
+    return base.filter((s) => {
+      const t = String(s.source_type ?? '');
+      return t === 'staff' || t === 'coach';
+    });
+  }
+
   return base.filter((s) => String(s.source_type ?? '') === only);
 });
 
@@ -196,12 +210,14 @@ function formatCreatedAt(value: any): string {
         </div>
       </div>
 
-      <!-- Filters: on mobile they sit on the next line and scroll horizontally -->
-      <div class="-mx-1 flex items-center gap-3 overflow-x-auto whitespace-nowrap px-1">
+      <!-- Filters: scroll horizontally when needed -->
+      <div class="narration-filter-row -mx-1 flex items-center gap-2 overflow-x-auto whitespace-nowrap px-1">
         <button
           type="button"
-          class="text-[11px] transition cursor-pointer rounded-full px-2 py-1 ring-1 ring-transparent hover:bg-white/5 hover:ring-white/10"
-          :class="showAllSources ? 'text-white/80' : 'text-white/60'"
+          class="text-[11px] transition cursor-pointer rounded-full px-3 py-1 ring-1 ring-black/10"
+          :class="showAllSources
+            ? 'bg-white text-black'
+            : 'bg-zinc-200 text-black/70 hover:bg-white hover:text-black'"
           @click="showAllSources = !showAllSources"
           :title="showAllSources ? `Show only ${defaultSourceTypeLabel} segments` : 'Show all segment sources'"
         >
@@ -209,8 +225,10 @@ function formatCreatedAt(value: any): string {
         </button>
         <button
           type="button"
-          class="text-[11px] transition cursor-pointer rounded-full px-2 py-1 ring-1 ring-transparent hover:bg-white/5 hover:ring-white/10"
-          :class="showEmptySegments ? 'text-white/80' : 'text-white/60'"
+          class="text-[11px] transition cursor-pointer rounded-full px-3 py-1 ring-1 ring-black/10"
+          :class="showEmptySegments
+            ? 'bg-white text-black'
+            : 'bg-zinc-200 text-black/70 hover:bg-white hover:text-black'"
           @click="showEmptySegments = !showEmptySegments"
           :title="showEmptySegments ? 'Hide empty segments' : 'Show empty segments'"
         >
@@ -348,3 +366,13 @@ function formatCreatedAt(value: any): string {
     </div>
   </div>
 </template>
+
+<style scoped>
+.narration-filter-row {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge legacy */
+}
+.narration-filter-row::-webkit-scrollbar {
+  display: none; /* Chrome/Safari */
+}
+</style>

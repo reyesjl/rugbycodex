@@ -19,7 +19,7 @@ import { toast } from '@/lib/toast';
 
 import { useNarrationRecorder, type NarrationListItem } from '@/modules/narration/composables/useNarrationRecorder';
 import type { OrgMediaAsset } from '@/modules/media/types/OrgMediaAsset';
-import type { MediaAssetSegment } from '@/modules/narrations/types/MediaAssetSegment';
+import type { MediaAssetSegment, MediaAssetSegmentSourceType } from '@/modules/narrations/types/MediaAssetSegment';
 import type { Narration } from '@/modules/narrations/types/Narration';
 
 import { formatMinutesSeconds } from '@/lib/duration';
@@ -37,6 +37,18 @@ const activeOrgId = computed(() => orgContext.value?.organization?.id ?? null);
 const membershipRole = computed(() => (orgContext.value?.membership?.role ?? null) as any);
 const isStaffOrAbove = computed(() => hasOrgAccess(membershipRole.value, 'staff'));
 const currentUserId = computed(() => authStore.user?.id ?? null);
+
+const userSegmentSourceType = computed<MediaAssetSegmentSourceType>(() => {
+  const raw = String(membershipRole.value ?? '').toLowerCase();
+
+  if (raw === 'coach') return 'coach';
+  if (raw === 'member') return 'member';
+  if (raw === 'staff') return 'staff';
+
+  // Treat any staff-like roles (admin/owner/etc) as staff for segment source.
+  if (isStaffOrAbove.value) return 'staff';
+  return 'member';
+});
 
 const mediaAssetId = computed(() => String(route.params.mediaAssetId ?? ''));
 
@@ -538,6 +550,11 @@ async function beginRecording() {
     return;
   }
 
+  if (membershipRole.value === null || membershipRole.value === undefined) {
+    recordError.value = 'Missing membership role. Please reload and try again.';
+    return;
+  }
+
   const t = getTimeSeconds();
   const d = duration.value ?? 0;
 
@@ -545,18 +562,13 @@ async function beginRecording() {
   const endSeconds = d > 0 ? Math.min(d, t + BUFFER_SECONDS) : (t + BUFFER_SECONDS);
 
   // Create a segment FIRST so the narration has a segment to attach to.
-  // Staff+ uses coach segments; members use member segments.
-  const created = await (isStaffOrAbove.value
-    ? segmentService.createCoachSegment({
-        mediaAssetId: asset.value.id,
-        startSeconds,
-        endSeconds,
-      })
-    : segmentService.createMemberSegment({
+  // Use the viewer's actual role as the segment source.
+  const created = await segmentService.createSegment({
     mediaAssetId: asset.value.id,
     startSeconds,
     endSeconds,
-      }));
+    sourceType: userSegmentSourceType.value,
+  });
 
   // Optimistic segment insert.
   segments.value = [...segments.value, created].sort((a, b) => (a.start_seconds ?? 0) - (b.start_seconds ?? 0));
@@ -861,7 +873,7 @@ async function handleDeleteNarration(narrationId: string) {
               :narrations="(narrations as any)"
               :active-segment-id="activeSegmentId"
               :focused-segment-id="focusedSegmentId"
-              :default-source-type="isStaffOrAbove ? 'coach' : 'member'"
+              :default-source-type="userSegmentSourceType"
               :can-moderate-narrations="isStaffOrAbove"
               :current-user-id="currentUserId"
               @jumpToSegment="jumpToSegment"
@@ -902,7 +914,7 @@ async function handleDeleteNarration(narrationId: string) {
             :narrations="(narrations as any)"
             :active-segment-id="activeSegmentId"
             :focused-segment-id="focusedSegmentId"
-            :default-source-type="isStaffOrAbove ? 'coach' : 'member'"
+            :default-source-type="userSegmentSourceType"
             :can-moderate-narrations="isStaffOrAbove"
             :current-user-id="currentUserId"
             @jumpToSegment="(seg) => { jumpToSegment(seg); narrationsDrawerOpen = false; }"

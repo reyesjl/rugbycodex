@@ -165,7 +165,7 @@ function endScrub(e: PointerEvent) {
         </button>
         <button
           type="button"
-          class="rounded-full bg-black/25 p-1.5 text-white/90 ring-1 ring-white/10 hover:bg-black/35"
+          class="rounded-full bg-black/10 p-1.5 text-white/90 ring-1 ring-white/10 hover:bg-black/35"
           @click.stop="emit('settings')"
           title="Settings (placeholder)"
         >
