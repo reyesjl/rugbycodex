@@ -80,6 +80,8 @@ const LIGHT_SYSTEM_PROMPT =
 const MAX_NARRATIONS = 220;
 const MAX_TEXT_CHARS = 420;
 
+type SummaryMode = "state" | "summary";
+
 function normalizeRole(role: unknown): string {
   return String(role ?? "").trim().toLowerCase();
 }
@@ -242,6 +244,9 @@ serve(async (req: Request) => {
     if (!mediaAssetId) {
       return jsonResponse({ error: "media_asset_id is required" }, 400);
     }
+
+    const rawMode = String(body?.mode ?? "summary").trim().toLowerCase();
+    const mode: SummaryMode = rawMode === "state" ? "state" : "summary";
 
     const supabase = getClientBoundToRequest(req);
 
@@ -438,6 +443,17 @@ serve(async (req: Request) => {
 
     // Tier 1 – Light narrations (< 5)
     const state = narrationCount < 5 ? ("light" as const) : ("normal" as const);
+
+    // In light mode, do not generate AI output.
+    if (state === "light") {
+      return jsonResponse({ state });
+    }
+
+    // For normal mode, allow a cheap state check without generating.
+    if (mode === "state") {
+      return jsonResponse({ state });
+    }
+
     const systemPrompt = state === "light" ? LIGHT_SYSTEM_PROMPT : NORMAL_SYSTEM_PROMPT;
 
     // Primary attempt.

@@ -1,13 +1,15 @@
 import { supabase } from "@/lib/supabaseClient";
 import { handleSupabaseEdgeError } from "@/lib/handleSupabaseEdgeError";
-import type { MatchSummary } from "@/modules/analysis/types/MatchSummary";
+import type { MatchSummary, MatchSummaryState } from "@/modules/analysis/types/MatchSummary";
+
+export type MatchSummaryMode = 'state' | 'summary';
 
 type CacheEntry<T> = {
   value: T;
   expiresAtMs: number;
 };
 
-const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 const summaryCache = new Map<string, CacheEntry<MatchSummary>>();
 
 function asStringArray(value: unknown): string[] {
@@ -15,8 +17,18 @@ function asStringArray(value: unknown): string[] {
   return value.map((v) => String(v ?? "").trim()).filter(Boolean);
 }
 
-function getCachedSummary(mediaAssetId: string): MatchSummary | null {
-  const key = String(mediaAssetId ?? "").trim();
+function asMatchSummaryState(value: unknown): MatchSummaryState {
+  const v = String(value ?? '').trim().toLowerCase();
+  if (v === 'empty' || v === 'light' || v === 'normal') return v;
+  return 'empty';
+}
+
+function cacheKey(mediaAssetId: string, mode: MatchSummaryMode): string {
+  return `${String(mediaAssetId ?? '').trim()}:${mode}`;
+}
+
+function getCachedSummary(mediaAssetId: string, mode: MatchSummaryMode): MatchSummary | null {
+  const key = cacheKey(mediaAssetId, mode);
   if (!key) return null;
 
   const entry = summaryCache.get(key);
@@ -28,8 +40,8 @@ function getCachedSummary(mediaAssetId: string): MatchSummary | null {
   return entry.value;
 }
 
-function setCachedSummary(mediaAssetId: string, value: MatchSummary) {
-  const key = String(mediaAssetId ?? "").trim();
+function setCachedSummary(mediaAssetId: string, mode: MatchSummaryMode, value: MatchSummary) {
+  const key = cacheKey(mediaAssetId, mode);
   if (!key) return;
   summaryCache.set(key, { value, expiresAtMs: Date.now() + CACHE_TTL_MS });
 }
@@ -40,18 +52,20 @@ export const analysisService = {
    */
   async getMatchSummary(
     mediaAssetId: string,
-    options?: { forceRefresh?: boolean }
+    options?: { forceRefresh?: boolean; mode?: MatchSummaryMode }
   ): Promise<MatchSummary> {
     const id = String(mediaAssetId ?? "").trim();
     if (!id) throw new Error("Missing mediaAssetId.");
 
+    const mode: MatchSummaryMode = options?.mode ?? 'summary';
+
     if (!options?.forceRefresh) {
-      const cached = getCachedSummary(id);
+      const cached = getCachedSummary(id, mode);
       if (cached) return cached;
     }
 
-    const summary = await this.summarizeMediaAsset(id);
-    setCachedSummary(id, summary);
+    const summary = await this.summarizeMediaAsset(id, { mode });
+    setCachedSummary(id, mode, summary);
     return summary;
   },
 
@@ -60,13 +74,16 @@ export const analysisService = {
    *
    * Authorization is enforced server-side via org role checks (owner/manager/staff).
    */
-  async summarizeMediaAsset(mediaAssetId: string): Promise<MatchSummary> {
+  async summarizeMediaAsset(mediaAssetId: string, options?: { mode?: MatchSummaryMode }): Promise<MatchSummary> {
     const id = String(mediaAssetId ?? "").trim();
     if (!id) throw new Error("Missing mediaAssetId.");
+
+    const mode: MatchSummaryMode = options?.mode ?? 'summary';
 
     const response = await supabase.functions.invoke("summarize-media-asset", {
       body: {
         media_asset_id: id,
+        mode,
       },
     });
 
@@ -76,23 +93,15 @@ export const analysisService = {
 
     const data = response.data as any;
 
+    const state = asMatchSummaryState(data?.state);
+    const bullets = asStringArray(data?.bullets);
+
     const summary: MatchSummary = {
-      media_asset_id: String(data?.media_asset_id ?? id),
-      org_id: String(data?.org_id ?? ""),
-      bullets: asStringArray(data?.bullets),
-      narration_count: Number(data?.narration_count ?? 0),
-      model: data?.model ? String(data.model) : null,
-      generated_at: String(data?.generated_at ?? new Date().toISOString()),
-      truncation: data?.truncation
-        ? {
-            narrations_included: Number(data?.truncation?.narrations_included ?? 0),
-            narrations_total: Number(data?.truncation?.narrations_total ?? 0),
-            text_max_chars: Number(data?.truncation?.text_max_chars ?? 0),
-          }
-        : undefined,
+      state,
+      bullets: state === 'normal' ? bullets : [],
     };
 
-    setCachedSummary(id, summary);
+    setCachedSummary(id, mode, summary);
     return summary;
   },
 
