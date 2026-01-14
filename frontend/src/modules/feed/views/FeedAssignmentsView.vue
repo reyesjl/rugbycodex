@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
+import type { ComponentPublicInstance } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/auth/stores/useAuthStore';
@@ -94,8 +95,8 @@ async function openAssignment(assignment: FeedAssignment, mode: AssignmentFeedMo
 const scrollerClass = 'flex gap-5 overflow-x-auto no-scrollbar scroll-smooth snap-x snap-mandatory pb-2 touch-pan-x pr-6 pl-4 scroll-pl-4 sm:pl-[calc((100vw-640px)/2+1rem)] sm:scroll-pl-[calc((100vw-640px)/2+1rem)] md:pl-[calc((100vw-768px)/2+1rem)] md:scroll-pl-[calc((100vw-768px)/2+1rem)] lg:pl-[calc((100vw-1024px)/2+1rem)] lg:scroll-pl-[calc((100vw-1024px)/2+1rem)] xl:pl-[calc((100vw-1280px)/2+1rem)] xl:scroll-pl-[calc((100vw-1280px)/2+1rem)] 2xl:pl-[calc((100vw-1536px)/2+1rem)] 2xl:scroll-pl-[calc((100vw-1536px)/2+1rem)]';
 const scrollerRefs = ref<Record<string, HTMLElement | null>>({});
 
-function setScrollerRef(key: string, el: Element | null) {
-  scrollerRefs.value[key] = el as HTMLElement | null;
+function setScrollerRef(key: string, el: Element | ComponentPublicInstance | null) {
+  scrollerRefs.value[key] = el instanceof HTMLElement ? el : null;
 }
 
 function scrollSection(key: string, direction: number) {
