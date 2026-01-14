@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import type { MediaAssetSegment } from '@/modules/narrations/types/MediaAssetSegment';
 
 const props = defineProps<{
@@ -8,265 +8,251 @@ const props = defineProps<{
   segments: MediaAssetSegment[];
   /** List of segment IDs that have narrations (used to style markers). */
   segmentsWithNarrations?: Set<string>;
+  /** Segment id the player is currently inside (for highlight). */
+  activeSegmentId?: string | null;
+  /** Segment id the UI is focusing (e.g. user clicked a segment). */
+  focusedSegmentId?: string | null;
+  /** If true, only render markers for segments that have narrations. */
+  onlyNarratedMarkers?: boolean;
 }>();
 
 const emit = defineEmits<{
   (e: 'seek', seconds: number): void;
+  (e: 'jumpToSegment', segment: MediaAssetSegment): void;
 }>();
 
 function clamp(n: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, n));
 }
 
-// Zoom behavior
-// - zoom=1 means "full duration fits in the bar"
-// - zoom>1 means we show a window into the full duration
-const zoom = ref(1);
-const MIN_ZOOM = 1;
-const MAX_ZOOM = 40;
+const timelineEl = ref<HTMLElement | null>(null);
 
-const trackEl = ref<HTMLElement | null>(null);
+const isCoarsePointer = ref(false);
+let pointerMedia: MediaQueryList | null = null;
 
-// When zoomed in, the visible window is [windowStartSeconds, windowStartSeconds + windowSeconds].
-// This is stateful so zooming can be anchored to cursor position, not currentSeconds.
-const windowStartSeconds = ref(0);
+function onPointerMediaChange() {
+  syncPointerCapability();
+}
 
-const windowSeconds = computed(() => {
-  const d = props.durationSeconds ?? 0;
-  if (!d) return 0;
-  return d / zoom.value;
-});
-
-const windowStart = computed(() => {
-  const d = props.durationSeconds ?? 0;
-  const w = windowSeconds.value;
-  if (!d || !w) return 0;
-
-  if (zoom.value <= 1) return 0;
-  return clamp(windowStartSeconds.value, 0, Math.max(0, d - w));
-});
-
-watch(
-  () => [props.durationSeconds, zoom.value] as const,
-  () => {
-    const d = props.durationSeconds ?? 0;
-    const w = windowSeconds.value;
-    if (!d || !w || zoom.value <= 1) {
-      windowStartSeconds.value = 0;
-      return;
-    }
-
-    windowStartSeconds.value = clamp(windowStartSeconds.value, 0, Math.max(0, d - w));
-  },
-  { immediate: true }
-);
-
-// Keep the playhead visible while zoomed, without forcing it to be centered.
-watch(
-  () => props.currentSeconds ?? 0,
-  (tRaw) => {
-    if (scrubbing.value) return;
-    if (zoom.value <= 1) return;
-    const d = props.durationSeconds ?? 0;
-    const w = windowSeconds.value;
-    if (!d || !w) return;
-
-    const t = clamp(tRaw, 0, d);
-    const start = windowStart.value;
-    const end = start + w;
-
-    // If playback drifts outside the window, pan just enough to bring it back.
-    const margin = w * 0.15;
-    const minVisible = start + margin;
-    const maxVisible = end - margin;
-
-    if (t < minVisible) {
-      windowStartSeconds.value = clamp(t - margin, 0, Math.max(0, d - w));
-    } else if (t > maxVisible) {
-      windowStartSeconds.value = clamp(t - (w - margin), 0, Math.max(0, d - w));
-    }
+function syncPointerCapability() {
+  if (typeof window === 'undefined' || !window.matchMedia) {
+    isCoarsePointer.value = false;
+    return;
   }
-);
+  pointerMedia = pointerMedia ?? window.matchMedia('(pointer: coarse)');
+  isCoarsePointer.value = Boolean(pointerMedia.matches);
+}
+
+onMounted(() => {
+  syncPointerCapability();
+  if (!pointerMedia) return;
+  (pointerMedia.addEventListener?.('change', onPointerMediaChange) ?? pointerMedia.addListener?.(onPointerMediaChange));
+});
+
+onBeforeUnmount(() => {
+  if (!pointerMedia) return;
+  (pointerMedia.removeEventListener?.('change', onPointerMediaChange) ?? pointerMedia.removeListener?.(onPointerMediaChange));
+});
+
+const duration = computed(() => Math.max(0, props.durationSeconds ?? 0));
+const effectivePlayheadSeconds = computed(() => clamp(props.currentSeconds ?? 0, 0, duration.value || 0));
 
 function pctForSeconds(seconds: number): number {
-  const d = props.durationSeconds ?? 0;
+  const d = duration.value;
   if (!d) return 0;
-
-  const w = windowSeconds.value;
-  if (!w || zoom.value <= 1) {
-    return clamp(seconds / d, 0, 1) * 100;
-  }
-
-  const start = windowStart.value;
-  const rel = (seconds - start) / w;
-  return clamp(rel, 0, 1) * 100;
+  return clamp(seconds / d, 0, 1) * 100;
 }
 
 const orderedSegments = computed(() => {
   return [...(props.segments ?? [])].sort((a, b) => (a.start_seconds ?? 0) - (b.start_seconds ?? 0));
 });
 
-const scrubbing = ref(false);
-const scrubSeconds = ref(0);
+function isNarratedSegment(seg: MediaAssetSegment): boolean {
+  const set = props.segmentsWithNarrations;
+  if (!set) return false;
+  return set.has(String(seg.id));
+}
 
-const effectivePlayheadSeconds = computed(() => {
-  return scrubbing.value ? scrubSeconds.value : (props.currentSeconds ?? 0);
+const visibleMarkerSegments = computed(() => {
+  const list = orderedSegments.value;
+  if (!props.onlyNarratedMarkers) return list;
+  if (!props.segmentsWithNarrations) return list;
+  return list.filter((s) => isNarratedSegment(s));
 });
 
-function secondsFromPointer(e: PointerEvent): number {
-  const el = (trackEl.value ?? (e.currentTarget as HTMLElement | null)) as HTMLElement | null;
-  if (!el) return scrubSeconds.value;
-  const rect = el.getBoundingClientRect();
-  if (!rect.width) return scrubSeconds.value;
-  const xRaw = e.clientX - rect.left;
-  const pctRaw = rect.width ? xRaw / rect.width : 0;
-  const pct = clamp(pctRaw, 0, 1);
-  const d = props.durationSeconds ?? 0;
-  const w = windowSeconds.value;
-
-  // When zoomed, allow scrubbing past the visible ends by panning the window while dragging.
-  if (scrubbing.value && zoom.value > 1 && w > 0) {
-    const extraPct = pctRaw - pct; // negative when left of track, positive when right of track
-    if (extraPct !== 0) {
-      const maxStart = Math.max(0, d - w);
-      windowStartSeconds.value = clamp(windowStartSeconds.value + extraPct * w, 0, maxStart);
-    }
-  }
-
-  const seconds = zoom.value <= 1 || !w ? pct * d : windowStart.value + pct * w;
-  return clamp(seconds, 0, Math.max(0, d));
+function isFocused(seg: MediaAssetSegment): boolean {
+  const id = props.focusedSegmentId ? String(props.focusedSegmentId) : '';
+  return Boolean(id && String(seg.id) === id);
 }
 
-let activePointerId: number | null = null;
-function onPointerDown(e: PointerEvent) {
-  // left click only for mouse
-  if (e.pointerType === 'mouse' && e.button !== 0) return;
-  if ((props.durationSeconds ?? 0) <= 0) return;
-  activePointerId = e.pointerId;
-  scrubbing.value = true;
-  (e.currentTarget as HTMLElement | null)?.setPointerCapture?.(e.pointerId);
-  scrubSeconds.value = secondsFromPointer(e);
+function isActive(seg: MediaAssetSegment): boolean {
+  const id = props.activeSegmentId ? String(props.activeSegmentId) : '';
+  return Boolean(id && String(seg.id) === id);
 }
 
-function onPointerMove(e: PointerEvent) {
-  if (activePointerId === null) return;
-  if (e.pointerId !== activePointerId) return;
-  // If the mouse button is no longer pressed, don't keep scrubbing.
-  if (e.pointerType === 'mouse' && (e.buttons ?? 0) === 0) {
-    onPointerUp(e);
-    return;
-  }
-  scrubSeconds.value = secondsFromPointer(e);
-}
-
-function onPointerUp(e: PointerEvent) {
-  if (activePointerId === null) return;
-  if (e.pointerId !== activePointerId) return;
-  (e.currentTarget as HTMLElement | null)?.releasePointerCapture?.(e.pointerId);
-  activePointerId = null;
-
-  if (!scrubbing.value) return;
-  scrubbing.value = false;
-  emit('seek', scrubSeconds.value);
-}
-
-function onLostPointerCapture() {
-  activePointerId = null;
-  scrubbing.value = false;
-}
-
-// Pinch to zoom on touch devices.
-let pinchStartDist = 0;
-let pinchStartZoom = 1;
-let pinchAnchorPct = 0.5;
-let pinchAnchorSeconds = 0;
-
-function touchDistance(t1: Touch, t2: Touch): number {
-  const dx = t1.clientX - t2.clientX;
-  const dy = t1.clientY - t2.clientY;
-  return Math.sqrt(dx * dx + dy * dy);
-}
-
-function onTouchStart(e: TouchEvent) {
-  if (e.touches.length !== 2) return;
-  const el = trackEl.value;
+function onTrackClick(e: MouseEvent) {
+  const el = timelineEl.value;
   if (!el) return;
-  const rect = el.getBoundingClientRect();
-  if (!rect.width) return;
-
-  const [t1, t2] = [e.touches[0]!, e.touches[1]!];
-  pinchStartDist = touchDistance(t1, t2);
-  pinchStartZoom = zoom.value;
-
-  const midX = (t1.clientX + t2.clientX) / 2;
-  const x = clamp(midX - rect.left, 0, rect.width);
-  pinchAnchorPct = rect.width ? x / rect.width : 0.5;
-
-  const d = props.durationSeconds ?? 0;
-  const oldW = d ? d / zoom.value : 0;
-  const oldStart = zoom.value <= 1 ? 0 : windowStart.value;
-  pinchAnchorSeconds = zoom.value <= 1 || !oldW ? pinchAnchorPct * d : oldStart + pinchAnchorPct * oldW;
-}
-
-function onTouchMove(e: TouchEvent) {
-  if (e.touches.length !== 2) return;
-  const el = trackEl.value;
-  if (!el) return;
-  const rect = el.getBoundingClientRect();
-  if (!rect.width) return;
-
-  const [t1, t2] = [e.touches[0]!, e.touches[1]!];
-  const dist = touchDistance(t1, t2);
-  if (!pinchStartDist) return;
-
-  const ratio = dist / pinchStartDist;
-  const nextZoom = clamp(pinchStartZoom * ratio, MIN_ZOOM, MAX_ZOOM);
-
-  const d = props.durationSeconds ?? 0;
-  if (!d) return;
-
-  zoom.value = nextZoom;
-  if (zoom.value <= 1) {
-    windowStartSeconds.value = 0;
-    return;
-  }
-
-  const newW = d / zoom.value;
-  const newStart = pinchAnchorSeconds - pinchAnchorPct * newW;
-  windowStartSeconds.value = clamp(newStart, 0, Math.max(0, d - newW));
-}
-
-function onWheel(e: WheelEvent) {
-  const el = trackEl.value ?? (e.currentTarget as HTMLElement | null);
-  if (!el) return;
-
-  const d = props.durationSeconds ?? 0;
+  const d = duration.value;
   if (!d) return;
 
   const rect = el.getBoundingClientRect();
   if (!rect.width) return;
-
-  // Zoom around the cursor position (anchor seconds under the mouse).
   const x = clamp(e.clientX - rect.left, 0, rect.width);
-  const anchorPct = x / rect.width;
+  const seconds = clamp((x / rect.width) * d, 0, d);
+  emit('seek', seconds);
+}
 
-  const prevZoom = zoom.value;
-  const prevW = d / prevZoom;
-  const prevStart = prevZoom <= 1 ? 0 : windowStart.value;
-  const anchorSeconds = prevZoom <= 1 ? anchorPct * d : prevStart + anchorPct * prevW;
+// Hover magnifier (desktop only)
+const hoverX = ref<number | null>(null);
+const hoverSeconds = ref<number | null>(null);
+const timelineWidthPx = ref<number>(0);
 
-  const factor = e.deltaY > 0 ? 0.9 : 1.1;
-  const nextZoom = clamp(prevZoom * factor, MIN_ZOOM, MAX_ZOOM);
-  zoom.value = nextZoom;
+const MAG_WIDTH_PX = 240;
+const MAG_HEIGHT_PX = 44;
+const MAG_WINDOW_PCT = 0.08;
+const MAG_WINDOW_MIN_SECONDS = 6;
+const MAG_WINDOW_MAX_SECONDS = 180;
 
-  if (zoom.value <= 1) {
-    windowStartSeconds.value = 0;
-    return;
+function onMouseMove(e: MouseEvent) {
+  if (isCoarsePointer.value) return;
+  const el = timelineEl.value;
+  if (!el) return;
+  const d = duration.value;
+  if (!d) return;
+
+  const rect = el.getBoundingClientRect();
+  if (!rect.width) return;
+  const x = clamp(e.clientX - rect.left, 0, rect.width);
+
+  timelineWidthPx.value = rect.width;
+  hoverX.value = x;
+  hoverSeconds.value = clamp((x / rect.width) * d, 0, d);
+}
+
+function onMouseLeave() {
+  hoverX.value = null;
+  hoverSeconds.value = null;
+}
+
+const hoverPct = computed(() => {
+  const w = timelineWidthPx.value;
+  const x = hoverX.value;
+  if (!w || x === null) return null;
+  return clamp((x / w) * 100, 0, 100);
+});
+
+const magnifierWindowSeconds = computed(() => {
+  const d = duration.value;
+  if (!d) return 0;
+  return clamp(d * MAG_WINDOW_PCT, MAG_WINDOW_MIN_SECONDS, MAG_WINDOW_MAX_SECONDS);
+});
+
+const magnifierStartSeconds = computed(() => {
+  const d = duration.value;
+  const h = hoverSeconds.value;
+  const w = magnifierWindowSeconds.value;
+  if (!d || h === null || !w) return 0;
+  const maxStart = Math.max(0, d - w);
+  return clamp(h - w / 2, 0, maxStart);
+});
+
+const magnifierEndSeconds = computed(() => {
+  return magnifierStartSeconds.value + magnifierWindowSeconds.value;
+});
+
+const showMagnifier = computed(() => {
+  if (isCoarsePointer.value) return false;
+  if (hoverX.value === null || hoverSeconds.value === null) return false;
+  if (!duration.value) return false;
+  return true;
+});
+
+const magnifierLeftPx = computed(() => {
+  const w = timelineWidthPx.value;
+  const x = hoverX.value;
+  if (!w || x === null) return 0;
+  return clamp(x - MAG_WIDTH_PX / 2, 0, Math.max(0, w - MAG_WIDTH_PX));
+});
+
+const magnifierCursorPct = computed(() => {
+  const h = hoverSeconds.value;
+  const start = magnifierStartSeconds.value;
+  const win = magnifierWindowSeconds.value;
+  if (h === null || !win) return 50;
+  return clamp(((h - start) / win) * 100, 0, 100);
+});
+
+const magnifierSegments = computed(() => {
+  const start = magnifierStartSeconds.value;
+  const end = magnifierEndSeconds.value;
+  return visibleMarkerSegments.value.filter((s) => {
+    const t = Number(s.start_seconds ?? 0);
+    return t >= start && t <= end;
+  });
+});
+
+function magLeftPctForSeconds(seconds: number): number {
+  const start = magnifierStartSeconds.value;
+  const win = magnifierWindowSeconds.value;
+  if (!win) return 0;
+  return clamp(((seconds - start) / win) * 100, 0, 100);
+}
+
+function currentNavIndex(): number {
+  const list = visibleMarkerSegments.value;
+  if (!list.length) return -1;
+
+  const focusedId = props.focusedSegmentId ? String(props.focusedSegmentId) : '';
+  if (focusedId) {
+    const idx = list.findIndex((s) => String(s.id) === focusedId);
+    if (idx >= 0) return idx;
   }
 
-  const nextW = d / zoom.value;
-  const nextStart = anchorSeconds - anchorPct * nextW;
-  windowStartSeconds.value = clamp(nextStart, 0, Math.max(0, d - nextW));
+  const activeId = props.activeSegmentId ? String(props.activeSegmentId) : '';
+  if (activeId) {
+    const idx = list.findIndex((s) => String(s.id) === activeId);
+    if (idx >= 0) return idx;
+  }
+
+  const t = effectivePlayheadSeconds.value;
+  let idx = 0;
+  for (let i = 0; i < list.length; i++) {
+    const seg = list[i];
+    if (!seg) break;
+    if ((seg.start_seconds ?? 0) <= t) idx = i;
+    else break;
+  }
+  return idx;
+}
+
+const canJumpPrev = computed(() => {
+  const idx = currentNavIndex();
+  return idx > 0;
+});
+
+const canJumpNext = computed(() => {
+  const idx = currentNavIndex();
+  const list = visibleMarkerSegments.value;
+  return idx >= 0 && idx < list.length - 1;
+});
+
+function jumpPrev() {
+  const list = visibleMarkerSegments.value;
+  if (!list.length) return;
+  const idx = currentNavIndex();
+  const nextIdx = clamp(idx - 1, 0, list.length - 1);
+  const seg = list[nextIdx];
+  if (seg) emit('jumpToSegment', seg);
+}
+
+function jumpNext() {
+  const list = visibleMarkerSegments.value;
+  if (!list.length) return;
+  const idx = currentNavIndex();
+  const nextIdx = clamp(idx + 1, 0, list.length - 1);
+  const seg = list[nextIdx];
+  if (seg) emit('jumpToSegment', seg);
 }
 </script>
 
@@ -276,51 +262,112 @@ function onWheel(e: WheelEvent) {
       <div>Timeline</div>
       <div v-if="durationSeconds" class="tabular-nums flex items-center gap-2">
         <span>{{ (Math.round(durationSeconds) / 60).toFixed() }} mins</span>
-        <span class="text-white/35">•</span>
-        <span title="Scroll/pinch to zoom">Zoom {{ zoom.toFixed(1) }}×</span>
       </div>
     </div>
 
-    <div
-      class="relative h-8 w-full rounded-lg bg-white/5 ring-1 ring-white/10"
-      :class="scrubbing ? 'cursor-grabbing' : 'cursor-grab'"
-      style="touch-action: none"
-      ref="trackEl"
-      @pointerdown.stop.prevent="onPointerDown"
-      @pointermove.stop.prevent="onPointerMove"
-      @pointerup.stop.prevent="onPointerUp"
-      @pointercancel.stop.prevent="onPointerUp"
-      @lostpointercapture.stop.prevent="onLostPointerCapture"
-      @touchstart.stop.prevent="onTouchStart"
-      @touchmove.stop.prevent="onTouchMove"
-      @touchend.stop.prevent
-      @touchcancel.stop.prevent
-      @wheel.stop.prevent="onWheel"
-    >
-      <!-- Active playhead -->
-      <div
-        v-if="durationSeconds"
-        class="absolute top-0 bottom-0 w-0.5 bg-white/60"
-        :style="{ left: `${pctForSeconds(effectivePlayheadSeconds)}%` }"
-        title="Current time"
-      />
+    <div class="flex items-center gap-2">
+      <button
+        type="button"
+        class="h-8 w-8 shrink-0 rounded-lg bg-white/5 ring-1 ring-white/10 text-white/70 hover:bg-white/10 hover:text-white disabled:opacity-40 hover:cursor-pointer"
+        :disabled="!canJumpPrev"
+        @click="jumpPrev"
+        aria-label="Previous segment"
+        title="Previous segment"
+      >
+        ‹
+      </button>
 
-      <!-- Segment markers -->
-      <div
-        v-for="seg in orderedSegments"
-        :key="seg.id"
-        class="absolute top-1 bottom-1 w-0.5 rounded-full"
-        :style="{ left: `${pctForSeconds(seg.start_seconds)}%` }"
-        :class="(
-          segmentsWithNarrations?.has(String(seg.id))
-            ? 'bg-emerald-300/80'
-            : (seg.source_type === 'coach' ? 'bg-sky-300/70' : 'bg-white/25')
-        )"
-        :title="`Segment ${seg.segment_index + 1} @ ${Math.round(seg.start_seconds)}s`"
-      />
+      <div class="relative flex-1">
+        <div
+          ref="timelineEl"
+          class="relative h-8 w-full overflow-hidden rounded-lg bg-white/25 ring-1 ring-white/10 cursor-pointer"
+          @click="onTrackClick"
+          @mousemove="onMouseMove"
+          @mouseleave="onMouseLeave"
+        >
+          <!-- Active playhead -->
+          <div
+            v-if="durationSeconds"
+            class="absolute top-0 bottom-0 w-1 bg-yellow-300 shadow-[0_0_10px_rgba(250,204,21,0.75)] z-20"
+            :style="{ left: `${pctForSeconds(effectivePlayheadSeconds)}%` }"
+            title="Current time"
+          />
 
-      <!-- Click target overlay -->
-      <div class="absolute inset-0" />
+          <!-- Hover cursor line (desktop only) -->
+          <div
+            v-if="showMagnifier && hoverPct !== null"
+            class="absolute top-0 bottom-0 w-px bg-yellow-300/80 z-30"
+            :style="{ left: `${hoverPct}%` }"
+          />
+
+          <!-- Segment markers -->
+          <div
+            v-for="seg in visibleMarkerSegments"
+            :key="seg.id"
+            class="absolute top-0 bottom-0 w-1 rounded-full z-10"
+            :style="{ left: `${pctForSeconds(seg.start_seconds)}%` }"
+            :class="[
+              // Base color: narrated segments are brighter.
+              isNarratedSegment(seg) ? 'bg-white/85' : 'bg-white/45',
+              // Make selection obvious and keep it in sync with narration list.
+              isFocused(seg) ? 'outline-1 outline-yellow-300/80' : '',
+              isActive(seg) ? 'opacity-100' : 'opacity-80'
+            ]"
+            @click.stop="emit('jumpToSegment', seg)"
+            :title="`Segment ${seg.segment_index + 1} @ ${Math.round(seg.start_seconds)}s`"
+          />
+        </div>
+
+        <!-- Hover magnifier overlay (desktop only) -->
+        <div
+          v-if="showMagnifier"
+          class="absolute z-40 -top-12"
+          :style="{ left: `${magnifierLeftPx}px`, width: `${MAG_WIDTH_PX}px`, height: `${MAG_HEIGHT_PX}px` }"
+          @click.stop
+        >
+          <div class="relative h-full w-full rounded-lg bg-black/60 ring-1 ring-white/15 backdrop-blur-sm">
+            <div class="absolute inset-1 rounded-md bg-white/10 ring-1 ring-white/10">
+              <!-- magnifier playhead -->
+              <div
+                v-if="durationSeconds"
+                class="absolute top-0 bottom-0 w-1 bg-yellow-300 shadow-[0_0_10px_rgba(250,204,21,0.75)] z-20"
+                :style="{ left: `${magLeftPctForSeconds(effectivePlayheadSeconds)}%` }"
+              />
+
+              <!-- magnifier cursor line -->
+              <div
+                class="absolute top-0 bottom-0 w-px bg-yellow-300/90 z-30"
+                :style="{ left: `${magnifierCursorPct}%` }"
+              />
+
+              <!-- magnifier segment markers (thicker) -->
+              <div
+                v-for="seg in magnifierSegments"
+                :key="`mag-${seg.id}`"
+                class="absolute top-0 bottom-0 w-2 rounded-full z-10"
+                :style="{ left: `${magLeftPctForSeconds(seg.start_seconds)}%` }"
+                :class="[
+                  isNarratedSegment(seg) ? 'bg-white/90' : 'bg-white/50',
+                  isFocused(seg) ? 'outline-1 outline-yellow-300/80' : '',
+                  isActive(seg) ? 'opacity-100' : 'opacity-90'
+                ]"
+                @click.stop="emit('jumpToSegment', seg)"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <button
+        type="button"
+        class="h-8 w-8 shrink-0 rounded-lg bg-white/5 ring-1 ring-white/10 text-white/70 hover:bg-white/10 hover:text-white disabled:opacity-40 hover:cursor-pointer"
+        :disabled="!canJumpNext"
+        @click="jumpNext"
+        aria-label="Next segment"
+        title="Next segment"
+      >
+        ›
+      </button>
     </div>
   </div>
 </template>

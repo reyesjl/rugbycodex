@@ -162,6 +162,7 @@ function onNarrationButtonHoverEnter(e: PointerEvent) {
 
 onBeforeUnmount(() => {
   hideOverlay();
+  restoreVideoMuteAfterRecording();
   bindVideoFullscreenListeners(null, videoEl.value as any);
   if (flashTimer !== null) {
     window.clearTimeout(flashTimer);
@@ -237,9 +238,25 @@ const volume01 = ref(1);
 const muted = ref(false);
 const volumeBeforeMute01 = ref(0.7);
 
+const mutedBeforeRecording = ref<boolean | null>(null);
+
 function applyVolumeToPlayer() {
   playerRef.value?.setMuted?.(muted.value);
   playerRef.value?.setVolume01?.(volume01.value);
+}
+
+function muteVideoForRecording() {
+  if (mutedBeforeRecording.value !== null) return;
+  mutedBeforeRecording.value = muted.value;
+  muted.value = true;
+  applyVolumeToPlayer();
+}
+
+function restoreVideoMuteAfterRecording() {
+  if (mutedBeforeRecording.value === null) return;
+  muted.value = mutedBeforeRecording.value;
+  mutedBeforeRecording.value = null;
+  applyVolumeToPlayer();
 }
 
 function toggleMute() {
@@ -536,18 +553,27 @@ function getTimeSeconds(): number {
 }
 
 async function beginRecording() {
-  await recorder.startRecording({
-    orgId: props.feedItem.orgId,
-    mediaAssetId: props.feedItem.mediaAssetId,
-    mediaAssetSegmentId: props.feedItem.mediaAssetSegmentId,
-    timeSeconds: getTimeSeconds(),
-  });
+  // Mute the video before recording to avoid bleeding audio into the mic capture.
+  muteVideoForRecording();
+  try {
+    await recorder.startRecording({
+      orgId: props.feedItem.orgId,
+      mediaAssetId: props.feedItem.mediaAssetId,
+      mediaAssetSegmentId: props.feedItem.mediaAssetSegmentId,
+      timeSeconds: getTimeSeconds(),
+    });
+  } catch (err) {
+    restoreVideoMuteAfterRecording();
+    throw err;
+  }
   showOverlay();
 }
 
 function endRecordingNonBlocking() {
   const result = recorder.stopRecording();
   if (!result) return;
+
+  restoreVideoMuteAfterRecording();
 
   // optimistic insert
   narrations.value = [...narrations.value, result.optimistic];
@@ -570,6 +596,14 @@ function endRecordingNonBlocking() {
       });
     });
 }
+
+watch(
+  () => recorder.isRecording.value,
+  (isRec) => {
+    if (isRec) muteVideoForRecording();
+    else restoreVideoMuteAfterRecording();
+  }
+);
 
 async function submitTypedNarration(text: string) {
   if (!text.trim()) return;

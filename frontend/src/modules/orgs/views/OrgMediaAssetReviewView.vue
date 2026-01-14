@@ -254,6 +254,7 @@ function onNarrationButtonHoverEnter(e: PointerEvent) {
 
 onBeforeUnmount(() => {
   hideOverlay();
+  restoreVideoMuteAfterRecording();
   bindVideoFullscreenListeners(null, videoEl.value as any);
   if (flashTimer !== null) {
     window.clearTimeout(flashTimer);
@@ -509,6 +510,22 @@ function handleBuffering(next: boolean) {
 const recorder = useNarrationRecorder();
 const recordError = ref<string | null>(null);
 
+const mutedBeforeRecording = ref<boolean | null>(null);
+
+function muteVideoForRecording() {
+  if (mutedBeforeRecording.value !== null) return;
+  mutedBeforeRecording.value = muted.value;
+  muted.value = true;
+  applyVolumeToPlayer();
+}
+
+function restoreVideoMuteAfterRecording() {
+  if (mutedBeforeRecording.value === null) return;
+  muted.value = mutedBeforeRecording.value;
+  mutedBeforeRecording.value = null;
+  applyVolumeToPlayer();
+}
+
 function getTimeSeconds(): number {
   return playerRef.value?.getCurrentTime() ?? 0;
 }
@@ -545,17 +562,27 @@ async function beginRecording() {
   segments.value = [...segments.value, created].sort((a, b) => (a.start_seconds ?? 0) - (b.start_seconds ?? 0));
 
   // Start recording with segment context.
-  await recorder.startRecording({
-    orgId: activeOrgId.value,
-    mediaAssetId: asset.value.id,
-    mediaAssetSegmentId: String(created.id),
-    timeSeconds: t,
-  });
+  // Mute the video before recording to avoid bleeding audio into the mic capture.
+  muteVideoForRecording();
+  try {
+    await recorder.startRecording({
+      orgId: activeOrgId.value,
+      mediaAssetId: asset.value.id,
+      mediaAssetSegmentId: String(created.id),
+      timeSeconds: t,
+    });
+  } catch (err) {
+    restoreVideoMuteAfterRecording();
+    throw err;
+  }
 }
 
 function endRecordingNonBlocking() {
   const result = recorder.stopRecording();
   if (!result) return;
+
+  // Stop recording first, then restore the user's prior mute state.
+  restoreVideoMuteAfterRecording();
 
   // optimistic insert into the overall narrations list
   narrations.value = [...narrations.value, result.optimistic as any];
@@ -590,6 +617,14 @@ async function toggleRecord() {
     }
   }
 }
+
+watch(
+  () => recorder.isRecording.value,
+  (isRec) => {
+    if (isRec) muteVideoForRecording();
+    else restoreVideoMuteAfterRecording();
+  }
+);
 
 function jumpToSegment(seg: MediaAssetSegment) {
   focusedSegmentId.value = String(seg.id);
@@ -785,7 +820,11 @@ async function handleDeleteNarration(narrationId: string) {
             :current-seconds="currentTime"
             :segments="segments"
             :segments-with-narrations="segmentsWithNarrations"
+            :active-segment-id="activeSegmentId"
+            :focused-segment-id="focusedSegmentId"
+            :only-narrated-markers="true"
             @seek="scrubToSeconds"
+            @jumpToSegment="jumpToSegment"
           />
 
           <div class="md:hidden text-xs text-white/50 tabular-nums">
@@ -804,7 +843,7 @@ async function handleDeleteNarration(narrationId: string) {
               Desktop: click video to play/pause. Touch: tap video to show controls, then tap play/pause.
             </div>
             <div>
-              Seek: drag the scrubber controls or drag the timeline. Zoom: scroll/pinch the timeline; while zoomed you can drag past the ends to keep scrubbing.
+              Seek: drag the scrubber controls or drag the timeline. Zoom: use the − / + buttons (and on desktop, scroll wheel also works).
             </div>
             <div>
               Narration: use the mic button to start/stop recording a voice note tied to the current moment.
