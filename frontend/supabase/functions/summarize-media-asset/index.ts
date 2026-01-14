@@ -49,6 +49,33 @@ const ALLOWED_ROLES = new Set(["owner", "manager", "staff"]);
 
 const DEFAULT_MODEL = "gpt-4o-mini";
 
+const NORMAL_SYSTEM_PROMPT =
+  "You are an assistant extracting patterns from team match-review narrations.\n" +
+  "Your job is to identify recurring themes, patterns, or consistent issues the team has noticed across the match.\n" +
+  "Write in direct, practical rugby language, as if summarizing coach and player comments in a review session.\n" +
+  "Avoid academic, report-style phrasing.\n" +
+  "Rules:\n" +
+  "- Focus on patterns and repetition, not individual plays or sequences.\n" +
+  "- Do NOT list play-by-play, timestamps, or chronological events.\n" +
+  "- Do NOT describe single isolated moments unless they are clearly emphasized multiple times.\n" +
+  "- Summarize what keeps showing up or being noticed, not what happened once.\n" +
+  "- Avoid speculation; only reflect what is explicitly present in the narrations.\n" +
+  "- Avoid tactical recommendations or prescriptions (no 'should', no strategy, no fixes).\n" +
+  "- Neutral, observational tone.\n" +
+  "- Reflect team observations, not an 'AI opinion'.\n";
+
+const LIGHT_SYSTEM_PROMPT =
+  "You are an assistant summarizing a small set of match-review narrations.\n" +
+  "Because there are only a few narrations, do NOT invent patterns or claim anything is recurring.\n" +
+  "Write in direct, practical rugby language, reflecting only what is explicitly said.\n" +
+  "Rules:\n" +
+  "- Summarize the main observations present in the narrations (no speculation).\n" +
+  "- Do NOT list play-by-play, timestamps, or chronological events.\n" +
+  "- Avoid tactical recommendations or prescriptions (no 'should', no strategy, no fixes).\n" +
+  "- Neutral, observational tone.\n" +
+  "- Reflect team observations, not an 'AI opinion'.\n" +
+  "- Use language that makes it clear these are early signals, not established themes.\n";
+
 const MAX_NARRATIONS = 220;
 const MAX_TEXT_CHARS = 420;
 
@@ -135,7 +162,7 @@ function clampBullet(b: string): string {
 
 async function callOpenAI(
   context: SummaryContext,
-  options?: { forceExactly3?: boolean }
+  options: { systemPrompt: string; forceExactly3?: boolean }
 ): Promise<{ bullets: string[]; model: string }> {
   const apiKey = Deno.env.get("OPENAI_API_KEY") ?? "";
   if (!apiKey) {
@@ -148,22 +175,10 @@ async function callOpenAI(
     ? "- Return exactly 3 concise bullet points.\\n"
     : "- Return 3 to 5 concise bullet points.\\n";
 
-const systemPrompt =
-  "You are an assistant extracting patterns from team match-review narrations.\n" +
-  "Your job is to identify recurring themes, patterns, or consistent issues the team has noticed across the match.\n" +
-  "Write in direct, practical rugby language, as if summarizing coach and player comments in a review session.\n" +
-  "Avoid academic, report-style phrasing.\n" +
-  "Rules:\n" +
-  "- Focus on patterns and repetition, not individual plays or sequences.\n" +
-  "- Do NOT list play-by-play, timestamps, or chronological events.\n" +
-  "- Do NOT describe single isolated moments unless they are clearly emphasized multiple times.\n" +
-  "- Summarize what keeps showing up or being noticed, not what happened once.\n" +
-  "- Avoid speculation; only reflect what is explicitly present in the narrations.\n" +
-  "- Avoid tactical recommendations or prescriptions (no 'should', no strategy, no fixes).\n" +
-  "- Neutral, observational tone.\n" +
-  "- Reflect team observations, not an 'AI opinion'.\n" +
-  bulletRule +
-  "Output must be strict JSON with shape: { \"bullets\": string[] }.";
+  const systemPrompt =
+    options.systemPrompt +
+    bulletRule +
+    "Output must be strict JSON with shape: { \"bullets\": string[] }.";
 
   const body = {
     model,
@@ -412,43 +427,34 @@ serve(async (req: Request) => {
       },
     };
 
-    // If there are no narrations, return an empty summary (UI can hide block).
-    if (context.narrations.length === 0) {
-      return jsonResponse({
-        media_asset_id: mediaAssetId,
-        org_id: orgId,
-        bullets: [],
-        narration_count: context.narration_count,
-        model: null,
-        generated_at: new Date().toISOString(),
-      });
+    // Tiering is based on narration volume. Do not let the model decide.
+    const narrationCount = context.narration_count;
+
+    // Tier 0 – No narrations
+    if (narrationCount === 0) {
+      return jsonResponse({ state: "empty" });
     }
 
+    // Tier 1 – Light narrations (< 5)
+    const state = narrationCount < 5 ? ("light" as const) : ("normal" as const);
+    const systemPrompt = state === "light" ? LIGHT_SYSTEM_PROMPT : NORMAL_SYSTEM_PROMPT;
+
     // Primary attempt.
-    let { bullets, model } = await callOpenAI(context);
+    let { bullets } = await callOpenAI(context, { systemPrompt });
 
     // If we didn't get enough bullets, do a single stricter retry.
     if (bullets.length > 0 && bullets.length < 3) {
       try {
-        const retry = await callOpenAI(context, { forceExactly3: true });
+        const retry = await callOpenAI(context, { systemPrompt, forceExactly3: true });
         if (retry.bullets.length >= bullets.length) {
           bullets = retry.bullets;
-          model = retry.model;
         }
       } catch {
         // ignore retry failure
       }
     }
 
-    return jsonResponse({
-      media_asset_id: mediaAssetId,
-      org_id: orgId,
-      bullets,
-      narration_count: context.narration_count,
-      model,
-      generated_at: new Date().toISOString(),
-      truncation: context.truncation,
-    });
+    return jsonResponse({ state, bullets });
   } catch (err) {
     console.error("summarize_media_asset unexpected error", err);
     const message = err instanceof Error ? err.message : "Internal Server Error";
