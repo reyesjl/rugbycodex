@@ -17,6 +17,9 @@ import { segmentService } from '@/modules/media/services/segmentService';
 import { narrationService } from '@/modules/narrations/services/narrationService';
 import { toast } from '@/lib/toast';
 
+import { analysisService } from '@/modules/analysis/services/analysisService';
+import type { MatchSummary } from '@/modules/analysis/types/MatchSummary';
+
 import { useNarrationRecorder, type NarrationListItem } from '@/modules/narration/composables/useNarrationRecorder';
 import type { OrgMediaAsset } from '@/modules/media/types/OrgMediaAsset';
 import type { MediaAssetSegment, MediaAssetSegmentSourceType } from '@/modules/narrations/types/MediaAssetSegment';
@@ -60,6 +63,33 @@ const playlistUrl = ref<string>('');
 
 const segments = ref<MediaAssetSegment[]>([]);
 const narrations = ref<Array<Narration | NarrationListItem>>([]);
+
+// Match summary (AI)
+const matchSummary = ref<MatchSummary | null>(null);
+const matchSummaryLoading = ref(false);
+const matchSummaryError = ref<string | null>(null);
+
+const canGenerateMatchSummary = computed(() => {
+  const raw = String(membershipRole.value ?? '').toLowerCase();
+  return raw === 'owner' || raw === 'manager' || raw === 'staff';
+});
+
+async function generateMatchSummary(options?: { forceRefresh?: boolean }) {
+  if (!asset.value?.id) return;
+  if (!canGenerateMatchSummary.value) return;
+
+  matchSummaryError.value = null;
+  matchSummaryLoading.value = true;
+  try {
+    matchSummary.value = await analysisService.getMatchSummary(asset.value.id, {
+      forceRefresh: Boolean(options?.forceRefresh),
+    });
+  } catch (err) {
+    matchSummaryError.value = err instanceof Error ? err.message : 'Unable to generate summary.';
+  } finally {
+    matchSummaryLoading.value = false;
+  }
+}
 
 // Mobile: narrations as a bottom drawer so video stays visible.
 const narrationsDrawerOpen = ref(false);
@@ -347,6 +377,8 @@ async function load() {
   playlistUrl.value = '';
   segments.value = [];
   narrations.value = [];
+  matchSummary.value = null;
+  matchSummaryError.value = null;
 
   try {
     const found = await mediaService.getById(activeOrgId.value, mediaAssetId.value);
@@ -362,6 +394,11 @@ async function load() {
 
     segments.value = segList;
     narrations.value = narList;
+
+    // Ambient summary: auto-generate when there are narrations and the user is allowed.
+    if (canGenerateMatchSummary.value && (narList as any[])?.length) {
+      void generateMatchSummary({ forceRefresh: false });
+    }
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Unable to load review.';
   } finally {
@@ -856,6 +893,43 @@ async function handleDeleteNarration(narrationId: string) {
           <div
             class="-mx-4 px-4 md:mx-0 md:px-4 bg-black md:rounded-xl md:border md:border-white/10 md:bg-white/5 md:p-4 md:sticky md:top-6 md:max-h-[calc(100dvh-var(--main-nav-height)-3rem)] md:overflow-y-auto overscroll-contain"
           >
+            <div
+              v-if="canGenerateMatchSummary"
+              class="mb-3 rounded-lg border border-violet-400/25 bg-violet-500/5 p-3 shadow-[0_0_24px_rgba(139,92,246,0.16)]"
+            >
+              <div class="flex items-center justify-between gap-3">
+                <div class="flex items-center gap-2 min-w-0">
+                  <Icon icon="carbon:ai-generate" width="16" height="16" class="text-violet-200" />
+                  <div class="text-sm font-semibold text-white truncate">Generate Summary</div>
+                </div>
+                <button
+                  type="button"
+                  class="text-xs text-violet-200 hover:text-violet-100 disabled:opacity-50"
+                  :disabled="matchSummaryLoading"
+                  @click="generateMatchSummary({ forceRefresh: Boolean(matchSummary) })"
+                >
+                  {{ matchSummaryLoading ? 'Generating…' : (matchSummary ? 'Regenerate' : 'Generate') }}
+                </button>
+              </div>
+
+              <div v-if="matchSummaryError" class="mt-2 text-xs text-rose-200">
+                {{ matchSummaryError }}
+              </div>
+
+              <div v-else-if="matchSummary && matchSummary.bullets?.length" class="mt-2">
+                <ul class="space-y-1 text-sm text-white/90">
+                  <li v-for="(b, idx) in matchSummary.bullets" :key="idx" class="flex gap-2">
+                    <span class="text-violet-200">•</span>
+                    <span class="leading-snug">{{ b }}</span>
+                  </li>
+                </ul>
+              </div>
+
+              <div v-else class="mt-2 text-xs text-white/60">
+                Short, neutral summary of team observations.
+              </div>
+            </div>
+
             <MediaAssetReviewNarrationList
               :segments="segments"
               :narrations="(narrations as any)"
@@ -897,6 +971,43 @@ async function handleDeleteNarration(narrationId: string) {
           v-show="narrationsDrawerOpen"
           class="h-[calc(70dvh-3.5rem)] overflow-y-auto overscroll-contain px-4 pb-6"
         >
+          <div
+            v-if="canGenerateMatchSummary"
+            class="mt-3 mb-3 rounded-lg border border-violet-400/25 bg-violet-500/5 p-3 shadow-[0_0_24px_rgba(139,92,246,0.16)]"
+          >
+            <div class="flex items-center justify-between gap-3">
+              <div class="flex items-center gap-2 min-w-0">
+                <Icon icon="carbon:ai-generate" width="16" height="16" class="text-violet-200" />
+                <div class="text-sm font-semibold text-white truncate">Generate Summary</div>
+              </div>
+              <button
+                type="button"
+                class="text-xs text-violet-200 hover:text-violet-100 disabled:opacity-50"
+                :disabled="matchSummaryLoading"
+                @click="generateMatchSummary({ forceRefresh: Boolean(matchSummary) })"
+              >
+                {{ matchSummaryLoading ? 'Generating…' : (matchSummary ? 'Regenerate' : 'Generate') }}
+              </button>
+            </div>
+
+            <div v-if="matchSummaryError" class="mt-2 text-xs text-rose-200">
+              {{ matchSummaryError }}
+            </div>
+
+            <div v-else-if="matchSummary && matchSummary.bullets?.length" class="mt-2">
+              <ul class="space-y-1 text-sm text-white/90">
+                <li v-for="(b, idx) in matchSummary.bullets" :key="idx" class="flex gap-2">
+                  <span class="text-violet-200">•</span>
+                  <span class="leading-snug">{{ b }}</span>
+                </li>
+              </ul>
+            </div>
+
+            <div v-else class="mt-2 text-xs text-white/60">
+              Short, neutral summary of team observations.
+            </div>
+          </div>
+
           <MediaAssetReviewNarrationList
             :segments="segments"
             :narrations="(narrations as any)"
