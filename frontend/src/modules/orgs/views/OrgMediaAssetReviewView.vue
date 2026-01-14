@@ -849,18 +849,6 @@ async function handleDeleteNarration(narrationId: string) {
           <div v-else-if="recorder.lastError.value" class="text-xs text-rose-200">
             {{ recorder.lastError.value }}
           </div>
-
-          <div class="text-xs text-white/40 space-y-1">
-            <div>
-              Desktop: click video to play/pause. Touch: tap video to show controls, then tap play/pause.
-            </div>
-            <div>
-              Seek: drag the scrubber controls or drag the timeline. Zoom: use the − / + buttons (and on desktop, scroll wheel also works).
-            </div>
-            <div>
-              Narration: use the mic button to start/stop recording a voice note tied to the current moment.
-            </div>
-          </div>
         </div>
 
         <!-- Right column: segments + narrations -->
