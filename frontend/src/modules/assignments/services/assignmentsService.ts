@@ -112,7 +112,7 @@ export const assignmentsService = {
 
     const assignmentIds = (assignments ?? []).map((a: any) => a.id as string);
     if (assignmentIds.length === 0) {
-      return { assignedToYou: [], assignedToTeam: [] };
+      return { assignedToYou: [], assignedToTeam: [], assignedToGroups: [] };
     }
 
     const { data: targets, error: targetsError } = await supabase
@@ -134,9 +134,55 @@ export const assignmentsService = {
       }
     }
 
-    const relevantIds = Array.from(new Set([...toYouIds, ...toTeamIds]));
+    // Groups the user belongs to (for group-targeted assignments).
+    const { data: groupMembers, error: groupMembersError } = await supabase
+      .from('group_members')
+      .select('group_id')
+      .eq('profile_id', userId);
+
+    if (groupMembersError) throw groupMembersError;
+
+    const groupIds = Array.from(
+      new Set((groupMembers ?? []).map((r: any) => String(r.group_id)).filter(Boolean)),
+    );
+
+    const groupNameById = new Map<string, string>();
+    if (groupIds.length > 0) {
+      const { data: groups, error: groupsError } = await supabase
+        .from('groups')
+        .select('id, name')
+        .eq('org_id', orgId)
+        .in('id', groupIds);
+
+      if (groupsError) throw groupsError;
+      for (const g of (groups ?? []) as Array<{ id: string; name: string }>) {
+        groupNameById.set(String(g.id), String(g.name));
+      }
+    }
+
+    const assignmentIdsByGroup = new Map<string, Set<string>>();
+    if (groupIds.length > 0) {
+      const groupIdSet = new Set(groupIds);
+      for (const t of (targets ?? []) as OrgAssignmentTarget[]) {
+        if (t.target_type !== 'group') continue;
+        const gid = t.target_id ? String(t.target_id) : '';
+        if (!gid || !groupIdSet.has(gid)) continue;
+        const set = assignmentIdsByGroup.get(gid) ?? new Set<string>();
+        set.add(String(t.assignment_id));
+        assignmentIdsByGroup.set(gid, set);
+      }
+    }
+
+    const relevantIds = Array.from(
+      new Set([
+        ...toYouIds,
+        ...toTeamIds,
+        ...Array.from(assignmentIdsByGroup.values()).flatMap((s) => Array.from(s)),
+      ]),
+    );
+
     if (relevantIds.length === 0) {
-      return { assignedToYou: [], assignedToTeam: [] };
+      return { assignedToYou: [], assignedToTeam: [], assignedToGroups: [] };
     }
 
     const { data: progressRows, error: progressError } = await supabase
@@ -153,11 +199,26 @@ export const assignmentsService = {
         .map((r: any) => r.assignment_id as string),
     );
 
-    const toFeed = (row: any, assigned_to: 'player' | 'team'): FeedAssignment => ({
+    const { data: segmentRows, error: segmentError } = await supabase
+      .from('assignment_segments')
+      .select('assignment_id, media_segment_id')
+      .in('assignment_id', relevantIds);
+
+    if (segmentError) throw segmentError;
+
+    const segmentIdByAssignment = new Map<string, string>();
+    for (const s of (segmentRows ?? []) as Array<{ assignment_id: string; media_segment_id: string }>) {
+      const assignmentId = String((s as any).assignment_id);
+      if (!assignmentId || segmentIdByAssignment.has(assignmentId)) continue;
+      segmentIdByAssignment.set(assignmentId, String((s as any).media_segment_id));
+    }
+
+    const toFeed = (row: any, assigned_to: 'player' | 'team' | 'group'): FeedAssignment => ({
       id: row.id,
       title: row.title,
       created_at: row.created_at,
       due_at: row.due_at,
+      segment_id: segmentIdByAssignment.get(String(row.id)) ?? null,
       assigned_to,
       completed: completed.has(row.id),
     });
@@ -165,10 +226,30 @@ export const assignmentsService = {
     const byId = new Map<string, any>();
     for (const a of assignments ?? []) byId.set((a as any).id, a);
 
-    return {
-      assignedToYou: Array.from(toYouIds).map((id) => byId.get(id)).filter(Boolean).map((a) => toFeed(a, 'player')),
-      assignedToTeam: Array.from(toTeamIds).map((id) => byId.get(id)).filter(Boolean).map((a) => toFeed(a, 'team')),
-    };
+    const assignedToYou = Array.from(toYouIds)
+      .map((id) => byId.get(id))
+      .filter(Boolean)
+      .map((a) => toFeed(a, 'player'));
+
+    const assignedToTeam = Array.from(toTeamIds)
+      .map((id) => byId.get(id))
+      .filter(Boolean)
+      .map((a) => toFeed(a, 'team'));
+
+    const assignedToGroups = Array.from(assignmentIdsByGroup.entries())
+      .map(([groupId, ids]) => {
+        const groupName = groupNameById.get(groupId) ?? 'Group';
+        const assignments = Array.from(ids)
+          .map((id) => byId.get(id))
+          .filter(Boolean)
+          .map((a) => toFeed(a, 'group'));
+
+        return { groupId, groupName, assignments };
+      })
+      .filter((g) => g.assignments.length > 0)
+      .sort((a, b) => a.groupName.toLowerCase().localeCompare(b.groupName.toLowerCase()));
+
+    return { assignedToYou, assignedToTeam, assignedToGroups };
   },
 
   async markAssignmentComplete(assignmentId: string, userId: string): Promise<void> {
@@ -187,12 +268,12 @@ export const assignmentsService = {
     if (error) throw error;
   },
 
-    async attachSegment(assignmentId: string, mediaSegmentId: string): Promise<void> {
-      const { error } = await supabase.from('assignment_segments').insert({
-        assignment_id: assignmentId,
-        media_segment_id: mediaSegmentId,
-      });
+  async attachSegment(assignmentId: string, mediaSegmentId: string): Promise<void> {
+    const { error } = await supabase.from('assignment_segments').insert({
+      assignment_id: assignmentId,
+      media_segment_id: mediaSegmentId,
+    });
 
-      if (error) throw error;
-    },
+    if (error) throw error;
+  },
 };

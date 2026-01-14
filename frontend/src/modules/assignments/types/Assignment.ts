@@ -27,7 +27,10 @@ export type FeedAssignment = {
   created_at: string;
   due_at: string | null;
 
-  assigned_to: 'player' | 'team';
+  /** Primary segment to open when clicking from the feed (MVP: first attached segment). */
+  segment_id: string | null;
+
+  assigned_to: 'player' | 'team' | 'group';
 
   completed: boolean;
 };
@@ -35,4 +38,9 @@ export type FeedAssignment = {
 export type UserAssignmentFeed = {
   assignedToYou: FeedAssignment[];
   assignedToTeam: FeedAssignment[];
+  assignedToGroups: Array<{
+    groupId: string;
+    groupName: string;
+    assignments: FeedAssignment[];
+  }>;
 };

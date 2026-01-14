@@ -38,6 +38,12 @@ export const orgRoutes: RouteRecordRaw = {
           props: true,
         },
         {
+          path: 'feed/:sectionType',
+          name: 'OrgFeedSection',
+          component: () => import('@/modules/feed/views/FeedAssignmentsSectionView.vue'),
+          props: true,
+        },
+        {
           path: 'vaults',
           name: 'OrgVaults',
           component: () => import('@/modules/orgs/views/OrgVaultsStub.vue'),
