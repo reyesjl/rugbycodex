@@ -54,6 +54,7 @@ const NORMAL_SYSTEM_PROMPT =
   "Your job is to identify recurring themes, patterns, or consistent issues the team has noticed across the match.\n" +
   "Write in direct, practical rugby language, as if summarizing coach and player comments in a review session.\n" +
   "Avoid academic, report-style phrasing.\n" +
+  "Prefer structural language (e.g. spacing, shape, alignment, connection, communication) over event language.\n" +
   "Rules:\n" +
   "- Focus on patterns and repetition, not individual plays or sequences.\n" +
   "- Do NOT list play-by-play, timestamps, or chronological events.\n" +
@@ -74,7 +75,7 @@ const LIGHT_SYSTEM_PROMPT =
   "- Avoid tactical recommendations or prescriptions (no 'should', no strategy, no fixes).\n" +
   "- Neutral, observational tone.\n" +
   "- Reflect team observations, not an 'AI opinion'.\n" +
-  "- Use language that makes it clear these are early signals, not established themes.\n";
+  "- Use language that makes it clear these are early signals and may not represent a pattern yet.\n";
 
 const MAX_NARRATIONS = 220;
 const MAX_TEXT_CHARS = 420;
@@ -443,7 +444,8 @@ serve(async (req: Request) => {
     let { bullets } = await callOpenAI(context, { systemPrompt });
 
     // If we didn't get enough bullets, do a single stricter retry.
-    if (bullets.length > 0 && bullets.length < 3) {
+    // Only do this in normal mode to avoid forcing structure on thin data.
+    if (state === "normal" && bullets.length > 0 && bullets.length < 3) {
       try {
         const retry = await callOpenAI(context, { systemPrompt, forceExactly3: true });
         if (retry.bullets.length >= bullets.length) {
