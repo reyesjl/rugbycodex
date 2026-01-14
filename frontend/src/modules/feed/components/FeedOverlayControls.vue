@@ -173,10 +173,11 @@ function endScrub(e: PointerEvent) {
         </button>
       </div>
 
-      <!-- Center cluster (prev / next) -->
-      <div v-if="showPrevNext" class="absolute inset-0 flex items-center justify-center">
-        <div class="flex items-center gap-8">
+      <!-- Center cluster (prev / play-pause / next) -->
+      <div class="absolute inset-0 flex items-center justify-center">
+        <div class="flex items-center gap-6 sm:gap-10">
           <button
+            v-if="showPrevNext"
             type="button"
             class="rounded-full bg-black/30 p-2.5 text-white ring-1 ring-white/10 hover:bg-black/40 disabled:opacity-40 sm:p-3"
             :disabled="!canPrev"
@@ -188,6 +189,28 @@ function endScrub(e: PointerEvent) {
           </button>
 
           <button
+            type="button"
+            class="sm:hidden rounded-full bg-black/40 p-4 text-white ring-1 ring-white/15 hover:bg-black/50 active:bg-black/55"
+            @click.stop="emit('togglePlay')"
+            :title="isPlaying ? 'Pause' : (showRestart ? 'Restart' : 'Play')"
+            aria-label="Play / pause"
+          >
+            <Icon
+              :icon="isPlaying ? 'carbon:pause-filled' : (showRestart ? 'carbon:restart' : 'carbon:play-filled-alt')"
+              width="34"
+              height="34"
+              class="sm:hidden"
+            />
+            <Icon
+              :icon="isPlaying ? 'carbon:pause-filled' : (showRestart ? 'carbon:restart' : 'carbon:play-filled-alt')"
+              width="40"
+              height="40"
+              class="hidden sm:inline"
+            />
+          </button>
+
+          <button
+            v-if="showPrevNext"
             type="button"
             class="rounded-full bg-black/30 p-2.5 text-white ring-1 ring-white/10 hover:bg-black/40 disabled:opacity-40 sm:p-3"
             :disabled="!canNext"
