@@ -5,6 +5,11 @@ export type FeedAssignment = {
   title: string;
   assigned_to: 'user' | 'team';
   created_at: string | Date;
+
+  // Completion state (different backends may use different flags)
+  completed?: boolean;
+  watched?: boolean;
+  reviewed?: boolean;
 };
 
 export const assignmentService = {
