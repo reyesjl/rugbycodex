@@ -294,6 +294,7 @@ const {
   showOverlay,
   requestTogglePlay,
   flashPlayPause,
+  flashSeek,
   onHoverMove,
   onHoverLeave,
   onNarrationButtonHoverEnter,
@@ -312,6 +313,12 @@ function seekRelative(deltaSeconds: number) {
   seekRelativeInternal(deltaSeconds);
   suppressBufferingUntilMs.value = Date.now() + 500;
   isBuffering.value = false;
+}
+
+function seekRelativeWithFeedback(deltaSeconds: number) {
+  seekRelative(deltaSeconds);
+  flashSeek(deltaSeconds < 0 ? 'rew' : 'ff', Math.abs(deltaSeconds));
+  showOverlay(2500);
 }
 
 function handleTimeupdate(p: { currentTime: number; duration: number }) {
@@ -905,7 +912,30 @@ async function handleDeleteNarration(narrationId: string) {
                     :is-recording="recorder.isRecording.value"
                     :audio-level01="recorder.audioLevel.value"
                     @toggle="toggleRecord"
-                  />
+                  >
+                    <template #auxControls>
+                      <div class="flex items-center gap-2 rounded-full bg-black/40 px-2 py-1 ring-1 ring-white/10 backdrop-blur">
+                        <button
+                          type="button"
+                          class="rounded-full p-1.5 text-white/80 hover:bg-black/45 hover:text-white"
+                          title="Rewind 10s"
+                          aria-label="Rewind 10 seconds"
+                          @click.stop="seekRelativeWithFeedback(-10)"
+                        >
+                          <Icon icon="carbon:rewind-10" width="18" height="18" />
+                        </button>
+                        <button
+                          type="button"
+                          class="rounded-full p-1.5 text-white/80 hover:bg-black/45 hover:text-white"
+                          title="Forward 10s"
+                          aria-label="Forward 10 seconds"
+                          @click.stop="seekRelativeWithFeedback(10)"
+                        >
+                          <Icon icon="carbon:forward-10" width="18" height="18" />
+                        </button>
+                      </div>
+                    </template>
+                  </NarrationRecorder>
                 </div>
               </FeedGestureLayer>
 
