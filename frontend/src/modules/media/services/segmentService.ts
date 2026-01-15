@@ -97,6 +97,43 @@ function pickRandom<T>(arr: T[]): T | null {
   return arr[idx] ?? null;
 }
 
+const SOURCE_TYPE_PRIORITY: Record<string, number> = {
+  coach: 5,
+  staff: 4,
+  owner: 4,
+  manager: 4,
+  member: 3,
+  auto: 2,
+  ai: 1,
+};
+
+function getSourceTypePriority(sourceType: unknown): number {
+  const key = String(sourceType ?? '').toLowerCase();
+  return SOURCE_TYPE_PRIORITY[key] ?? 0;
+}
+
+function computeOverlapSeconds(
+  startSeconds: number,
+  endSeconds: number,
+  candidateStart: number,
+  candidateEnd: number
+): number {
+  return Math.max(0, Math.min(endSeconds, candidateEnd) - Math.max(startSeconds, candidateStart));
+}
+
+function toSegment(row: SegmentDetailRow): MediaAssetSegment {
+  return {
+    id: row.id,
+    media_asset_id: row.media_asset_id,
+    segment_index: row.segment_index,
+    start_seconds: row.start_seconds,
+    end_seconds: row.end_seconds,
+    created_at: asDate(row.created_at, 'segment creation'),
+    source_type: (row.source_type as any) ?? null,
+    created_by_profile_id: (row.created_by_profile_id as any) ?? null,
+  };
+}
+
 export const segmentService = {
   async listSegmentsForMediaAsset(mediaAssetId: string): Promise<MediaAssetSegment[]> {
     if (!mediaAssetId) return [];
@@ -115,19 +152,7 @@ export const segmentService = {
     if (error) throw error;
     const rows = data ?? [];
 
-    return rows.map((row) => {
-      const segment: MediaAssetSegment = {
-        id: row.id,
-        media_asset_id: row.media_asset_id,
-        segment_index: row.segment_index,
-        start_seconds: row.start_seconds,
-        end_seconds: row.end_seconds,
-        created_at: asDate(row.created_at, 'segment creation'),
-        source_type: (row.source_type as any) ?? null,
-        created_by_profile_id: (row.created_by_profile_id as any) ?? null,
-      };
-      return segment;
-    });
+    return rows.map((row) => toSegment(row));
   },
 
   async createSegment(input: {
@@ -172,16 +197,113 @@ export const segmentService = {
     if (error) throw error;
     if (!data) throw new Error('Failed to create segment.');
 
-    return {
-      id: data.id,
-      media_asset_id: data.media_asset_id,
-      segment_index: data.segment_index,
-      start_seconds: data.start_seconds,
-      end_seconds: data.end_seconds,
-      created_at: asDate(data.created_at, 'segment creation'),
-      source_type: (data.source_type as any) ?? input.sourceType,
-      created_by_profile_id: (data.created_by_profile_id as any) ?? userId,
+    const segment = toSegment(data);
+    if (!segment.source_type) segment.source_type = input.sourceType;
+    if (!segment.created_by_profile_id) segment.created_by_profile_id = userId;
+    return segment;
+  },
+
+  async updateSegmentBounds(input: {
+    segmentId: string;
+    startSeconds: number;
+    endSeconds: number;
+  }): Promise<MediaAssetSegment> {
+    if (!input.segmentId) throw new Error('Missing segmentId.');
+
+    const startSeconds = Math.max(0, input.startSeconds ?? 0);
+    const endSeconds = Math.max(startSeconds, input.endSeconds ?? startSeconds);
+
+    const { data, error } = (await supabase
+      .from('media_asset_segments')
+      .update({
+        start_seconds: startSeconds,
+        end_seconds: endSeconds,
+      })
+      .eq('id', input.segmentId)
+      .select(
+        'id, media_asset_id, segment_index, start_seconds, end_seconds, created_at, source_type, created_by_profile_id'
+      )
+      .single()) as { data: SegmentDetailRow | null; error: PostgrestError | null };
+
+    if (error) throw error;
+    if (!data) throw new Error('Failed to update segment.');
+
+    return toSegment(data);
+  },
+
+  async findBestOverlappingSegment(input: {
+    mediaAssetId: string;
+    startSeconds: number;
+    endSeconds: number;
+  }): Promise<MediaAssetSegment | null> {
+    if (!input.mediaAssetId) return null;
+
+    const startSeconds = Math.max(0, input.startSeconds ?? 0);
+    const endSeconds = Math.max(startSeconds, input.endSeconds ?? startSeconds);
+
+    const { data, error } = (await supabase
+      .from('media_asset_segments')
+      .select(
+        'id, media_asset_id, segment_index, start_seconds, end_seconds, created_at, source_type, created_by_profile_id'
+      )
+      .eq('media_asset_id', input.mediaAssetId)
+      .lt('start_seconds', endSeconds)
+      .gt('end_seconds', startSeconds)) as { data: SegmentDetailRow[] | null; error: PostgrestError | null };
+
+    if (error) throw error;
+    const rows = data ?? [];
+    if (!rows.length) return null;
+
+    const segmentIds = rows.map((row) => row.id);
+    const { data: narrationRows, error: narrationError } = (await supabase
+      .from('narrations')
+      .select('media_asset_segment_id')
+      .in('media_asset_segment_id', segmentIds)) as {
+      data: Array<{ media_asset_segment_id: string }> | null;
+      error: PostgrestError | null;
     };
+
+    if (narrationError) throw narrationError;
+
+    const narrationCounts = new Map<string, number>();
+    for (const row of narrationRows ?? []) {
+      const id = String(row.media_asset_segment_id);
+      narrationCounts.set(id, (narrationCounts.get(id) ?? 0) + 1);
+    }
+
+    let best: {
+      segment: MediaAssetSegment;
+      overlapSeconds: number;
+      narrationCount: number;
+      sourcePriority: number;
+    } | null = null;
+
+    for (const row of rows) {
+      const segment = toSegment(row);
+      const overlapSeconds = computeOverlapSeconds(
+        startSeconds,
+        endSeconds,
+        segment.start_seconds ?? 0,
+        segment.end_seconds ?? 0
+      );
+      if (overlapSeconds <= 0) continue;
+
+      const narrationCount = narrationCounts.get(String(segment.id)) ?? 0;
+      const sourcePriority = getSourceTypePriority(segment.source_type);
+
+      if (
+        !best ||
+        overlapSeconds > best.overlapSeconds ||
+        (overlapSeconds === best.overlapSeconds && narrationCount > best.narrationCount) ||
+        (overlapSeconds === best.overlapSeconds &&
+          narrationCount === best.narrationCount &&
+          sourcePriority > best.sourcePriority)
+      ) {
+        best = { segment, overlapSeconds, narrationCount, sourcePriority };
+      }
+    }
+
+    return best?.segment ?? null;
   },
 
 

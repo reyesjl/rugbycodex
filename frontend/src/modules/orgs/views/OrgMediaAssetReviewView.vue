@@ -59,12 +59,21 @@ const currentUserId = computed(() => authStore.user?.id ?? null);
 const userSegmentSourceType = computed<MediaAssetSegmentSourceType>(() => {
   const raw = String(membershipRole.value ?? '').toLowerCase();
 
-  if (raw === 'coach') return 'coach';
-  if (raw === 'member') return 'member';
+  if (raw === 'owner') return 'owner';
   if (raw === 'staff') return 'staff';
+  if (raw === 'manager') return 'manager';
+  if (raw === 'member') return 'member';
 
   // Treat any staff-like roles (admin/owner/etc) as staff for segment source.
   if (isStaffOrAbove.value) return 'staff';
+  return 'member';
+});
+
+const defaultNarrationSource = computed(() => {
+  const raw = String(membershipRole.value ?? '').toLowerCase();
+  if (raw === 'member') return 'member';
+  if (raw === 'coach') return 'all';
+  if (isStaffOrAbove.value) return 'all';
   return 'member';
 });
 
@@ -78,10 +87,25 @@ const playlistUrl = ref<string>('');
 
 const segments = ref<MediaAssetSegment[]>([]);
 const narrations = ref<Array<Narration | NarrationListItem>>([]);
+const narrationTargetSegmentId = ref<string | null>(null);
 
 const activeOrgIdOrEmpty = computed(() => activeOrgId.value ?? '');
 const assigningSegment = ref<MediaAssetSegment | null>(null);
 const loadingTagsBySegmentId = ref(new Set<string>());
+
+function upsertSegment(next: MediaAssetSegment): void {
+  const nextId = String(next.id);
+  const existing = segments.value.find((seg) => String(seg.id) === nextId);
+  const merged: MediaAssetSegment = existing
+    ? { ...existing, ...next, tags: existing.tags ?? next.tags }
+    : { ...next, tags: next.tags ?? [] };
+
+  const updated = existing
+    ? segments.value.map((seg) => (String(seg.id) === nextId ? merged : seg))
+    : [...segments.value, merged];
+
+  segments.value = updated.sort((a, b) => (a.start_seconds ?? 0) - (b.start_seconds ?? 0));
+}
 
 async function hydrateSegmentTags(segmentIds: string[]): Promise<void> {
   if (!segmentIds.length) return;
@@ -503,6 +527,7 @@ async function load() {
   playlistUrl.value = '';
   segments.value = [];
   narrations.value = [];
+  narrationTargetSegmentId.value = null;
   matchSummary.value = null;
   matchSummaryError.value = null;
 
@@ -696,6 +721,25 @@ const recordStartWallClockMs = ref<number | null>(null);
 
 const mutedBeforeRecording = ref<boolean | null>(null);
 
+async function handleAddNarrationForSegment(seg: MediaAssetSegment) {
+  narrationTargetSegmentId.value = String(seg.id);
+  focusedSegmentId.value = String(seg.id);
+
+  if (recorder.isRecording.value) return;
+
+  try {
+    await beginRecording();
+  } catch (err) {
+    narrationTargetSegmentId.value = null;
+    recordError.value = err instanceof Error ? err.message : 'Failed to start recording.';
+    return;
+  }
+
+  if (!recorder.isRecording.value) {
+    narrationTargetSegmentId.value = null;
+  }
+}
+
 function muteVideoForRecording() {
   if (mutedBeforeRecording.value !== null) return;
   mutedBeforeRecording.value = muted.value;
@@ -812,33 +856,79 @@ async function endRecordingNonBlocking() {
     ...bounds,
   });
 
-  let created: MediaAssetSegment;
-  try {
-    created = await segmentService.createSegment({
-      mediaAssetId: asset.value.id,
-      startSeconds: bounds.startSeconds,
-      endSeconds: bounds.endSeconds,
-      sourceType: userSegmentSourceType.value,
-    });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Failed to create segment.';
-    recordingUploadError.value = message;
+  const explicitSegmentId = narrationTargetSegmentId.value ? String(narrationTargetSegmentId.value) : null;
+  if (explicitSegmentId) narrationTargetSegmentId.value = null;
+
+  let targetSegment: MediaAssetSegment | null = null;
+  let createdSegment: MediaAssetSegment | null = null;
+
+  if (explicitSegmentId) {
+    const existing = segments.value.find((seg) => String(seg.id) === explicitSegmentId) ?? null;
+    if (!existing) {
+      recordingUploadError.value = 'Selected segment no longer exists.';
+      void blobPromise.catch(() => {});
+      return;
+    }
+    targetSegment = existing;
+  } else {
+    try {
+      const overlapping = await segmentService.findBestOverlappingSegment({
+        mediaAssetId: asset.value.id,
+        startSeconds: bounds.startSeconds,
+        endSeconds: bounds.endSeconds,
+      });
+
+      if (overlapping) {
+        let resolved = overlapping;
+        const expandedStart = Math.min(overlapping.start_seconds ?? 0, bounds.startSeconds);
+        const expandedEnd = Math.max(overlapping.end_seconds ?? 0, bounds.endSeconds);
+
+        if (expandedStart !== overlapping.start_seconds || expandedEnd !== overlapping.end_seconds) {
+          try {
+            resolved = await segmentService.updateSegmentBounds({
+              segmentId: String(overlapping.id),
+              startSeconds: expandedStart,
+              endSeconds: expandedEnd,
+            });
+          } catch (err) {
+            debugLog('segment bounds update failed', err);
+          }
+        }
+
+        targetSegment = resolved;
+        upsertSegment(resolved);
+        debugLog('segment matched', { segmentId: resolved.id });
+      } else {
+        createdSegment = await segmentService.createSegment({
+          mediaAssetId: asset.value.id,
+          startSeconds: bounds.startSeconds,
+          endSeconds: bounds.endSeconds,
+          sourceType: userSegmentSourceType.value,
+        });
+        targetSegment = createdSegment;
+        upsertSegment(createdSegment);
+        debugLog('segment inserted', { segmentId: createdSegment.id });
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to create segment.';
+      recordingUploadError.value = message;
+      void blobPromise.catch(() => {});
+      return;
+    }
+  }
+
+  if (!targetSegment) {
+    recordingUploadError.value = 'Missing target segment.';
     void blobPromise.catch(() => {});
     return;
   }
-
-  debugLog('segment inserted', { segmentId: created.id });
-
-  segments.value = [...segments.value, { ...created, tags: [] }].sort(
-    (a, b) => (a.start_seconds ?? 0) - (b.start_seconds ?? 0)
-  );
 
   const optimisticId = `optimistic-${Date.now()}-${Math.random().toString(16).slice(2)}`;
   const optimistic: OptimisticNarration = {
     id: optimisticId,
     org_id: activeOrgId.value,
     media_asset_id: asset.value.id,
-    media_asset_segment_id: String(created.id),
+    media_asset_segment_id: String(targetSegment.id),
     author_id: null,
     audio_storage_path: null,
     created_at: new Date(),
@@ -856,7 +946,7 @@ async function endRecordingNonBlocking() {
       return narrationService.createNarration({
         orgId: activeOrgId.value,
         mediaAssetId: asset.value.id,
-        mediaAssetSegmentId: String(created.id),
+        mediaAssetSegmentId: String(targetSegment.id),
         transcriptRaw: text?.trim() ? text.trim() : '(No transcript)',
       });
     })
@@ -875,14 +965,16 @@ async function endRecordingNonBlocking() {
           errorMessage: message,
         };
       });
-      void segmentService
-        .deleteSegment(String(created.id))
-        .then(() => {
-          segments.value = segments.value.filter((seg) => String(seg.id) !== String(created.id));
-        })
-        .catch((cleanupErr) => {
-          debugLog('segment cleanup failed', cleanupErr);
-        });
+      if (createdSegment) {
+        void segmentService
+          .deleteSegment(String(createdSegment.id))
+          .then(() => {
+            segments.value = segments.value.filter((seg) => String(seg.id) !== String(createdSegment.id));
+          })
+          .catch((cleanupErr) => {
+            debugLog('segment cleanup failed', cleanupErr);
+          });
+      }
     });
 }
 
@@ -1148,10 +1240,11 @@ async function handleDeleteNarration(narrationId: string) {
               :narrations="(narrations as any)"
               :active-segment-id="activeSegmentId"
               :focused-segment-id="focusedSegmentId"
-              :default-source-type="userSegmentSourceType"
+              :default-source="defaultNarrationSource"
               :can-moderate-narrations="isStaffOrAbove"
               :current-user-id="currentUserId"
               @jumpToSegment="jumpToSegment"
+              @addNarration="handleAddNarrationForSegment"
               @assignSegment="openAssignSegment"
               @editNarration="handleEditNarration"
               @deleteNarration="handleDeleteNarration"
@@ -1207,16 +1300,17 @@ async function handleDeleteNarration(narrationId: string) {
             :narrations="(narrations as any)"
             :active-segment-id="activeSegmentId"
             :focused-segment-id="focusedSegmentId"
-              :default-source-type="userSegmentSourceType"
-              :can-moderate-narrations="isStaffOrAbove"
-              :current-user-id="currentUserId"
-              @jumpToSegment="(seg) => { jumpToSegment(seg); narrationsDrawerOpen = false; }"
-              @assignSegment="openAssignSegment"
-              @editNarration="handleEditNarration"
-              @deleteNarration="handleDeleteNarration"
-              @addTag="handleAddSegmentTag"
-              @removeTag="handleRemoveSegmentTag"
-            />
+            :default-source="defaultNarrationSource"
+            :can-moderate-narrations="isStaffOrAbove"
+            :current-user-id="currentUserId"
+            @jumpToSegment="(seg) => { jumpToSegment(seg); narrationsDrawerOpen = false; }"
+            @addNarration="handleAddNarrationForSegment"
+            @assignSegment="openAssignSegment"
+            @editNarration="handleEditNarration"
+            @deleteNarration="handleDeleteNarration"
+            @addTag="handleAddSegmentTag"
+            @removeTag="handleRemoveSegmentTag"
+          />
         </div>
       </div>
 

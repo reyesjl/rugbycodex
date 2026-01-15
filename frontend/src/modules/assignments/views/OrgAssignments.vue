@@ -299,6 +299,24 @@ function closeEdit() {
   editingAssignment.value = null;
 }
 
+async function requestDelete(assignmentId: string) {
+  if (!canManage.value) return;
+  const assignment = assignmentById.value.get(assignmentId);
+  if (!assignment) return;
+  const title = assignment.title?.trim() || 'Untitled assignment';
+  const ok = window.confirm(`Delete "${title}"? This cannot be undone.`);
+  if (!ok) return;
+
+  try {
+    await assignmentsService.deleteAssignment(assignmentId);
+    assignments.value = assignments.value.filter((item) => item.id !== assignmentId);
+    progressRows.value = progressRows.value.filter((row) => row.assignment_id !== assignmentId);
+    if (editingAssignment.value?.id === assignmentId) closeEdit();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : 'Failed to delete assignment.';
+  }
+}
+
 function mapTargets(assignmentId: string, targets: AssignmentTargetInput[]): OrgAssignmentTarget[] {
   return targets.map((target) => ({
     assignment_id: assignmentId,
@@ -464,14 +482,22 @@ watch(orgId, (next, prev) => {
                     :style="{ width: `${Math.round(row.progress01 * 100)}%` }"
                   />
                 </div>
-                <button
-                  v-if="canManage"
-                  type="button"
-                  class="mt-3 text-xs text-white/50 transition hover:text-white/80 hover:cursor-pointer"
-                  @click.stop="openEdit(row.id)"
-                >
-                  Edit
-                </button>
+                <div v-if="canManage" class="mt-3 flex items-center justify-end gap-3">
+                  <button
+                    type="button"
+                    class="text-xs text-white/50 transition hover:text-white/80 hover:cursor-pointer"
+                    @click.stop="openEdit(row.id)"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    class="text-xs text-red-200/80 transition hover:text-red-200 hover:cursor-pointer"
+                    @click.stop="requestDelete(row.id)"
+                  >
+                    Delete
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -513,14 +539,22 @@ watch(orgId, (next, prev) => {
                     :style="{ width: `${Math.round(row.progress01 * 100)}%` }"
                   />
                 </div>
-                <button
-                  v-if="canManage"
-                  type="button"
-                  class="mt-3 text-xs text-white/50 transition hover:text-white/80 hover:cursor-pointer"
-                  @click.stop="openEdit(row.id)"
-                >
-                  Edit
-                </button>
+                <div v-if="canManage" class="mt-3 flex items-center justify-end gap-3">
+                  <button
+                    type="button"
+                    class="text-xs text-white/50 transition hover:text-white/80 hover:cursor-pointer"
+                    @click.stop="openEdit(row.id)"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    class="text-xs text-red-200/80 transition hover:text-red-200 hover:cursor-pointer"
+                    @click.stop="requestDelete(row.id)"
+                  >
+                    Delete
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -562,14 +596,22 @@ watch(orgId, (next, prev) => {
                     :style="{ width: `${Math.round(row.progress01 * 100)}%` }"
                   />
                 </div>
-                <button
-                  v-if="canManage"
-                  type="button"
-                  class="mt-3 text-xs text-white/50 transition hover:text-white/80 hover:cursor-pointer"
-                  @click.stop="openEdit(row.id)"
-                >
-                  Edit
-                </button>
+                <div v-if="canManage" class="mt-3 flex items-center justify-end gap-3">
+                  <button
+                    type="button"
+                    class="text-xs text-white/50 transition hover:text-white/80 hover:cursor-pointer"
+                    @click.stop="openEdit(row.id)"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    class="text-xs text-red-200/80 transition hover:text-red-200 hover:cursor-pointer"
+                    @click.stop="requestDelete(row.id)"
+                  >
+                    Delete
+                  </button>
+                </div>
               </div>
             </div>
           </div>

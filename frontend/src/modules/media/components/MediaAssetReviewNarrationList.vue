@@ -13,8 +13,8 @@ const props = defineProps<{
   activeSegmentId?: string | null;
   /** Segment to scroll into view when user seeks/selects. */
   focusedSegmentId?: string | null;
-  /** When not showing all sources, which segment source_type to show. */
-  defaultSourceType?: NonNullable<MediaAssetSegment['source_type']>;
+  /** Initial selection for the source filter. */
+  defaultSource?: 'all' | 'coach' | 'staff' | 'member' | 'ai';
   /** Staff+ can edit/delete any narration; members only their own. */
   canModerateNarrations?: boolean;
   /** Supabase auth user id (Narration.author_id). */
@@ -23,6 +23,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'jumpToSegment', segment: MediaAssetSegment): void;
+  (e: 'addNarration', segment: MediaAssetSegment): void;
   (e: 'assignSegment', segment: MediaAssetSegment): void;
   (e: 'editNarration', narrationId: string, transcriptRaw: string): void;
   (e: 'deleteNarration', narrationId: string): void;
@@ -66,6 +67,16 @@ function toggleTagPanel(segmentId: string) {
 }
 
 const canAddQuickTags = computed(() => Boolean(props.canModerateNarrations));
+
+type SourceFilter = 'all' | 'coach' | 'staff' | 'member' | 'ai';
+
+const SOURCE_FILTERS: Array<{ value: SourceFilter; label: string }> = [
+  { value: 'all', label: 'All sources' },
+  { value: 'coach', label: 'Coach' },
+  { value: 'staff', label: 'Staff' },
+  { value: 'member', label: 'Member' },
+  { value: 'ai', label: 'AI' },
+];
 
 function formatTagLabel(tagKey: string): string {
   return String(tagKey ?? '').replace(/_/g, ' ');
@@ -147,21 +158,30 @@ function requestDelete(n: Narration) {
   }
 }
 
-// Default: show only segments that have narrations.
-const showEmptySegments = ref(false);
+const selectedSource = ref<SourceFilter>('all');
+const hasSelectedSource = ref(false);
 
-// Default: show only a single source type (role-based: coach for staff+, member for players).
-const showAllSources = ref(false);
+function normalizeSource(value: unknown): SourceFilter {
+  const raw = String(value ?? '').toLowerCase();
+  if (raw === 'coach' || raw === 'staff' || raw === 'member' || raw === 'ai') {
+    return raw as SourceFilter;
+  }
+  return 'all';
+}
 
-const defaultSourceTypeLabel = computed(() => {
-  const only = props.defaultSourceType ?? 'coach';
-  if (only === 'member') return 'Member';
-  if (only === 'coach') return 'Coach';
-  if (only === 'staff') return 'Staff';
-  if (only === 'ai') return 'AI';
-  if (only === 'auto') return 'Auto';
-  return String(only).toUpperCase();
-});
+function setSelectedSource(next: SourceFilter) {
+  selectedSource.value = next;
+  hasSelectedSource.value = true;
+}
+
+watch(
+  () => props.defaultSource,
+  (next) => {
+    if (hasSelectedSource.value) return;
+    selectedSource.value = normalizeSource(next);
+  },
+  { immediate: true }
+);
 
 const segmentElById = ref(new Map<string, HTMLElement>());
 
@@ -215,23 +235,12 @@ function visibleNarrationsForSegment(segId: string): NarrationListItem[] {
 
 const sourceFilteredSegments = computed(() => {
   const base = props.segments ?? [];
-  if (showAllSources.value) return base;
-  const only = props.defaultSourceType ?? 'coach';
-
-  // Back-compat: historically staff segments were tagged as 'coach'.
-  if (only === 'staff') {
-    return base.filter((s) => {
-      const t = String(s.source_type ?? '');
-      return t === 'staff' || t === 'coach';
-    });
-  }
-
-  return base.filter((s) => String(s.source_type ?? '') === only);
+  if (selectedSource.value === 'all') return base;
+  return base.filter((s) => String(s.source_type ?? '') === selectedSource.value);
 });
 
 const orderedSegments = computed(() => {
   const base = [...sourceFilteredSegments.value].sort((a, b) => (a.start_seconds ?? 0) - (b.start_seconds ?? 0));
-  if (showEmptySegments.value) return base;
   return base.filter((s) => {
     const hasNarrations = (narrationsBySegment.value.get(String(s.id)) ?? []).length > 0;
     const hasTags = (s.tags ?? []).length > 0;
@@ -276,26 +285,19 @@ function formatCreatedAt(value: any): string {
       <!-- Filters: scroll horizontally when needed -->
       <div class="narration-filter-row -mx-1 flex items-center gap-2 overflow-x-auto whitespace-nowrap px-1">
         <button
+          v-for="option in SOURCE_FILTERS"
+          :key="option.value"
           type="button"
           class="text-[11px] transition cursor-pointer rounded-full px-3 py-1 ring-1 ring-black/10"
-          :class="showAllSources
+          :class="selectedSource === option.value
             ? 'bg-white text-black'
             : 'bg-zinc-200 text-black/70 hover:bg-white hover:text-black'"
-          @click="showAllSources = !showAllSources"
-          :title="showAllSources ? `Show only ${defaultSourceTypeLabel} segments` : 'Show all segment sources'"
+          :title="option.value === 'all'
+            ? 'Show all segment sources'
+            : `Show only ${option.label} segments`"
+          @click="setSelectedSource(option.value)"
         >
-          {{ showAllSources ? 'All sources' : `${defaultSourceTypeLabel} only` }}
-        </button>
-        <button
-          type="button"
-          class="text-[11px] transition cursor-pointer rounded-full px-3 py-1 ring-1 ring-black/10"
-          :class="showEmptySegments
-            ? 'bg-white text-black'
-            : 'bg-zinc-200 text-black/70 hover:bg-white hover:text-black'"
-          @click="showEmptySegments = !showEmptySegments"
-          :title="showEmptySegments ? 'Hide empty segments' : 'Show empty segments'"
-        >
-          {{ showEmptySegments ? 'Hide empty segments' : 'Show empty segments' }}
+          {{ option.label }}
         </button>
       </div>
     </div>
@@ -338,6 +340,16 @@ function formatCreatedAt(value: any): string {
             <div class="text-[11px] text-white/50" :title="`${(narrationsBySegment.get(String(seg.id)) ?? []).length} narration(s)`">
               {{ (narrationsBySegment.get(String(seg.id)) ?? []).length }}
             </div>
+
+            <button
+              type="button"
+              class="flex items-center gap-1 text-[11px] text-white/50 hover:text-white/80 transition cursor-pointer"
+              title="Add narration"
+              @click.stop="emit('addNarration', seg)"
+            >
+              <Icon icon="carbon:microphone" width="13" height="13" />
+              Add narration
+            </button>
 
             <button
               v-if="props.canModerateNarrations"

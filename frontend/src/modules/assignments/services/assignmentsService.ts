@@ -177,6 +177,11 @@ export const assignmentsService = {
     if (insertError) throw insertError;
   },
 
+  async deleteAssignment(assignmentId: string): Promise<void> {
+    const { error: assignmentError } = await supabase.from('assignments').delete().eq('id', assignmentId);
+    if (assignmentError) throw assignmentError;
+  },
+
   async createAssignment(
     orgId: string,
     payload: {

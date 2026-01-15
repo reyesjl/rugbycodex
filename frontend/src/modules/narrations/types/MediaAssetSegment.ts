@@ -1,7 +1,7 @@
 import type { UUID } from "@/modules/orgs/types/UUID";
 import type { SegmentTag } from "@/modules/media/types/SegmentTag";
 
-export type MediaAssetSegmentSourceType = 'auto' | 'coach' | 'staff' | 'member' | 'ai';
+export type MediaAssetSegmentSourceType = 'owner' | 'manager' | 'coach' | 'staff' | 'member' | 'auto' | 'ai';
 
 export type MediaAssetSegment = {
   id: UUID;
