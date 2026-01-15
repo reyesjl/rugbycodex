@@ -17,12 +17,15 @@ import { segmentService } from '@/modules/media/services/segmentService';
 import { segmentTagService } from '@/modules/media/services/segmentTagService';
 import { narrationService } from '@/modules/narrations/services/narrationService';
 import { toast } from '@/lib/toast';
+import { computeSegmentBounds } from '@/modules/media/utils/segmentBounds';
 
 import { analysisService } from '@/modules/analysis/services/analysisService';
 import type { MatchSummary, MatchSummaryState } from '@/modules/analysis/types/MatchSummary';
 import MatchSummaryBlock from '@/modules/analysis/components/MatchSummaryBlock.vue';
 
-import { useNarrationRecorder, type NarrationListItem } from '@/modules/narration/composables/useNarrationRecorder';
+import { useAudioRecording } from '@/composables/useAudioRecording';
+import { transcriptionService } from '@/modules/narrations/services/transcriptionService';
+import type { NarrationListItem, OptimisticNarration } from '@/modules/narration/composables/useNarrationRecorder';
 import type { OrgMediaAsset } from '@/modules/media/types/OrgMediaAsset';
 import type { MediaAssetSegment, MediaAssetSegmentSourceType } from '@/modules/narrations/types/MediaAssetSegment';
 import type { Narration } from '@/modules/narrations/types/Narration';
@@ -33,7 +36,15 @@ import MediaAssetReviewTimeline from '@/modules/media/components/MediaAssetRevie
 import MediaAssetReviewNarrationList from '@/modules/media/components/MediaAssetReviewNarrationList.vue';
 import AssignSegmentModal from '@/modules/assignments/components/AssignSegmentModal.vue';
 
-const BUFFER_SECONDS = 5;
+const PRE_BUFFER_SECONDS = 5;
+const POST_BUFFER_SECONDS = 10;
+
+const DEBUG = import.meta.env.DEV;
+
+function debugLog(...args: unknown[]) {
+  if (!DEBUG) return;
+  console.debug('[OrgMediaAssetReviewView]', ...args);
+}
 
 const route = useRoute();
 const activeOrgStore = useActiveOrganizationStore();
@@ -676,9 +687,12 @@ function handleBuffering(next: boolean) {
   if (next) hideOverlay();
 }
 
-// Recording (reuse useNarrationRecorder)
-const recorder = useNarrationRecorder();
+// Recording (segment created when narration saves)
+const recorder = useAudioRecording();
 const recordError = ref<string | null>(null);
+const recordingUploadError = ref<string | null>(null);
+const recordStartVideoTime = ref<number | null>(null);
+const recordStartWallClockMs = ref<number | null>(null);
 
 const mutedBeforeRecording = ref<boolean | null>(null);
 
@@ -702,6 +716,7 @@ function getTimeSeconds(): number {
 
 async function beginRecording() {
   recordError.value = null;
+  recordingUploadError.value = null;
 
   if (!activeOrgId.value || !asset.value) {
     recordError.value = 'Missing organization or media asset.';
@@ -713,74 +728,168 @@ async function beginRecording() {
     return;
   }
 
-  const t = getTimeSeconds();
-  const d = duration.value ?? 0;
+  if (!recorder.isRecording.value && recorder.hasRecording.value) {
+    recorder.resetRecording();
+  }
 
-  const startSeconds = Math.max(0, t - BUFFER_SECONDS);
-  const endSeconds = d > 0 ? Math.min(d, t + BUFFER_SECONDS) : (t + BUFFER_SECONDS);
-
-  // Create a segment FIRST so the narration has a segment to attach to.
-  // Use the viewer's actual role as the segment source.
-  const created = await segmentService.createSegment({
-    mediaAssetId: asset.value.id,
-    startSeconds,
-    endSeconds,
-    sourceType: userSegmentSourceType.value,
-  });
-
-  // Optimistic segment insert.
-  segments.value = [...segments.value, { ...created, tags: [] }].sort(
-    (a, b) => (a.start_seconds ?? 0) - (b.start_seconds ?? 0)
-  );
-
-  // Start recording with segment context.
+  // Start recording.
   // Mute the video before recording to avoid bleeding audio into the mic capture.
   muteVideoForRecording();
   try {
-    await recorder.startRecording({
-      orgId: activeOrgId.value,
-      mediaAssetId: asset.value.id,
-      mediaAssetSegmentId: String(created.id),
-      timeSeconds: t,
+    await recorder.startRecording();
+    if (!recorder.isRecording.value) {
+      throw new Error(recorder.error.value ?? 'Failed to start recording.');
+    }
+
+    const recordStartSeconds = getTimeSeconds();
+    recordStartVideoTime.value = recordStartSeconds;
+    recordStartWallClockMs.value = Date.now();
+    debugLog('recording started', {
+      recordStartVideoTime: recordStartSeconds,
+      wallClockStartMs: recordStartWallClockMs.value,
     });
   } catch (err) {
+    recordStartVideoTime.value = null;
+    recordStartWallClockMs.value = null;
     restoreVideoMuteAfterRecording();
     throw err;
   }
 }
 
-function endRecordingNonBlocking() {
-  const result = recorder.stopRecording();
-  if (!result) return;
+async function endRecordingNonBlocking() {
+  if (!recorder.isRecording.value) return;
+
+  recordingUploadError.value = null;
+  const startVideoTime = recordStartVideoTime.value;
+  const startWallClockMs = recordStartWallClockMs.value;
+  recordStartVideoTime.value = null;
+  recordStartWallClockMs.value = null;
+
+  const wallClockEndMs = Date.now();
+  const recordingDurationSeconds =
+    startWallClockMs !== null ? Math.max(0, (wallClockEndMs - startWallClockMs) / 1000) : 0;
+
+  let blobPromise: Promise<Blob>;
+  try {
+    blobPromise = recorder.stopRecordingAndGetBlob();
+  } catch (err) {
+    recordError.value = err instanceof Error ? err.message : 'Failed to stop recording.';
+    return;
+  }
 
   // Stop recording first, then restore the user's prior mute state.
   restoreVideoMuteAfterRecording();
 
-  // optimistic insert into the overall narrations list
-  narrations.value = [...narrations.value, result.optimistic as any];
+  if (!activeOrgId.value || !asset.value) {
+    recordingUploadError.value = 'Missing organization or media asset.';
+    void blobPromise.catch(() => {});
+    return;
+  }
 
-  result.promise
+  if (startVideoTime === null || startWallClockMs === null) {
+    recordingUploadError.value = 'Missing recording start time.';
+    void blobPromise.catch(() => {});
+    return;
+  }
+
+  debugLog('recording stopped', {
+    wallClockEndMs,
+    recordingDurationSeconds,
+  });
+
+  const mediaDuration = duration.value ?? 0;
+  const bounds = computeSegmentBounds(
+    startVideoTime,
+    recordingDurationSeconds,
+    mediaDuration,
+    PRE_BUFFER_SECONDS,
+    POST_BUFFER_SECONDS
+  );
+  debugLog('segment bounds computed', {
+    recordStartVideoTime: startVideoTime,
+    recordingDurationSeconds,
+    mediaDuration,
+    ...bounds,
+  });
+
+  let created: MediaAssetSegment;
+  try {
+    created = await segmentService.createSegment({
+      mediaAssetId: asset.value.id,
+      startSeconds: bounds.startSeconds,
+      endSeconds: bounds.endSeconds,
+      sourceType: userSegmentSourceType.value,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Failed to create segment.';
+    recordingUploadError.value = message;
+    void blobPromise.catch(() => {});
+    return;
+  }
+
+  debugLog('segment inserted', { segmentId: created.id });
+
+  segments.value = [...segments.value, { ...created, tags: [] }].sort(
+    (a, b) => (a.start_seconds ?? 0) - (b.start_seconds ?? 0)
+  );
+
+  const optimisticId = `optimistic-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const optimistic: OptimisticNarration = {
+    id: optimisticId,
+    org_id: activeOrgId.value,
+    media_asset_id: asset.value.id,
+    media_asset_segment_id: String(created.id),
+    author_id: null,
+    audio_storage_path: null,
+    created_at: new Date(),
+    transcript_raw: 'Uploading…',
+    status: 'uploading',
+  };
+
+  // optimistic insert into the overall narrations list
+  narrations.value = [...narrations.value, optimistic];
+
+  Promise.resolve()
+    .then(async () => {
+      const audioBlob = await blobPromise;
+      const { text } = await transcriptionService.transcribeAudio(audioBlob);
+      return narrationService.createNarration({
+        orgId: activeOrgId.value,
+        mediaAssetId: asset.value.id,
+        mediaAssetSegmentId: String(created.id),
+        transcriptRaw: text?.trim() ? text.trim() : '(No transcript)',
+      });
+    })
     .then((saved) => {
-      narrations.value = (narrations.value as any[]).map((n) => (n.id === result.optimistic.id ? saved : n));
+      narrations.value = (narrations.value as any[]).map((n) => (n.id === optimisticId ? saved : n));
     })
     .catch((err) => {
       const message = err instanceof Error ? err.message : 'Failed to process narration.';
+      recordingUploadError.value = message;
       narrations.value = (narrations.value as any[]).map((n) => {
-        if (n.id !== result.optimistic.id) return n;
+        if (n.id !== optimisticId) return n;
         return {
-          ...result.optimistic,
+          ...optimistic,
           status: 'error',
           transcript_raw: 'Upload failed',
           errorMessage: message,
         };
       });
+      void segmentService
+        .deleteSegment(String(created.id))
+        .then(() => {
+          segments.value = segments.value.filter((seg) => String(seg.id) !== String(created.id));
+        })
+        .catch((cleanupErr) => {
+          debugLog('segment cleanup failed', cleanupErr);
+        });
     });
 }
 
 async function toggleRecord() {
   showOverlay(null);
   if (recorder.isRecording.value) {
-    endRecordingNonBlocking();
+    void endRecordingNonBlocking();
   } else {
     try {
       await beginRecording();
@@ -1006,8 +1115,11 @@ async function handleDeleteNarration(narrationId: string) {
           <div v-if="recordError" class="text-xs text-rose-200">
             {{ recordError }}
           </div>
-          <div v-else-if="recorder.lastError.value" class="text-xs text-rose-200">
-            {{ recorder.lastError.value }}
+          <div v-else-if="recordingUploadError" class="text-xs text-rose-200">
+            {{ recordingUploadError }}
+          </div>
+          <div v-else-if="recorder.error.value" class="text-xs text-rose-200">
+            {{ recorder.error.value }}
           </div>
         </div>
 

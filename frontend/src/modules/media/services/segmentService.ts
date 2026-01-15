@@ -184,6 +184,7 @@ export const segmentService = {
     };
   },
 
+
   async createCoachSegment(input: {
     mediaAssetId: string;
     startSeconds: number;
@@ -204,6 +205,15 @@ export const segmentService = {
       ...input,
       sourceType: 'member',
     });
+  },
+
+  async deleteSegment(segmentId: string): Promise<void> {
+    if (!segmentId) throw new Error('Missing segmentId.');
+    const { error } = await supabase
+      .from('media_asset_segments')
+      .delete()
+      .eq('id', segmentId);
+    if (error) throw error;
   },
 
   async listFeedItemsForOrg(

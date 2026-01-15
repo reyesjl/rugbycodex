@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import type { Narration } from '@/modules/narrations/types/Narration';
 import type { NarrationListItem } from '@/modules/narration/composables/useNarrationRecorder';
 
@@ -35,6 +35,9 @@ const canSubmit = computed(() => !!draft.value.trim() && !props.submitting);
 const editingId = ref<string | null>(null);
 const editDraft = ref('');
 const saving = ref(false);
+const narrationElById = ref(new Map<string, HTMLElement>());
+const previousNarrationIds = ref<string[]>([]);
+const hasInitialized = ref(false);
 
 function canManage(item: NarrationListItem): boolean {
   if (!props.currentUserId) return false;
@@ -81,6 +84,36 @@ function submit() {
   draft.value = '';
   emit('submitText', text);
 }
+
+function setNarrationEl(id: string, el: Element | null) {
+  if (!el) {
+    narrationElById.value.delete(id);
+    return;
+  }
+  narrationElById.value.set(id, el as HTMLElement);
+}
+
+watch(
+  () => props.narrations,
+  async (nextNarrations) => {
+    const nextIds = nextNarrations.map((item) => String(item.id));
+    if (!hasInitialized.value) {
+      previousNarrationIds.value = nextIds;
+      hasInitialized.value = true;
+      return;
+    }
+
+    const prevSet = new Set(previousNarrationIds.value);
+    const newId = nextIds.filter((id) => !prevSet.has(id)).pop();
+    previousNarrationIds.value = nextIds;
+
+    if (!newId) return;
+
+    await nextTick();
+    const el = narrationElById.value.get(newId);
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+);
 </script>
 
 <template>
@@ -130,6 +163,7 @@ function submit() {
         v-for="item in narrations"
         :key="item.id"
         class="rounded-xl border border-white/10 bg-white/5 p-3"
+        :ref="(el) => setNarrationEl(String(item.id), el)"
         @click="emit('selectNarration', item.id)"
       >
         <div class="flex items-start justify-between gap-3">

@@ -15,6 +15,7 @@ import { useAuthStore } from '@/auth/stores/useAuthStore';
 import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrganizationStore';
 import { hasOrgAccess } from '@/modules/orgs/composables/useOrgCapabilities';
 import type { SegmentTag } from '@/modules/media/types/SegmentTag';
+import { toast } from '@/lib/toast';
 
 const props = defineProps<{
   feedItem: FeedItemType;
@@ -645,6 +646,7 @@ function endRecordingNonBlocking() {
   result.promise
     .then((saved) => {
       narrations.value = narrations.value.map((n) => (n.id === result.optimistic.id ? saved : n));
+      toast({ message: 'Narration added.', variant: 'success', durationMs: 2000 });
     })
     .catch((err) => {
       const message = err instanceof Error ? err.message : 'Failed to process narration.';
@@ -657,6 +659,7 @@ function endRecordingNonBlocking() {
           errorMessage: message,
         };
       });
+      toast({ message, variant: 'error', durationMs: 2500 });
     });
 }
 
@@ -692,6 +695,7 @@ async function submitTypedNarration(text: string) {
     });
 
     narrations.value = narrations.value.map((n) => (n.id === optimisticId ? saved : n));
+    toast({ message: 'Narration added.', variant: 'success', durationMs: 2000 });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to save narration.';
     submitTextError.value = message;
@@ -703,6 +707,7 @@ async function submitTypedNarration(text: string) {
         errorMessage: message,
       };
     });
+    toast({ message, variant: 'error', durationMs: 2500 });
   } finally {
     submittingText.value = false;
   }
