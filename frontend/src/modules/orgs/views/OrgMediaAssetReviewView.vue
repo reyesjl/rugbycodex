@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { Icon } from '@iconify/vue';
 import { storeToRefs } from 'pinia';
 import { useRoute } from 'vue-router';
@@ -18,6 +18,8 @@ import { segmentTagService } from '@/modules/media/services/segmentTagService';
 import { narrationService } from '@/modules/narrations/services/narrationService';
 import { toast } from '@/lib/toast';
 import { computeSegmentBounds } from '@/modules/media/utils/segmentBounds';
+import { useVideoOverlayControls } from '@/modules/media/composables/useVideoOverlayControls';
+import { useSegmentPlayback } from '@/modules/media/composables/useSegmentPlayback';
 
 import { analysisService } from '@/modules/analysis/services/analysisService';
 import type { MatchSummary, MatchSummaryState } from '@/modules/analysis/types/MatchSummary';
@@ -299,230 +301,124 @@ const surfaceEl = ref<HTMLElement | null>(null);
 
 const videoEl = computed(() => (playerRef.value?.getVideoElement?.() ?? null) as HTMLVideoElement | null);
 
-const isFullscreen = ref(false);
-const canFullscreen = computed(() => {
-  const el = surfaceEl.value as any;
-  const video = videoEl.value as any;
-  const doc = document as any;
-
-  // iOS Safari often doesn't support element fullscreen, but does support
-  // native video fullscreen via `webkitEnterFullscreen`.
-  if (!el && !video) return false;
-  return Boolean(
-    el?.requestFullscreen ||
-    el?.webkitRequestFullscreen ||
-    el?.msRequestFullscreen ||
-    doc.fullscreenEnabled ||
-    doc.webkitFullscreenEnabled ||
-    video?.webkitEnterFullscreen
-  );
-});
-
-function getFullscreenElement(): Element | null {
-  const doc = document as any;
-  return (document.fullscreenElement ?? doc.webkitFullscreenElement ?? null) as Element | null;
-}
-
-function syncFullscreenState() {
-  const active = getFullscreenElement();
-  const video = videoEl.value as any;
-  const isNativeVideoFullscreen = Boolean(video?.webkitDisplayingFullscreen);
-  isFullscreen.value = isNativeVideoFullscreen || Boolean(active && surfaceEl.value && active === surfaceEl.value);
-}
-
-async function toggleFullscreen() {
-  const el = surfaceEl.value as any;
-  const video = videoEl.value as any;
-  const doc = document as any;
-  if (!el && !video) return;
-
-  try {
-    const isNativeVideoFullscreen = Boolean(video?.webkitDisplayingFullscreen);
-
-    if (getFullscreenElement() || isNativeVideoFullscreen) {
-      await Promise.resolve((document.exitFullscreen?.() ?? doc.webkitExitFullscreen?.() ?? video?.webkitExitFullscreen?.()) as any);
-      return;
-    }
-    // IMPORTANT: request fullscreen on the container, not the <video>, so overlays + record button stay visible.
-
-    if (el?.requestFullscreen || el?.webkitRequestFullscreen || el?.msRequestFullscreen) {
-      await Promise.resolve((el.requestFullscreen?.() ?? el.webkitRequestFullscreen?.() ?? el.msRequestFullscreen?.()) as any);
-      return;
-    }
-
-    // iOS fallback: enter native video fullscreen (overlays won't persist).
-    if (video?.webkitEnterFullscreen) {
-      video.webkitEnterFullscreen();
-      return;
-    }
-  } catch {
-    toast({ message: 'Fullscreen is not available in this browser.', variant: 'info', durationMs: 2500 });
-  }
-}
-
-function bindVideoFullscreenListeners(video: any, previous: any) {
-  if (previous) {
-    previous.removeEventListener?.('webkitbeginfullscreen', syncFullscreenState);
-    previous.removeEventListener?.('webkitendfullscreen', syncFullscreenState);
-  }
-  if (!video) return;
-  video.addEventListener?.('webkitbeginfullscreen', syncFullscreenState);
-  video.addEventListener?.('webkitendfullscreen', syncFullscreenState);
-}
-
-const isBuffering = ref(false);
-const suppressBufferingUntilMs = ref(0);
-const suppressOverlayRevealUntilMs = ref(0);
-
-const currentTime = ref(0);
-const duration = ref(0);
 const isPlaying = ref(false);
 
-const flashIcon = ref<
-  | 'play'
-  | 'pause'
-  | 'rew5'
-  | 'rew10'
-  | 'ff5'
-  | 'ff10'
-  | null
->(null);
-let flashTimer: number | null = null;
+// Moved shared playback/progress tracking out of OrgMediaAssetReviewView.
+const segmentPlayback = useSegmentPlayback({
+  getPlayer: () => playerRef.value,
+  segmentStartSeconds: computed(() => 0),
+  segmentEndSeconds: computed(() => 0),
+  isActive: computed(() => true),
+  isPlaying,
+  enableWatchedHalf: false,
+});
 
-function flashPlayPause(kind: 'play' | 'pause') {
-  flashIcon.value = kind;
-  if (flashTimer !== null) window.clearTimeout(flashTimer);
-  flashTimer = window.setTimeout(() => {
-    flashIcon.value = null;
-    flashTimer = null;
-  }, 180);
-}
+const {
+  currentTime,
+  duration,
+  progress01,
+  suppressBufferingUntilMs,
+  handleTimeupdate: handleSegmentTimeupdate,
+  handleLoadedMetadata: handleSegmentLoadedMetadata,
+  seekRelative: seekRelativeInternal,
+  scrubToSegmentSeconds: scrubToSecondsInternal,
+} = segmentPlayback;
 
-function flashSeek(kind: 'ff' | 'rew', amountSeconds: number) {
-  const a = amountSeconds >= 10 ? 10 : 5;
-  flashIcon.value = kind === 'rew'
-    ? (a === 10 ? 'rew10' : 'rew5')
-    : (a === 10 ? 'ff10' : 'ff5');
-  if (flashTimer !== null) window.clearTimeout(flashTimer);
-  flashTimer = window.setTimeout(() => {
-    flashIcon.value = null;
-    flashTimer = null;
-  }, 180);
-}
+// Moved overlay + gesture + fullscreen controls out of OrgMediaAssetReviewView.
+const overlayControls = useVideoOverlayControls({
+  getVideoEl: () => videoEl.value,
+  getSurfaceEl: () => surfaceEl.value,
+  getPlayer: () => playerRef.value,
+  isPlaying,
+  onTogglePlay: () => playerRef.value?.togglePlayback(),
+  onSeekRelative: (deltaSeconds) => seekRelative(deltaSeconds),
+  suppressBufferingUntilMs,
+  requireElementForFullscreen: true,
+  onFullscreenError: () => {
+    toast({ message: 'Fullscreen is not available in this browser.', variant: 'info', durationMs: 2500 });
+  },
+});
+
+const {
+  overlayVisible,
+  isBuffering,
+  flashIcon,
+  volume01,
+  muted,
+  isFullscreen,
+  canFullscreen,
+  showOverlay,
+  requestTogglePlay,
+  flashPlayPause,
+  onHoverMove,
+  onHoverLeave,
+  onNarrationButtonHoverEnter,
+  onTap,
+  handleBuffering,
+  applyVolumeToPlayer,
+  syncVolumeFromPlayer,
+  toggleMute,
+  setVolume,
+  toggleFullscreen,
+} = overlayControls;
+
+const togglePlay = requestTogglePlay;
 
 function seekRelative(deltaSeconds: number) {
-  const t = (playerRef.value?.getCurrentTime?.() ?? currentTime.value ?? 0) + deltaSeconds;
-  const d = duration.value ?? 0;
-  const maxEnd = d > 0 ? d : Number.POSITIVE_INFINITY;
-  const clamped = Math.max(0, Math.min(maxEnd, t));
+  seekRelativeInternal(deltaSeconds);
   suppressBufferingUntilMs.value = Date.now() + 500;
   isBuffering.value = false;
-  playerRef.value?.setCurrentTime(clamped);
 }
 
-// Volume (YouTube-style)
-const volume01 = ref(1);
-const muted = ref(false);
-const volumeBeforeMute01 = ref(0.7);
-
-function applyVolumeToPlayer() {
-  playerRef.value?.setMuted?.(muted.value);
-  playerRef.value?.setVolume01?.(volume01.value);
-}
-
-function toggleMute() {
-  if (muted.value || volume01.value <= 0) {
-    muted.value = false;
-    if (volume01.value <= 0) volume01.value = volumeBeforeMute01.value || 0.7;
-  } else {
-    if (volume01.value > 0) volumeBeforeMute01.value = volume01.value;
-    muted.value = true;
+function handleTimeupdate(p: { currentTime: number; duration: number }) {
+  const previousDuration = duration.value;
+  handleSegmentTimeupdate(p);
+  if (!p.duration && previousDuration) {
+    duration.value = previousDuration;
   }
+
+  // When we're essentially at the end, some browsers can briefly emit `waiting`.
+  // Don't show buffering over a natural end-of-playback pause.
+  const d = duration.value ?? 0;
+  if (d > 0 && currentTime.value >= d - 0.05) {
+    suppressBufferingUntilMs.value = Date.now() + 1000;
+    isBuffering.value = false;
+  }
+
+  // Keep focused segment aligned with playback, but don't force it if unset and no segments.
+  focusedSegmentId.value = findFocusedSegmentId(currentTime.value);
+}
+
+function handleLoadedMetadata(p: { duration: number }) {
+  handleSegmentLoadedMetadata(p);
+
+  // Sync volume state from the actual video element once it's available.
+  syncVolumeFromPlayer();
   applyVolumeToPlayer();
 }
 
-function setVolume(next: number) {
-  const v = Math.max(0, Math.min(1, next));
-  volume01.value = v;
-  muted.value = v <= 0;
-  applyVolumeToPlayer();
+function handlePlay() {
+  isPlaying.value = true;
+  flashPlayPause('play');
 }
 
-// Overlay visibility (reused pattern from FeedItem)
-const overlayVisible = ref(false);
-let overlayTimer: number | null = null;
-function showOverlay(durationMs: number | null = 2500) {
-  overlayVisible.value = true;
-  if (overlayTimer !== null) window.clearTimeout(overlayTimer);
-  if (durationMs === null) return;
-  overlayTimer = window.setTimeout(() => {
-    overlayVisible.value = false;
-    overlayTimer = null;
-  }, durationMs);
+function handlePause() {
+  isPlaying.value = false;
+  isBuffering.value = false;
+  flashPlayPause('pause');
 }
 
-function hideOverlay() {
-  overlayVisible.value = false;
-  if (overlayTimer !== null) {
-    window.clearTimeout(overlayTimer);
-    overlayTimer = null;
+function scrubToSeconds(seconds: number) {
+  focusedSegmentId.value = findFocusedSegmentId(seconds);
+  if (!duration.value) {
+    playerRef.value?.setCurrentTime(seconds);
+    return;
   }
-}
-
-function isMousePointer(e: PointerEvent): boolean {
-  return e.pointerType === 'mouse';
-}
-
-function onHoverMove(e: PointerEvent) {
-  if (!isMousePointer(e)) return;
-  if (isBuffering.value) return;
-  if (Date.now() < suppressOverlayRevealUntilMs.value) return;
-  // Use a timeout so the overlay hides when the mouse becomes idle.
-  showOverlay(2500);
-}
-
-function onHoverLeave(e: PointerEvent) {
-  if (!isMousePointer(e)) return;
-  if (isBuffering.value) return;
-  showOverlay(800);
-}
-
-function onNarrationButtonHoverEnter(e: PointerEvent) {
-  if (!isMousePointer(e)) return;
-  hideOverlay();
+  scrubToSecondsInternal(seconds);
 }
 
 onBeforeUnmount(() => {
-  hideOverlay();
   restoreVideoMuteAfterRecording();
-  bindVideoFullscreenListeners(null, videoEl.value as any);
-  if (flashTimer !== null) {
-    window.clearTimeout(flashTimer);
-    flashTimer = null;
-  }
-  if (pendingMouseSingleTapTimer !== null) {
-    window.clearTimeout(pendingMouseSingleTapTimer);
-    pendingMouseSingleTapTimer = null;
-  }
-  document.removeEventListener('fullscreenchange', syncFullscreenState);
-  document.removeEventListener('webkitfullscreenchange' as any, syncFullscreenState);
-});
-
-onMounted(() => {
-  document.addEventListener('fullscreenchange', syncFullscreenState);
-  document.addEventListener('webkitfullscreenchange' as any, syncFullscreenState);
-  syncFullscreenState();
-});
-
-watch(videoEl, (video, prev) => {
-  bindVideoFullscreenListeners(video as any, prev as any);
-  syncFullscreenState();
-}, { immediate: true });
-
-const progress01 = computed(() => {
-  const d = duration.value;
-  if (!d) return 0;
-  return Math.min(1, Math.max(0, (currentTime.value ?? 0) / d));
 });
 
 const timeLabel = computed(() => {
@@ -616,150 +512,6 @@ watch([activeOrgId, mediaAssetId], () => {
   if (!activeOrgId.value || !mediaAssetId.value) return;
   void load();
 }, { immediate: true });
-
-function handleTimeupdate(p: { currentTime: number; duration: number }) {
-  currentTime.value = p.currentTime ?? 0;
-  if (p.duration) duration.value = p.duration;
-
-  // When we're essentially at the end, some browsers can briefly emit `waiting`.
-  // Don't show buffering over a natural end-of-playback pause.
-  const d = duration.value ?? 0;
-  if (d > 0 && currentTime.value >= d - 0.05) {
-    suppressBufferingUntilMs.value = Date.now() + 1000;
-    isBuffering.value = false;
-  }
-
-  // Keep focused segment aligned with playback, but don't force it if unset and no segments.
-  focusedSegmentId.value = findFocusedSegmentId(currentTime.value);
-}
-
-function handleLoadedMetadata(p: { duration: number }) {
-  if (p.duration) duration.value = p.duration;
-
-  // Sync volume state from the actual video element once it's available.
-  const currentVol = playerRef.value?.getVolume01?.();
-  const currentMuted = playerRef.value?.getMuted?.();
-  if (typeof currentVol === 'number') {
-    volume01.value = Math.max(0, Math.min(1, currentVol));
-    if (volume01.value > 0) volumeBeforeMute01.value = volume01.value;
-  }
-  if (typeof currentMuted === 'boolean') {
-    muted.value = currentMuted;
-  }
-  applyVolumeToPlayer();
-}
-
-watch([volume01, muted], () => {
-  applyVolumeToPlayer();
-});
-
-function handlePlay() {
-  isPlaying.value = true;
-  flashPlayPause('play');
-}
-
-function handlePause() {
-  isPlaying.value = false;
-  isBuffering.value = false;
-  flashPlayPause('pause');
-}
-
-function togglePlay() {
-  // UX: when the user presses Play, dismiss controls immediately.
-  // When pausing, keep controls visible so they can act.
-  const video = playerRef.value?.getVideoElement?.() ?? null;
-  const willPlay = video ? video.paused : !isPlaying.value;
-  if (willPlay) {
-    hideOverlay();
-    // After pressing play, ignore mouse-move reveal for a moment.
-    suppressOverlayRevealUntilMs.value = Date.now() + 600;
-  }
-  else showOverlay(null);
-  playerRef.value?.togglePlayback();
-}
-
-function scrubToSeconds(seconds: number) {
-  focusedSegmentId.value = findFocusedSegmentId(seconds);
-  playerRef.value?.setCurrentTime(seconds);
-}
-
-let lastTapAtMs = 0;
-let lastTapSide: 'left' | 'right' | null = null;
-let lastSeekDoubleAtMs = 0;
-let lastSeekSide: 'left' | 'right' | null = null;
-let seekRampLevel = 0; // 0=>5, 1=>10
-let pendingMouseSingleTapTimer: number | null = null;
-
-const DOUBLE_TAP_WINDOW_MS = 280;
-// Only ramp if the user keeps double-clicking quickly.
-const SEEK_RAMP_WINDOW_MS = 450;
-
-watch(overlayVisible, (v) => {
-  // If controls disappear, restart ramp back at 5s.
-  if (v) return;
-  seekRampLevel = 0;
-  lastSeekDoubleAtMs = 0;
-  lastSeekSide = null;
-});
-
-function nextSeekAmountSeconds(nowMs: number, side: 'left' | 'right'): number {
-  const isContinuous = (nowMs - lastSeekDoubleAtMs) <= SEEK_RAMP_WINDOW_MS && lastSeekSide === side;
-  if (!isContinuous) {
-    seekRampLevel = 0;
-  } else {
-    seekRampLevel = Math.min(1, seekRampLevel + 1);
-  }
-  lastSeekDoubleAtMs = nowMs;
-  lastSeekSide = side;
-  return seekRampLevel === 0 ? 5 : 10;
-}
-
-function onTap(payload: { pointerType: PointerEvent['pointerType']; xPct: number; yPct: number }) {
-  if (isBuffering.value) return;
-  const now = Date.now();
-  const side: 'left' | 'right' = (payload.xPct ?? 0.5) < 0.5 ? 'left' : 'right';
-  const isDoubleTap = (now - lastTapAtMs) <= DOUBLE_TAP_WINDOW_MS && lastTapSide === side;
-  lastTapAtMs = now;
-  lastTapSide = side;
-
-  // Desktop: single click toggles play/pause. Double click seeks.
-  if (payload.pointerType === 'mouse') {
-    if (isDoubleTap) {
-      if (pendingMouseSingleTapTimer !== null) {
-        window.clearTimeout(pendingMouseSingleTapTimer);
-        pendingMouseSingleTapTimer = null;
-      }
-      const amount = nextSeekAmountSeconds(now, side);
-      seekRelative(side === 'left' ? -amount : amount);
-      flashSeek(side === 'left' ? 'rew' : 'ff', amount);
-      return;
-    }
-
-    if (pendingMouseSingleTapTimer !== null) window.clearTimeout(pendingMouseSingleTapTimer);
-    pendingMouseSingleTapTimer = window.setTimeout(() => {
-      pendingMouseSingleTapTimer = null;
-      togglePlay();
-    }, DOUBLE_TAP_WINDOW_MS + 20);
-    return;
-  }
-
-  // Touch: single tap toggles overlay, double tap seeks.
-  if (isDoubleTap) {
-    const amount = nextSeekAmountSeconds(now, side);
-    seekRelative(side === 'left' ? -amount : amount);
-    flashSeek(side === 'left' ? 'rew' : 'ff', amount);
-    return;
-  }
-
-  if (overlayVisible.value) hideOverlay();
-  else showOverlay();
-}
-
-function handleBuffering(next: boolean) {
-  if (Date.now() < suppressBufferingUntilMs.value) return;
-  isBuffering.value = next;
-  if (next) hideOverlay();
-}
 
 // Recording (segment created when narration saves)
 const recorder = useAudioRecording();
