@@ -974,6 +974,7 @@ function handleBuffering(next: boolean) {
       <div class="hidden md:block flex-1 min-h-0 overflow-y-auto md:overflow-visible md:flex-none md:mx-auto md:w-full md:max-w-5xl">
         <div v-if="loadingNarrations" class="px-4 pt-3 text-sm text-white/50">Loading narrations…</div>
         <NarrationPanel
+          :key="feedItem.mediaAssetSegmentId"
           :narrations="narrations"
           :submitting="submittingText"
           :submit-error="submitTextError"
@@ -1010,6 +1011,7 @@ function handleBuffering(next: boolean) {
       <div v-show="narrationsDrawerOpen" class="h-[calc(65dvh-3.5rem)] overflow-y-auto overscroll-contain">
         <div v-if="loadingNarrations" class="px-4 pt-3 text-sm text-white/50">Loading narrations…</div>
         <NarrationPanel
+          :key="feedItem.mediaAssetSegmentId"
           :narrations="narrations"
           :submitting="submittingText"
           :submit-error="submitTextError"
