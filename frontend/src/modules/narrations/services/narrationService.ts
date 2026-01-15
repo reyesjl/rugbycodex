@@ -1,6 +1,6 @@
 import { supabase } from "@/lib/supabaseClient";
 import { requireUserId } from "@/modules/auth/identity";
-import type { Narration } from "../types/Narration";
+import type { Narration, NarrationSourceType } from "../types/Narration";
 import type { PostgrestError } from "@supabase/supabase-js";
 
 /**
@@ -24,6 +24,7 @@ type NarrationRow = {
   media_asset_id: string;
   media_asset_segment_id: string;
   author_id: string | null;
+  source_type: string | null;
   audio_storage_path: string | null;
   transcript_raw: string;
   transcript_clean: string | null;
@@ -62,6 +63,34 @@ async function getList<T = NarrationRow>(query: ListQueryResult<T>): Promise<T[]
   return data ?? [];
 }
 
+function normalizeNarrationSourceType(value: unknown): NarrationSourceType {
+  const raw = String(value ?? '').toLowerCase();
+  if (raw === 'coach' || raw === 'staff' || raw === 'member' || raw === 'ai') {
+    return raw as NarrationSourceType;
+  }
+  return 'member';
+}
+
+function mapMembershipRoleToNarrationSourceType(role: unknown): NarrationSourceType {
+  const raw = String(role ?? '').toLowerCase();
+  if (raw === 'owner') return 'coach';
+  if (raw === 'manager' || raw === 'staff') return 'staff';
+  if (raw === 'member') return 'member';
+  return 'member';
+}
+
+async function getOrgMemberRole(orgId: string, userId: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('org_members')
+    .select('role')
+    .eq('org_id', orgId)
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (error) throw error;
+  return (data?.role as string | null) ?? null;
+}
+
 function toNarration(row: NarrationRow): Narration {
   return {
     id: row.id,
@@ -69,6 +98,8 @@ function toNarration(row: NarrationRow): Narration {
     media_asset_id: row.media_asset_id,
     media_asset_segment_id: row.media_asset_segment_id,
     author_id: row.author_id,
+    // Ensure null/legacy values safely default to member.
+    source_type: normalizeNarrationSourceType(row.source_type),
     audio_storage_path: row.audio_storage_path,
     transcript_raw: row.transcript_raw,
     transcript_clean: row.transcript_clean,
@@ -102,8 +133,23 @@ export const narrationService = {
     mediaAssetId: string;
     mediaAssetSegmentId: string;
     transcriptRaw: string;
+    /** Optional: system/AI narrations can pass sourceType: 'ai' and authorId: null. */
+    sourceType?: NarrationSourceType | null;
+    authorId?: string | null;
   }): Promise<Narration> {
-    const userId = requireUserId();
+    const isSystemNarration = input.sourceType === 'ai' || input.authorId === null;
+    let authorId: string | null = null;
+    let sourceType: NarrationSourceType;
+
+    if (isSystemNarration) {
+      authorId = null;
+      sourceType = 'ai';
+    } else {
+      authorId = input.authorId ?? requireUserId();
+      // Snapshot org_members.role -> narration.source_type at creation time.
+      const role = await getOrgMemberRole(input.orgId, authorId);
+      sourceType = mapMembershipRoleToNarrationSourceType(role);
+    }
 
     const data = await getSingle<NarrationRow>(
       supabase
@@ -112,7 +158,8 @@ export const narrationService = {
           org_id: input.orgId,
           media_asset_id: input.mediaAssetId,
           media_asset_segment_id: input.mediaAssetSegmentId,
-          author_id: userId,
+          author_id: authorId,
+          source_type: sourceType,
           transcript_raw: input.transcriptRaw,
         })
         .select("*")

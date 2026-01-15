@@ -30,7 +30,7 @@ import { transcriptionService } from '@/modules/narrations/services/transcriptio
 import type { NarrationListItem, OptimisticNarration } from '@/modules/narration/composables/useNarrationRecorder';
 import type { OrgMediaAsset } from '@/modules/media/types/OrgMediaAsset';
 import type { MediaAssetSegment, MediaAssetSegmentSourceType } from '@/modules/narrations/types/MediaAssetSegment';
-import type { Narration } from '@/modules/narrations/types/Narration';
+import type { Narration, NarrationSourceType } from '@/modules/narrations/types/Narration';
 import type { SegmentTag, SegmentTagType } from '@/modules/media/types/SegmentTag';
 
 import { formatMinutesSeconds } from '@/lib/duration';
@@ -95,7 +95,7 @@ const defaultNarrationSource = computed(() => {
   return 'member';
 });
 
-type NarrationSourceFilter = 'all' | 'coach' | 'staff' | 'member' | 'ai';
+type NarrationSourceFilter = 'all' | NarrationSourceType;
 
 function normalizeNarrationSource(value: unknown): NarrationSourceFilter {
   const raw = String(value ?? '').toLowerCase();

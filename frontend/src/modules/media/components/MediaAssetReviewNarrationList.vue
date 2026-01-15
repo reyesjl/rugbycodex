@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
 import { Icon } from '@iconify/vue';
-import type { Narration } from '@/modules/narrations/types/Narration';
+import type { Narration, NarrationSourceType } from '@/modules/narrations/types/Narration';
 import type { MediaAssetSegment } from '@/modules/narrations/types/MediaAssetSegment';
 import type { SegmentTag, SegmentTagType } from '@/modules/media/types/SegmentTag';
 import { formatMinutesSeconds } from '@/lib/duration';
@@ -72,7 +72,7 @@ function toggleTagPanel(segmentId: string) {
 
 const canAddQuickTags = computed(() => Boolean(props.canModerateNarrations));
 
-type SourceFilter = 'all' | 'coach' | 'staff' | 'member' | 'ai';
+type SourceFilter = 'all' | NarrationSourceType;
 
 const SOURCE_FILTERS: Array<{ value: SourceFilter; label: string }> = [
   { value: 'all', label: 'All sources' },
@@ -84,6 +84,19 @@ const SOURCE_FILTERS: Array<{ value: SourceFilter; label: string }> = [
 
 function formatTagLabel(tagKey: string): string {
   return String(tagKey ?? '').replace(/_/g, ' ');
+}
+
+function normalizeNarrationSourceType(value: unknown): NarrationSourceType {
+  const raw = String(value ?? '').toLowerCase();
+  if (raw === 'coach' || raw === 'staff' || raw === 'member' || raw === 'ai') {
+    return raw as NarrationSourceType;
+  }
+  return 'member';
+}
+
+function narrationSourceTypeFor(item: NarrationListItem): NarrationSourceType {
+  // Backwards compatibility: null/unknown source_type falls back to member.
+  return normalizeNarrationSourceType(item.source_type);
 }
 
 function classForTag(tag: SegmentTag): string {
@@ -242,8 +255,23 @@ const narrationsBySegment = computed(() => {
   return map;
 });
 
+const filteredNarrationsBySegment = computed(() => {
+  const map = new Map<string, NarrationListItem[]>();
+  for (const [segId, list] of narrationsBySegment.value) {
+    const filtered = selectedSource.value === 'all'
+      ? list
+      : list.filter((n) => narrationSourceTypeFor(n) === selectedSource.value);
+    map.set(segId, filtered);
+  }
+  return map;
+});
+
+function narrationsForSegment(segId: string): NarrationListItem[] {
+  return filteredNarrationsBySegment.value.get(String(segId)) ?? [];
+}
+
 function visibleNarrationsForSegment(segId: string): NarrationListItem[] {
-  const list = narrationsBySegment.value.get(String(segId)) ?? [];
+  const list = narrationsForSegment(segId);
   if (list.length <= 1) return list;
   if (isSegmentExpanded(String(segId))) return list;
   return list.slice(0, 1);
@@ -252,13 +280,14 @@ function visibleNarrationsForSegment(segId: string): NarrationListItem[] {
 const sourceFilteredSegments = computed(() => {
   const base = props.segments ?? [];
   if (selectedSource.value === 'all') return base;
-  return base.filter((s) => String(s.source_type ?? '') === selectedSource.value);
+  // Filter by narration.source_type (not segment.source_type).
+  return base.filter((s) => narrationsForSegment(String(s.id)).length > 0);
 });
 
 const orderedSegments = computed(() => {
   const base = [...sourceFilteredSegments.value].sort((a, b) => (a.start_seconds ?? 0) - (b.start_seconds ?? 0));
   return base.filter((s) => {
-    const hasNarrations = (narrationsBySegment.value.get(String(s.id)) ?? []).length > 0;
+    const hasNarrations = narrationsForSegment(String(s.id)).length > 0;
     const hasTags = (s.tags ?? []).length > 0;
     return hasNarrations || hasTags;
   });
@@ -266,7 +295,7 @@ const orderedSegments = computed(() => {
 
 const orderedNarratedSegments = computed(() => {
   const base = [...sourceFilteredSegments.value].sort((a, b) => (a.start_seconds ?? 0) - (b.start_seconds ?? 0));
-  return base.filter((s) => (narrationsBySegment.value.get(String(s.id)) ?? []).length > 0);
+  return base.filter((s) => narrationsForSegment(String(s.id)).length > 0);
 });
 
 const orderedNarratedSegmentIds = computed(() => orderedNarratedSegments.value.map((seg) => String(seg.id)));
@@ -285,16 +314,31 @@ const totalSegmentCount = computed(() => sourceFilteredSegments.value.length);
 const visibleNarrationCount = computed(() => {
   let count = 0;
   for (const seg of orderedSegments.value) {
-    count += (narrationsBySegment.value.get(String(seg.id)) ?? []).length;
+    count += narrationsForSegment(String(seg.id)).length;
   }
   return count;
 });
 
-function labelForSegment(seg: MediaAssetSegment): string {
+// Display semantics: time range is primary; segment source is subtle metadata.
+function formatSegmentTimeRange(seg: MediaAssetSegment): string {
   const start = formatMinutesSeconds(seg.start_seconds ?? 0);
   const end = formatMinutesSeconds(seg.end_seconds ?? 0);
-  const kind = seg.source_type ? String(seg.source_type).toUpperCase() : 'SEG';
-  return `${kind} • ${start}–${end}`;
+  return `${start}–${end}`;
+}
+
+function formatSegmentSourceMeta(seg: MediaAssetSegment): string | null {
+  const raw = String(seg.source_type ?? '').toLowerCase();
+  if (!raw) return null;
+  if (raw === 'auto') return 'Clipped automatically';
+  if (raw === 'ai') return 'Clipped by AI';
+  return `Clipped by ${raw.charAt(0).toUpperCase()}${raw.slice(1)}`;
+}
+
+// Display semantics: narration.source_type remains the primary authorship badge.
+function formatNarrationSourceLabel(item: NarrationListItem): string {
+  const source = narrationSourceTypeFor(item);
+  if (source === 'ai') return 'AI';
+  return `${source.charAt(0).toUpperCase()}${source.slice(1)}`;
 }
 
 function formatCreatedAt(value: any): string {
@@ -324,8 +368,8 @@ function formatCreatedAt(value: any): string {
             ? 'bg-white text-black'
             : 'bg-white/10 text-white/70 hover:bg-white/20 hover:text-white'"
           :title="option.value === 'all'
-            ? 'Show all segment sources'
-            : `Show only ${option.label} segments`"
+            ? 'Show all narration sources'
+            : `Show only ${option.label} narrations`"
           @click="setSelectedSource(option.value)"
         >
           {{ option.label }}
@@ -362,14 +406,24 @@ function formatCreatedAt(value: any): string {
             >
               Now
             </div>
-            <div class="text-xs font-semibold text-white/80 truncate">
-              {{ labelForSegment(seg) }}
+            <div class="min-w-0">
+              <!-- Segment label now prioritizes time range; source is secondary metadata. -->
+              <div class="text-xs font-semibold text-white/80 truncate">
+                {{ formatSegmentTimeRange(seg) }}
+              </div>
+              <div
+                v-if="formatSegmentSourceMeta(seg)"
+                class="text-[10px] text-white/40 truncate"
+                :title="formatSegmentSourceMeta(seg) ?? ''"
+              >
+                {{ formatSegmentSourceMeta(seg) }}
+              </div>
             </div>
           </button>
 
           <div class="shrink-0 flex items-center gap-2">
-            <div class="text-[11px] text-white/50" :title="`${(narrationsBySegment.get(String(seg.id)) ?? []).length} narration(s)`">
-              {{ (narrationsBySegment.get(String(seg.id)) ?? []).length }}
+            <div class="text-[11px] text-white/50" :title="`${narrationsForSegment(String(seg.id)).length} narration(s)`">
+              {{ narrationsForSegment(String(seg.id)).length }}
             </div>
 
             <button
@@ -404,7 +458,7 @@ function formatCreatedAt(value: any): string {
             </button>
 
             <button
-              v-if="(narrationsBySegment.get(String(seg.id)) ?? []).length > 1"
+              v-if="narrationsForSegment(String(seg.id)).length > 1"
               type="button"
               class="text-[11px] text-white/50 hover:text-white/80 transition cursor-pointer"
               @click.stop="toggleSegmentExpanded(String(seg.id))"
@@ -416,11 +470,11 @@ function formatCreatedAt(value: any): string {
         </div>
 
         <div
-          v-if="(narrationsBySegment.get(String(seg.id)) ?? []).length || (seg.tags?.length ?? 0) || isTagPanelOpen(String(seg.id))"
+          v-if="narrationsForSegment(String(seg.id)).length || (seg.tags?.length ?? 0) || isTagPanelOpen(String(seg.id))"
           class="border-t border-white/10"
         >
           <div class="px-3 py-2 space-y-2">
-            <template v-if="(narrationsBySegment.get(String(seg.id)) ?? []).length">
+            <template v-if="narrationsForSegment(String(seg.id)).length">
               <div
                 v-for="n in visibleNarrationsForSegment(String(seg.id))"
                 :key="String((n as any).id)"
@@ -428,8 +482,16 @@ function formatCreatedAt(value: any): string {
                 @click="emit('jumpToSegment', seg)"
               >
                 <div class="flex items-start justify-between gap-3">
-                  <div class="text-[11px] text-white/40">
-                    {{ formatCreatedAt((n as any).created_at) }}
+                  <div class="flex items-center gap-2">
+                    <span
+                      class="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-white/80 ring-1 ring-white/10"
+                      :title="`Narration by ${formatNarrationSourceLabel(n)}`"
+                    >
+                      {{ formatNarrationSourceLabel(n) }}
+                    </span>
+                    <div class="text-[11px] text-white/40">
+                      {{ formatCreatedAt((n as any).created_at) }}
+                    </div>
                   </div>
 
                   <div class="flex items-center gap-2">
@@ -486,10 +548,10 @@ function formatCreatedAt(value: any): string {
               </div>
 
               <div
-                v-if="(narrationsBySegment.get(String(seg.id)) ?? []).length > 1 && !isSegmentExpanded(String(seg.id))"
+                v-if="narrationsForSegment(String(seg.id)).length > 1 && !isSegmentExpanded(String(seg.id))"
                 class="text-[11px] text-white/40"
               >
-                Showing 1 of {{ (narrationsBySegment.get(String(seg.id)) ?? []).length }} narrations.
+                Showing 1 of {{ narrationsForSegment(String(seg.id)).length }} narrations.
               </div>
             </template>
 
