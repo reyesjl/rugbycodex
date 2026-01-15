@@ -102,37 +102,7 @@ async function generateAndStoreEmbedding(options: {
     };
   }
 
-  let embedding: number[] = [];
-  try {
-    const resp = await openai.embeddings.create({
-      model: EMBEDDING_MODEL,
-      input: text,
-    });
-
-    embedding = resp.data?.[0]?.embedding ?? [];
-  } catch (err) {
-    console.error("OpenAI embeddings request failed:", err);
-    throw {
-      kind: "handled" as const,
-      response: errorResponse(
-        "OPENAI_EMBEDDING_FAILED",
-        "Failed to generate embedding.",
-        502,
-      ),
-    };
-  }
-
-  if (!Array.isArray(embedding) || embedding.length !== EMBEDDING_DIMS) {
-    console.error("Embedding dimension mismatch:", { got: embedding?.length });
-    throw {
-      kind: "handled" as const,
-      response: errorResponse(
-        "EMBEDDING_DIMENSION_MISMATCH",
-        `Expected embedding length ${EMBEDDING_DIMS}.`,
-        500,
-      ),
-    };
-  }
+  const embedding = await generateEmbedding(openai, text);
 
   let updateQuery = supabaseAdmin
     .from("narrations")
@@ -165,6 +135,42 @@ async function generateAndStoreEmbedding(options: {
   }
 
   return { status: "ok" };
+}
+
+async function generateEmbedding(openai: OpenAI, text: string): Promise<number[]> {
+  let embedding: number[] = [];
+  try {
+    const resp = await openai.embeddings.create({
+      model: EMBEDDING_MODEL,
+      input: text,
+    });
+
+    embedding = resp.data?.[0]?.embedding ?? [];
+  } catch (err) {
+    console.error("OpenAI embeddings request failed:", err);
+    throw {
+      kind: "handled" as const,
+      response: errorResponse(
+        "OPENAI_EMBEDDING_FAILED",
+        "Failed to generate embedding.",
+        502,
+      ),
+    };
+  }
+
+  if (!Array.isArray(embedding) || embedding.length !== EMBEDDING_DIMS) {
+    console.error("Embedding dimension mismatch:", { got: embedding?.length });
+    throw {
+      kind: "handled" as const,
+      response: errorResponse(
+        "EMBEDDING_DIMENSION_MISMATCH",
+        `Expected embedding length ${EMBEDDING_DIMS}.`,
+        500,
+      ),
+    };
+  }
+
+  return embedding;
 }
 
 Deno.serve(async (req) => {

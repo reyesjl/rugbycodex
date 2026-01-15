@@ -1,11 +1,14 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue';
+import { computed, nextTick, ref, toRef, watch } from 'vue';
+import { storeToRefs } from 'pinia';
 import { Icon } from '@iconify/vue';
 import type { Narration, NarrationSourceType } from '@/modules/narrations/types/Narration';
 import type { MediaAssetSegment } from '@/modules/narrations/types/MediaAssetSegment';
 import type { SegmentTag, SegmentTagType } from '@/modules/media/types/SegmentTag';
 import { formatMinutesSeconds } from '@/lib/duration';
 import type { NarrationListItem } from '@/modules/narration/composables/useNarrationRecorder';
+import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrganizationStore';
+import { useNarrationSearch } from '@/modules/media/composables/useNarrationSearch';
 
 const props = defineProps<{
   segments: MediaAssetSegment[];
@@ -178,6 +181,21 @@ function requestDelete(n: Narration) {
 const selectedSource = ref<SourceFilter>('all');
 const hasSelectedSource = ref(false);
 
+const activeOrgStore = useActiveOrganizationStore();
+const { orgContext } = storeToRefs(activeOrgStore);
+const activeOrgId = computed(() => orgContext.value?.organization?.id ?? null);
+
+const {
+  searchQuery,
+  searchResults,
+  searchLoading,
+  searchError,
+  searchMatchNarrationIds,
+} = useNarrationSearch(activeOrgId, {
+  segments: toRef(props, 'segments'),
+  narrations: toRef(props, 'narrations'),
+});
+
 function normalizeSource(value: unknown): SourceFilter {
   const raw = String(value ?? '').toLowerCase();
   if (raw === 'coach' || raw === 'staff' || raw === 'member' || raw === 'ai') {
@@ -257,10 +275,15 @@ const narrationsBySegment = computed(() => {
 
 const filteredNarrationsBySegment = computed(() => {
   const map = new Map<string, NarrationListItem[]>();
+  const matchIds = searchMatchNarrationIds.value;
+  const shouldFilterMatches = Boolean(searchQuery.value.trim()) && matchIds && matchIds.size > 0;
   for (const [segId, list] of narrationsBySegment.value) {
-    const filtered = selectedSource.value === 'all'
+    let filtered = selectedSource.value === 'all'
       ? list
       : list.filter((n) => narrationSourceTypeFor(n) === selectedSource.value);
+    if (shouldFilterMatches) {
+      filtered = filtered.filter((n) => matchIds.has(String((n as any)?.id ?? '')));
+    }
     map.set(segId, filtered);
   }
   return map;
@@ -277,8 +300,12 @@ function visibleNarrationsForSegment(segId: string): NarrationListItem[] {
   return list.slice(0, 1);
 }
 
+const hasSearchQuery = computed(() => Boolean(searchQuery.value.trim()));
+
+const displaySegments = computed(() => (hasSearchQuery.value ? searchResults.value : props.segments ?? []));
+
 const sourceFilteredSegments = computed(() => {
-  const base = props.segments ?? [];
+  const base = displaySegments.value ?? [];
   if (selectedSource.value === 'all') return base;
   // Filter by narration.source_type (not segment.source_type).
   return base.filter((s) => narrationsForSegment(String(s.id)).length > 0);
@@ -345,6 +372,7 @@ function formatCreatedAt(value: any): string {
   const d = value instanceof Date ? value : new Date(value);
   return Number.isNaN(d.getTime()) ? '' : d.toLocaleString();
 }
+
 </script>
 
 <template>
@@ -355,6 +383,33 @@ function formatCreatedAt(value: any): string {
         <div class="text-xs text-white/50">
           {{ visibleSegmentCount }}/{{ totalSegmentCount }} segments • {{ visibleNarrationCount }}
         </div>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <div class="relative flex-1">
+          <Icon
+            icon="carbon:search"
+            width="14"
+            height="14"
+            class="absolute left-2 top-1/2 -translate-y-1/2 text-white/40"
+          />
+          <input
+            v-model="searchQuery"
+            type="search"
+            placeholder="Search narrations…"
+            class="w-full rounded-md bg-white/5 py-1.5 pl-7 pr-3 text-sm text-white placeholder:text-white/30 ring-1 ring-white/10 focus:outline-none focus:ring-1 focus:ring-white/30"
+            aria-label="Search narrations"
+          />
+        </div>
+        <div
+          v-if="searchLoading"
+          class="h-4 w-4 animate-spin rounded-full border border-white/30 border-t-white/80"
+          aria-label="Searching"
+        />
+      </div>
+
+      <div v-if="searchError" class="text-[11px] text-rose-200/80">
+        {{ searchError }}
       </div>
 
       <!-- Filters: scroll horizontally when needed -->
@@ -381,7 +436,11 @@ function formatCreatedAt(value: any): string {
       No segments yet.
     </div>
 
-    <div v-else-if="orderedSegments.length === 0" class="text-sm text-white/50">
+    <div v-else-if="hasSearchQuery && !searchLoading && orderedSegments.length === 0" class="text-sm text-white/50">
+      No narrations found.
+    </div>
+
+    <div v-else-if="!hasSearchQuery && orderedSegments.length === 0" class="text-sm text-white/50">
       No narrations yet.
     </div>
 

@@ -34,6 +34,15 @@ type NarrationRow = {
   updated_at: string | Date;
 };
 
+export type NarrationSearchResultRow = {
+  narration_id?: string | null;
+  narrationId?: string | null;
+  media_asset_segment_id?: string | null;
+  segment_id?: string | null;
+  media_asset_id?: string | null;
+  org_id?: string | null;
+};
+
 type SingleQueryResult<T = unknown> = PromiseLike<{ data: T | null; error: PostgrestError | null }>;
 type ListQueryResult<T = unknown> = PromiseLike<{ data: T[] | null; error: PostgrestError | null }>;
 
@@ -70,6 +79,13 @@ function normalizeNarrationSourceType(value: unknown): NarrationSourceType {
     return raw as NarrationSourceType;
   }
   return 'member';
+}
+
+function normalizeEmbeddingVector(value: unknown): number[] {
+  if (!Array.isArray(value)) return [];
+  const nums = value.map((v) => Number(v));
+  if (nums.some((n) => !Number.isFinite(n))) return [];
+  return nums;
 }
 
 function mapMembershipRoleToNarrationSourceType(role: unknown): NarrationSourceType {
@@ -128,7 +144,59 @@ function triggerNarrationEmbedding(narrationId: string): void {
   })();
 }
 
+async function generateQueryEmbedding(queryText: string): Promise<number[]> {
+  const trimmed = String(queryText ?? '').trim();
+  if (!trimmed) {
+    throw new Error('Missing query text.');
+  }
+
+  const { data, error } = await supabase.functions.invoke('generate-query-embedding', {
+    body: { query_text: trimmed },
+  });
+
+  if (error) {
+    throw await handleSupabaseEdgeError(error, 'Unable to generate search embedding.');
+  }
+
+  const embedding = normalizeEmbeddingVector((data as any)?.embedding);
+  if (!embedding.length) {
+    throw new Error('Invalid embedding response.');
+  }
+  return embedding;
+}
+
 export const narrationService = {
+  async generateSearchEmbedding(queryText: string): Promise<number[]> {
+    return generateQueryEmbedding(queryText);
+  },
+
+  async searchNarrationsHybrid(options: {
+    queryText: string;
+    queryEmbedding: number[];
+    matchCount?: number;
+    orgId: string;
+  }): Promise<NarrationSearchResultRow[]> {
+    const queryText = String(options.queryText ?? '').trim();
+    if (!queryText) throw new Error('Missing query text.');
+
+    if (!Array.isArray(options.queryEmbedding) || options.queryEmbedding.length === 0) {
+      throw new Error('Missing query embedding.');
+    }
+
+    const orgId = String(options.orgId ?? '').trim();
+    if (!orgId) throw new Error('Missing orgId.');
+
+    const { data, error } = await supabase.rpc('search_narrations_hybrid', {
+      query_text: queryText,
+      query_embedding: options.queryEmbedding,
+      match_count: options.matchCount ?? 20,
+      org_id_filter: orgId,
+    });
+
+    if (error) throw error;
+
+    return (data ?? []) as NarrationSearchResultRow[];
+  },
   /**
    * Creates a new narration for a media asset segment.
    *
