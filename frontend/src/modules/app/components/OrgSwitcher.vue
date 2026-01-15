@@ -68,18 +68,17 @@ watch(
 <template>
   <!-- Org switcher -->
   <div class="flex items-center mr-4">
-    <div class="text-sm mr-1 truncate max-w-[180px]">
-      {{ displayOrg?.organization.name ?? 'Select org' }}
-    </div>
-
     <div class="relative">
       <button
         ref="orgButtonRef"
         type="button"
-        class="py-2 px-1 flex items-center rounded-full hover:bg-white/10 focus:outline-none cursor-pointer"
+        class="py-2 px-2 flex items-center gap-1 rounded-full hover:bg-white/10 focus:outline-none cursor-pointer"
         @click.stop="toggleOrgMenu"
         aria-label="Organization menu"
       >
+        <span class="text-sm truncate max-w-[180px]">
+          {{ displayOrg?.organization.name ?? 'Select org' }}
+        </span>
         <Icon
           icon="carbon:caret-down"
           width="16"
