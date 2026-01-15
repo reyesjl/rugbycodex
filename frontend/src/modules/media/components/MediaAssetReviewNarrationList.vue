@@ -15,6 +15,8 @@ const props = defineProps<{
   focusedSegmentId?: string | null;
   /** Initial selection for the source filter. */
   defaultSource?: 'all' | 'coach' | 'staff' | 'member' | 'ai';
+  /** Controlled selection for the source filter (keeps panels in sync). */
+  sourceFilter?: 'all' | 'coach' | 'staff' | 'member' | 'ai' | null;
   /** Staff+ can edit/delete any narration; members only their own. */
   canModerateNarrations?: boolean;
   /** Supabase auth user id (Narration.author_id). */
@@ -29,6 +31,8 @@ const emit = defineEmits<{
   (e: 'deleteNarration', narrationId: string): void;
   (e: 'addTag', payload: { segmentId: string; tagKey: string; tagType: SegmentTagType }): void;
   (e: 'removeTag', payload: { segmentId: string; tagId: string }): void;
+  (e: 'update:sourceFilter', value: SourceFilter): void;
+  (e: 'visibleSegmentsChange', segmentIds: string[]): void;
 }>();
 
 const editingNarrationId = ref<string | null>(null);
@@ -172,11 +176,23 @@ function normalizeSource(value: unknown): SourceFilter {
 function setSelectedSource(next: SourceFilter) {
   selectedSource.value = next;
   hasSelectedSource.value = true;
+  emit('update:sourceFilter', next);
 }
+
+watch(
+  () => props.sourceFilter,
+  (next) => {
+    if (next === undefined || next === null) return;
+    selectedSource.value = normalizeSource(next);
+    hasSelectedSource.value = true;
+  },
+  { immediate: true }
+);
 
 watch(
   () => props.defaultSource,
   (next) => {
+    if (props.sourceFilter !== undefined && props.sourceFilter !== null) return;
     if (hasSelectedSource.value) return;
     selectedSource.value = normalizeSource(next);
   },
@@ -248,6 +264,21 @@ const orderedSegments = computed(() => {
   });
 });
 
+const orderedNarratedSegments = computed(() => {
+  const base = [...sourceFilteredSegments.value].sort((a, b) => (a.start_seconds ?? 0) - (b.start_seconds ?? 0));
+  return base.filter((s) => (narrationsBySegment.value.get(String(s.id)) ?? []).length > 0);
+});
+
+const orderedNarratedSegmentIds = computed(() => orderedNarratedSegments.value.map((seg) => String(seg.id)));
+
+watch(
+  orderedNarratedSegmentIds,
+  (next) => {
+    emit('visibleSegmentsChange', next);
+  },
+  { immediate: true }
+);
+
 const visibleSegmentCount = computed(() => orderedSegments.value.length);
 const totalSegmentCount = computed(() => sourceFilteredSegments.value.length);
 
@@ -291,7 +322,7 @@ function formatCreatedAt(value: any): string {
           class="text-[11px] transition cursor-pointer rounded-full px-3 py-1 ring-1 ring-black/10"
           :class="selectedSource === option.value
             ? 'bg-white text-black'
-            : 'bg-zinc-200 text-black/70 hover:bg-white hover:text-black'"
+            : 'bg-white/10 text-white/70 hover:bg-white/20 hover:text-white'"
           :title="option.value === 'all'
             ? 'Show all segment sources'
             : `Show only ${option.label} segments`"

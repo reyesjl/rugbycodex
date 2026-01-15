@@ -8,6 +8,8 @@ const props = defineProps<{
   segments: MediaAssetSegment[];
   /** List of segment IDs that have narrations (used to style markers). */
   segmentsWithNarrations?: Set<string>;
+  /** Segment IDs to show in markers + prev/next navigation (keeps in sync with filters). */
+  visibleSegmentIds?: string[];
   /** Segment id the player is currently inside (for highlight). */
   activeSegmentId?: string | null;
   /** Segment id the UI is focusing (e.g. user clicked a segment). */
@@ -67,6 +69,16 @@ const orderedSegments = computed(() => {
   return [...(props.segments ?? [])].sort((a, b) => (a.start_seconds ?? 0) - (b.start_seconds ?? 0));
 });
 
+const visibleSegmentIdSet = computed(() => {
+  if (!props.visibleSegmentIds) return null;
+  const set = new Set<string>();
+  for (const id of props.visibleSegmentIds) {
+    if (!id) continue;
+    set.add(String(id));
+  }
+  return set;
+});
+
 function isNarratedSegment(seg: MediaAssetSegment): boolean {
   const set = props.segmentsWithNarrations;
   if (!set) return false;
@@ -75,6 +87,10 @@ function isNarratedSegment(seg: MediaAssetSegment): boolean {
 
 const visibleMarkerSegments = computed(() => {
   const list = orderedSegments.value;
+  const idSet = visibleSegmentIdSet.value;
+  if (idSet) {
+    return list.filter((s) => idSet.has(String(s.id)));
+  }
   if (!props.onlyNarratedMarkers) return list;
   if (!props.segmentsWithNarrations) return list;
   return list.filter((s) => isNarratedSegment(s));

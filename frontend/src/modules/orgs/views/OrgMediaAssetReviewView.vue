@@ -77,6 +77,38 @@ const defaultNarrationSource = computed(() => {
   return 'member';
 });
 
+type NarrationSourceFilter = 'all' | 'coach' | 'staff' | 'member' | 'ai';
+
+function normalizeNarrationSource(value: unknown): NarrationSourceFilter {
+  const raw = String(value ?? '').toLowerCase();
+  if (raw === 'coach' || raw === 'staff' || raw === 'member' || raw === 'ai') {
+    return raw as NarrationSourceFilter;
+  }
+  return 'all';
+}
+
+const narrationSourceFilter = ref<NarrationSourceFilter>('all');
+const hasNarrationSourceSelection = ref(false);
+const narrationVisibleSegmentIds = ref<string[]>([]);
+
+function handleNarrationSourceFilterChange(next: NarrationSourceFilter) {
+  narrationSourceFilter.value = next;
+  hasNarrationSourceSelection.value = true;
+}
+
+function handleVisibleSegmentsChange(segmentIds: string[]) {
+  narrationVisibleSegmentIds.value = segmentIds.map((id) => String(id));
+}
+
+watch(
+  defaultNarrationSource,
+  (next) => {
+    if (hasNarrationSourceSelection.value) return;
+    narrationSourceFilter.value = normalizeNarrationSource(next);
+  },
+  { immediate: true }
+);
+
 const mediaAssetId = computed(() => String(route.params.mediaAssetId ?? ''));
 
 const loading = ref(true);
@@ -528,6 +560,7 @@ async function load() {
   segments.value = [];
   narrations.value = [];
   narrationTargetSegmentId.value = null;
+  narrationVisibleSegmentIds.value = [];
   matchSummary.value = null;
   matchSummaryError.value = null;
 
@@ -1201,6 +1234,7 @@ async function handleDeleteNarration(narrationId: string) {
             :current-seconds="currentTime"
             :segments="segments"
             :segments-with-narrations="segmentsWithNarrations"
+            :visible-segment-ids="narrationVisibleSegmentIds"
             :active-segment-id="activeSegmentId"
             :focused-segment-id="focusedSegmentId"
             :only-narrated-markers="true"
@@ -1249,6 +1283,7 @@ async function handleDeleteNarration(narrationId: string) {
               :active-segment-id="activeSegmentId"
               :focused-segment-id="focusedSegmentId"
               :default-source="defaultNarrationSource"
+              :source-filter="narrationSourceFilter"
               :can-moderate-narrations="isStaffOrAbove"
               :current-user-id="currentUserId"
               @jumpToSegment="jumpToSegment"
@@ -1258,6 +1293,8 @@ async function handleDeleteNarration(narrationId: string) {
               @deleteNarration="handleDeleteNarration"
               @addTag="handleAddSegmentTag"
               @removeTag="handleRemoveSegmentTag"
+              @update:sourceFilter="handleNarrationSourceFilterChange"
+              @visibleSegmentsChange="handleVisibleSegmentsChange"
             />
           </div>
         </div>
@@ -1309,6 +1346,7 @@ async function handleDeleteNarration(narrationId: string) {
             :active-segment-id="activeSegmentId"
             :focused-segment-id="focusedSegmentId"
             :default-source="defaultNarrationSource"
+            :source-filter="narrationSourceFilter"
             :can-moderate-narrations="isStaffOrAbove"
             :current-user-id="currentUserId"
             @jumpToSegment="(seg) => { jumpToSegment(seg); narrationsDrawerOpen = false; }"
@@ -1318,6 +1356,8 @@ async function handleDeleteNarration(narrationId: string) {
             @deleteNarration="handleDeleteNarration"
             @addTag="handleAddSegmentTag"
             @removeTag="handleRemoveSegmentTag"
+            @update:sourceFilter="handleNarrationSourceFilterChange"
+            @visibleSegmentsChange="handleVisibleSegmentsChange"
           />
         </div>
       </div>
