@@ -1,3 +1,5 @@
+import type { MediaAssetSegment } from '@/modules/narrations/types/MediaAssetSegment';
+
 export type FeedItem = {
   /** Segment id (primary key for narration + feed identity) */
   id: string;
@@ -14,4 +16,6 @@ export type FeedItem = {
   title: string;
   metaLine: string;
   createdAt: Date;
+
+  segment?: MediaAssetSegment;
 };

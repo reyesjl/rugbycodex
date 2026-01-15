@@ -18,10 +18,12 @@ import FeedDoneScreen from '@/modules/feed/components/FeedDoneScreen.vue';
 
 const props = defineProps<{
   items: FeedItemType[];
+  profileNameById?: Record<string, string>;
 }>();
 
 const emit = defineEmits<{
   (e: 'watchedHalf', payload: { index: number }): void;
+  (e: 'addIdentityTag', payload: { segmentId: string }): void;
 }>();
 
 const items = computed(() => props.items ?? []);
@@ -84,9 +86,11 @@ defineExpose({
           :src-error="preload.getError(item.mediaAssetId)"
           :can-prev="nav.hasPrev.value"
           :can-next="nav.hasNext.value"
+          :profile-name-by-id="props.profileNameById"
           @next="goNext"
           @prev="goPrev"
           @watchedHalf="emit('watchedHalf', { index })"
+          @addIdentityTag="emit('addIdentityTag', $event)"
         />
       </div>
 
@@ -113,9 +117,11 @@ defineExpose({
       :src-error="preload.getError(activeItem.mediaAssetId)"
       :can-prev="nav.hasPrev.value"
       :can-next="nav.hasNext.value"
+      :profile-name-by-id="props.profileNameById"
       @next="goNext"
       @prev="goPrev"
       @watchedHalf="emit('watchedHalf', { index: nav.activeIndex.value })"
+      @addIdentityTag="emit('addIdentityTag', $event)"
     />
   </div>
 </template>

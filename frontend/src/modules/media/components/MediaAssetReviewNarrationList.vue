@@ -3,6 +3,7 @@ import { computed, nextTick, ref, watch } from 'vue';
 import { Icon } from '@iconify/vue';
 import type { Narration } from '@/modules/narrations/types/Narration';
 import type { MediaAssetSegment } from '@/modules/narrations/types/MediaAssetSegment';
+import type { SegmentTag, SegmentTagType } from '@/modules/media/types/SegmentTag';
 import { formatMinutesSeconds } from '@/lib/duration';
 import type { NarrationListItem } from '@/modules/narration/composables/useNarrationRecorder';
 
@@ -25,10 +26,17 @@ const emit = defineEmits<{
   (e: 'assignSegment', segment: MediaAssetSegment): void;
   (e: 'editNarration', narrationId: string, transcriptRaw: string): void;
   (e: 'deleteNarration', narrationId: string): void;
+  (e: 'addTag', payload: { segmentId: string; tagKey: string; tagType: SegmentTagType }): void;
+  (e: 'removeTag', payload: { segmentId: string; tagId: string }): void;
 }>();
 
 const editingNarrationId = ref<string | null>(null);
 const editingText = ref('');
+
+const ACTION_TAGS = ['tackle', 'carry', 'pass', 'kick', 'ruck_entry', 'cleanout'] as const;
+const CONTEXT_TAGS = ['set_piece', 'lineout', 'scrum', 'counter_attack', 'transition', 'exit', 'wide_channel'] as const;
+
+const tagPanelOpenIds = ref(new Set<string>());
 
 // Per-segment expand/collapse for narration lists.
 // Only used when a segment has 2+ narrations.
@@ -44,6 +52,55 @@ function toggleSegmentExpanded(segmentId: string) {
   else set.add(segmentId);
   // Trigger reactivity for Set mutation
   expandedSegmentIds.value = new Set(set);
+}
+
+function isTagPanelOpen(segmentId: string): boolean {
+  return tagPanelOpenIds.value.has(segmentId);
+}
+
+function toggleTagPanel(segmentId: string) {
+  const set = tagPanelOpenIds.value;
+  if (set.has(segmentId)) set.delete(segmentId);
+  else set.add(segmentId);
+  tagPanelOpenIds.value = new Set(set);
+}
+
+const canAddQuickTags = computed(() => Boolean(props.canModerateNarrations));
+
+function formatTagLabel(tagKey: string): string {
+  return String(tagKey ?? '').replace(/_/g, ' ');
+}
+
+function classForTag(tag: SegmentTag): string {
+  const type = String(tag.tag_type ?? '');
+  if (type === 'action') return 'bg-emerald-500/15 text-emerald-100 ring-1 ring-emerald-200/20';
+  if (type === 'context') return 'bg-sky-500/15 text-sky-100 ring-1 ring-sky-200/20';
+  if (type === 'identity') return 'bg-amber-500/15 text-amber-100 ring-1 ring-amber-200/20';
+  return 'bg-white/10 text-white/80 ring-1 ring-white/15';
+}
+
+function segmentHasTag(seg: MediaAssetSegment, tagKey: string, tagType: SegmentTagType): boolean {
+  const tags = (seg.tags ?? []) as SegmentTag[];
+  return tags.some((tag) => tag.tag_key === tagKey && tag.tag_type === tagType);
+}
+
+function canRemoveTag(tag: SegmentTag): boolean {
+  if (props.canModerateNarrations) return true;
+  if (tag.tag_type !== 'identity') return false;
+  const userId = props.currentUserId ?? null;
+  if (!userId) return false;
+  return String(tag.created_by) === String(userId);
+}
+
+function addQuickTag(seg: MediaAssetSegment, tagKey: string, tagType: SegmentTagType) {
+  if (!canAddQuickTags.value) return;
+  if (segmentHasTag(seg, tagKey, tagType)) return;
+  emit('addTag', { segmentId: String(seg.id), tagKey, tagType });
+}
+
+function removeTag(seg: MediaAssetSegment, tag: SegmentTag) {
+  if (!canRemoveTag(tag)) return;
+  emit('removeTag', { segmentId: String(seg.id), tagId: String(tag.id) });
 }
 
 function isSavedNarration(n: NarrationListItem): n is Narration {
@@ -175,7 +232,11 @@ const sourceFilteredSegments = computed(() => {
 const orderedSegments = computed(() => {
   const base = [...sourceFilteredSegments.value].sort((a, b) => (a.start_seconds ?? 0) - (b.start_seconds ?? 0));
   if (showEmptySegments.value) return base;
-  return base.filter((s) => (narrationsBySegment.value.get(String(s.id)) ?? []).length > 0);
+  return base.filter((s) => {
+    const hasNarrations = (narrationsBySegment.value.get(String(s.id)) ?? []).length > 0;
+    const hasTags = (s.tags ?? []).length > 0;
+    return hasNarrations || hasTags;
+  });
 });
 
 const visibleSegmentCount = computed(() => orderedSegments.value.length);
@@ -290,6 +351,16 @@ function formatCreatedAt(value: any): string {
             </button>
 
             <button
+              v-if="canAddQuickTags"
+              type="button"
+              class="text-[11px] text-white/50 hover:text-white/80 transition cursor-pointer"
+              title="Add tags"
+              @click.stop="toggleTagPanel(String(seg.id))"
+            >
+              + Tag
+            </button>
+
+            <button
               v-if="(narrationsBySegment.get(String(seg.id)) ?? []).length > 1"
               type="button"
               class="text-[11px] text-white/50 hover:text-white/80 transition cursor-pointer"
@@ -301,77 +372,143 @@ function formatCreatedAt(value: any): string {
           </div>
         </div>
 
-        <div v-if="(narrationsBySegment.get(String(seg.id)) ?? []).length" class="border-t border-white/10">
+        <div
+          v-if="(narrationsBySegment.get(String(seg.id)) ?? []).length || (seg.tags?.length ?? 0) || isTagPanelOpen(String(seg.id))"
+          class="border-t border-white/10"
+        >
           <div class="px-3 py-2 space-y-2">
+            <template v-if="(narrationsBySegment.get(String(seg.id)) ?? []).length">
+              <div
+                v-for="n in visibleNarrationsForSegment(String(seg.id))"
+                :key="String((n as any).id)"
+                class="rounded-md bg-black/25 ring-1 ring-white/5 p-2 transition cursor-pointer hover:bg-black/30 hover:ring-white/10"
+                @click="emit('jumpToSegment', seg)"
+              >
+                <div class="flex items-start justify-between gap-3">
+                  <div class="text-[11px] text-white/40">
+                    {{ formatCreatedAt((n as any).created_at) }}
+                  </div>
+
+                  <div class="flex items-center gap-2">
+                    <button
+                      type="button"
+                      class="text-[11px] transition"
+                      :class="canEditOrDelete(n) ? 'text-white/50 hover:text-white/80' : 'text-white/20 cursor-not-allowed'"
+                      :disabled="!canEditOrDelete(n)"
+                      @click.stop="canEditOrDelete(n) && startEditing(n as any)"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      class="text-[11px] transition"
+                      :class="canEditOrDelete(n) ? 'text-rose-200/70 hover:text-rose-200' : 'text-rose-200/20 cursor-not-allowed'"
+                      :disabled="!canEditOrDelete(n)"
+                      @click.stop="canEditOrDelete(n) && requestDelete(n as any)"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+
+                <div v-if="isSavedNarration(n) && editingNarrationId === String(n.id)" class="mt-2 space-y-2">
+                  <textarea
+                    v-model="editingText"
+                    rows="3"
+                    class="w-full rounded-md bg-black/30 ring-1 ring-white/10 px-2 py-1 text-sm text-white placeholder:text-white/30"
+                    @click.stop
+                  />
+                  <div class="flex items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      class="text-[11px] text-white/50 hover:text-white/80 transition"
+                      @click.stop="cancelEditing"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      class="text-[11px] rounded-md bg-white/10 px-2 py-1 text-white/80 hover:bg-white/15 transition"
+                      :disabled="!editingText.trim()"
+                      @click.stop="saveEditing(n)"
+                    >
+                      Save
+                    </button>
+                  </div>
+                </div>
+
+                <div v-else class="mt-1 text-sm text-white whitespace-pre-wrap">
+                  {{ (n as any).transcript_raw }}
+                </div>
+              </div>
+
+              <div
+                v-if="(narrationsBySegment.get(String(seg.id)) ?? []).length > 1 && !isSegmentExpanded(String(seg.id))"
+                class="text-[11px] text-white/40"
+              >
+                Showing 1 of {{ (narrationsBySegment.get(String(seg.id)) ?? []).length }} narrations.
+              </div>
+            </template>
+
             <div
-              v-for="n in visibleNarrationsForSegment(String(seg.id))"
-              :key="String((n as any).id)"
-              class="rounded-md bg-black/25 ring-1 ring-white/5 p-2 transition cursor-pointer hover:bg-black/30 hover:ring-white/10"
-              @click="emit('jumpToSegment', seg)"
+              v-if="(seg.tags?.length ?? 0) || isTagPanelOpen(String(seg.id))"
+              class="pt-1 space-y-2"
             >
-              <div class="flex items-start justify-between gap-3">
-                <div class="text-[11px] text-white/40">
-                  {{ formatCreatedAt((n as any).created_at) }}
-                </div>
-
-                <div class="flex items-center gap-2">
+              <div v-if="(seg.tags?.length ?? 0)" class="flex flex-wrap gap-2">
+                <div
+                  v-for="tag in (seg.tags ?? [])"
+                  :key="String(tag.id)"
+                  class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium"
+                  :class="classForTag(tag)"
+                >
+                  <span>{{ formatTagLabel(tag.tag_key) }}</span>
                   <button
+                    v-if="canRemoveTag(tag)"
                     type="button"
-                    class="text-[11px] transition"
-                    :class="canEditOrDelete(n) ? 'text-white/50 hover:text-white/80' : 'text-white/20 cursor-not-allowed'"
-                    :disabled="!canEditOrDelete(n)"
-                    @click.stop="canEditOrDelete(n) && startEditing(n as any)"
+                    class="ml-1 text-[10px] text-white/70 hover:text-white"
+                    title="Remove tag"
+                    @click.stop="removeTag(seg, tag)"
                   >
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    class="text-[11px] transition"
-                    :class="canEditOrDelete(n) ? 'text-rose-200/70 hover:text-rose-200' : 'text-rose-200/20 cursor-not-allowed'"
-                    :disabled="!canEditOrDelete(n)"
-                    @click.stop="canEditOrDelete(n) && requestDelete(n as any)"
-                  >
-                    Delete
+                    x
                   </button>
                 </div>
               </div>
 
-              <div v-if="isSavedNarration(n) && editingNarrationId === String(n.id)" class="mt-2 space-y-2">
-                <textarea
-                  v-model="editingText"
-                  rows="3"
-                  class="w-full rounded-md bg-black/30 ring-1 ring-white/10 px-2 py-1 text-sm text-white placeholder:text-white/30"
-                  @click.stop
-                />
-                <div class="flex items-center justify-end gap-2">
+              <div v-if="isTagPanelOpen(String(seg.id)) && canAddQuickTags" class="space-y-2">
+                <div class="text-[10px] uppercase tracking-wide text-white/40">Action</div>
+                <div class="flex flex-wrap gap-2">
                   <button
+                    v-for="tagKey in ACTION_TAGS"
+                    :key="tagKey"
                     type="button"
-                    class="text-[11px] text-white/50 hover:text-white/80 transition"
-                    @click.stop="cancelEditing"
+                    class="rounded-full px-2.5 py-1 text-[11px] ring-1 transition"
+                    :class="segmentHasTag(seg, tagKey, 'action')
+                      ? 'bg-white/15 text-white ring-white/20 cursor-not-allowed'
+                      : 'bg-white/5 text-white/80 ring-white/10 hover:bg-white/10'"
+                    :disabled="segmentHasTag(seg, tagKey, 'action')"
+                    @click.stop="addQuickTag(seg, tagKey, 'action')"
                   >
-                    Cancel
+                    {{ formatTagLabel(tagKey) }}
                   </button>
+                </div>
+
+                <div class="text-[10px] uppercase tracking-wide text-white/40">Context</div>
+                <div class="flex flex-wrap gap-2">
                   <button
+                    v-for="tagKey in CONTEXT_TAGS"
+                    :key="tagKey"
                     type="button"
-                    class="text-[11px] rounded-md bg-white/10 px-2 py-1 text-white/80 hover:bg-white/15 transition"
-                    :disabled="!editingText.trim()"
-                    @click.stop="saveEditing(n)"
+                    class="rounded-full px-2.5 py-1 text-[11px] ring-1 transition"
+                    :class="segmentHasTag(seg, tagKey, 'context')
+                      ? 'bg-white/15 text-white ring-white/20 cursor-not-allowed'
+                      : 'bg-white/5 text-white/80 ring-white/10 hover:bg-white/10'"
+                    :disabled="segmentHasTag(seg, tagKey, 'context')"
+                    @click.stop="addQuickTag(seg, tagKey, 'context')"
                   >
-                    Save
+                    {{ formatTagLabel(tagKey) }}
                   </button>
                 </div>
               </div>
-
-              <div v-else class="mt-1 text-sm text-white whitespace-pre-wrap">
-                {{ (n as any).transcript_raw }}
-              </div>
-            </div>
-
-            <div
-              v-if="(narrationsBySegment.get(String(seg.id)) ?? []).length > 1 && !isSegmentExpanded(String(seg.id))"
-              class="text-[11px] text-white/40"
-            >
-              Showing 1 of {{ (narrationsBySegment.get(String(seg.id)) ?? []).length }} narrations.
             </div>
           </div>
         </div>

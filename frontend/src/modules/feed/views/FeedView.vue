@@ -6,8 +6,13 @@ import { useAuthStore } from '@/auth/stores/useAuthStore';
 import FeedContainer from '@/modules/feed/components/FeedContainer.vue';
 import type { FeedItem } from '@/modules/feed/types/FeedItem';
 import { segmentService } from '@/modules/media/services/segmentService';
+import { segmentTagService } from '@/modules/media/services/segmentTagService';
 import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrganizationStore';
 import { assignmentsService, type AssignmentFeedEntry, type AssignmentFeedMode } from '@/modules/assignments/services/assignmentsService';
+import { hasOrgAccess } from '@/modules/orgs/composables/useOrgCapabilities';
+import type { SegmentTag } from '@/modules/media/types/SegmentTag';
+import { toast } from '@/lib/toast';
+import { supabase } from '@/lib/supabaseClient';
 
 /**
  * Route-level view.
@@ -28,6 +33,8 @@ const { orgContext } = storeToRefs(activeOrgStore);
 const activeOrgId = computed(() => orgContext.value?.organization?.id ?? null);
 const activeOrgName = computed(() => orgContext.value?.organization?.name ?? null);
 const userId = computed(() => authStore.user?.id ?? null);
+const membershipRole = computed(() => (orgContext.value?.membership?.role ?? null) as any);
+const canAddIdentityTag = computed(() => hasOrgAccess(membershipRole.value, 'member'));
 
 const source = computed(() => String(route.query.source ?? ''));
 const assignmentId = computed(() => String(route.query.assignmentId ?? ''));
@@ -46,6 +53,8 @@ const error = ref<string | null>(null);
 const items = ref<FeedItem[]>([]);
 const assignmentIdsByIndex = ref<string[]>([]);
 const markedAssignments = new Set<string>();
+const identityTagLoadingIds = ref(new Set<string>());
+const profileNameById = ref<Record<string, string>>({});
 
 const assignmentLabelByType: Record<'player' | 'team' | 'group', string> = {
   player: 'Assigned to you',
@@ -75,7 +84,127 @@ function toFeedItem(entry: AssignmentFeedEntry): FeedItem {
     title,
     metaLine: assignmentMetaLine(entry, createdAt),
     createdAt,
+    segment: { ...entry.segment, tags: entry.segment.tags ?? [] },
   };
+}
+
+function updateFeedItemTags(segmentId: string, updater: (tags: SegmentTag[]) => SegmentTag[]) {
+  items.value = items.value.map((item) => {
+    if (String(item.mediaAssetSegmentId) !== segmentId) return item;
+    const segment = item.segment ?? {
+      id: item.mediaAssetSegmentId,
+      media_asset_id: item.mediaAssetId,
+      segment_index: item.segmentIndex,
+      start_seconds: item.startSeconds,
+      end_seconds: item.endSeconds,
+      created_at: item.createdAt,
+    };
+    const existing = Array.isArray(segment.tags) ? (segment.tags as SegmentTag[]) : [];
+    return { ...item, segment: { ...segment, tags: updater(existing) } };
+  });
+}
+
+function feedItemHasIdentityTag(segmentId: string): boolean {
+  const user = userId.value;
+  if (!user) return false;
+  const item = items.value.find((entry) => String(entry.mediaAssetSegmentId) === segmentId);
+  const tags = item?.segment?.tags ?? [];
+  return tags.some((tag) => tag.tag_type === 'identity' && String(tag.created_by) === String(user));
+}
+
+async function hydrateFeedItemTags(feedItems: FeedItem[]): Promise<void> {
+  const segmentIds = feedItems.map((item) => String(item.mediaAssetSegmentId)).filter(Boolean);
+  if (!segmentIds.length) return;
+
+  const results = await Promise.allSettled(
+    segmentIds.map((segmentId) => segmentTagService.listTagsForSegment(segmentId))
+  );
+
+  const tagsBySegmentId = new Map<string, SegmentTag[]>();
+  results.forEach((result, index) => {
+    const segmentId = segmentIds[index];
+    if (!segmentId) return;
+    if (result.status !== 'fulfilled') return;
+    tagsBySegmentId.set(segmentId, result.value ?? []);
+  });
+
+  if (!tagsBySegmentId.size) return;
+
+  items.value = items.value.map((item) => {
+    const segmentId = String(item.mediaAssetSegmentId);
+    const tags = tagsBySegmentId.get(segmentId);
+    if (!tags) return item;
+    const segment = item.segment ?? {
+      id: item.mediaAssetSegmentId,
+      media_asset_id: item.mediaAssetId,
+      segment_index: item.segmentIndex,
+      start_seconds: item.startSeconds,
+      end_seconds: item.endSeconds,
+      created_at: item.createdAt,
+    };
+    return { ...item, segment: { ...segment, tags } };
+  });
+
+  void hydrateIdentityProfiles(items.value);
+}
+
+async function hydrateIdentityProfiles(feedItems: FeedItem[]): Promise<void> {
+  const ids = new Set<string>();
+  for (const item of feedItems) {
+    const tags = item.segment?.tags ?? [];
+    for (const tag of tags) {
+      if (tag.tag_type !== 'identity') continue;
+      if (!tag.created_by) continue;
+      ids.add(String(tag.created_by));
+    }
+  }
+
+  const missing = [...ids].filter((id) => !profileNameById.value[id]);
+  if (!missing.length) return;
+
+  const { data, error } = await supabase
+    .from('public_profiles')
+    .select('id, name, username')
+    .in('id', missing);
+
+  if (error) return;
+
+  const next = { ...profileNameById.value };
+  for (const row of data ?? []) {
+    const name = row.name || row.username || '';
+    if (!name) continue;
+    next[String(row.id)] = name;
+  }
+  profileNameById.value = next;
+}
+
+async function handleAddIdentityTag(payload: { segmentId: string }) {
+  const segmentId = String(payload.segmentId ?? '');
+  if (!segmentId) return;
+  if (!userId.value) return;
+  if (!canAddIdentityTag.value) return;
+  if (identityTagLoadingIds.value.has(segmentId)) return;
+  if (feedItemHasIdentityTag(segmentId)) return;
+
+  const next = new Set(identityTagLoadingIds.value);
+  next.add(segmentId);
+  identityTagLoadingIds.value = next;
+
+  try {
+    const tag = await segmentTagService.addTag({
+      segmentId,
+      tagKey: 'self',
+      tagType: 'identity',
+    });
+    updateFeedItemTags(segmentId, (tags) => [...tags, tag]);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unable to add identity tag.';
+    toast({ message, variant: 'error', durationMs: 2600 });
+  } finally {
+    const cleared = new Set(identityTagLoadingIds.value);
+    cleared.delete(segmentId);
+    identityTagLoadingIds.value = cleared;
+  }
 }
 
 async function markAssignmentComplete(assignmentId: string) {
@@ -102,6 +231,8 @@ async function loadFeed() {
   items.value = [];
   assignmentIdsByIndex.value = [];
   markedAssignments.clear();
+  identityTagLoadingIds.value = new Set();
+  profileNameById.value = {};
 
   try {
     if (source.value === 'assignments') {
@@ -117,6 +248,7 @@ async function loadFeed() {
 
         assignmentIdsByIndex.value = feedRows.map(() => assignmentId.value);
         items.value = feedRows.map((entry) => toFeedItem(entry));
+        void hydrateFeedItemTags(items.value);
         return;
       }
       if (!assignmentMode.value) {
@@ -138,6 +270,7 @@ async function loadFeed() {
 
       assignmentIdsByIndex.value = feedRows.map((entry) => entry.assignment.id);
       items.value = feedRows.map((entry) => toFeedItem(entry));
+      void hydrateFeedItemTags(items.value);
       return;
     }
 
@@ -162,8 +295,10 @@ async function loadFeed() {
         title,
         metaLine,
         createdAt,
+        segment: { ...segment, tags: segment.tags ?? [] },
       } satisfies FeedItem;
     });
+    void hydrateFeedItemTags(items.value);
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Failed to load feed.';
   } finally {
@@ -203,6 +338,12 @@ watch([activeOrgId, source, assignmentMode, groupId, startAssignmentId, assignme
       No clips yet.
     </div>
 
-    <FeedContainer v-else :items="items" @watchedHalf="handleWatchedHalf" />
+    <FeedContainer
+      v-else
+      :items="items"
+      :profile-name-by-id="profileNameById"
+      @watchedHalf="handleWatchedHalf"
+      @addIdentityTag="handleAddIdentityTag"
+    />
   </div>
 </template>

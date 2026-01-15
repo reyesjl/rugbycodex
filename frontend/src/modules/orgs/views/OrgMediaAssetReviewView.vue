@@ -14,6 +14,7 @@ import { useAuthStore } from '@/auth/stores/useAuthStore';
 import { hasOrgAccess } from '@/modules/orgs/composables/useOrgCapabilities';
 import { mediaService } from '@/modules/media/services/mediaService';
 import { segmentService } from '@/modules/media/services/segmentService';
+import { segmentTagService } from '@/modules/media/services/segmentTagService';
 import { narrationService } from '@/modules/narrations/services/narrationService';
 import { toast } from '@/lib/toast';
 
@@ -25,6 +26,7 @@ import { useNarrationRecorder, type NarrationListItem } from '@/modules/narratio
 import type { OrgMediaAsset } from '@/modules/media/types/OrgMediaAsset';
 import type { MediaAssetSegment, MediaAssetSegmentSourceType } from '@/modules/narrations/types/MediaAssetSegment';
 import type { Narration } from '@/modules/narrations/types/Narration';
+import type { SegmentTag, SegmentTagType } from '@/modules/media/types/SegmentTag';
 
 import { formatMinutesSeconds } from '@/lib/duration';
 import MediaAssetReviewTimeline from '@/modules/media/components/MediaAssetReviewTimeline.vue';
@@ -68,6 +70,87 @@ const narrations = ref<Array<Narration | NarrationListItem>>([]);
 
 const activeOrgIdOrEmpty = computed(() => activeOrgId.value ?? '');
 const assigningSegment = ref<MediaAssetSegment | null>(null);
+const loadingTagsBySegmentId = ref(new Set<string>());
+
+async function hydrateSegmentTags(segmentIds: string[]): Promise<void> {
+  if (!segmentIds.length) return;
+
+  const results = await Promise.allSettled(
+    segmentIds.map((segmentId) => segmentTagService.listTagsForSegment(segmentId))
+  );
+
+  const tagsBySegmentId = new Map<string, SegmentTag[]>();
+  results.forEach((result, index) => {
+    const segmentId = segmentIds[index];
+    if (!segmentId) return;
+    if (result.status !== 'fulfilled') return;
+    tagsBySegmentId.set(segmentId, result.value ?? []);
+  });
+
+  if (!tagsBySegmentId.size) return;
+
+  segments.value = segments.value.map((seg) => {
+    const segmentId = String(seg.id);
+    if (!tagsBySegmentId.has(segmentId)) return seg;
+    return { ...seg, tags: tagsBySegmentId.get(segmentId) ?? [] };
+  });
+}
+
+function updateSegmentTags(segmentId: string, updater: (tags: SegmentTag[]) => SegmentTag[]) {
+  segments.value = segments.value.map((seg) => {
+    if (String(seg.id) !== segmentId) return seg;
+    const existing = Array.isArray(seg.tags) ? seg.tags : [];
+    return { ...seg, tags: updater(existing) };
+  });
+}
+
+async function handleAddSegmentTag(payload: { segmentId: string; tagKey: string; tagType: SegmentTagType }) {
+  if (!payload.segmentId) return;
+  const segmentId = String(payload.segmentId);
+  if (loadingTagsBySegmentId.value.has(segmentId)) return;
+
+  const nextLoading = new Set(loadingTagsBySegmentId.value);
+  nextLoading.add(segmentId);
+  loadingTagsBySegmentId.value = nextLoading;
+
+  try {
+    const tag = await segmentTagService.addTag({
+      segmentId,
+      tagKey: payload.tagKey,
+      tagType: payload.tagType,
+    });
+    updateSegmentTags(segmentId, (tags) => [...tags, tag]);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unable to add tag.';
+    toast({ message, variant: 'error', durationMs: 2600 });
+  } finally {
+    const cleared = new Set(loadingTagsBySegmentId.value);
+    cleared.delete(segmentId);
+    loadingTagsBySegmentId.value = cleared;
+  }
+}
+
+async function handleRemoveSegmentTag(payload: { segmentId: string; tagId: string }) {
+  if (!payload.segmentId || !payload.tagId) return;
+  const segmentId = String(payload.segmentId);
+  if (loadingTagsBySegmentId.value.has(segmentId)) return;
+
+  const nextLoading = new Set(loadingTagsBySegmentId.value);
+  nextLoading.add(segmentId);
+  loadingTagsBySegmentId.value = nextLoading;
+
+  try {
+    await segmentTagService.removeTag(payload.tagId);
+    updateSegmentTags(segmentId, (tags) => tags.filter((t) => String(t.id) !== String(payload.tagId)));
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unable to remove tag.';
+    toast({ message, variant: 'error', durationMs: 2600 });
+  } finally {
+    const cleared = new Set(loadingTagsBySegmentId.value);
+    cleared.delete(segmentId);
+    loadingTagsBySegmentId.value = cleared;
+  }
+}
 
 function labelForSegment(seg: MediaAssetSegment): string {
   const start = formatMinutesSeconds(seg.start_seconds ?? 0);
@@ -426,6 +509,7 @@ async function load() {
 
     segments.value = segList;
     narrations.value = narList;
+    void hydrateSegmentTags(segList.map((seg) => String(seg.id)));
 
     if (canGenerateMatchSummary.value) {
       // First, fetch server-authoritative state without generating.
@@ -645,7 +729,9 @@ async function beginRecording() {
   });
 
   // Optimistic segment insert.
-  segments.value = [...segments.value, created].sort((a, b) => (a.start_seconds ?? 0) - (b.start_seconds ?? 0));
+  segments.value = [...segments.value, { ...created, tags: [] }].sort(
+    (a, b) => (a.start_seconds ?? 0) - (b.start_seconds ?? 0)
+  );
 
   // Start recording with segment context.
   // Mute the video before recording to avoid bleeding audio into the mic capture.
@@ -957,6 +1043,8 @@ async function handleDeleteNarration(narrationId: string) {
               @assignSegment="openAssignSegment"
               @editNarration="handleEditNarration"
               @deleteNarration="handleDeleteNarration"
+              @addTag="handleAddSegmentTag"
+              @removeTag="handleRemoveSegmentTag"
             />
           </div>
         </div>
@@ -1007,14 +1095,16 @@ async function handleDeleteNarration(narrationId: string) {
             :narrations="(narrations as any)"
             :active-segment-id="activeSegmentId"
             :focused-segment-id="focusedSegmentId"
-            :default-source-type="userSegmentSourceType"
-            :can-moderate-narrations="isStaffOrAbove"
-            :current-user-id="currentUserId"
-            @jumpToSegment="(seg) => { jumpToSegment(seg); narrationsDrawerOpen = false; }"
-            @assignSegment="openAssignSegment"
-            @editNarration="handleEditNarration"
-            @deleteNarration="handleDeleteNarration"
-          />
+              :default-source-type="userSegmentSourceType"
+              :can-moderate-narrations="isStaffOrAbove"
+              :current-user-id="currentUserId"
+              @jumpToSegment="(seg) => { jumpToSegment(seg); narrationsDrawerOpen = false; }"
+              @assignSegment="openAssignSegment"
+              @editNarration="handleEditNarration"
+              @deleteNarration="handleDeleteNarration"
+              @addTag="handleAddSegmentTag"
+              @removeTag="handleRemoveSegmentTag"
+            />
         </div>
       </div>
 

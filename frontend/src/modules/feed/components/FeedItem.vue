@@ -12,6 +12,9 @@ import NarrationRecorder from '@/modules/narration/components/NarrationRecorder.
 import { narrationService } from '@/modules/narrations/services/narrationService';
 import { useNarrationRecorder, type NarrationListItem } from '@/modules/narration/composables/useNarrationRecorder';
 import { useAuthStore } from '@/auth/stores/useAuthStore';
+import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrganizationStore';
+import { hasOrgAccess } from '@/modules/orgs/composables/useOrgCapabilities';
+import type { SegmentTag } from '@/modules/media/types/SegmentTag';
 
 const props = defineProps<{
   feedItem: FeedItemType;
@@ -20,16 +23,35 @@ const props = defineProps<{
   srcError?: string | null;
   canPrev: boolean;
   canNext: boolean;
+  profileNameById?: Record<string, string>;
 }>();
 
 const emit = defineEmits<{
   (e: 'next'): void;
   (e: 'prev'): void;
   (e: 'watchedHalf'): void;
+  (e: 'addIdentityTag', payload: { segmentId: string }): void;
 }>();
 
 const authStore = useAuthStore();
 const currentUserId = computed(() => authStore.user?.id ?? null);
+const activeOrgStore = useActiveOrganizationStore();
+const membershipRole = computed(() => (activeOrgStore.orgContext?.membership?.role ?? null) as any);
+const canAddIdentityTag = computed(() => hasOrgAccess(membershipRole.value, 'member'));
+
+const segmentTags = computed<SegmentTag[]>(() => (props.feedItem.segment?.tags ?? []) as SegmentTag[]);
+const hasIdentityTag = computed(() => {
+  const userId = currentUserId.value;
+  if (!userId) return false;
+  return segmentTags.value.some((tag) => tag.tag_type === 'identity' && String(tag.created_by) === String(userId));
+});
+
+function requestIdentityTag() {
+  if (!canAddIdentityTag.value) return;
+  if (!currentUserId.value) return;
+  if (hasIdentityTag.value) return;
+  emit('addIdentityTag', { segmentId: String(props.feedItem.mediaAssetSegmentId) });
+}
 
 const playerRef = ref<InstanceType<typeof HlsSurfacePlayer> | null>(null);
 const surfaceEl = ref<HTMLElement | null>(null);
@@ -934,7 +956,14 @@ function handleBuffering(next: boolean) {
     <div class="flex-1 min-h-0 flex flex-col md:flex-none md:px-6 pb-14 md:pb-0">
       <div class="shrink-0 md:mx-auto md:w-full md:max-w-5xl">
         <FeedMeta :title="feedItem.title" :meta-line="feedItem.metaLine" />
-        <FeedActionBar />
+        <FeedActionBar
+          :tags="segmentTags"
+          :current-user-id="currentUserId"
+          :can-add-identity="canAddIdentityTag && Boolean(currentUserId)"
+          :has-identity-tag="hasIdentityTag"
+          :profile-name-by-id="props.profileNameById"
+          @addIdentityTag="requestIdentityTag"
+        />
       </div>
 
       <div class="hidden md:block flex-1 min-h-0 overflow-y-auto md:overflow-visible md:flex-none md:mx-auto md:w-full md:max-w-5xl">
