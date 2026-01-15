@@ -43,6 +43,7 @@ const editingText = ref('');
 
 const ACTION_TAGS = ['tackle', 'carry', 'pass', 'kick', 'ruck_entry', 'cleanout'] as const;
 const CONTEXT_TAGS = ['set_piece', 'lineout', 'scrum', 'counter_attack', 'transition', 'exit', 'wide_channel'] as const;
+const HIDDEN_TAG_KEYS = new Set(['self']);
 
 const tagPanelOpenIds = ref(new Set<string>());
 
@@ -76,6 +77,7 @@ function toggleTagPanel(segmentId: string) {
 const canAddQuickTags = computed(() => Boolean(props.canModerateNarrations));
 
 type SourceFilter = 'all' | NarrationSourceType;
+type TagFilterOption = { key: string; type: SegmentTagType | null };
 
 const SOURCE_FILTERS: Array<{ value: SourceFilter; label: string }> = [
   { value: 'all', label: 'All sources' },
@@ -87,6 +89,18 @@ const SOURCE_FILTERS: Array<{ value: SourceFilter; label: string }> = [
 
 function formatTagLabel(tagKey: string): string {
   return String(tagKey ?? '').replace(/_/g, ' ');
+}
+
+function isHiddenTagKey(tagKey: string | null | undefined): boolean {
+  return HIDDEN_TAG_KEYS.has(String(tagKey ?? '').trim());
+}
+
+function classForTagType(tagType: SegmentTagType | null | undefined): string {
+  const type = String(tagType ?? '');
+  if (type === 'action') return 'bg-emerald-500/15 text-emerald-100 ring-1 ring-emerald-200/20';
+  if (type === 'context') return 'bg-sky-500/15 text-sky-100 ring-1 ring-sky-200/20';
+  if (type === 'identity') return 'bg-amber-500/15 text-amber-100 ring-1 ring-amber-200/20';
+  return 'bg-white/10 text-white/80 ring-1 ring-white/15';
 }
 
 function normalizeNarrationSourceType(value: unknown): NarrationSourceType {
@@ -103,16 +117,26 @@ function narrationSourceTypeFor(item: NarrationListItem): NarrationSourceType {
 }
 
 function classForTag(tag: SegmentTag): string {
-  const type = String(tag.tag_type ?? '');
-  if (type === 'action') return 'bg-emerald-500/15 text-emerald-100 ring-1 ring-emerald-200/20';
-  if (type === 'context') return 'bg-sky-500/15 text-sky-100 ring-1 ring-sky-200/20';
-  if (type === 'identity') return 'bg-amber-500/15 text-amber-100 ring-1 ring-amber-200/20';
-  return 'bg-white/10 text-white/80 ring-1 ring-white/15';
+  return classForTagType(tag.tag_type);
 }
 
 function segmentHasTag(seg: MediaAssetSegment, tagKey: string, tagType: SegmentTagType): boolean {
   const tags = (seg.tags ?? []) as SegmentTag[];
   return tags.some((tag) => tag.tag_key === tagKey && tag.tag_type === tagType);
+}
+
+function segmentHasAnyTagKey(seg: MediaAssetSegment, tagKeys: Set<string>): boolean {
+  if (!tagKeys.size) return false;
+  const tags = (seg.tags ?? []) as SegmentTag[];
+  return tags.some((tag) => {
+    const key = String(tag.tag_key ?? '').trim();
+    if (isHiddenTagKey(key)) return false;
+    return tagKeys.has(key);
+  });
+}
+
+function visibleSegmentTags(seg: MediaAssetSegment): SegmentTag[] {
+  return (seg.tags ?? []).filter((tag) => !isHiddenTagKey(tag.tag_key));
 }
 
 function canRemoveTag(tag: SegmentTag): boolean {
@@ -180,6 +204,9 @@ function requestDelete(n: Narration) {
 
 const selectedSource = ref<SourceFilter>('all');
 const hasSelectedSource = ref(false);
+const activeTagFilters = ref<string[]>([]);
+const tagFiltersExpanded = ref(true);
+const tagFilterScrollEl = ref<HTMLElement | null>(null);
 
 const activeOrgStore = useActiveOrganizationStore();
 const { orgContext } = storeToRefs(activeOrgStore);
@@ -208,6 +235,31 @@ function setSelectedSource(next: SourceFilter) {
   selectedSource.value = next;
   hasSelectedSource.value = true;
   emit('update:sourceFilter', next);
+}
+
+function toggleTagFilter(tagKey: string) {
+  const key = String(tagKey ?? '').trim();
+  if (!key) return;
+  if (activeTagFilters.value.includes(key)) {
+    activeTagFilters.value = activeTagFilters.value.filter((value) => value !== key);
+  } else {
+    activeTagFilters.value = [...activeTagFilters.value, key];
+  }
+}
+
+function clearTagFilters() {
+  activeTagFilters.value = [];
+}
+
+function toggleTagFiltersExpanded() {
+  tagFiltersExpanded.value = !tagFiltersExpanded.value;
+}
+
+function scrollTagFilters(direction: 'left' | 'right') {
+  const el = tagFilterScrollEl.value;
+  if (!el) return;
+  const amount = Math.max(160, Math.floor(el.clientWidth * 0.7));
+  el.scrollBy({ left: direction === 'left' ? -amount : amount, behavior: 'smooth' });
 }
 
 watch(
@@ -304,8 +356,43 @@ const hasSearchQuery = computed(() => Boolean(searchQuery.value.trim()));
 
 const displaySegments = computed(() => (hasSearchQuery.value ? searchResults.value : props.segments ?? []));
 
-const sourceFilteredSegments = computed(() => {
+const tagFilterOptions = computed<TagFilterOption[]>(() => {
+  const map = new Map<string, SegmentTagType | null>();
+  for (const seg of props.segments ?? []) {
+    for (const tag of (seg.tags ?? []) as SegmentTag[]) {
+      const key = String(tag.tag_key ?? '').trim();
+      if (!key || isHiddenTagKey(key) || map.has(key)) continue;
+      map.set(key, tag.tag_type ?? null);
+    }
+  }
+
+  for (const activeKey of activeTagFilters.value) {
+    if (activeKey && !map.has(activeKey)) {
+      map.set(activeKey, null);
+    }
+  }
+
+  return Array.from(map, ([key, type]) => ({ key, type }));
+});
+
+const hasActiveTagFilters = computed(() => activeTagFilters.value.length > 0);
+const shouldShowTagToggle = computed(() => tagFilterOptions.value.length > 0);
+
+const activeTagFilterSet = computed(() => {
+  const keys = activeTagFilters.value
+    .map((key) => String(key ?? '').trim())
+    .filter((key) => key && !isHiddenTagKey(key));
+  return new Set(keys);
+});
+
+const tagFilteredSegments = computed(() => {
   const base = displaySegments.value ?? [];
+  if (!activeTagFilterSet.value.size) return base;
+  return base.filter((seg) => segmentHasAnyTagKey(seg, activeTagFilterSet.value));
+});
+
+const sourceFilteredSegments = computed(() => {
+  const base = tagFilteredSegments.value ?? [];
   if (selectedSource.value === 'all') return base;
   // Filter by narration.source_type (not segment.source_type).
   return base.filter((s) => narrationsForSegment(String(s.id)).length > 0);
@@ -315,7 +402,7 @@ const orderedSegments = computed(() => {
   const base = [...sourceFilteredSegments.value].sort((a, b) => (a.start_seconds ?? 0) - (b.start_seconds ?? 0));
   return base.filter((s) => {
     const hasNarrations = narrationsForSegment(String(s.id)).length > 0;
-    const hasTags = (s.tags ?? []).length > 0;
+    const hasTags = visibleSegmentTags(s).length > 0;
     return hasNarrations || hasTags;
   });
 });
@@ -430,6 +517,79 @@ function formatCreatedAt(value: any): string {
           {{ option.label }}
         </button>
       </div>
+
+      <div v-if="tagFilterOptions.length" class="space-y-1">
+        <div class="flex items-start gap-2">
+          <div class="relative flex-1 min-w-0 group">
+            <div
+              ref="tagFilterScrollEl"
+              class="narration-filter-row flex w-full items-center gap-2 overflow-x-auto whitespace-nowrap py-1.5"
+              :class="tagFiltersExpanded ? 'md:flex-wrap md:whitespace-normal md:overflow-visible' : ''"
+              aria-label="Tag filters"
+            >
+              <button
+                type="button"
+                class="text-[11px] transition cursor-pointer rounded-full px-3 py-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                :class="!hasActiveTagFilters
+                  ? 'bg-white text-black'
+                  : 'bg-white/10 text-white/70 hover:bg-white/20 hover:text-white'"
+                title="Show all tags"
+                @click="clearTagFilters"
+              >
+                All tags
+              </button>
+
+              <button
+                v-for="tag in tagFilterOptions"
+                :key="tag.key"
+                type="button"
+                class="cursor-pointer inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                :class="activeTagFilters.includes(tag.key)
+                  ? 'bg-white text-black'
+                  : `${classForTagType(tag.type)} hover:bg-white/20`"
+                :aria-pressed="activeTagFilters.includes(tag.key)"
+                :title="`Filter by ${formatTagLabel(tag.key)}`"
+                @click="toggleTagFilter(tag.key)"
+              >
+                <span>{{ formatTagLabel(tag.key) }}</span>
+                <span v-if="activeTagFilters.includes(tag.key)" class="text-[10px] text-black/60" aria-hidden="true">×</span>
+              </button>
+            </div>
+
+            <div
+              v-if="!tagFiltersExpanded"
+              class="pointer-events-none absolute inset-y-0 left-0 right-0 hidden md:flex items-center justify-between"
+            >
+              <button
+                type="button"
+                class="pointer-events-auto ml-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/40 text-white/70 opacity-0 transition group-hover:opacity-100 hover:text-white"
+                aria-label="Scroll tags left"
+                @click="scrollTagFilters('left')"
+              >
+                <Icon icon="carbon:chevron-left" width="16" height="16" />
+              </button>
+              <button
+                type="button"
+                class="pointer-events-auto mr-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/40 text-white/70 opacity-0 transition group-hover:opacity-100 hover:text-white"
+                aria-label="Scroll tags right"
+                @click="scrollTagFilters('right')"
+              >
+                <Icon icon="carbon:chevron-right" width="16" height="16" />
+              </button>
+            </div>
+          </div>
+
+          <button
+            v-if="shouldShowTagToggle"
+            type="button"
+            class="hidden md:inline-flex shrink-0 items-center gap-1 rounded-full bg-white/10 px-2 py-1 text-[11px] text-white/70 hover:bg-white/20 hover:text-white"
+            :aria-expanded="tagFiltersExpanded"
+            @click="toggleTagFiltersExpanded"
+          >
+            {{ tagFiltersExpanded ? 'Collapse' : 'Expand' }}
+          </button>
+        </div>
+      </div>
     </div>
 
     <div v-if="(props.segments ?? []).length === 0" class="text-sm text-white/50">
@@ -529,7 +689,7 @@ function formatCreatedAt(value: any): string {
         </div>
 
         <div
-          v-if="narrationsForSegment(String(seg.id)).length || (seg.tags?.length ?? 0) || isTagPanelOpen(String(seg.id))"
+          v-if="narrationsForSegment(String(seg.id)).length || visibleSegmentTags(seg).length || isTagPanelOpen(String(seg.id))"
           class="border-t border-white/10"
         >
           <div class="px-3 py-2 space-y-2">
@@ -615,12 +775,12 @@ function formatCreatedAt(value: any): string {
             </template>
 
             <div
-              v-if="(seg.tags?.length ?? 0) || isTagPanelOpen(String(seg.id))"
+              v-if="visibleSegmentTags(seg).length || isTagPanelOpen(String(seg.id))"
               class="pt-1 space-y-2"
             >
-              <div v-if="(seg.tags?.length ?? 0)" class="flex flex-wrap gap-2">
+              <div v-if="visibleSegmentTags(seg).length" class="flex flex-wrap gap-2">
                 <div
-                  v-for="tag in (seg.tags ?? [])"
+                  v-for="tag in visibleSegmentTags(seg)"
                   :key="String(tag.id)"
                   class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium"
                   :class="classForTag(tag)"
