@@ -38,12 +38,28 @@ import AssignSegmentModal from '@/modules/assignments/components/AssignSegmentMo
 
 const PRE_BUFFER_SECONDS = 5;
 const POST_BUFFER_SECONDS = 10;
+const MERGE_BUFFER_SECONDS = 5;
+const MIN_OVERLAP_SECONDS = 5;
 
 const DEBUG = import.meta.env.DEV;
 
 function debugLog(...args: unknown[]) {
   if (!DEBUG) return;
   console.debug('[OrgMediaAssetReviewView]', ...args);
+}
+
+function computeOverlapSeconds(
+  startSeconds: number,
+  endSeconds: number,
+  candidateStart: number,
+  candidateEnd: number
+): number {
+  return Math.max(0, Math.min(endSeconds, candidateEnd) - Math.max(startSeconds, candidateStart));
+}
+
+function clampEndSeconds(endSeconds: number, mediaDuration: number): number {
+  if (!Number.isFinite(mediaDuration) || mediaDuration <= 0) return endSeconds;
+  return Math.min(mediaDuration, endSeconds);
 }
 
 const route = useRoute();
@@ -883,6 +899,7 @@ async function endRecordingNonBlocking() {
   });
 
   const mediaDuration = duration.value ?? 0;
+  const recordingEndSeconds = startVideoTime + recordingDurationSeconds;
   const bounds = computeSegmentBounds(
     startVideoTime,
     recordingDurationSeconds,
@@ -890,6 +907,7 @@ async function endRecordingNonBlocking() {
     PRE_BUFFER_SECONDS,
     POST_BUFFER_SECONDS
   );
+  const extendSeconds = Math.max(0, recordingDurationSeconds) + MERGE_BUFFER_SECONDS;
   debugLog('segment bounds computed', {
     recordStartVideoTime: startVideoTime,
     recordingDurationSeconds,
@@ -910,26 +928,53 @@ async function endRecordingNonBlocking() {
       void blobPromise.catch(() => {});
       return;
     }
-    targetSegment = existing;
+    let resolved = existing;
+    const desiredEndSeconds = clampEndSeconds((resolved.end_seconds ?? 0) + extendSeconds, mediaDuration);
+    if (desiredEndSeconds > (resolved.end_seconds ?? 0)) {
+      try {
+        resolved = await segmentService.updateSegmentBounds({
+          segmentId: String(resolved.id),
+          startSeconds: resolved.start_seconds ?? 0,
+          endSeconds: desiredEndSeconds,
+        });
+      } catch (err) {
+        debugLog('segment bounds update failed', err);
+      }
+    }
+    targetSegment = resolved;
+    upsertSegment(resolved);
   } else {
     try {
+      const overlapStartSeconds = startVideoTime;
+      const overlapEndSeconds = recordingEndSeconds;
       const overlapping = await segmentService.findBestOverlappingSegment({
         mediaAssetId,
-        startSeconds: bounds.startSeconds,
-        endSeconds: bounds.endSeconds,
+        startSeconds: overlapStartSeconds,
+        endSeconds: overlapEndSeconds,
       });
 
-      if (overlapping) {
-        let resolved = overlapping;
-        const expandedStart = Math.min(overlapping.start_seconds ?? 0, bounds.startSeconds);
-        const expandedEnd = Math.max(overlapping.end_seconds ?? 0, bounds.endSeconds);
+      let resolvedOverlap = overlapping;
+      if (resolvedOverlap) {
+        const overlapSeconds = computeOverlapSeconds(
+          overlapStartSeconds,
+          overlapEndSeconds,
+          resolvedOverlap.start_seconds ?? 0,
+          resolvedOverlap.end_seconds ?? 0
+        );
+        if (overlapSeconds < MIN_OVERLAP_SECONDS) {
+          resolvedOverlap = null;
+        }
+      }
 
-        if (expandedStart !== overlapping.start_seconds || expandedEnd !== overlapping.end_seconds) {
+      if (resolvedOverlap) {
+        let resolved = resolvedOverlap;
+        const desiredEndSeconds = clampEndSeconds((resolved.end_seconds ?? 0) + extendSeconds, mediaDuration);
+        if (desiredEndSeconds > (resolved.end_seconds ?? 0)) {
           try {
             resolved = await segmentService.updateSegmentBounds({
-              segmentId: String(overlapping.id),
-              startSeconds: expandedStart,
-              endSeconds: expandedEnd,
+              segmentId: String(resolved.id),
+              startSeconds: resolved.start_seconds ?? 0,
+              endSeconds: desiredEndSeconds,
             });
           } catch (err) {
             debugLog('segment bounds update failed', err);
@@ -993,6 +1038,7 @@ async function endRecordingNonBlocking() {
     })
     .then((saved) => {
       narrations.value = (narrations.value as any[]).map((n) => (n.id === optimisticId ? saved : n));
+      toast({ message: 'Narration added.', variant: 'success', durationMs: 2000 });
     })
     .catch((err) => {
       const message = err instanceof Error ? err.message : 'Failed to process narration.';
