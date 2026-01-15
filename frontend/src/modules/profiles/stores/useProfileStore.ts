@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref, computed, watch } from 'vue';
-import { useAuthStore } from '@/auth/stores/useAuthStore';
+import { useAuthStore } from '@/modules/auth/stores/useAuthStore';
 import { profileService } from '../services/profileServiceV2';
 import type { Profile } from '../types/Profile';
 

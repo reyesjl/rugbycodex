@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useRoute, useRouter } from 'vue-router';
-import { useAuthStore } from '@/auth/stores/useAuthStore';
+import { useAuthStore } from '@/modules/auth/stores/useAuthStore';
 import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrganizationStore';
 import { orgService } from '@/modules/orgs/services/orgServiceV2';
 import type { OrgMember } from '@/modules/orgs/types';

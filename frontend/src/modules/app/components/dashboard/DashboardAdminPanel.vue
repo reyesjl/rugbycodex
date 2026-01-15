@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import { useAuthStore } from '@/auth/stores/useAuthStore';
+import { useAuthStore } from '@/modules/auth/stores/useAuthStore';
 import { storeToRefs } from 'pinia';
 import { mediaService } from '@/modules/media/services/mediaService';
 import CoachGuide from '@/modules/app/components/CoachGuide.vue';

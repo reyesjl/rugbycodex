@@ -2,7 +2,7 @@
 import { Icon } from '@iconify/vue';
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter, RouterLink } from 'vue-router';
-import { useAuthStore } from '@/auth/stores/useAuthStore';
+import { useAuthStore } from '@/modules/auth/stores/useAuthStore';
 import OrgSwitcher from './OrgSwitcher.vue';
 
 // auth store

@@ -1,6 +1,6 @@
 import { computed, watchEffect } from 'vue'
 import { storeToRefs } from 'pinia'
-import { useAuthStore } from '@/auth/stores/useAuthStore'
+import { useAuthStore } from '@/modules/auth/stores/useAuthStore'
 import { useMyOrganizationsStore } from '@/modules/orgs/stores/useMyOrganizationsStore'
 import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrganizationStore'
 

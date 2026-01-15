@@ -2,7 +2,7 @@
 import { ref, watch, computed, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import { Icon } from '@iconify/vue';
 import { RouterLink, useRoute } from 'vue-router';
-import { useAuthStore } from '@/auth/stores/useAuthStore';
+import { useAuthStore } from '@/modules/auth/stores/useAuthStore';
 
 const props = defineProps<{
   toggleDarkMode: () => void;
@@ -19,7 +19,7 @@ const navLinks = computed<NavLink[]>(() => {
     { to: '/vaults', label: 'Vaults' },
     authStore.isAuthenticated
       ? { to: '/dashboard', label: 'Dashboard' }
-      : { to: '/login', label: 'Account' },
+      : { to: '/auth/login', label: 'Account' },
   ];
   return links.filter((l): l is NavLink => l !== null);
 });
@@ -207,7 +207,7 @@ watch(
             <Icon :icon="sidebarToggleIcon" class="h-5 w-5" />
           </button>
 
-          <RouterLink v-if="!authStore.isAuthenticated" to="/login"
+          <RouterLink v-if="!authStore.isAuthenticated" to="/auth/login"
             class="hidden rounded-full bg-neutral-900 px-4 py-2 text-sm font-medium text-neutral-100 transition hover:bg-neutral-800 dark:hover:bg-neutral-800 md:inline-flex md:items-center">
             Log in
           </RouterLink>
@@ -248,7 +248,7 @@ watch(
             <Icon icon="carbon:brightness-contrast" class="h-4 w-4" />
           </button>
 
-          <RouterLink v-if="!authStore.isAuthenticated" to="/login"
+          <RouterLink v-if="!authStore.isAuthenticated" to="/auth/login"
             class="rounded-full bg-neutral-100 px-4 py-2 text-sm font-semibold text-neutral-900 transition hover:bg-white/90 md:hidden"
             @click="closeSidebar">
             Log in
@@ -281,7 +281,7 @@ watch(
             <RouterLink class="transition-colors hover:text-white" to="/vaults">Vaults</RouterLink>
             <RouterLink class="transition-colors hover:text-white" to="/releases">Releases</RouterLink>
             <RouterLink class="transition-colors hover:text-white" to="/about">About</RouterLink>
-            <RouterLink class="transition-colors hover:text-white" to="/login">Account</RouterLink>
+            <RouterLink class="transition-colors hover:text-white" to="/auth/login">Account</RouterLink>
           </nav>
         </div>
 

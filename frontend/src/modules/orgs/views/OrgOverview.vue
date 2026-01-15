@@ -4,7 +4,7 @@ import { computed, ref } from 'vue';
 import { Icon } from '@iconify/vue';
 import { formatMonthYear } from '@/lib/date';
 import { useActiveOrganizationStore } from '../stores/useActiveOrganizationStore';
-import { useAuthStore } from '@/auth/stores/useAuthStore';
+import { useAuthStore } from '@/modules/auth/stores/useAuthStore';
 import { orgService } from '../services/orgServiceV2';
 import { toast } from '@/lib/toast';
 

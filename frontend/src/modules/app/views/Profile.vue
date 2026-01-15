@@ -2,7 +2,7 @@
 import { storeToRefs } from 'pinia';
 import { computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { useAuthStore } from '@/auth/stores/useAuthStore';
+import { useAuthStore } from '@/modules/auth/stores/useAuthStore';
 import { useProfileStore } from '@/modules/profiles/stores/useProfileStore';
 import { useProfileDisplay } from '@/modules/profiles/composables/useProfileDisplay';
 import { useMyOrganizationsStore } from '@/modules/orgs/stores/useMyOrganizationsStore';

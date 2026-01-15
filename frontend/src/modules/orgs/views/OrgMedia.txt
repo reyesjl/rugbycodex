@@ -7,7 +7,7 @@ import RefreshButton from '@/components/RefreshButton.vue';
 import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
 import AssetUpload from '@/modules/media/components/AssetUpload.vue';
 import BatchActionBar, { type BatchAction } from '@/components/ui/tables/BatchActionBar.vue';
-import { useAuthStore } from '@/auth/stores/useAuthStore';
+import { useAuthStore } from '@/modules/auth/stores/useAuthStore';
 import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrganizationStore';
 import type { OrgMediaAsset } from '@/modules/orgs/types';
 import { ROLE_ORDER } from '@/modules/profiles/types';

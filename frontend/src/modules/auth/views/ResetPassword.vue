@@ -2,7 +2,7 @@
 import { computed, reactive, ref, watch, onMounted } from 'vue';
 import { RouterLink, useRoute, useRouter } from 'vue-router';
 import { supabase } from '@/lib/supabaseClient';
-import { useAuthStore } from '@/auth/stores/useAuthStore';
+import { useAuthStore } from '@/modules/auth/stores/useAuthStore';
 
 const authStore = useAuthStore();
 const route = useRoute();
@@ -122,12 +122,12 @@ const handleSubmit = async () => {
     return;
   }
 
-  successMessage.value = 'Password updated successfully. Redirecting you to your dashboard…';
+  successMessage.value = 'Password updated successfully. Redirecting you to sign in…';
   form.password = '';
   form.confirmPassword = '';
 
   setTimeout(() => {
-    void router.push({ name: 'Dashboard' });
+    void router.push({ name: 'Login', query: { reset: 'success' } });
   }, 1500);
 };
 </script>
@@ -157,7 +157,7 @@ const handleSubmit = async () => {
       <div v-else-if="initializationError"
         class="rounded-3xl border border-rose-300/60 bg-rose-50/80 p-8 text-center shadow-[0_24px_60px_rgba(15,23,42,0.08)] backdrop-blur-md dark:border-rose-900/70 dark:bg-rose-950/70 dark:text-rose-100 dark:shadow-[0_24px_60px_rgba(76,5,25,0.35)]">
         <p class="text-sm">{{ initializationError }}</p>
-        <RouterLink to="/reset-password"
+        <RouterLink to="/auth/forgot-password"
           class="mt-6 inline-flex items-center justify-center rounded-full border border-rose-400 px-4 py-2 text-sm font-medium text-rose-600 transition hover:bg-rose-100/80 dark:border-rose-300/70 dark:text-rose-100 dark:hover:bg-rose-900/40">
           Request a new reset link
         </RouterLink>

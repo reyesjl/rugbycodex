@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { reactive, ref } from 'vue';
 import { RouterLink } from 'vue-router';
-import { useAuthStore } from '@/auth/stores/useAuthStore';
+import { useAuthStore } from '@/modules/auth/stores/useAuthStore';
 
 const authStore = useAuthStore();
 
@@ -36,8 +36,7 @@ const handleSubmit = async () => {
     return;
   }
 
-  successMessage.value =
-    'Check your email for a password reset link. Follow the instructions to choose a new password.';
+  successMessage.value = 'Check your email for a reset link. Follow the instructions to choose a new password.';
 };
 </script>
 
@@ -52,7 +51,7 @@ const handleSubmit = async () => {
         <p class="text-xs font-semibold uppercase tracking-[0.3em] text-neutral-500 dark:text-neutral-500">
           Rugbycodex
         </p>
-        <h1 class="text-3xl font-semibold text-neutral-900 dark:text-neutral-100">Reset your password</h1>
+        <h1 class="text-3xl font-semibold text-neutral-900 dark:text-neutral-100">Forgot your password?</h1>
         <p class="text-neutral-600 dark:text-neutral-400">
           Enter the email associated with your Rugbycodex account and we will send you reset instructions.
         </p>
@@ -84,7 +83,7 @@ const handleSubmit = async () => {
 
       <footer class="text-center text-sm text-neutral-500 dark:text-neutral-400">
         Remembered your password?
-        <RouterLink to="/login"
+        <RouterLink to="/auth/login"
           class="font-medium text-neutral-700 underline-offset-4 transition hover:text-neutral-900 dark:text-neutral-200 dark:hover:text-neutral-100">
           Back to login
         </RouterLink>

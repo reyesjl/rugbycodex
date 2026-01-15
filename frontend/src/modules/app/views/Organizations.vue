@@ -5,7 +5,7 @@ import { orgService } from '@/modules/orgs/services/orgServiceV2';
 import type { UserOrganizationSummary } from '@/modules/orgs/types/UserOrganizationSummary';
 import JoinOrgModal from '@/modules/orgs/components/JoinOrgModal.vue';
 import MyOrganizationsSection from '@/modules/app/components/organizations/MyOrganizationsSection.vue';
-import { useAuthStore } from '@/auth/stores/useAuthStore';
+import { useAuthStore } from '@/modules/auth/stores/useAuthStore';
 import { useRoute, useRouter } from 'vue-router';
 
 const authStore = useAuthStore();

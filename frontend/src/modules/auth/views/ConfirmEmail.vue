@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import { RouterLink } from 'vue-router';
-import { useAuthStore } from '@/auth/stores/useAuthStore';
+import { useAuthStore } from '@/modules/auth/stores/useAuthStore';
 
 const authStore = useAuthStore();
 const hasError = ref(false);
@@ -11,7 +11,7 @@ const resending = ref(false);
 const resendSuccessMessage = ref<string | null>(null);
 const resendErrorMessage = ref<string | null>(null);
 const confirmationRedirectUrl =
-  typeof window !== 'undefined' ? `${window.location.origin}/confirm-email` : undefined;
+  typeof window !== 'undefined' ? `${window.location.origin}/auth/confirm-email` : undefined;
 
 if (typeof window !== 'undefined') {
   const fragment = window.location.hash.startsWith('#') ? window.location.hash.slice(1) : window.location.hash;
@@ -105,7 +105,7 @@ watch(email, () => {
             </p>
           </form>
 
-          <RouterLink to="/login"
+          <RouterLink to="/auth/login"
             class="mt-8 inline-flex w-full items-center justify-center rounded-2xl border border-neutral-200/70 px-4 py-3 text-sm font-semibold uppercase tracking-[0.2em] text-neutral-700 transition hover:bg-neutral-100 dark:border-neutral-700/70 dark:text-neutral-200 dark:hover:bg-neutral-900/60">
             Back to login
           </RouterLink>
@@ -114,7 +114,7 @@ watch(email, () => {
           <p class="text-sm text-neutral-600 dark:text-neutral-300">
             Continue to the login page to access your account.
           </p>
-          <RouterLink to="/login"
+          <RouterLink to="/auth/login"
             class="mt-8 inline-flex w-full items-center justify-center rounded-2xl bg-neutral-900 px-4 py-3 text-sm font-semibold uppercase tracking-[0.2em] text-neutral-100 transition hover:bg-neutral-800 dark:bg-neutral-50 dark:text-neutral-900 dark:hover:bg-neutral-200">
             Back to login
           </RouterLink>

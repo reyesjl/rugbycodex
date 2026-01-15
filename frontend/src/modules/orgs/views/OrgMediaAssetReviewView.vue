@@ -10,7 +10,7 @@ import FeedOverlayControls from '@/modules/feed/components/FeedOverlayControls.v
 import NarrationRecorder from '@/modules/narration/components/NarrationRecorder.vue';
 
 import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrganizationStore';
-import { useAuthStore } from '@/auth/stores/useAuthStore';
+import { useAuthStore } from '@/modules/auth/stores/useAuthStore';
 import { hasOrgAccess } from '@/modules/orgs/composables/useOrgCapabilities';
 import { segmentService } from '@/modules/media/services/segmentService';
 import { narrationService } from '@/modules/narrations/services/narrationService';

@@ -156,7 +156,7 @@ export const useAuthStore = defineStore('auth', () => {
   const resendConfirmationEmail = async (email: string, redirectTo?: string) => {
     lastError.value = null;
     const emailRedirectTo =
-      redirectTo ?? (typeof window !== 'undefined' ? `${window.location.origin}/confirm-email` : undefined);
+      redirectTo ?? (typeof window !== 'undefined' ? `${window.location.origin}/auth/confirm-email` : undefined);
 
     const { data, error } = await supabase.auth.resend({
       type: 'signup',
@@ -185,7 +185,7 @@ export const useAuthStore = defineStore('auth', () => {
   ) => {
     lastError.value = null;
     const emailRedirectTo =
-      redirectTo ?? (typeof window !== 'undefined' ? `${window.location.origin}/confirm-email` : undefined);
+      redirectTo ?? (typeof window !== 'undefined' ? `${window.location.origin}/auth/confirm-email` : undefined);
 
     const options: {
       data?: Record<string, unknown>;
@@ -242,7 +242,7 @@ export const useAuthStore = defineStore('auth', () => {
     lastError.value = null;
     const url =
       redirectTo ??
-      (typeof window !== 'undefined' ? `${window.location.origin}/reset-password/update` : undefined);
+      (typeof window !== 'undefined' ? `${window.location.origin}/auth/reset-password` : undefined);
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: url,
     });

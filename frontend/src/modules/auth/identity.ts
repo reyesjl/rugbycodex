@@ -1,5 +1,5 @@
 import type { User } from '@supabase/supabase-js';
-import { useAuthStore } from '@/auth/stores/useAuthStore';
+import { useAuthStore } from '@/modules/auth/stores/useAuthStore';
 
 export function requireUserId(): string {
   const authStore = useAuthStore();

@@ -6,7 +6,7 @@ import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrganizationStore'
 import { useMyOrganizationsStore } from '@/modules/orgs/stores/useMyOrganizationsStore'
 import type { UserOrganizationSummary } from '@/modules/orgs/types'
-import { useAuthStore } from '@/auth/stores/useAuthStore'
+import { useAuthStore } from '@/modules/auth/stores/useAuthStore'
 
 const route = useRoute()
 const router = useRouter()

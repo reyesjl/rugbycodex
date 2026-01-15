@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import pinia from '@/lib/pinia';
-import { useAuthStore } from '@/auth/stores/useAuthStore';
+import { useAuthStore } from '@/modules/auth/stores/useAuthStore';
 import { marketingRoutes } from './marketingRoutes';
 import { authRoutes } from './authRoutes';
 import { appRoutes } from './appRoutes';

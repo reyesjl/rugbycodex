@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
 import type { UserOrganizationSummary } from '@/modules/orgs/types'
 import { orgService } from '@/modules/orgs/services/orgServiceV2'
-import { useAuthStore } from '@/auth/stores/useAuthStore'
+import { useAuthStore } from '@/modules/auth/stores/useAuthStore'
 
 export const useActiveOrganizationStore = defineStore('activeOrganization', () => {
   const authStore = useAuthStore()

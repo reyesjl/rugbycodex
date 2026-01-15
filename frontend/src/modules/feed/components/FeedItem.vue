@@ -11,7 +11,7 @@ import NarrationPanel from '@/modules/narration/components/NarrationPanel.vue';
 import NarrationRecorder from '@/modules/narration/components/NarrationRecorder.vue';
 import { narrationService } from '@/modules/narrations/services/narrationService';
 import { useNarrationRecorder, type NarrationListItem } from '@/modules/narration/composables/useNarrationRecorder';
-import { useAuthStore } from '@/auth/stores/useAuthStore';
+import { useAuthStore } from '@/modules/auth/stores/useAuthStore';
 import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrganizationStore';
 import { hasOrgAccess } from '@/modules/orgs/composables/useOrgCapabilities';
 import type { SegmentTag } from '@/modules/media/types/SegmentTag';

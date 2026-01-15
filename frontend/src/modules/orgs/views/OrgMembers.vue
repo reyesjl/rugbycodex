@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { orgService } from "@/modules/orgs/services/orgServiceV2";
 import { useActiveOrganizationStore } from "@/modules/orgs/stores/useActiveOrganizationStore";
-import { useAuthStore } from '@/auth/stores/useAuthStore';
+import { useAuthStore } from '@/modules/auth/stores/useAuthStore';
 import type { OrgMember } from "@/modules/orgs/types";
 import type { OrgJoinCode } from "@/modules/orgs/types";
 import AddMemberModal from '@/modules/orgs/components/AddMemberModal.vue';

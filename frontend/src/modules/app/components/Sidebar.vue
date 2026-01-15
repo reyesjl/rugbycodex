@@ -3,7 +3,7 @@ import { computed, toRef } from 'vue';
 import { Icon } from '@iconify/vue';
 import { RouterLink, useRoute } from 'vue-router';
 import { isPlatformAdmin } from "@/modules/auth/identity";
-import { useAuthStore } from '@/auth/stores/useAuthStore';
+import { useAuthStore } from '@/modules/auth/stores/useAuthStore';
 import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrganizationStore';
 import { storeToRefs } from 'pinia';
 import { useSidebarGestures } from '@/modules/app/composables/useSidebarGestures';

@@ -4,7 +4,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { RouterLink } from 'vue-router';
 import Button from '@/components/ui/primitives/Button.vue';
 import NavLink from '@/components/ui/primitives/NavLink.vue';
-import { useAuthStore } from '@/auth/stores/useAuthStore';
+import { useAuthStore } from '@/modules/auth/stores/useAuthStore';
 
 const authStore = useAuthStore();
 

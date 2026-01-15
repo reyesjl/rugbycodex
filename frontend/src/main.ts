@@ -4,7 +4,7 @@ import './style.css';
 import App from './App.vue';
 import router from './router';
 import pinia from '@/lib/pinia';
-import { useAuthStore } from '@/auth/stores/useAuthStore';
+import { useAuthStore } from '@/modules/auth/stores/useAuthStore';
 import { useCookieConsent } from './composables/useCookieConsent';
 
 const app = createApp(App);

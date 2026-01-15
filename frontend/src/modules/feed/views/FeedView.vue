@@ -2,7 +2,7 @@
 import { computed } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useRoute } from 'vue-router';
-import { useAuthStore } from '@/auth/stores/useAuthStore';
+import { useAuthStore } from '@/modules/auth/stores/useAuthStore';
 import FeedContainer from '@/modules/feed/components/FeedContainer.vue';
 import { useFeedData } from '@/modules/feed/composables/useFeedData';
 import type { AssignmentFeedMode } from '@/modules/assignments/services/assignmentsService';
