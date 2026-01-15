@@ -85,12 +85,16 @@ function submit() {
   emit('submitText', text);
 }
 
-function setNarrationEl(id: string, el: Element | null) {
+function setNarrationEl(id: string, el: unknown) {
   if (!el) {
     narrationElById.value.delete(id);
     return;
   }
-  narrationElById.value.set(id, el as HTMLElement);
+
+  const maybeEl = (el as any)?.$el ?? el;
+  if (maybeEl instanceof HTMLElement) {
+    narrationElById.value.set(id, maybeEl);
+  }
 }
 
 watch(

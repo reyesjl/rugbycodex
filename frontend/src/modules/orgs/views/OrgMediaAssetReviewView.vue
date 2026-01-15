@@ -830,6 +830,14 @@ async function endRecordingNonBlocking() {
     return;
   }
 
+  const orgId = activeOrgId.value;
+  if (!orgId) {
+    recordingUploadError.value = 'Missing organization.';
+    void blobPromise.catch(() => {});
+    return;
+  }
+  const mediaAssetId = asset.value.id;
+
   if (startVideoTime === null || startWallClockMs === null) {
     recordingUploadError.value = 'Missing recording start time.';
     void blobPromise.catch(() => {});
@@ -873,7 +881,7 @@ async function endRecordingNonBlocking() {
   } else {
     try {
       const overlapping = await segmentService.findBestOverlappingSegment({
-        mediaAssetId: asset.value.id,
+        mediaAssetId,
         startSeconds: bounds.startSeconds,
         endSeconds: bounds.endSeconds,
       });
@@ -900,7 +908,7 @@ async function endRecordingNonBlocking() {
         debugLog('segment matched', { segmentId: resolved.id });
       } else {
         createdSegment = await segmentService.createSegment({
-          mediaAssetId: asset.value.id,
+          mediaAssetId,
           startSeconds: bounds.startSeconds,
           endSeconds: bounds.endSeconds,
           sourceType: userSegmentSourceType.value,
@@ -926,8 +934,8 @@ async function endRecordingNonBlocking() {
   const optimisticId = `optimistic-${Date.now()}-${Math.random().toString(16).slice(2)}`;
   const optimistic: OptimisticNarration = {
     id: optimisticId,
-    org_id: activeOrgId.value,
-    media_asset_id: asset.value.id,
+    org_id: orgId,
+    media_asset_id: mediaAssetId,
     media_asset_segment_id: String(targetSegment.id),
     author_id: null,
     audio_storage_path: null,
@@ -944,8 +952,8 @@ async function endRecordingNonBlocking() {
       const audioBlob = await blobPromise;
       const { text } = await transcriptionService.transcribeAudio(audioBlob);
       return narrationService.createNarration({
-        orgId: activeOrgId.value,
-        mediaAssetId: asset.value.id,
+        orgId,
+        mediaAssetId,
         mediaAssetSegmentId: String(targetSegment.id),
         transcriptRaw: text?.trim() ? text.trim() : '(No transcript)',
       });
