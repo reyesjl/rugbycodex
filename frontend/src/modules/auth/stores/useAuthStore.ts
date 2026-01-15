@@ -238,18 +238,20 @@ export const useAuthStore = defineStore('auth', () => {
     return { error: null };
   };
 
-  const resetPassword = async (email: string, redirectTo?: string) => {
+  const resetPassword = async (email: string, redirectTo?: string, captchaToken?: string) => {
     lastError.value = null;
     const url =
       redirectTo ??
       (typeof window !== 'undefined' ? `${window.location.origin}/auth/reset-password` : undefined);
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: url,
+      captchaToken,
     });
 
     if (error) {
-      lastError.value = error.message;
-      return { error };
+      const normalizedError = normalizeAuthError(error) ?? error;
+      lastError.value = normalizedError.message;
+      return { error: normalizedError };
     }
 
     return { error: null };

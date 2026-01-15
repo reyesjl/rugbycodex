@@ -3,7 +3,7 @@ import type { RouteRecordRaw } from 'vue-router';
 export const authRoutes: RouteRecordRaw = {
   path: '/auth',
   component: () => import('@/layouts/AuthLayout.vue'),
-  meta: { layout: 'auth', guestOnly: true },
+  meta: { layout: 'auth' },
   children: [
     {
       path: 'login',
@@ -27,13 +27,11 @@ export const authRoutes: RouteRecordRaw = {
       path: 'reset-password',
       name: 'ResetPassword',
       component: () => import('@/modules/auth/views/ResetPassword.vue'),
-      meta: { guestOnly: true },
     },
     {
       path: 'confirm-email',
       name: 'ConfirmEmail',
       component: () => import('@/modules/auth/views/ConfirmEmail.vue'),
-      meta: { guestOnly: true },
     },
   ],
 };

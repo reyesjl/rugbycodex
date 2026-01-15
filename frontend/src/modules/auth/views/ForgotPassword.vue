@@ -2,6 +2,7 @@
 import { reactive, ref } from 'vue';
 import { RouterLink } from 'vue-router';
 import { useAuthStore } from '@/modules/auth/stores/useAuthStore';
+import TurnstileVerification from '@/components/TurnstileVerification.vue';
 
 const authStore = useAuthStore();
 
@@ -12,6 +13,8 @@ const form = reactive({
 const sending = ref(false);
 const successMessage = ref<string | null>(null);
 const errorMessage = ref<string | null>(null);
+const turnstileToken = ref('');
+const turnstileRequired = ref(false);
 
 const handleSubmit = async () => {
   if (sending.value) return;
@@ -27,7 +30,17 @@ const handleSubmit = async () => {
     return;
   }
 
-  const { error } = await authStore.resetPassword(email);
+  if (turnstileRequired.value && !turnstileToken.value) {
+    errorMessage.value = 'Please complete the verification challenge.';
+    sending.value = false;
+    return;
+  }
+
+  const { error } = await authStore.resetPassword(
+    email,
+    undefined,
+    turnstileRequired.value ? turnstileToken.value : undefined,
+  );
 
   sending.value = false;
 
@@ -67,6 +80,12 @@ const handleSubmit = async () => {
           </div>
         </div>
 
+        <TurnstileVerification
+          class="mt-6"
+          v-model:token="turnstileToken"
+          v-model:required="turnstileRequired"
+        />
+
         <p v-if="errorMessage" class="mt-6 text-sm text-rose-500 dark:text-rose-400">
           {{ errorMessage }}
         </p>
@@ -76,7 +95,7 @@ const handleSubmit = async () => {
 
         <button type="submit"
           class="mt-10 inline-flex w-full items-center justify-center rounded-2xl bg-neutral-900 px-4 py-3 text-sm font-semibold uppercase tracking-[0.2em] text-neutral-100 transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-neutral-50 dark:text-neutral-900 dark:hover:bg-neutral-200"
-          :disabled="sending">
+          :disabled="sending || (turnstileRequired && !turnstileToken)">
           {{ sending ? 'Sending instructions…' : 'Send reset link' }}
         </button>
       </form>
