@@ -40,21 +40,46 @@ function toSegmentTag(row: SegmentTagRow): SegmentTag {
   };
 }
 
+async function listTagsForSegmentsInternal(segmentIds: string[]): Promise<Record<string, SegmentTag[]>> {
+  const ids = Array.from(new Set(segmentIds.map((id) => String(id)).filter(Boolean)));
+  if (ids.length === 0) return {};
+
+  const { data, error } = (await supabase
+    .from('segment_tags')
+    .select('id, segment_id, tag_key, tag_type, created_by, created_at')
+    .in('segment_id', ids)
+    .order('created_at', { ascending: true })) as {
+    data: SegmentTagRow[] | null;
+    error: PostgrestError | null;
+  };
+
+  if (error) throw error;
+
+  const grouped: Record<string, SegmentTag[]> = {};
+  for (const id of ids) {
+    grouped[id] = [];
+  }
+
+  for (const row of data ?? []) {
+    const segmentId = String(row.segment_id);
+    const list = grouped[segmentId] ?? [];
+    list.push(toSegmentTag(row));
+    grouped[segmentId] = list;
+  }
+
+  return grouped;
+}
+
 export const segmentTagService = {
+  async listTagsForSegments(segmentIds: string[]): Promise<Record<string, SegmentTag[]>> {
+    return listTagsForSegmentsInternal(segmentIds);
+  },
+
   async listTagsForSegment(segmentId: string): Promise<SegmentTag[]> {
     if (!segmentId) return [];
 
-    const { data, error } = (await supabase
-      .from('segment_tags')
-      .select('id, segment_id, tag_key, tag_type, created_by, created_at')
-      .eq('segment_id', segmentId)
-      .order('created_at', { ascending: true })) as {
-      data: SegmentTagRow[] | null;
-      error: PostgrestError | null;
-    };
-
-    if (error) throw error;
-    return (data ?? []).map(toSegmentTag);
+    const grouped = await listTagsForSegmentsInternal([segmentId]);
+    return grouped[String(segmentId)] ?? [];
   },
 
   async addTag(params: { segmentId: string; tagKey: string; tagType: SegmentTagType }): Promise<SegmentTag> {

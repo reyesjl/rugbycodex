@@ -12,26 +12,23 @@ import NarrationRecorder from '@/modules/narration/components/NarrationRecorder.
 import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrganizationStore';
 import { useAuthStore } from '@/auth/stores/useAuthStore';
 import { hasOrgAccess } from '@/modules/orgs/composables/useOrgCapabilities';
-import { mediaService } from '@/modules/media/services/mediaService';
 import { segmentService } from '@/modules/media/services/segmentService';
-import { segmentTagService } from '@/modules/media/services/segmentTagService';
 import { narrationService } from '@/modules/narrations/services/narrationService';
 import { toast } from '@/lib/toast';
 import { computeSegmentBounds } from '@/modules/media/utils/segmentBounds';
+import { useMediaAssetReview } from '@/modules/media/composables/useMediaAssetReview';
 import { useVideoOverlayControls } from '@/modules/media/composables/useVideoOverlayControls';
 import { useSegmentPlayback } from '@/modules/media/composables/useSegmentPlayback';
 
-import { analysisService } from '@/modules/analysis/services/analysisService';
-import type { MatchSummary, MatchSummaryState } from '@/modules/analysis/types/MatchSummary';
+import type { MatchSummaryState } from '@/modules/analysis/types/MatchSummary';
 import MatchSummaryBlock from '@/modules/analysis/components/MatchSummaryBlock.vue';
 
 import { useAudioRecording } from '@/composables/useAudioRecording';
 import { transcriptionService } from '@/modules/narrations/services/transcriptionService';
-import type { NarrationListItem, OptimisticNarration } from '@/modules/narration/composables/useNarrationRecorder';
-import type { OrgMediaAsset } from '@/modules/media/types/OrgMediaAsset';
+import type { OptimisticNarration } from '@/modules/narration/composables/useNarrationRecorder';
 import type { MediaAssetSegment, MediaAssetSegmentSourceType } from '@/modules/narrations/types/MediaAssetSegment';
 import type { Narration, NarrationSourceType } from '@/modules/narrations/types/Narration';
-import type { SegmentTag, SegmentTagType } from '@/modules/media/types/SegmentTag';
+import type { SegmentTagType } from '@/modules/media/types/SegmentTag';
 
 import { formatMinutesSeconds } from '@/lib/duration';
 import MediaAssetReviewTimeline from '@/modules/media/components/MediaAssetReviewTimeline.vue';
@@ -129,19 +126,45 @@ watch(
 
 const mediaAssetId = computed(() => String(route.params.mediaAssetId ?? ''));
 
-const loading = ref(true);
-const error = ref<string | null>(null);
+const canGenerateMatchSummary = computed(() => {
+  const raw = String(membershipRole.value ?? '').toLowerCase();
+  return raw === 'owner' || raw === 'manager' || raw === 'staff';
+});
 
-const asset = ref<OrgMediaAsset | null>(null);
-const playlistUrl = ref<string>('');
+const mediaReview = useMediaAssetReview({
+  orgId: () => activeOrgId.value,
+  mediaAssetId: () => mediaAssetId.value,
+  canGenerateMatchSummary: () => canGenerateMatchSummary.value,
+});
 
-const segments = ref<MediaAssetSegment[]>([]);
-const narrations = ref<Array<Narration | NarrationListItem>>([]);
+const {
+  loading,
+  error,
+  asset,
+  playlistUrl,
+  segments,
+  narrations,
+  matchSummary,
+  matchSummaryLoading,
+  matchSummaryError,
+  addSegmentTag,
+  removeSegmentTag,
+  generateMatchSummary,
+} = mediaReview;
+
 const narrationTargetSegmentId = ref<string | null>(null);
 
 const activeOrgIdOrEmpty = computed(() => activeOrgId.value ?? '');
 const assigningSegment = ref<MediaAssetSegment | null>(null);
-const loadingTagsBySegmentId = ref(new Set<string>());
+
+watch(
+  [activeOrgId, mediaAssetId],
+  () => {
+    narrationTargetSegmentId.value = null;
+    narrationVisibleSegmentIds.value = [];
+  },
+  { immediate: true }
+);
 
 function upsertSegment(next: MediaAssetSegment): void {
   const nextId = String(next.id);
@@ -157,83 +180,32 @@ function upsertSegment(next: MediaAssetSegment): void {
   segments.value = updated.sort((a, b) => (a.start_seconds ?? 0) - (b.start_seconds ?? 0));
 }
 
-async function hydrateSegmentTags(segmentIds: string[]): Promise<void> {
-  if (!segmentIds.length) return;
-
-  const results = await Promise.allSettled(
-    segmentIds.map((segmentId) => segmentTagService.listTagsForSegment(segmentId))
-  );
-
-  const tagsBySegmentId = new Map<string, SegmentTag[]>();
-  results.forEach((result, index) => {
-    const segmentId = segmentIds[index];
-    if (!segmentId) return;
-    if (result.status !== 'fulfilled') return;
-    tagsBySegmentId.set(segmentId, result.value ?? []);
-  });
-
-  if (!tagsBySegmentId.size) return;
-
-  segments.value = segments.value.map((seg) => {
-    const segmentId = String(seg.id);
-    if (!tagsBySegmentId.has(segmentId)) return seg;
-    return { ...seg, tags: tagsBySegmentId.get(segmentId) ?? [] };
-  });
-}
-
-function updateSegmentTags(segmentId: string, updater: (tags: SegmentTag[]) => SegmentTag[]) {
-  segments.value = segments.value.map((seg) => {
-    if (String(seg.id) !== segmentId) return seg;
-    const existing = Array.isArray(seg.tags) ? seg.tags : [];
-    return { ...seg, tags: updater(existing) };
-  });
-}
-
 async function handleAddSegmentTag(payload: { segmentId: string; tagKey: string; tagType: SegmentTagType }) {
   if (!payload.segmentId) return;
-  const segmentId = String(payload.segmentId);
-  if (loadingTagsBySegmentId.value.has(segmentId)) return;
-
-  const nextLoading = new Set(loadingTagsBySegmentId.value);
-  nextLoading.add(segmentId);
-  loadingTagsBySegmentId.value = nextLoading;
-
   try {
-    const tag = await segmentTagService.addTag({
-      segmentId,
+    const tag = await addSegmentTag({
+      segmentId: String(payload.segmentId),
       tagKey: payload.tagKey,
       tagType: payload.tagType,
     });
-    updateSegmentTags(segmentId, (tags) => [...tags, tag]);
+    if (!tag) return;
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unable to add tag.';
     toast({ message, variant: 'error', durationMs: 2600 });
-  } finally {
-    const cleared = new Set(loadingTagsBySegmentId.value);
-    cleared.delete(segmentId);
-    loadingTagsBySegmentId.value = cleared;
   }
 }
 
 async function handleRemoveSegmentTag(payload: { segmentId: string; tagId: string }) {
   if (!payload.segmentId || !payload.tagId) return;
-  const segmentId = String(payload.segmentId);
-  if (loadingTagsBySegmentId.value.has(segmentId)) return;
-
-  const nextLoading = new Set(loadingTagsBySegmentId.value);
-  nextLoading.add(segmentId);
-  loadingTagsBySegmentId.value = nextLoading;
-
   try {
-    await segmentTagService.removeTag(payload.tagId);
-    updateSegmentTags(segmentId, (tags) => tags.filter((t) => String(t.id) !== String(payload.tagId)));
+    const removed = await removeSegmentTag({
+      segmentId: String(payload.segmentId),
+      tagId: String(payload.tagId),
+    });
+    if (!removed) return;
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unable to remove tag.';
     toast({ message, variant: 'error', durationMs: 2600 });
-  } finally {
-    const cleared = new Set(loadingTagsBySegmentId.value);
-    cleared.delete(segmentId);
-    loadingTagsBySegmentId.value = cleared;
   }
 }
 
@@ -251,34 +223,6 @@ function openAssignSegment(seg: MediaAssetSegment) {
 
 function closeAssignSegment() {
   assigningSegment.value = null;
-}
-
-// Match summary (AI)
-const matchSummary = ref<MatchSummary | null>(null);
-const matchSummaryLoading = ref(false);
-const matchSummaryError = ref<string | null>(null);
-
-const canGenerateMatchSummary = computed(() => {
-  const raw = String(membershipRole.value ?? '').toLowerCase();
-  return raw === 'owner' || raw === 'manager' || raw === 'staff';
-});
-
-async function generateMatchSummary(options?: { forceRefresh?: boolean }) {
-  if (!asset.value?.id) return;
-  if (!canGenerateMatchSummary.value) return;
-  if (matchSummary.value?.state !== 'normal') return;
-
-  matchSummaryError.value = null;
-  matchSummaryLoading.value = true;
-  try {
-    matchSummary.value = await analysisService.getMatchSummary(asset.value.id, {
-      forceRefresh: Boolean(options?.forceRefresh),
-    });
-  } catch (err) {
-    matchSummaryError.value = err instanceof Error ? err.message : 'Unable to generate summary.';
-  } finally {
-    matchSummaryLoading.value = false;
-  }
 }
 
 // Mobile: narrations as a bottom drawer so video stays visible.
@@ -462,56 +406,6 @@ function findFocusedSegmentId(seconds: number): string | null {
 }
 
 const focusedSegmentId = ref<string | null>(null);
-
-async function load() {
-  if (!activeOrgId.value || !mediaAssetId.value) return;
-  loading.value = true;
-  error.value = null;
-  asset.value = null;
-  playlistUrl.value = '';
-  segments.value = [];
-  narrations.value = [];
-  narrationTargetSegmentId.value = null;
-  narrationVisibleSegmentIds.value = [];
-  matchSummary.value = null;
-  matchSummaryError.value = null;
-
-  try {
-    const found = await mediaService.getById(activeOrgId.value, mediaAssetId.value);
-    asset.value = found;
-
-    playlistUrl.value = await mediaService.getPresignedHlsPlaylistUrl(activeOrgId.value, found.id, found.bucket);
-
-    // Load existing segments and narrations for this asset.
-    const [segList, narList] = await Promise.all([
-      segmentService.listSegmentsForMediaAsset(found.id),
-      narrationService.listNarrationsForMediaAsset(found.id),
-    ]);
-
-    segments.value = segList;
-    narrations.value = narList;
-    void hydrateSegmentTags(segList.map((seg) => String(seg.id)));
-
-    if (canGenerateMatchSummary.value) {
-      // First, fetch server-authoritative state without generating.
-      matchSummary.value = await analysisService.getMatchSummary(found.id, { mode: 'state', forceRefresh: false });
-
-      // Ambient summary: only auto-generate once the server reports normal.
-      if (matchSummary.value?.state === 'normal') {
-        void generateMatchSummary({ forceRefresh: false });
-      }
-    }
-  } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Unable to load review.';
-  } finally {
-    loading.value = false;
-  }
-}
-
-watch([activeOrgId, mediaAssetId], () => {
-  if (!activeOrgId.value || !mediaAssetId.value) return;
-  void load();
-}, { immediate: true });
 
 // Recording (segment created when narration saves)
 const recorder = useAudioRecording();
