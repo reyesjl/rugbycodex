@@ -2,6 +2,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { requireUserId } from "@/modules/auth/identity";
 import type { Narration, NarrationSourceType } from "../types/Narration";
 import type { PostgrestError } from "@supabase/supabase-js";
+import { handleSupabaseEdgeError } from "@/lib/handleSupabaseEdgeError";
 
 /**
  * Service layer for narration data access and mutation.
@@ -109,6 +110,24 @@ function toNarration(row: NarrationRow): Narration {
   };
 }
 
+function triggerNarrationEmbedding(narrationId: string): void {
+  // Fire-and-forget: do not await; do not block UI; swallow errors.
+  void (async () => {
+    try {
+      const { error } = await supabase.functions.invoke('generate-narration-embedding', {
+        body: { narrationId },
+      });
+      if (error) {
+        // Consistent with codebase: await and warn, do not throw
+        const normalized = await handleSupabaseEdgeError(error, '[embedding] Embedding trigger failed');
+        console.warn('[embedding] Embedding trigger error (swallowed):', normalized);
+      }
+    } catch (err) {
+      console.warn('[embedding] Failed to trigger embedding generation:', err);
+    }
+  })();
+}
+
 export const narrationService = {
   /**
    * Creates a new narration for a media asset segment.
@@ -151,7 +170,7 @@ export const narrationService = {
       sourceType = mapMembershipRoleToNarrationSourceType(role);
     }
 
-    const data = await getSingle<NarrationRow>(
+    const row = await getSingle<NarrationRow>(
       supabase
         .from("narrations")
         .insert({
@@ -167,7 +186,9 @@ export const narrationService = {
       "Failed to create narration."
     );
 
-    return toNarration(data);
+    triggerNarrationEmbedding(row.id);
+
+    return toNarration(row);
   },
 
   /**
@@ -234,6 +255,8 @@ export const narrationService = {
         .single(),
       'Failed to update narration.'
     );
+
+    triggerNarrationEmbedding(data.id);
 
     return toNarration(data);
   },
