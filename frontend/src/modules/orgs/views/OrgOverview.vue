@@ -14,20 +14,25 @@ import type { Narration } from '@/modules/narrations/types/Narration';
 import type { OrgMediaAsset } from '@/modules/media/types/OrgMediaAsset';
 import OrgOverviewHeader from '@/modules/orgs/components/OrgOverviewHeader.vue';
 import OrgOverviewActivityList from '@/modules/orgs/components/OrgOverviewActivityList.vue';
-import OrgOverviewYourWorld from '@/modules/orgs/components/OrgOverviewYourWorld.vue';
+import OrgOverviewSignalSection from '@/modules/orgs/components/OrgOverviewYourWorld.vue';
 import OrgOverviewQuickActions from '@/modules/orgs/components/OrgOverviewQuickActions.vue';
 
-type ActivityItem = {
+type RecentSignalItem = {
   id: string;
-  title: string;
-  meta?: string;
+  label: string;
+  timeLabel: string;
+  typeLabel: string;
+  icon: string;
+  to: RouteLocationRaw;
 };
 
-type OverviewItem = {
+type SignalItem = {
   id: string;
   title: string;
   meta?: string;
   status?: string;
+  tag?: string;
+  to?: RouteLocationRaw;
 };
 
 type GroupSummary = {
@@ -53,6 +58,7 @@ const { orgContext, resolving, memberCount } = storeToRefs(activeOrganizationSto
 const org = computed(() => orgContext.value?.organization ?? null);
 const orgId = computed(() => org.value?.id ?? null);
 const orgSlug = computed(() => org.value?.slug ?? null);
+const orgRouteParams = computed(() => ({ slug: orgSlug.value ?? '' }));
 
 const role = computed(() => orgContext.value?.membership?.role ?? null);
 const canManage = computed(() => {
@@ -64,14 +70,14 @@ const isMemberRole = computed(() => role.value === 'member');
 const overviewLoading = ref(false);
 const overviewError = ref<string | null>(null);
 
-const activityNarrations = ref<ActivityItem[]>([]);
-const activityMediaUploads = ref<ActivityItem[]>([]);
-const activityAssignments = ref<ActivityItem[]>([]);
+const recentSignals = ref<RecentSignalItem[]>([]);
 
 const memberAssignments = ref<FeedAssignment[]>([]);
 const memberGroups = ref<GroupSummary[]>([]);
-const managerAssignments = ref<OrgAssignmentListItem[]>([]);
-const managerGroups = ref<GroupSummary[]>([]);
+const createdAssignments = ref<OrgAssignmentListItem[]>([]);
+const managedGroups = ref<GroupSummary[]>([]);
+const commandAssignments = ref<OrgAssignmentListItem[]>([]);
+const commandGroups = ref<GroupSummary[]>([]);
 
 const formatPreview = (value: string, maxLength = 120) => {
   const trimmed = value.trim();
@@ -95,31 +101,10 @@ const formatDueStatus = (value: string | null | undefined) => {
   return overdueDays <= 1 ? 'Overdue' : `Overdue ${overdueDays} days`;
 };
 
-const formatNarrationSource = (source: Narration['source_type']) => {
-  if (source === 'coach') return 'Coach';
-  if (source === 'staff') return 'Staff';
-  if (source === 'member') return 'Member';
-  if (source === 'ai') return 'System';
-  return 'Member';
-};
-
-const toNarrationActivity = (narration: Narration): ActivityItem => {
-  const content = narration.transcript_clean ?? narration.transcript_raw ?? '';
-  const title = formatPreview(content, 110) || 'Narration added';
-  const meta = `${formatNarrationSource(narration.source_type)} - ${formatRelative(narration.created_at)}`;
-  return { id: narration.id, title, meta };
-};
-
-const toMediaActivity = (asset: OrgMediaAsset): ActivityItem => {
-  const title = (asset.title ?? asset.file_name).trim() || 'Media upload';
-  const meta = `${formatRelative(asset.created_at)} - ${asset.kind}`;
-  return { id: asset.id, title, meta };
-};
-
-const toAssignmentActivity = (assignment: OrgAssignmentListItem): ActivityItem => {
-  const clipCount = assignment.clipCount ? `${assignment.clipCount} clips` : 'No clips';
-  const meta = `${formatDueStatus(assignment.due_at)} - ${clipCount}`;
-  return { id: assignment.id, title: assignment.title, meta };
+const toTimestamp = (value: string | Date | null | undefined) => {
+  if (!value) return 0;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? 0 : date.getTime();
 };
 
 const toGroupSummary = (entry: { group: { id: string; name: string; created_at: string }; memberIds: string[] }): GroupSummary => ({
@@ -129,23 +114,40 @@ const toGroupSummary = (entry: { group: { id: string; name: string; created_at: 
   createdAt: entry.group.created_at ?? null,
 });
 
-const toGroupItem = (group: GroupSummary): OverviewItem => {
-  const meta = `${group.memberCount} members - ${formatRelative(group.createdAt)}`;
-  return { id: group.id, title: group.name, meta };
-};
+const toGroupSignalItem = (group: GroupSummary, routeName?: string): SignalItem => ({
+  id: group.id,
+  title: group.name,
+  meta: `${group.memberCount} members - Created ${formatRelative(group.createdAt)}`,
+  tag: 'Group',
+  to: routeName ? { name: routeName, params: orgRouteParams.value } : undefined,
+});
 
-const toMemberAssignmentItem = (assignment: FeedAssignment): OverviewItem => ({
+const toMemberAssignmentItem = (assignment: FeedAssignment): SignalItem => ({
   id: assignment.id,
   title: assignment.title,
   meta: formatDueStatus(assignment.due_at),
   status: assignment.completed ? 'Done' : 'Open',
+  tag: 'Assignment',
+  to: { name: 'OrgFeed', params: orgRouteParams.value },
 });
 
-const toManagerAssignmentItem = (assignment: OrgAssignmentListItem, currentUserId: string | null): OverviewItem => {
-  const status = assignment.created_by === currentUserId ? 'Created' : 'Pending';
-  const meta = `${formatDueStatus(assignment.due_at)} - Created ${formatRelative(assignment.created_at)}`;
-  return { id: assignment.id, title: assignment.title, meta, status };
-};
+const toOwnedAssignmentItem = (assignment: OrgAssignmentListItem, currentUserId: string | null): SignalItem => ({
+  id: assignment.id,
+  title: assignment.title,
+  meta: formatDueStatus(assignment.due_at),
+  status: assignment.created_by === currentUserId ? 'Owned' : 'Pending',
+  tag: 'Assignment',
+  to: { name: 'OrgAssignments', params: orgRouteParams.value },
+});
+
+const toCreatedAssignmentItem = (assignment: OrgAssignmentListItem): SignalItem => ({
+  id: assignment.id,
+  title: assignment.title,
+  meta: formatDueStatus(assignment.due_at),
+  status: 'Created',
+  tag: 'Assignment',
+  to: { name: 'OrgAssignments', params: orgRouteParams.value },
+});
 
 const quickActions = computed<QuickAction[]>(() => {
   if (!orgSlug.value) return [];
@@ -177,33 +179,36 @@ const quickActions = computed<QuickAction[]>(() => {
   ];
 });
 
-const yourWorldTitle = computed(() => (isMemberRole.value ? 'Your World' : 'Command Signals'));
+const commandSignals = computed<SignalItem[]>(() => {
+  if (!canManage.value) return [];
+  const currentUserId = user.value?.id ?? null;
+  return [
+    ...commandAssignments.value.map((assignment) => toOwnedAssignmentItem(assignment, currentUserId)),
+    ...commandGroups.value.map((group) => toGroupSignalItem(group, 'OrgGroups')),
+  ];
+});
+
+const yourWorldTitle = computed(() => (isMemberRole.value ? 'Your Focus' : 'Your Oversight'));
 const yourWorldDescription = computed(() =>
   isMemberRole.value
-    ? 'Assignments and groups scoped to you.'
-    : 'Operational items that need your oversight.'
+    ? 'Assignments and squads tied directly to you.'
+    : 'Assignments and groups you are steering.'
 );
-const yourWorldAssignmentsTitle = computed(() =>
-  isMemberRole.value ? 'Assignments assigned to you' : 'Assignments you own or pending'
-);
-const yourWorldGroupsTitle = computed(() =>
-  isMemberRole.value ? 'Groups you belong to' : 'Groups with recent activity'
-);
-
-const yourWorldAssignments = computed<OverviewItem[]>(() => {
-  const currentUserId = user.value?.id ?? null;
+const yourWorldItems = computed<SignalItem[]>(() => {
   if (isMemberRole.value) {
-    return memberAssignments.value.map(toMemberAssignmentItem);
+    return [
+      ...memberAssignments.value.map(toMemberAssignmentItem),
+      ...memberGroups.value.map((group) => toGroupSignalItem(group)),
+    ];
   }
-  return managerAssignments.value.map((assignment) => toManagerAssignmentItem(assignment, currentUserId));
+  return [
+    ...createdAssignments.value.map(toCreatedAssignmentItem),
+    ...managedGroups.value.map((group) => toGroupSignalItem(group, 'OrgGroups')),
+  ];
 });
 
-const yourWorldGroups = computed<OverviewItem[]>(() => {
-  return isMemberRole.value ? memberGroups.value.map(toGroupItem) : managerGroups.value.map(toGroupItem);
-});
-
-const layoutClass = computed(() =>
-  canManage.value ? 'grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]' : 'space-y-6'
+const yourWorldEmptyLabel = computed(() =>
+  isMemberRole.value ? 'No focus items right now.' : 'No oversight items right now.'
 );
 
 const isPendingAssignment = (assignment: OrgAssignmentListItem) => {
@@ -213,6 +218,82 @@ const isPendingAssignment = (assignment: OrgAssignmentListItem) => {
   return dueDate.getTime() >= Date.now();
 };
 
+const getManagedGroups = (
+  groups: Array<{ group: { id: string; name: string; created_at: string }; memberIds: string[] }>,
+  userId: string
+) => {
+  // TODO: Replace membership proxy with explicit group leadership data.
+  return groups.filter((entry) => entry.memberIds.includes(userId));
+};
+
+const buildRecentSignals = (
+  narrations: Narration[],
+  mediaAssets: OrgMediaAsset[],
+  assignments: OrgAssignmentListItem[]
+): RecentSignalItem[] => {
+  const assignmentRouteName = canManage.value ? 'OrgAssignments' : 'OrgFeed';
+  const items: Array<{ sortKey: number; item: RecentSignalItem }> = [];
+
+  for (const narration of narrations) {
+    const content = narration.transcript_clean ?? narration.transcript_raw ?? '';
+    const label = formatPreview(content, 110) || 'Narration added';
+    items.push({
+      sortKey: toTimestamp(narration.created_at),
+      item: {
+        id: narration.id,
+        label,
+        timeLabel: formatRelative(narration.created_at),
+        typeLabel: 'Narration',
+        icon: 'carbon:microphone',
+        to: {
+          name: 'MediaAssetSegment',
+          params: { ...orgRouteParams.value, segmentId: narration.media_asset_segment_id },
+        },
+      },
+    });
+  }
+
+  for (const asset of mediaAssets) {
+    const label = (asset.title ?? asset.file_name).trim() || 'Media upload';
+    items.push({
+      sortKey: toTimestamp(asset.created_at),
+      item: {
+        id: asset.id,
+        label,
+        timeLabel: formatRelative(asset.created_at),
+        typeLabel: 'Media',
+        icon: 'carbon:video',
+        to: {
+          name: 'OrgMediaAsset',
+          params: { ...orgRouteParams.value, mediaId: asset.id },
+        },
+      },
+    });
+  }
+
+  for (const assignment of assignments) {
+    items.push({
+      sortKey: toTimestamp(assignment.created_at),
+      item: {
+        id: assignment.id,
+        label: assignment.title,
+        timeLabel: formatRelative(assignment.created_at),
+        typeLabel: 'Assignment',
+        icon: 'carbon:task',
+        to: {
+          name: assignmentRouteName,
+          params: orgRouteParams.value,
+        },
+      },
+    });
+  }
+
+  return items
+    .sort((a, b) => b.sortKey - a.sortKey)
+    .slice(0, 12)
+    .map(({ item }) => item);
+};
+
 const loadOverview = async () => {
   if (!orgId.value) return;
   const activeOrgId = orgId.value;
@@ -220,13 +301,13 @@ const loadOverview = async () => {
 
   overviewLoading.value = true;
   overviewError.value = null;
-  activityNarrations.value = [];
-  activityMediaUploads.value = [];
-  activityAssignments.value = [];
+  recentSignals.value = [];
   memberAssignments.value = [];
   memberGroups.value = [];
-  managerAssignments.value = [];
-  managerGroups.value = [];
+  createdAssignments.value = [];
+  managedGroups.value = [];
+  commandAssignments.value = [];
+  commandGroups.value = [];
 
   try {
     const mediaPromise = mediaService.listByOrganization(activeOrgId, { limit: 12 });
@@ -258,25 +339,30 @@ const loadOverview = async () => {
       .sort((a, b) => b.created_at.getTime() - a.created_at.getTime())
       .slice(0, 5);
 
-    activityNarrations.value = recentNarrations.map(toNarrationActivity);
-    activityMediaUploads.value = mediaAssets.slice(0, 5).map(toMediaActivity);
-    activityAssignments.value = assignments.slice(0, 5).map(toAssignmentActivity);
+    const recentMedia = mediaAssets.slice(0, 5);
+    const recentAssignments = assignments.slice(0, 5);
+    recentSignals.value = buildRecentSignals(recentNarrations, recentMedia, recentAssignments);
 
     const groupSummaries = groups.map(toGroupSummary);
     if (currentUserId) {
       memberGroups.value = groups
         .filter((entry) => entry.memberIds.includes(currentUserId))
         .map(toGroupSummary);
+      managedGroups.value = getManagedGroups(groups, currentUserId).map(toGroupSummary);
     }
 
-    managerGroups.value = [...groupSummaries]
+    commandGroups.value = [...groupSummaries]
       // TODO: replace created_at sorting with actual group activity signal when available.
       .sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime())
       .slice(0, 5);
 
     memberAssignments.value = assignmentFeed.assignedToYou.filter((assignment) => !assignment.completed).slice(0, 5);
 
-    managerAssignments.value = assignments
+    createdAssignments.value = assignments
+      .filter((assignment) => assignment.created_by === currentUserId)
+      .slice(0, 5);
+
+    commandAssignments.value = assignments
       .filter((assignment) => assignment.created_by === currentUserId || isPendingAssignment(assignment))
       .slice(0, 5);
   } catch (error) {
@@ -299,7 +385,7 @@ watch(
 </script>
 
 <template>
-  <section class="container-lg pt-6 text-white">
+  <section class="container pt-6 text-white">
     <div v-if="resolving" class="rounded-lg border border-white/10 bg-white/5 p-6 text-white/70">
       Loading organization…
     </div>
@@ -308,7 +394,7 @@ watch(
       Organization unavailable.
     </div>
 
-    <div v-else class="space-y-6">
+    <div v-else class="space-y-10">
       <OrgOverviewHeader :org="org" :member-count="memberCount" :can-manage="canManage" />
 
       <div
@@ -318,28 +404,28 @@ watch(
         {{ overviewError }}
       </div>
 
-      <div :class="layoutClass">
-        <div class="space-y-6">
-          <OrgOverviewActivityList
-            :narrations="activityNarrations"
-            :media-uploads="activityMediaUploads"
-            :assignments="activityAssignments"
-            :is-loading="overviewLoading"
-          />
+      <OrgOverviewActivityList :items="recentSignals" :is-loading="overviewLoading" />
 
-          <OrgOverviewYourWorld
-            :title="yourWorldTitle"
-            :description="yourWorldDescription"
-            :assignments-title="yourWorldAssignmentsTitle"
-            :groups-title="yourWorldGroupsTitle"
-            :assignments="yourWorldAssignments"
-            :groups="yourWorldGroups"
-            :is-loading="overviewLoading"
-          />
-        </div>
+      <OrgOverviewSignalSection
+        v-if="canManage"
+        eyebrow="What needs attention"
+        title="Command Signals"
+        description="Priority items that need your attention."
+        :items="commandSignals"
+        :is-loading="overviewLoading"
+        empty-label="No command signals right now."
+      />
 
-        <OrgOverviewQuickActions v-if="canManage" :actions="quickActions" />
-      </div>
+      <OrgOverviewSignalSection
+        eyebrow="What do I need to do"
+        :title="yourWorldTitle"
+        :description="yourWorldDescription"
+        :items="yourWorldItems"
+        :is-loading="overviewLoading"
+        :empty-label="yourWorldEmptyLabel"
+      />
+
+      <OrgOverviewQuickActions v-if="canManage" :actions="quickActions" />
     </div>
   </section>
 </template>
