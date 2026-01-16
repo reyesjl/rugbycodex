@@ -49,6 +49,22 @@ const isIOS = (() => {
   return iOSDevice || iPadOS13Plus;
 })();
 
+const isSafari = (() => {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent || '';
+  const isSafariEngine = /Safari\//.test(ua);
+  const isNonSafari =
+    /Chrome\//.test(ua) ||
+    /Chromium\//.test(ua) ||
+    /Edg\//.test(ua) ||
+    /OPR\//.test(ua) ||
+    /CriOS\//.test(ua) ||
+    /FxiOS\//.test(ua);
+  return isSafariEngine && !isNonSafari;
+})();
+
+const shouldUseNativeHls = isIOS || isSafari;
+
 function isTruthyAttr(value: unknown): boolean {
   // Vue may pass boolean attrs as "" or true.
   return value === '' || value === true || value === 'true';
@@ -65,7 +81,7 @@ function configureVideoElement(video: VideoElement) {
   video.muted = true;
   video.defaultMuted = true;
   video.playsInline = true;
-  video.preload = 'metadata';
+  video.preload = shouldUseNativeHls ? 'metadata' : 'auto';
 
   // Controls are optional; default on for existing views.
   video.controls = Boolean(props.controls);
@@ -73,7 +89,7 @@ function configureVideoElement(video: VideoElement) {
   video.setAttribute('muted', '');
   video.setAttribute('playsinline', '');
   video.setAttribute('webkit-playsinline', '');
-  video.setAttribute('preload', 'metadata');
+  video.setAttribute('preload', shouldUseNativeHls ? 'metadata' : 'auto');
   if (props.controls) {
     video.setAttribute('controls', '');
   } else {
@@ -95,7 +111,9 @@ function destroyPlayer() {
   const video = videoEl.value;
   if (video) {
     // Keep the element interactable; only reset media bindings.
+    video.pause();
     video.removeAttribute('src');
+    video.currentTime = 0;
     video.load();
     // video.pause();
     // video.removeAttribute('src');
@@ -139,7 +157,7 @@ async function initPlayerWithoutDestroy(version: number) {
   configureVideoElement(video);
 
   // Native HLS (Safari)
-  if (video.canPlayType('application/vnd.apple.mpegurl')) {
+  if (shouldUseNativeHls && video.canPlayType('application/vnd.apple.mpegurl')) {
     debugLog('initPlayer(): using native HLS');
     video.src = url;
     video.load();
@@ -159,6 +177,13 @@ async function initPlayerWithoutDestroy(version: number) {
     debugLog('initPlayer(): using hls.js');
     hls = new Hls({
       enableWorker: true,
+      maxBufferLength: 30,
+      maxMaxBufferLength: 60,
+      backBufferLength: 30,
+      lowLatencyMode: false,
+      fragLoadingMaxRetry: 3,
+      fragLoadingRetryDelay: 500,
+      fragLoadingMaxRetryTimeout: 3000,
     });
 
     hls.on(Hls.Events.ERROR, (_event, data) => {
@@ -221,7 +246,7 @@ function onNativeUserGesture() {
   // If a user taps quickly during async init, ensure we at least bind the native HLS src.
   // IMPORTANT: do not await here; iOS requires play() to be called synchronously in the gesture handler.
   const hasSrc = Boolean(video.getAttribute('src') || video.currentSrc || video.src);
-  if (!hasSrc && props.src && video.canPlayType('application/vnd.apple.mpegurl')) {
+  if (!hasSrc && props.src && shouldUseNativeHls && video.canPlayType('application/vnd.apple.mpegurl')) {
     video.src = props.src;
   }
 
