@@ -46,6 +46,7 @@ type QuickAction = {
   id: string;
   label: string;
   description?: string;
+  icon: string;
   to: RouteLocationRaw;
 };
 
@@ -156,24 +157,21 @@ const quickActions = computed<QuickAction[]>(() => {
       id: 'upload-media',
       label: 'Upload Media',
       description: 'Send new footage to the org vault.',
+      icon: 'carbon:upload',
       to: { name: 'OrgMedia', params: { slug: orgSlug.value } },
-    },
-    {
-      id: 'create-assignment',
-      label: 'Create Assignment',
-      description: 'Define review clips and due dates.',
-      to: { name: 'OrgAssignments', params: { slug: orgSlug.value } },
     },
     {
       id: 'create-group',
       label: 'Create Group',
       description: 'Segment members into focused squads.',
+      icon: 'carbon:group',
       to: { name: 'OrgGroups', params: { slug: orgSlug.value } },
     },
     {
       id: 'invite-member',
       label: 'Invite Member',
       description: 'Add new staff or players.',
+      icon: 'carbon:user-follow',
       to: { name: 'OrgMembers', params: { slug: orgSlug.value } },
     },
   ];
@@ -385,7 +383,7 @@ watch(
 </script>
 
 <template>
-  <section class="container pt-6 text-white">
+  <section class="container-lg py-6 text-white">
     <div v-if="resolving" class="rounded-lg border border-white/10 bg-white/5 p-6 text-white/70">
       Loading organization…
     </div>
@@ -394,7 +392,7 @@ watch(
       Organization unavailable.
     </div>
 
-    <div v-else class="space-y-10">
+    <div v-else class="space-y-8">
       <OrgOverviewHeader :org="org" :member-count="memberCount" :can-manage="canManage" />
 
       <div
@@ -404,6 +402,8 @@ watch(
         {{ overviewError }}
       </div>
 
+      <OrgOverviewQuickActions v-if="canManage" :actions="quickActions" />
+
       <OrgOverviewActivityList :items="recentSignals" :is-loading="overviewLoading" />
 
       <OrgOverviewSignalSection
@@ -411,6 +411,7 @@ watch(
         eyebrow="What needs attention"
         title="Command Signals"
         description="Priority items that need your attention."
+        variant="command"
         :items="commandSignals"
         :is-loading="overviewLoading"
         empty-label="No command signals right now."
@@ -420,12 +421,11 @@ watch(
         eyebrow="What do I need to do"
         :title="yourWorldTitle"
         :description="yourWorldDescription"
+        variant="personal"
         :items="yourWorldItems"
         :is-loading="overviewLoading"
         :empty-label="yourWorldEmptyLabel"
       />
-
-      <OrgOverviewQuickActions v-if="canManage" :actions="quickActions" />
     </div>
   </section>
 </template>
