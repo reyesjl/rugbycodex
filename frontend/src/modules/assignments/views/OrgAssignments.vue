@@ -45,6 +45,92 @@ const editingAssignment = ref<OrgAssignmentListItem | null>(null);
 const statusFilter = ref<'all' | 'overdue' | 'due_soon' | 'completed'>('all');
 const targetFilter = ref<'all' | 'team' | 'group' | 'player'>('all');
 const groupFilter = ref('all');
+const playerFilter = ref('all');
+const assignmentIdFilter = ref('');
+
+const statusFilterOptions = new Set(['all', 'overdue', 'due_soon', 'completed']);
+const targetFilterOptions = new Set(['all', 'team', 'group', 'player']);
+const isSyncingFilters = ref(false);
+
+const getQueryValue = (value: unknown): string | null => {
+  if (Array.isArray(value)) return value.length > 0 ? String(value[0]) : null;
+  if (typeof value === 'string') return value;
+  if (value == null) return null;
+  return String(value);
+};
+
+const isFilterQueryInSync = () => {
+  const queryStatus = getQueryValue(route.query.status);
+  const queryTarget = getQueryValue(route.query.target);
+  const queryGroup = getQueryValue(route.query.group);
+  const queryPlayer = getQueryValue(route.query.player);
+  const queryAssignmentId = getQueryValue(route.query.assignmentId);
+
+  const statusMatches = statusFilter.value === 'all'
+    ? queryStatus == null
+    : queryStatus === statusFilter.value;
+  const targetMatches = targetFilter.value === 'all'
+    ? queryTarget == null
+    : queryTarget === targetFilter.value;
+  const groupMatches = groupFilter.value === 'all'
+    ? queryGroup == null
+    : queryGroup === groupFilter.value;
+  const playerMatches = playerFilter.value === 'all'
+    ? queryPlayer == null
+    : queryPlayer === playerFilter.value;
+  const assignmentMatches = assignmentIdFilter.value
+    ? queryAssignmentId === assignmentIdFilter.value
+    : queryAssignmentId == null;
+
+  return statusMatches && targetMatches && groupMatches && playerMatches && assignmentMatches;
+};
+
+const syncFiltersFromQuery = () => {
+  isSyncingFilters.value = true;
+  try {
+  const nextAssignmentId = getQueryValue(route.query.assignmentId) ?? '';
+  assignmentIdFilter.value = nextAssignmentId;
+  if (nextAssignmentId) {
+    statusFilter.value = 'all';
+    targetFilter.value = 'all';
+    groupFilter.value = 'all';
+    playerFilter.value = 'all';
+    return;
+  }
+  const nextStatus = getQueryValue(route.query.status);
+  statusFilter.value = nextStatus && statusFilterOptions.has(nextStatus) ? nextStatus : 'all';
+
+  const nextTarget = getQueryValue(route.query.target);
+  targetFilter.value = nextTarget && targetFilterOptions.has(nextTarget) ? nextTarget : 'all';
+
+  const nextGroup = getQueryValue(route.query.group);
+  groupFilter.value = nextGroup ?? 'all';
+
+  const nextPlayer = getQueryValue(route.query.player);
+  playerFilter.value = nextPlayer ?? 'all';
+  } finally {
+    isSyncingFilters.value = false;
+  }
+};
+
+const syncQueryFromFilters = () => {
+  if (isFilterQueryInSync()) return;
+
+  const nextQuery: Record<string, unknown> = { ...route.query };
+  delete nextQuery.status;
+  delete nextQuery.target;
+  delete nextQuery.group;
+  delete nextQuery.player;
+  delete nextQuery.assignmentId;
+
+  if (statusFilter.value !== 'all') nextQuery.status = statusFilter.value;
+  if (targetFilter.value !== 'all') nextQuery.target = targetFilter.value;
+  if (groupFilter.value !== 'all') nextQuery.group = groupFilter.value;
+  if (playerFilter.value !== 'all') nextQuery.player = playerFilter.value;
+  if (assignmentIdFilter.value) nextQuery.assignmentId = assignmentIdFilter.value;
+
+  void router.replace({ query: nextQuery });
+};
 
 async function load() {
   if (!orgId.value) return;
@@ -197,6 +283,7 @@ type AssignmentRow = {
   status: AssignmentStatus;
   targetTypes: Set<string>;
   targetGroupIds: Set<string>;
+  assigneeIds: Set<string>;
 };
 
 const assignmentRows = computed<AssignmentRow[]>(() => {
@@ -243,15 +330,19 @@ const assignmentRows = computed<AssignmentRow[]>(() => {
       status,
       targetTypes: assignmentTargetTypes(item),
       targetGroupIds: assignmentTargetGroupIds(item),
+      assigneeIds: assignees,
     } satisfies AssignmentRow;
   });
 });
 
 const filteredRows = computed(() => {
   return assignmentRows.value.filter((row) => {
+    if (assignmentIdFilter.value && row.id !== assignmentIdFilter.value) return false;
+    if (assignmentIdFilter.value) return true;
     if (statusFilter.value !== 'all' && row.status !== statusFilter.value) return false;
     if (targetFilter.value !== 'all' && !row.targetTypes.has(targetFilter.value)) return false;
     if (groupFilter.value !== 'all' && !row.targetGroupIds.has(groupFilter.value)) return false;
+    if (playerFilter.value !== 'all' && !row.assigneeIds.has(playerFilter.value)) return false;
     return true;
   });
 });
@@ -287,6 +378,10 @@ const editInitial = computed(() => {
     targetId: target.id ?? null,
   };
 });
+
+function clearAssignmentFocus() {
+  assignmentIdFilter.value = '';
+}
 
 function openEdit(assignmentId: string) {
   if (!canManage.value) return;
@@ -371,6 +466,13 @@ const groupOptions = computed(() => {
   return groups.value.map((g) => ({ id: g.group.id, name: g.group.name }));
 });
 
+const playerOptions = computed(() => {
+  return members.value.map((member) => ({
+    id: member.profile.id,
+    name: member.profile.name || member.profile.username || 'Player',
+  }));
+});
+
 const groupList = computed(() => {
   return groups.value.map((g) => g.group);
 });
@@ -382,6 +484,53 @@ onMounted(() => {
 watch(orgId, (next, prev) => {
   if (next && next !== prev) void load();
 });
+
+watch(
+  () => route.query,
+  () => {
+    syncFiltersFromQuery();
+  },
+  { immediate: true }
+);
+
+watch(
+  () => [statusFilter.value, targetFilter.value, groupFilter.value, playerFilter.value],
+  (next, prev) => {
+    if (!isSyncingFilters.value && assignmentIdFilter.value) {
+      const [nextStatus, nextTarget, nextGroup, nextPlayer] = next;
+      const [prevStatus, prevTarget, prevGroup, prevPlayer] = prev ?? [];
+      const filtersChanged = nextStatus !== prevStatus
+        || nextTarget !== prevTarget
+        || nextGroup !== prevGroup
+        || nextPlayer !== prevPlayer;
+      if (filtersChanged) assignmentIdFilter.value = '';
+    }
+    syncQueryFromFilters();
+  }
+);
+
+watch(targetFilter, (nextTarget, prevTarget) => {
+  if (isSyncingFilters.value || nextTarget === prevTarget) return;
+  if (nextTarget !== 'group') groupFilter.value = 'all';
+  if (nextTarget !== 'player') playerFilter.value = 'all';
+});
+
+watch(assignmentIdFilter, () => {
+  syncQueryFromFilters();
+});
+
+watch(groupOptions, (nextOptions) => {
+  if (groupFilter.value === 'all') return;
+  const hasMatch = nextOptions.some((option) => option.id === groupFilter.value);
+  if (!hasMatch) groupFilter.value = 'all';
+});
+
+watch(playerOptions, (nextOptions) => {
+  if (playerFilter.value === 'all') return;
+  const hasMatch = nextOptions.some((option) => option.id === playerFilter.value);
+  if (!hasMatch) playerFilter.value = 'all';
+});
+
 </script>
 
 <template>
@@ -392,7 +541,17 @@ watch(orgId, (next, prev) => {
         <p class="text-sm text-white/50">Track what was assigned, who is behind, and what’s due soon.</p>
       </div>
 
-      <div class="flex flex-wrap items-center gap-3 text-xs text-white/70">
+      <div v-if="assignmentIdFilter" class="flex flex-wrap items-center gap-3 text-xs text-white/70">
+        <button
+          type="button"
+          class="rounded border border-white/10 bg-black/70 px-3 py-1 text-xs text-white/70 transition hover:text-white"
+          @click="clearAssignmentFocus"
+        >
+          Show all assignments
+        </button>
+      </div>
+
+      <div v-else class="flex flex-wrap items-center gap-3 text-xs text-white/70">
         <label class="flex items-center gap-2">
           <span class="text-white/40">Status</span>
           <select
@@ -419,7 +578,7 @@ watch(orgId, (next, prev) => {
           </select>
         </label>
 
-        <label v-if="groupOptions.length > 0" class="flex items-center gap-2">
+        <label v-if="targetFilter !== 'player' && groupOptions.length > 0" class="flex items-center gap-2">
           <span class="text-white/40">Group</span>
           <select
             v-model="groupFilter"
@@ -428,6 +587,19 @@ watch(orgId, (next, prev) => {
             <option value="all">All</option>
             <option v-for="g in groupOptions" :key="g.id" :value="g.id">
               {{ g.name }}
+            </option>
+          </select>
+        </label>
+
+        <label v-else-if="targetFilter === 'player' && playerOptions.length > 0" class="flex items-center gap-2">
+          <span class="text-white/40">Player</span>
+          <select
+            v-model="playerFilter"
+            class="rounded bg-black/70 px-2 py-1 text-white ring-1 ring-white/10"
+          >
+            <option value="all">All</option>
+            <option v-for="p in playerOptions" :key="p.id" :value="p.id">
+              {{ p.name }}
             </option>
           </select>
         </label>

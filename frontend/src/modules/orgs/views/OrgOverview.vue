@@ -138,7 +138,7 @@ const toOwnedAssignmentItem = (assignment: OrgAssignmentListItem, currentUserId:
   meta: formatDueStatus(assignment.due_at),
   status: assignment.created_by === currentUserId ? 'Owned' : 'Pending',
   tag: 'Assignment',
-  to: { name: 'OrgAssignments', params: orgRouteParams.value },
+  to: { name: 'OrgAssignments', params: orgRouteParams.value, query: { assignmentId: assignment.id } },
 });
 
 const toCreatedAssignmentItem = (assignment: OrgAssignmentListItem): SignalItem => ({
@@ -147,7 +147,7 @@ const toCreatedAssignmentItem = (assignment: OrgAssignmentListItem): SignalItem 
   meta: formatDueStatus(assignment.due_at),
   status: 'Created',
   tag: 'Assignment',
-  to: { name: 'OrgAssignments', params: orgRouteParams.value },
+  to: { name: 'OrgAssignments', params: orgRouteParams.value, query: { assignmentId: assignment.id } },
 });
 
 const quickActions = computed<QuickAction[]>(() => {
@@ -274,6 +274,9 @@ const buildRecentSignals = (
   }
 
   for (const assignment of assignments) {
+    const assignmentQuery = assignmentRouteName === 'OrgAssignments'
+      ? { assignmentId: assignment.id }
+      : undefined;
     items.push({
       sortKey: toTimestamp(assignment.created_at),
       item: {
@@ -285,6 +288,7 @@ const buildRecentSignals = (
         to: {
           name: assignmentRouteName,
           params: orgRouteParams.value,
+          query: assignmentQuery,
         },
       },
     });
