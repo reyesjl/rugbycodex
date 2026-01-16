@@ -11,6 +11,7 @@ type FeedDataOptions = {
   orgName: () => string | null;
   userId: () => string | null;
   source: () => string;
+  segmentId: () => string;
   assignmentId: () => string;
   assignmentMode: () => AssignmentFeedMode | null;
   groupId: () => string;
@@ -157,6 +158,53 @@ export function useFeedData(options: FeedDataOptions) {
     profileNameById.value = {};
 
     try {
+      if (options.source() === 'segment') {
+        const segmentId = options.segmentId();
+        if (!segmentId) {
+          if (activeRequestId === requestId) {
+            error.value = 'Missing segment id.';
+          }
+          return;
+        }
+
+        const feedItem = await segmentService.getFeedItemForSegment(segmentId);
+        if (activeRequestId !== requestId) return;
+        if (!feedItem) {
+          error.value = 'Segment not found.';
+          return;
+        }
+        if (feedItem.asset.org_id !== orgId) {
+          error.value = 'Segment is not available for this organization.';
+          return;
+        }
+
+        const createdAt =
+          feedItem.segment.created_at instanceof Date
+            ? feedItem.segment.created_at
+            : new Date(feedItem.segment.created_at);
+        const title = feedItem.asset.title || feedItem.asset.file_name || 'Untitled clip';
+        const metaLine = `${options.orgName() ?? 'Organization'} • Segment ${feedItem.segment.segment_index + 1} • ${createdAt.toLocaleDateString()}`;
+
+        items.value = [
+          {
+            id: feedItem.segment.id,
+            orgId,
+            orgName: options.orgName(),
+            mediaAssetId: feedItem.asset.id,
+            bucket: feedItem.asset.bucket,
+            mediaAssetSegmentId: feedItem.segment.id,
+            segmentIndex: feedItem.segment.segment_index,
+            startSeconds: feedItem.segment.start_seconds,
+            endSeconds: feedItem.segment.end_seconds,
+            title,
+            metaLine,
+            createdAt,
+            segment: { ...feedItem.segment, tags: feedItem.segment.tags ?? [] },
+          } satisfies FeedItem,
+        ];
+        return;
+      }
+
       if (options.source() === 'assignments') {
         const userId = options.userId();
         if (!userId) {

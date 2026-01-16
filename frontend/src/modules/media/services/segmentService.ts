@@ -135,6 +135,80 @@ function toSegment(row: SegmentDetailRow): MediaAssetSegment {
 }
 
 export const segmentService = {
+  async getFeedItemForSegment(segmentId: string): Promise<OrgSegmentFeedItem | null> {
+    if (!segmentId) return null;
+
+    const { data, error } = (await supabase
+      .from('media_asset_segments')
+      .select(
+        `
+        id,
+        media_asset_id,
+        segment_index,
+        start_seconds,
+        end_seconds,
+        created_at,
+        media_assets (
+          id,
+          org_id,
+          uploader_id,
+          bucket,
+          storage_path,
+          streaming_ready,
+          thumbnail_path,
+          file_size_bytes,
+          mime_type,
+          duration_seconds,
+          checksum,
+          source,
+          file_name,
+          kind,
+          status,
+          created_at,
+          base_org_storage_path
+        )
+      `
+      )
+      .eq('id', segmentId)
+      .maybeSingle()) as { data: SegmentRow | null; error: PostgrestError | null };
+
+    if (error) throw error;
+    if (!data || !data.media_assets) return null;
+
+    const assetRow = data.media_assets;
+
+    const asset: OrgMediaAsset = {
+      id: assetRow.id,
+      org_id: assetRow.org_id,
+      uploader_id: assetRow.uploader_id,
+      bucket: assetRow.bucket,
+      storage_path: assetRow.storage_path,
+      streaming_ready: assetRow.streaming_ready,
+      thumbnail_path: assetRow.thumbnail_path ?? null,
+      file_size_bytes: assetRow.file_size_bytes,
+      mime_type: assetRow.mime_type,
+      duration_seconds: assetRow.duration_seconds,
+      checksum: assetRow.checksum,
+      source: assetRow.source,
+      file_name: assetRow.file_name,
+      title: null,
+      kind: assetRow.kind,
+      status: assetRow.status,
+      created_at: asDate(assetRow.created_at, 'media asset creation'),
+      base_org_storage_path: assetRow.base_org_storage_path,
+    };
+
+    const segment: MediaAssetSegment = {
+      id: data.id,
+      media_asset_id: data.media_asset_id,
+      segment_index: data.segment_index,
+      start_seconds: data.start_seconds,
+      end_seconds: data.end_seconds,
+      created_at: asDate(data.created_at, 'segment creation'),
+    };
+
+    return { asset, segment };
+  },
   async listSegmentsForMediaAsset(mediaAssetId: string): Promise<MediaAssetSegment[]> {
     if (!mediaAssetId) return [];
 

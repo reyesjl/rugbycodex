@@ -32,7 +32,13 @@ const userId = computed(() => authStore.user?.id ?? null);
 const membershipRole = computed(() => (orgContext.value?.membership?.role ?? null) as any);
 const canAddIdentityTag = computed(() => hasOrgAccess(membershipRole.value, 'member'));
 
-const source = computed(() => String(route.query.source ?? ''));
+const segmentId = computed(() => String(route.query.segmentId ?? ''));
+const source = computed(() => {
+  const querySource = String(route.query.source ?? '');
+  if (querySource) return querySource;
+  if (segmentId.value) return 'segment';
+  return '';
+});
 const assignmentId = computed(() => String(route.query.assignmentId ?? ''));
 const assignmentMode = computed<AssignmentFeedMode | null>(() => {
   const mode = String(route.query.mode ?? '');
@@ -49,6 +55,7 @@ const feedData = useFeedData({
   orgName: () => activeOrgName.value,
   userId: () => userId.value,
   source: () => source.value,
+  segmentId: () => segmentId.value,
   assignmentId: () => assignmentId.value,
   assignmentMode: () => assignmentMode.value,
   groupId: () => groupId.value,

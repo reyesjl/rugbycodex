@@ -244,8 +244,12 @@ const buildRecentSignals = (
         typeLabel: 'Narration',
         icon: 'carbon:microphone',
         to: {
-          name: 'MediaAssetSegment',
-          params: { ...orgRouteParams.value, segmentId: narration.media_asset_segment_id },
+          name: 'OrgFeedView',
+          params: orgRouteParams.value,
+          query: {
+            source: 'segment',
+            segmentId: narration.media_asset_segment_id,
+          },
         },
       },
     });
