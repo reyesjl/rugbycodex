@@ -288,7 +288,7 @@ const buildRecentSignals = (
 
   return items
     .sort((a, b) => b.sortKey - a.sortKey)
-    .slice(0, 12)
+    .slice(0, 5)
     .map(({ item }) => item);
 };
 
@@ -392,40 +392,44 @@ watch(
       Organization unavailable.
     </div>
 
-    <div v-else class="space-y-8">
-      <OrgOverviewHeader :org="org" :member-count="memberCount" :can-manage="canManage" />
+    <div v-else class="grid gap-8 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-start">
+      <div class="space-y-8">
+        <OrgOverviewHeader :org="org" :member-count="memberCount" :can-manage="canManage" />
 
-      <div
-        v-if="overviewError"
-        class="rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200"
-      >
-        {{ overviewError }}
+        <div
+          v-if="overviewError"
+          class="rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200"
+        >
+          {{ overviewError }}
+        </div>
+
+        <OrgOverviewQuickActions v-if="canManage" :actions="quickActions" />
+
+        <OrgOverviewSignalSection
+          v-if="canManage"
+          eyebrow="What needs attention"
+          title="Command Signals"
+          description="Priority items that need your attention."
+          variant="command"
+          :items="commandSignals"
+          :is-loading="overviewLoading"
+          empty-label="No command signals right now."
+        />
+
+        <OrgOverviewSignalSection
+          eyebrow="What do I need to do"
+          :title="yourWorldTitle"
+          :description="yourWorldDescription"
+          variant="personal"
+          :items="yourWorldItems"
+          :is-loading="overviewLoading"
+          :empty-label="yourWorldEmptyLabel"
+        />
       </div>
 
-      <OrgOverviewQuickActions v-if="canManage" :actions="quickActions" />
-
-      <OrgOverviewActivityList :items="recentSignals" :is-loading="overviewLoading" />
-
-      <OrgOverviewSignalSection
-        v-if="canManage"
-        eyebrow="What needs attention"
-        title="Command Signals"
-        description="Priority items that need your attention."
-        variant="command"
-        :items="commandSignals"
-        :is-loading="overviewLoading"
-        empty-label="No command signals right now."
-      />
-
-      <OrgOverviewSignalSection
-        eyebrow="What do I need to do"
-        :title="yourWorldTitle"
-        :description="yourWorldDescription"
-        variant="personal"
-        :items="yourWorldItems"
-        :is-loading="overviewLoading"
-        :empty-label="yourWorldEmptyLabel"
-      />
+      <aside class="lg:pt-2">
+        <OrgOverviewActivityList :items="recentSignals" :is-loading="overviewLoading" />
+      </aside>
     </div>
   </section>
 </template>
