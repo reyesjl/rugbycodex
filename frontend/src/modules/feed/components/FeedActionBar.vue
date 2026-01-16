@@ -208,7 +208,7 @@ function confirmIdentityTag() {
         <div class="border-b border-white/10 px-4 py-3">
           <div class="text-sm font-semibold">Confirm involvement</div>
           <div class="mt-1 text-xs text-white/70">
-            Please confirm you are involved in this clip, not just visible in it.
+            Tag yourself only if you’re part of the action. This affects your highlights and reviews.
           </div>
         </div>
         <div class="flex items-center justify-end gap-2 px-4 py-3">
