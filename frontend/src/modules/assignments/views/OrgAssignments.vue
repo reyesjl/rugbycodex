@@ -98,10 +98,10 @@ const syncFiltersFromQuery = () => {
     return;
   }
   const nextStatus = getQueryValue(route.query.status);
-  statusFilter.value = nextStatus && statusFilterOptions.has(nextStatus) ? nextStatus : 'all';
+  statusFilter.value = nextStatus && statusFilterOptions.has(nextStatus) ? (nextStatus as typeof statusFilter.value) : 'all';
 
   const nextTarget = getQueryValue(route.query.target);
-  targetFilter.value = nextTarget && targetFilterOptions.has(nextTarget) ? nextTarget : 'all';
+  targetFilter.value = nextTarget && targetFilterOptions.has(nextTarget) ? (nextTarget as 'team' | 'group' | 'player') : 'all';
 
   const nextGroup = getQueryValue(route.query.group);
   groupFilter.value = nextGroup ?? 'all';
@@ -116,7 +116,7 @@ const syncFiltersFromQuery = () => {
 const syncQueryFromFilters = () => {
   if (isFilterQueryInSync()) return;
 
-  const nextQuery: Record<string, unknown> = { ...route.query };
+  const nextQuery = { ...route.query };
   delete nextQuery.status;
   delete nextQuery.target;
   delete nextQuery.group;
