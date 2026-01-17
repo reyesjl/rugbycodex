@@ -22,7 +22,7 @@ defineProps<{
       <div class="text-[10px] text-white/30">Immediate</div>
     </div>
 
-    <div class="grid grid-cols-2 gap-2 md:grid-cols-4">
+    <div class="grid grid-cols-1 gap-2">
       <RouterLink
         v-for="action in actions"
         :key="action.id"
