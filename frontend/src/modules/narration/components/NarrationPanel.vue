@@ -134,7 +134,7 @@ watch(
     </div>
 
     <!-- Input area (typed narration) -->
-    <div class="mt-3 rounded-xl border border-white/10 bg-white/5 p-3">
+    <div class="mt-3 border-b border-white/10 pb-3">
       <textarea
         v-model="draft"
         rows="3"
@@ -150,10 +150,10 @@ watch(
         </div>
         <button
           type="button"
-          class="rounded-lg px-3 py-1 text-xs ring-1 transition"
+          class="rounded-md px-3 py-1 text-xs ring-1 transition"
           :class="canSubmit
-            ? 'bg-white/10 text-white ring-white/15 hover:bg-white/15'
-            : 'bg-white/5 text-white/40 ring-white/10 cursor-not-allowed'"
+            ? 'bg-white/5 text-white ring-white/10 hover:bg-white/10'
+            : 'bg-white/5 text-white/30 ring-white/10 cursor-not-allowed'"
           :disabled="!canSubmit"
           @click="submit"
         >
@@ -162,16 +162,16 @@ watch(
       </div>
     </div>
 
-    <div class="mt-3 space-y-2">
+    <div class="mt-3">
       <div
         v-for="item in narrations"
         :key="item.id"
-        class="rounded-xl border border-white/10 bg-white/5 p-3"
+        class="group border-t border-white/10 px-1 py-2 transition hover:bg-white/5 first:border-t-0"
         :ref="(el) => setNarrationEl(String(item.id), el)"
         @click="emit('selectNarration', item.id)"
       >
         <div class="flex items-start justify-between gap-3">
-          <div class="text-[11px] text-white/50">
+          <div class="text-[10px] font-mono text-white/40">
             {{ new Date(item.created_at).toLocaleString() }}
             <span v-if="isOptimistic(item)" class="ml-2">
               <span v-if="item.status === 'uploading'">• Uploading…</span>
@@ -179,7 +179,7 @@ watch(
             </span>
           </div>
 
-          <div v-if="canManage(item)" class="flex items-center gap-2">
+          <div v-if="canManage(item)" class="flex items-center gap-2 opacity-40 transition group-hover:opacity-100 focus-within:opacity-100">
             <button
               v-if="editingId !== item.id"
               type="button"
@@ -191,7 +191,7 @@ watch(
             </button>
             <button
               type="button"
-              class="text-[11px] text-red-300/80 hover:text-red-200"
+              class="text-[11px] text-red-300/70 hover:text-red-200"
               :disabled="saving"
               @click.stop="requestDelete(item)"
             >
@@ -204,7 +204,7 @@ watch(
           <textarea
             v-model="editDraft"
             rows="3"
-            class="w-full resize-none rounded-lg bg-black/20 p-2 text-sm text-white placeholder-white/40 ring-1 ring-white/10 focus:outline-none"
+            class="w-full resize-none rounded-md bg-black/20 p-2 text-sm text-white placeholder-white/40 ring-1 ring-white/10 focus:outline-none"
             :disabled="saving"
             @click.stop
           />
