@@ -244,11 +244,25 @@ const buildCoverageSummary = (
   const narratedSegments = new Set(narrations.map((n) => n.media_asset_segment_id)).size;
   const coverageRatio = totalSegments > 0 ? narratedSegments / totalSegments : 0;
   let coverageState: MatchCoverage['coverageState'] = 'needs_review';
-  if (coverageRatio >= 0.8) coverageState = 'covered';
-  else if (coverageRatio >= 0.4) coverageState = 'partial';
+  if (totalSegments < 5) {
+    coverageState = 'needs_review';
+  } else if (narratedSegments < 5) {
+    coverageState = 'needs_review';
+  } else if (coverageRatio >= 0.75 && narratedSegments >= 15) {
+    coverageState = 'covered';
+  } else {
+    coverageState = 'partial';
+  }
+
+  const isFullyNarratedButThin =
+    totalSegments > 0 &&
+    narratedSegments === totalSegments &&
+    narratedSegments < 15;
 
   const coverageLabel = totalSegments > 0
-    ? `${narratedSegments} / ${totalSegments} segments narrated`
+    ? isFullyNarratedButThin
+      ? 'All segments narrated — more review needed'
+      : `${totalSegments} segments\n${narratedSegments} narrations`
     : 'No segments found';
 
   const thumbnailUrl = asset.thumbnail_path ? `${CDN_BASE}/${asset.thumbnail_path}` : null;
@@ -522,8 +536,9 @@ watch(
                     <div class="text-sm font-semibold text-white/90 line-clamp-1">
                       {{ match.title }}
                     </div>
-                    <div class="mt-1 text-xs text-white/50">
-                      {{ match.dateLabel }} · {{ match.coverageLabel }}
+                    <div class="mt-1 space-y-1 text-xs text-white/50">
+                      <div>{{ match.dateLabel }}</div>
+                      <div class="whitespace-pre-line">{{ match.coverageLabel }}</div>
                     </div>
                   </div>
                   <div class="shrink-0 text-right">
