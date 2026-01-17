@@ -19,6 +19,7 @@
     "idb": "^8.0.3",
     "jwt-decode": "^4.0.0",
     "pinia": "^3.0.3",
+    "shaka-player": "^4.16.13",
     "tus-js-client": "^4.3.1",
     "vue": "^3.5.22",
     "vue-router": "^4.5.1"

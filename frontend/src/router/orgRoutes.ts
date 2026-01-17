@@ -62,6 +62,13 @@ export const orgRoutes: RouteRecordRaw = {
           props: true,
         },
         {
+          path: 'media/:mediaAssetId/watch',
+          name: 'OrgMediaAssetWatch',
+          component: () => import('@/modules/orgs/views/OrgMediaShakaTestView.vue'),
+          props: true,
+          meta: { minOrgRole: 'member' },
+        },
+        {
           path: 'media/:mediaId',
           name: 'OrgMediaAsset',
           component: () => import('@/modules/orgs/views/OrgMediaAssetView.vue'),

@@ -4,7 +4,7 @@ import { Icon } from '@iconify/vue';
 import { storeToRefs } from 'pinia';
 import { useRoute } from 'vue-router';
 
-import HlsSurfacePlayer from '@/modules/media/components/HlsSurfacePlayer.vue';
+import ShakaSurfacePlayer from '@/modules/media/components/ShakaSurfacePlayer.vue';
 import FeedGestureLayer from '@/modules/feed/components/FeedGestureLayer.vue';
 import FeedOverlayControls from '@/modules/feed/components/FeedOverlayControls.vue';
 import NarrationRecorder from '@/modules/narration/components/NarrationRecorder.vue';
@@ -240,7 +240,7 @@ const matchSummaryBullets = computed(() => {
   return (matchSummary.value?.bullets ?? []).filter(Boolean);
 });
 
-const playerRef = ref<InstanceType<typeof HlsSurfacePlayer> | null>(null);
+const playerRef = ref<InstanceType<typeof ShakaSurfacePlayer> | null>(null);
 const surfaceEl = ref<HTMLElement | null>(null);
 
 const videoEl = computed(() => (playerRef.value?.getVideoElement?.() ?? null) as HTMLVideoElement | null);
@@ -826,9 +826,9 @@ async function handleDeleteNarration(narrationId: string) {
                 @pointermove="onHoverMove"
                 @pointerleave="onHoverLeave"
               >
-              <HlsSurfacePlayer
+              <ShakaSurfacePlayer
                 ref="playerRef"
-                :src="playlistUrl"
+                :manifest-url="playlistUrl"
                 :autoplay="false"
                 class="h-full w-full"
                 @timeupdate="handleTimeupdate"
