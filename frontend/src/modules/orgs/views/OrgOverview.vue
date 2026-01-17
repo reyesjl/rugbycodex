@@ -3,18 +3,19 @@ import { storeToRefs } from 'pinia';
 import { computed, ref, watch } from 'vue';
 import type { RouteLocationRaw } from 'vue-router';
 import { formatDaysAgo } from '@/lib/date';
+import { CDN_BASE } from '@/lib/cdn';
 import { useActiveOrganizationStore } from '../stores/useActiveOrganizationStore';
 import { useAuthStore } from '@/modules/auth/stores/useAuthStore';
 import { assignmentsService } from '@/modules/assignments/services/assignmentsService';
 import { groupsService } from '@/modules/groups/services/groupsService';
 import { mediaService } from '@/modules/media/services/mediaService';
+import { segmentService } from '@/modules/media/services/segmentService';
 import { narrationService } from '@/modules/narrations/services/narrationService';
 import type { FeedAssignment, OrgAssignmentListItem } from '@/modules/assignments/types/Assignment';
 import type { Narration } from '@/modules/narrations/types/Narration';
 import type { OrgMediaAsset } from '@/modules/media/types/OrgMediaAsset';
 import OrgOverviewHeader from '@/modules/orgs/components/OrgOverviewHeader.vue';
 import OrgOverviewActivityList from '@/modules/orgs/components/OrgOverviewActivityList.vue';
-import OrgOverviewSignalSection from '@/modules/orgs/components/OrgOverviewYourWorld.vue';
 import OrgOverviewQuickActions from '@/modules/orgs/components/OrgOverviewQuickActions.vue';
 
 type RecentSignalItem = {
@@ -26,13 +27,18 @@ type RecentSignalItem = {
   to: RouteLocationRaw;
 };
 
-type SignalItem = {
+type MatchCoverage = {
   id: string;
   title: string;
-  meta?: string;
-  status?: string;
-  tag?: string;
-  to?: RouteLocationRaw;
+  createdAt: Date;
+  dateLabel: string;
+  thumbnailUrl: string | null;
+  totalSegments: number;
+  narratedSegments: number;
+  coverageRatio: number;
+  coverageState: 'covered' | 'partial' | 'needs_review';
+  coverageLabel: string;
+  to: RouteLocationRaw;
 };
 
 type GroupSummary = {
@@ -66,18 +72,18 @@ const canManage = computed(() => {
   if (authStore.isAdmin) return true;
   return role.value === 'owner' || role.value === 'manager' || role.value === 'staff';
 });
-const isMemberRole = computed(() => role.value === 'member');
 
 const overviewLoading = ref(false);
 const overviewError = ref<string | null>(null);
 
 const recentSignals = ref<RecentSignalItem[]>([]);
 const lastSeenAt = ref<Date | null>(null);
+const allNarrations = ref<Narration[]>([]);
+const matchSummaries = ref<MatchCoverage[]>([]);
 
 const memberAssignments = ref<FeedAssignment[]>([]);
+const memberCompletedAssignments = ref<FeedAssignment[]>([]);
 const memberGroups = ref<GroupSummary[]>([]);
-const createdAssignments = ref<OrgAssignmentListItem[]>([]);
-const managedGroups = ref<GroupSummary[]>([]);
 const orgAssignments = ref<OrgAssignmentListItem[]>([]);
 
 const formatPreview = (value: string, maxLength = 120) => {
@@ -88,6 +94,9 @@ const formatPreview = (value: string, maxLength = 120) => {
 };
 
 const formatRelative = (value: string | Date | null | undefined) => formatDaysAgo(value) ?? 'date unknown';
+
+const formatMatchDate = (value: Date) =>
+  new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(value);
 
 const formatDueStatus = (value: string | null | undefined) => {
   if (!value) return 'No due date';
@@ -113,12 +122,6 @@ const getAssignmentUrgency = (value: string | null | undefined) => {
   return 'upcoming';
 };
 
-const needsCommandAttention = (assignment: OrgAssignmentListItem, currentUserId: string | null) => {
-  const urgency = getAssignmentUrgency(assignment.due_at);
-  if (urgency === 'overdue' || urgency === 'due_soon') return true;
-  return assignment.created_by === currentUserId && urgency === 'undated';
-};
-
 const toTimestamp = (value: string | Date | null | undefined) => {
   if (!value) return 0;
   const date = value instanceof Date ? value : new Date(value);
@@ -130,52 +133,6 @@ const toGroupSummary = (entry: { group: { id: string; name: string; created_at: 
   name: entry.group.name,
   memberCount: entry.memberIds.length,
   createdAt: entry.group.created_at ?? null,
-});
-
-const toGroupSignalItem = (group: GroupSummary, routeName?: string): SignalItem => ({
-  id: group.id,
-  title: group.name,
-  meta: `${group.memberCount} members - Created ${formatRelative(group.createdAt)}`,
-  tag: 'Group',
-  to: routeName ? { name: routeName, params: orgRouteParams.value } : undefined,
-});
-
-const toMemberAssignmentItem = (assignment: FeedAssignment): SignalItem => ({
-  id: assignment.id,
-  title: assignment.title,
-  meta: formatDueStatus(assignment.due_at),
-  status: assignment.completed ? 'Done' : 'Open',
-  tag: 'Assignment',
-  to: { name: 'OrgFeed', params: orgRouteParams.value },
-});
-
-const toCommandAssignmentItem = (assignment: OrgAssignmentListItem, currentUserId: string | null): SignalItem => {
-  const urgency = getAssignmentUrgency(assignment.due_at);
-  const status = urgency === 'overdue'
-    ? 'Overdue'
-    : urgency === 'due_soon'
-      ? 'Due soon'
-      : assignment.created_by === currentUserId
-        ? 'Owned'
-        : 'Pending';
-
-  return {
-    id: assignment.id,
-    title: assignment.title,
-    meta: formatDueStatus(assignment.due_at),
-    status,
-    tag: 'Assignment',
-    to: { name: 'OrgAssignments', params: orgRouteParams.value, query: { assignmentId: assignment.id } },
-  };
-};
-
-const toCreatedAssignmentItem = (assignment: OrgAssignmentListItem): SignalItem => ({
-  id: assignment.id,
-  title: assignment.title,
-  meta: formatDueStatus(assignment.due_at),
-  status: 'Created',
-  tag: 'Assignment',
-  to: { name: 'OrgAssignments', params: orgRouteParams.value, query: { assignmentId: assignment.id } },
 });
 
 const quickActions = computed<QuickAction[]>(() => {
@@ -205,68 +162,110 @@ const quickActions = computed<QuickAction[]>(() => {
   ];
 });
 
-const uniqueSignalItems = (items: SignalItem[]) => {
-  const seen = new Set<string>();
-  return items.filter((item) => {
-    const key = `${item.tag ?? 'item'}:${item.id}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
+const overdueAssignments = computed(() =>
+  orgAssignments.value
+    .filter((assignment) => getAssignmentUrgency(assignment.due_at) === 'overdue')
+    .slice(0, 4)
+);
+
+const recentCompletedAssignments = computed(() => {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - 7);
+  return memberCompletedAssignments.value
+    .filter((assignment) =>
+      assignment.completed &&
+      assignment.completed_at &&
+      new Date(assignment.completed_at) >= cutoff
+    )
+    .slice(0, 4);
+});
+
+const reviewSignals = computed(() => {
+  if (!canManage.value) return [] as string[];
+  const signals: string[] = [];
+  const lowCoverageCount = matchSummaries.value.filter((match) => match.coverageState !== 'covered').length;
+  if (lowCoverageCount > 0) {
+    signals.push(`${lowCoverageCount} recent match${lowCoverageCount === 1 ? '' : 'es'} still need narration coverage.`);
+  }
+
+  const coachNarrations = allNarrations.value.filter((narration) =>
+    narration.source_type === 'coach' || narration.source_type === 'staff'
+  );
+  const lastCoachNarration = coachNarrations
+    .map((n) => n.created_at)
+    .sort((a, b) => b.getTime() - a.getTime())[0];
+  if (!lastCoachNarration) {
+    signals.push('No coach narrations have been added yet.');
+  } else {
+    const threeDaysAgo = new Date();
+    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+    if (lastCoachNarration < threeDaysAgo) {
+      signals.push('No coach narrations added in the last 3 days.');
+    }
+  }
+
+  const recentNarrations = allNarrations.value.filter((n) => {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 7);
+    return n.created_at >= cutoff;
   });
+  const focusKeywords = ['breakdown', 'defense', 'scrum', 'lineout', 'tackle', 'ruck', 'kick', 'maul'];
+  const keywordCounts = new Map<string, number>();
+  for (const narration of recentNarrations) {
+    const text = `${narration.transcript_clean ?? ''} ${narration.transcript_raw ?? ''}`.toLowerCase();
+    for (const keyword of focusKeywords) {
+      if (text.includes(keyword)) {
+        keywordCounts.set(keyword, (keywordCounts.get(keyword) ?? 0) + 1);
+      }
+    }
+  }
+  const mostMentioned = [...keywordCounts.entries()].sort((a, b) => b[1] - a[1])[0];
+  if (mostMentioned && mostMentioned[1] >= 3) {
+    signals.push(`“${mostMentioned[0]}” is coming up repeatedly in narrations.`);
+  }
+
+  return signals;
+});
+
+const getMatchTitle = (asset: OrgMediaAsset) => {
+  if (asset.title?.trim()) return asset.title.trim();
+  const fileName = asset.file_name ?? '';
+  const lastSegment = fileName.split('/').pop() ?? fileName;
+  const withoutExtension = lastSegment.replace(/\.[^/.]+$/, '');
+  return withoutExtension.replace(/[-_]+/g, ' ').trim() || 'Untitled match';
 };
 
-const commandAttentionAssignments = computed(() => {
-  if (!canManage.value) return [] as OrgAssignmentListItem[];
-  const currentUserId = user.value?.id ?? null;
-  return orgAssignments.value.filter((assignment) => needsCommandAttention(assignment, currentUserId));
-});
+const buildCoverageSummary = (
+  asset: OrgMediaAsset,
+  segments: Array<{ id: string }>,
+  narrations: Narration[]
+): MatchCoverage => {
+  const totalSegments = segments.length;
+  const narratedSegments = new Set(narrations.map((n) => n.media_asset_segment_id)).size;
+  const coverageRatio = totalSegments > 0 ? narratedSegments / totalSegments : 0;
+  let coverageState: MatchCoverage['coverageState'] = 'needs_review';
+  if (coverageRatio >= 0.8) coverageState = 'covered';
+  else if (coverageRatio >= 0.4) coverageState = 'partial';
 
-const commandSignalItems = computed<SignalItem[]>(() => {
-  if (!canManage.value) return [];
-  const currentUserId = user.value?.id ?? null;
-  return commandAttentionAssignments.value.map((assignment) => toCommandAssignmentItem(assignment, currentUserId));
-});
+  const coverageLabel = totalSegments > 0
+    ? `${narratedSegments} / ${totalSegments} segments narrated`
+    : 'No segments found';
 
-const hasCommandSignals = computed(() => commandSignalItems.value.length > 0);
+  const thumbnailUrl = asset.thumbnail_path ? `${CDN_BASE}/${asset.thumbnail_path}` : null;
 
-const oversightItems = computed<SignalItem[]>(() => {
-  const currentUserId = user.value?.id ?? null;
-  const attentionItems = commandAttentionAssignments.value.map((assignment) =>
-    toCommandAssignmentItem(assignment, currentUserId)
-  );
-  const ownedItems = createdAssignments.value.map(toCreatedAssignmentItem);
-  const groupItems = managedGroups.value.map((group) => toGroupSignalItem(group, 'OrgGroups'));
-
-  return uniqueSignalItems([...attentionItems, ...ownedItems, ...groupItems]).slice(0, 8);
-});
-
-const memberFocusItems = computed<SignalItem[]>(() =>
-  uniqueSignalItems([
-    ...memberAssignments.value.map(toMemberAssignmentItem),
-    ...memberGroups.value.map((group) => toGroupSignalItem(group)),
-  ]).slice(0, 8)
-);
-
-const focusItems = computed<SignalItem[]>(() => (isMemberRole.value ? memberFocusItems.value : oversightItems.value));
-const focusTitle = computed(() => (isMemberRole.value ? 'Your Focus' : 'Your Oversight'));
-const focusDescription = computed(() =>
-  isMemberRole.value
-    ? 'Assignments and squads you can act on next.'
-    : 'Responsibilities that need steering, review, or a decision.'
-);
-const focusEmptyLabel = computed(() =>
-  isMemberRole.value
-    ? 'You are clear for now. Check back when new assignments land.'
-    : 'All clear. Nothing needs your attention right now.'
-);
-const focusVariant = computed(() => (isMemberRole.value ? 'personal' : 'command'));
-
-const getManagedGroups = (
-  groups: Array<{ group: { id: string; name: string; created_at: string }; memberIds: string[] }>,
-  userId: string
-) => {
-  // TODO: Replace membership proxy with explicit group leadership data.
-  return groups.filter((entry) => entry.memberIds.includes(userId));
+  return {
+    id: asset.id,
+    title: getMatchTitle(asset),
+    createdAt: asset.created_at,
+    dateLabel: formatMatchDate(asset.created_at),
+    thumbnailUrl,
+    totalSegments,
+    narratedSegments,
+    coverageRatio,
+    coverageState,
+    coverageLabel,
+    to: { name: 'OrgMediaAssetReview', params: { ...orgRouteParams.value, mediaAssetId: asset.id } },
+  };
 };
 
 const buildRecentSignals = (
@@ -365,9 +364,10 @@ const loadOverview = async () => {
   overviewError.value = null;
   recentSignals.value = [];
   memberAssignments.value = [];
+  memberCompletedAssignments.value = [];
   memberGroups.value = [];
-  createdAssignments.value = [];
-  managedGroups.value = [];
+  allNarrations.value = [];
+  matchSummaries.value = [];
   orgAssignments.value = [];
 
   try {
@@ -396,6 +396,8 @@ const loadOverview = async () => {
 
     if (activeOrgId !== orgId.value) return;
 
+    allNarrations.value = narrations;
+
     const recentNarrations = [...narrations]
       .sort((a, b) => b.created_at.getTime() - a.created_at.getTime())
       .slice(0, 12);
@@ -404,20 +406,35 @@ const loadOverview = async () => {
     const recentAssignments = assignments.slice(0, 10);
     recentSignals.value = buildRecentSignals(recentNarrations, recentMedia, recentAssignments, lastSeenAt.value);
 
+    const recentMatches = mediaAssets.slice(0, 3);
+    const matchSegmentLists = await Promise.all(
+      recentMatches.map((asset) => segmentService.listSegmentsForMediaAsset(asset.id))
+    );
+    const narrationsByAsset = narrations.reduce<Record<string, Narration[]>>((acc, narration) => {
+      const id = narration.media_asset_id;
+      const list = acc[id] ?? [];
+      list.push(narration);
+      acc[id] = list;
+      return acc;
+    }, {});
+    matchSummaries.value = recentMatches.map((asset, index) =>
+      buildCoverageSummary(asset, matchSegmentLists[index] ?? [], narrationsByAsset[asset.id] ?? [])
+    );
+
     if (currentUserId) {
       memberGroups.value = groups
         .filter((entry) => entry.memberIds.includes(currentUserId))
         .map(toGroupSummary);
-      managedGroups.value = getManagedGroups(groups, currentUserId).map(toGroupSummary);
     }
 
-    memberAssignments.value = assignmentFeed.assignedToYou.filter((assignment) => !assignment.completed).slice(0, 5);
+    memberAssignments.value = assignmentFeed.assignedToYou
+      .filter((assignment) => !assignment.completed)
+      .slice(0, 5);
+    memberCompletedAssignments.value = assignmentFeed.assignedToYou
+      .filter((assignment) => assignment.completed)
+      .slice(0, 5);
 
     orgAssignments.value = assignments;
-
-    createdAssignments.value = assignments
-      .filter((assignment) => assignment.created_by === currentUserId)
-      .slice(0, 5);
 
   } catch (error) {
     overviewError.value = error instanceof Error ? error.message : 'Failed to load command data.';
@@ -459,38 +476,182 @@ watch(
           {{ overviewError }}
         </div>
 
-        <div
-          v-if="canManage"
-          class="rounded-lg border border-white/10 bg-white/5 p-4 text-white/80"
-        >
-          <div class="flex items-start justify-between gap-4">
-            <div>
-              <p class="text-[10px] uppercase tracking-[0.3em] text-white/40">Command signals</p>
-              <h2 class="text-sm font-semibold text-white/90">Attention check</h2>
+        <div v-if="canManage" class="space-y-6">
+          <section class="rounded-lg border border-white/10 bg-white/5 p-5">
+            <div class="flex items-start justify-between gap-4">
+              <div>
+                <p class="text-[10px] uppercase tracking-[0.3em] text-white/40">This Week’s Matches</p>
+                <h2 class="text-base font-semibold text-white/90">Review coverage at a glance</h2>
+              </div>
+              <span class="rounded-full bg-white/10 px-2 py-1 text-[10px] uppercase tracking-[0.2em] text-white/60">
+                Last 3
+              </span>
             </div>
-            <span
-              v-if="hasCommandSignals"
-              class="rounded-full bg-amber-400/10 px-2 py-1 text-[10px] uppercase tracking-[0.2em] text-amber-200"
-            >
-              Needs review
-            </span>
-          </div>
-          <p v-if="hasCommandSignals" class="mt-2 text-sm text-white/80">
-            {{ commandSignalItems.length }} item{{ commandSignalItems.length === 1 ? '' : 's' }} need attention.
-            Review overdue or due-soon assignments.
-          </p>
-          <p v-else class="mt-2 text-sm text-white/60">All clear.</p>
+
+            <div v-if="overviewLoading" class="mt-4 text-sm text-white/60">
+              Loading recent matches…
+            </div>
+            <div v-else-if="matchSummaries.length === 0" class="mt-4 text-sm text-white/60">
+              No recent matches yet. Upload footage to start the weekly brief.
+            </div>
+            <div v-else class="mt-4 flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory">
+              <RouterLink
+                v-for="match in matchSummaries"
+                :key="match.id"
+                :to="match.to"
+                class="group min-w-[260px] max-w-[280px] snap-start rounded-lg border border-white/10 bg-white/5 p-3 transition hover:border-white/30 hover:bg-white/10"
+              >
+                <div class="relative w-full overflow-hidden rounded-md bg-white/5">
+                  <div class="relative w-full pb-[56.25%]">
+                    <img
+                      v-if="match.thumbnailUrl"
+                      :src="match.thumbnailUrl"
+                      :alt="match.title"
+                      loading="lazy"
+                      class="absolute inset-0 h-full w-full object-cover"
+                    />
+                    <div v-else class="absolute inset-0 flex items-center justify-center text-xs text-white/40">
+                      No thumbnail
+                    </div>
+                    <div class="absolute inset-0 bg-gradient-to-t from-black/50 via-black/10 to-transparent" />
+                  </div>
+                </div>
+
+                <div class="mt-3 flex items-start justify-between gap-4">
+                  <div class="min-w-0">
+                    <div class="text-sm font-semibold text-white/90 line-clamp-1">
+                      {{ match.title }}
+                    </div>
+                    <div class="mt-1 text-xs text-white/50">
+                      {{ match.dateLabel }} · {{ match.coverageLabel }}
+                    </div>
+                  </div>
+                  <div class="shrink-0 text-right">
+                    <div
+                      class="text-xs font-semibold uppercase tracking-wide"
+                      :class="match.coverageState === 'covered'
+                        ? 'text-emerald-300'
+                        : match.coverageState === 'partial'
+                          ? 'text-amber-200'
+                          : 'text-red-200'"
+                    >
+                      {{ match.coverageState === 'covered' ? 'Covered' : match.coverageState === 'partial' ? 'Partial' : 'Needs review' }}
+                    </div>
+                    <div class="mt-1 text-xs text-white/40">
+                      {{ Math.round(match.coverageRatio * 100) }}% narrated
+                    </div>
+                  </div>
+                </div>
+              </RouterLink>
+            </div>
+          </section>
+
+          <section class="rounded-lg border border-white/10 bg-white/5 p-5">
+            <div>
+              <p class="text-[10px] uppercase tracking-[0.3em] text-white/40">Review Signals</p>
+              <h2 class="text-base font-semibold text-white/90">What needs attention</h2>
+            </div>
+            <div v-if="overviewLoading" class="mt-3 text-sm text-white/60">
+              Scanning for signals…
+            </div>
+            <ul v-else-if="reviewSignals.length" class="mt-3 space-y-2 text-sm text-white/80">
+              <li v-for="(signal, index) in reviewSignals" :key="index" class="rounded-md border border-white/10 bg-white/5 px-3 py-2">
+                {{ signal }}
+              </li>
+            </ul>
+            <p v-else class="mt-3 text-sm text-white/60">All quiet here.</p>
+          </section>
+
+          <section class="rounded-lg border border-white/10 bg-white/5 p-5">
+            <div>
+              <p class="text-[10px] uppercase tracking-[0.3em] text-white/40">Assignments</p>
+              <h2 class="text-base font-semibold text-white/90">Downstream follow-ups</h2>
+            </div>
+            <div v-if="overviewLoading" class="mt-3 text-sm text-white/60">
+              Loading assignments…
+            </div>
+            <div v-else class="mt-3 space-y-4">
+              <div v-if="overdueAssignments.length === 0 && recentCompletedAssignments.length === 0" class="text-sm text-white/60">
+                Assignments are up to date.
+              </div>
+
+              <div v-if="overdueAssignments.length" class="space-y-2">
+                <p class="text-xs uppercase tracking-[0.2em] text-white/50">Overdue</p>
+                <RouterLink
+                  v-for="assignment in overdueAssignments"
+                  :key="assignment.id"
+                  :to="{ name: 'OrgAssignments', params: orgRouteParams, query: { assignmentId: assignment.id } }"
+                  class="block rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/80 transition hover:bg-white/10"
+                >
+                  <div class="font-medium text-white/90 line-clamp-1">{{ assignment.title }}</div>
+                  <div class="text-xs text-white/50">{{ formatDueStatus(assignment.due_at) }}</div>
+                </RouterLink>
+              </div>
+
+              <div v-if="recentCompletedAssignments.length" class="space-y-2">
+                <p class="text-xs uppercase tracking-[0.2em] text-white/50">Recently completed</p>
+                <RouterLink
+                  v-for="assignment in recentCompletedAssignments"
+                  :key="assignment.id"
+                  :to="{ name: 'OrgFeed', params: orgRouteParams }"
+                  class="block rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/80 transition hover:bg-white/10"
+                >
+                  <div class="font-medium text-white/90 line-clamp-1">{{ assignment.title }}</div>
+                  <div class="text-xs text-white/50">Completed {{ formatRelative(assignment.completed_at ?? null) }}</div>
+                </RouterLink>
+              </div>
+            </div>
+          </section>
         </div>
 
-        <OrgOverviewSignalSection
-          eyebrow="What should I focus on right now?"
-          :title="focusTitle"
-          :description="focusDescription"
-          :variant="focusVariant"
-          :items="focusItems"
-          :is-loading="overviewLoading"
-          :empty-label="focusEmptyLabel"
-        />
+        <div v-else class="space-y-6">
+          <section class="rounded-lg border border-white/10 bg-white/5 p-5">
+            <div>
+              <p class="text-[10px] uppercase tracking-[0.3em] text-white/40">Your Week</p>
+              <h2 class="text-base font-semibold text-white/90">Assignments to watch or complete</h2>
+            </div>
+            <div v-if="overviewLoading" class="mt-3 text-sm text-white/60">
+              Loading your assignments…
+            </div>
+            <div v-else-if="memberAssignments.length === 0" class="mt-3 text-sm text-white/60">
+              You are clear this week. Check back when new assignments land.
+            </div>
+            <div v-else class="mt-3 space-y-2">
+              <RouterLink
+                v-for="assignment in memberAssignments"
+                :key="assignment.id"
+                :to="{ name: 'OrgFeed', params: orgRouteParams }"
+                class="block rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/80 transition hover:bg-white/10"
+              >
+                <div class="font-medium text-white/90 line-clamp-1">{{ assignment.title }}</div>
+                <div class="text-xs text-white/50">{{ formatDueStatus(assignment.due_at) }}</div>
+              </RouterLink>
+            </div>
+          </section>
+
+          <section class="rounded-lg border border-white/10 bg-white/5 p-5">
+            <div>
+              <p class="text-[10px] uppercase tracking-[0.3em] text-white/40">Your Squads</p>
+              <h2 class="text-base font-semibold text-white/90">Groups you’re preparing with</h2>
+            </div>
+            <div v-if="overviewLoading" class="mt-3 text-sm text-white/60">
+              Loading squads…
+            </div>
+            <div v-else-if="memberGroups.length === 0" class="mt-3 text-sm text-white/60">
+              You are not assigned to a squad yet.
+            </div>
+            <div v-else class="mt-3 space-y-2">
+              <div
+                v-for="group in memberGroups"
+                :key="group.id"
+                class="rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/80"
+              >
+                <div class="font-medium text-white/90 line-clamp-1">{{ group.name }}</div>
+                <div class="text-xs text-white/50">{{ group.memberCount }} members · Joined {{ formatRelative(group.createdAt) }}</div>
+              </div>
+            </div>
+          </section>
+        </div>
 
       </div>
 
