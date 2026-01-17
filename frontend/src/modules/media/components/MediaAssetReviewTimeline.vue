@@ -232,7 +232,7 @@ function currentNavIndex(): number {
   }
 
   const t = effectivePlayheadSeconds.value;
-  let idx = 0;
+  let idx = -1;
   for (let i = 0; i < list.length; i++) {
     const seg = list[i];
     if (!seg) break;
@@ -250,7 +250,8 @@ const canJumpPrev = computed(() => {
 const canJumpNext = computed(() => {
   const idx = currentNavIndex();
   const list = visibleMarkerSegments.value;
-  return idx >= 0 && idx < list.length - 1;
+  if (!list.length) return false;
+  return idx < list.length - 1;
 });
 
 function jumpPrev() {

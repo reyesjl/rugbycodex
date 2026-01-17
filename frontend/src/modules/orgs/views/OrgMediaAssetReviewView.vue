@@ -61,6 +61,24 @@ function clampEndSeconds(endSeconds: number, mediaDuration: number): number {
   return Math.min(mediaDuration, endSeconds);
 }
 
+function findSegmentContainingTime(list: MediaAssetSegment[], seconds: number): MediaAssetSegment | null {
+  let best: MediaAssetSegment | null = null;
+  let bestStart = Number.NEGATIVE_INFINITY;
+
+  for (const seg of list) {
+    const start = seg.start_seconds ?? 0;
+    const end = seg.end_seconds ?? 0;
+    if (seconds >= start && seconds <= end) {
+      if (best === null || start >= bestStart) {
+        best = seg;
+        bestStart = start;
+      }
+    }
+  }
+
+  return best;
+}
+
 const route = useRoute();
 const activeOrgStore = useActiveOrganizationStore();
 const authStore = useAuthStore();
@@ -387,7 +405,7 @@ const segmentsWithNarrations = computed(() => {
 
 const activeSegmentId = computed(() => {
   const t = currentTime.value ?? 0;
-  const found = segments.value.find((s) => t >= (s.start_seconds ?? 0) && t <= (s.end_seconds ?? 0));
+  const found = findSegmentContainingTime(segments.value, t);
   return found ? String(found.id) : null;
 });
 
@@ -396,8 +414,11 @@ function findFocusedSegmentId(seconds: number): string | null {
   if (!list.length) return null;
 
   // Prefer a segment that contains the time.
-  const inside = list.find((s) => seconds >= (s.start_seconds ?? 0) && seconds <= (s.end_seconds ?? 0));
+  const inside = findSegmentContainingTime(list, seconds);
   if (inside) return String(inside.id);
+
+  const earliestStart = list.reduce((min, seg) => Math.min(min, seg.start_seconds ?? Number.POSITIVE_INFINITY), Number.POSITIVE_INFINITY);
+  if (seconds < earliestStart) return null;
 
   // Otherwise choose the nearest segment start.
   let bestId: string | null = null;
