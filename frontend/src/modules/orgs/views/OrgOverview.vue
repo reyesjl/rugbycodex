@@ -528,6 +528,16 @@ watch(
                       No thumbnail
                     </div>
                     <div class="absolute inset-0 bg-gradient-to-t from-black/50 via-black/10 to-transparent" />
+                    <div
+                      class="absolute right-2 top-2 rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-wide"
+                      :class="match.coverageState === 'covered'
+                        ? 'bg-emerald-500/80 text-white'
+                        : match.coverageState === 'partial'
+                          ? 'bg-amber-400/80 text-black'
+                          : 'bg-red-500/80 text-white'"
+                    >
+                      {{ match.coverageState === 'covered' ? 'Covered' : match.coverageState === 'partial' ? 'Partial' : 'Needs review' }}
+                    </div>
                   </div>
                 </div>
 
@@ -538,22 +548,19 @@ watch(
                     </div>
                     <div class="mt-1 space-y-1 text-xs text-white/50">
                       <div>{{ match.dateLabel }}</div>
-                      <div class="whitespace-pre-line">{{ match.coverageLabel }}</div>
-                    </div>
-                  </div>
-                  <div class="shrink-0 text-right">
-                    <div
-                      class="text-xs font-semibold uppercase tracking-wide"
-                      :class="match.coverageState === 'covered'
-                        ? 'text-emerald-300'
-                        : match.coverageState === 'partial'
-                          ? 'text-amber-200'
-                          : 'text-red-200'"
-                    >
-                      {{ match.coverageState === 'covered' ? 'Covered' : match.coverageState === 'partial' ? 'Partial' : 'Needs review' }}
-                    </div>
-                    <div class="mt-1 text-xs text-white/40">
-                      {{ Math.round(match.coverageRatio * 100) }}% narrated
+                      <div>{{ match.narratedSegments }} review moments captured</div>
+                      <div class="text-white/40 italic">
+                        <span v-if="match.coverageState === 'needs_review' && match.narratedSegments === 0">
+                          Review not started
+                        </span>
+                        <span v-else-if="match.coverageState === 'partial'">
+                          Review in progress
+                        </span>
+                        <span v-else-if="match.coverageState === 'covered'">Match fully reviewed</span>
+                      </div>
+                      <div v-if="match.coverageState !== 'covered'" class="text-white/40 italic">
+                        More analysis recommended
+                      </div>
                     </div>
                   </div>
                 </div>
