@@ -34,6 +34,7 @@ import { formatMinutesSeconds } from '@/lib/duration';
 import MediaAssetReviewTimeline from '@/modules/media/components/MediaAssetReviewTimeline.vue';
 import MediaAssetReviewNarrationList from '@/modules/media/components/MediaAssetReviewNarrationList.vue';
 import AssignSegmentModal from '@/modules/assignments/components/AssignSegmentModal.vue';
+import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
 
 const PRE_BUFFER_SECONDS = 5;
 const POST_BUFFER_SECONDS = 10;
@@ -174,6 +175,10 @@ const narrationTargetSegmentId = ref<string | null>(null);
 
 const activeOrgIdOrEmpty = computed(() => activeOrgId.value ?? '');
 const assigningSegment = ref<MediaAssetSegment | null>(null);
+const pendingEmptySegmentIds = ref<string[]>([]);
+const showDeleteEmptySegmentsModal = ref(false);
+const deleteEmptySegmentsError = ref<string | null>(null);
+const deleteEmptySegmentsProcessing = ref(false);
 
 watch(
   [activeOrgId, mediaAssetId],
@@ -241,6 +246,61 @@ function openAssignSegment(seg: MediaAssetSegment) {
 
 function closeAssignSegment() {
   assigningSegment.value = null;
+}
+
+function requestDeleteEmptySegments(segmentIds: string[]) {
+  if (!isStaffOrAbove.value) {
+    toast({ message: 'You do not have permission to delete segments.', variant: 'error', durationMs: 2500 });
+    return;
+  }
+  pendingEmptySegmentIds.value = segmentIds.map((id) => String(id));
+  deleteEmptySegmentsError.value = null;
+  showDeleteEmptySegmentsModal.value = true;
+}
+
+function closeDeleteEmptySegmentsModal(force = false) {
+  if (deleteEmptySegmentsProcessing.value && !force) return;
+  showDeleteEmptySegmentsModal.value = false;
+  deleteEmptySegmentsError.value = null;
+  pendingEmptySegmentIds.value = [];
+}
+
+async function confirmDeleteEmptySegments() {
+  if (!pendingEmptySegmentIds.value.length) {
+    closeDeleteEmptySegmentsModal();
+    return;
+  }
+
+  deleteEmptySegmentsProcessing.value = true;
+  deleteEmptySegmentsError.value = null;
+
+  try {
+    const narrationsSet = new Set(
+      (narrations.value as any[])
+        .map((n) => String(n?.media_asset_segment_id ?? ''))
+        .filter((id) => id)
+    );
+
+    const deletableIds = pendingEmptySegmentIds.value.filter((id) => !narrationsSet.has(String(id)));
+    if (!deletableIds.length) {
+      closeDeleteEmptySegmentsModal(true);
+      return;
+    }
+
+    await Promise.all(deletableIds.map((id) => segmentService.deleteSegment(String(id))));
+    segments.value = segments.value.filter((seg) => !deletableIds.includes(String(seg.id)));
+
+    toast({
+      message: `Deleted ${deletableIds.length} empty segment${deletableIds.length === 1 ? '' : 's'}.`,
+      variant: 'success',
+      durationMs: 2200,
+    });
+    closeDeleteEmptySegmentsModal(true);
+  } catch (err) {
+    deleteEmptySegmentsError.value = err instanceof Error ? err.message : 'Failed to delete empty segments.';
+  } finally {
+    deleteEmptySegmentsProcessing.value = false;
+  }
 }
 
 // Mobile: narrations as a bottom drawer so video stays visible.
@@ -1038,6 +1098,7 @@ async function handleDeleteNarration(narrationId: string) {
               @removeTag="handleRemoveSegmentTag"
               @update:sourceFilter="handleNarrationSourceFilterChange"
               @visibleSegmentsChange="handleVisibleSegmentsChange"
+              @requestDeleteEmptySegments="requestDeleteEmptySegments"
             />
           </div>
         </div>
@@ -1101,6 +1162,7 @@ async function handleDeleteNarration(narrationId: string) {
             @removeTag="handleRemoveSegmentTag"
             @update:sourceFilter="handleNarrationSourceFilterChange"
             @visibleSegmentsChange="handleVisibleSegmentsChange"
+            @requestDeleteEmptySegments="requestDeleteEmptySegments"
           />
         </div>
       </div>
@@ -1112,6 +1174,17 @@ async function handleDeleteNarration(narrationId: string) {
         :segment-label="labelForSegment(assigningSegment)"
         :on-close="closeAssignSegment"
         :on-assigned="closeAssignSegment"
+      />
+
+      <ConfirmDeleteModal
+        :show="showDeleteEmptySegmentsModal"
+        :item-name="pendingEmptySegmentIds.length === 1 ? 'this empty segment' : `${pendingEmptySegmentIds.length} empty segments`"
+        popup-title="Delete Empty Segments"
+        :is-deleting="deleteEmptySegmentsProcessing"
+        :error="deleteEmptySegmentsError"
+        @confirm="confirmDeleteEmptySegments"
+        @cancel="closeDeleteEmptySegmentsModal"
+        @close="closeDeleteEmptySegmentsModal"
       />
     </div>
   </div>

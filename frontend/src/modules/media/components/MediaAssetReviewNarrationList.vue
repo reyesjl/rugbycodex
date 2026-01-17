@@ -36,6 +36,7 @@ const emit = defineEmits<{
   (e: 'removeTag', payload: { segmentId: string; tagId: string }): void;
   (e: 'update:sourceFilter', value: SourceFilter): void;
   (e: 'visibleSegmentsChange', segmentIds: string[]): void;
+  (e: 'requestDeleteEmptySegments', segmentIds: string[]): void;
 }>();
 
 const editingNarrationId = ref<string | null>(null);
@@ -204,6 +205,7 @@ function requestDelete(n: Narration) {
 
 const selectedSource = ref<SourceFilter>('all');
 const hasSelectedSource = ref(false);
+const showEmptyOnly = ref(false);
 const activeTagFilters = ref<string[]>([]);
 const tagFiltersExpanded = ref(true);
 const tagFilterScrollEl = ref<HTMLElement | null>(null);
@@ -393,13 +395,16 @@ const tagFilteredSegments = computed(() => {
 
 const sourceFilteredSegments = computed(() => {
   const base = tagFilteredSegments.value ?? [];
-  if (selectedSource.value === 'all') return base;
+  if (selectedSource.value === 'all' || showEmptyOnly.value) return base;
   // Filter by narration.source_type (not segment.source_type).
   return base.filter((s) => narrationsForSegment(String(s.id)).length > 0);
 });
 
 const orderedSegments = computed(() => {
   const base = [...sourceFilteredSegments.value].sort((a, b) => (a.start_seconds ?? 0) - (b.start_seconds ?? 0));
+  if (showEmptyOnly.value) {
+    return base.filter((s) => narrationsForSegment(String(s.id)).length === 0);
+  }
   return base.filter((s) => {
     const hasNarrations = narrationsForSegment(String(s.id)).length > 0;
     const hasTags = visibleSegmentTags(s).length > 0;
@@ -432,6 +437,17 @@ const visibleNarrationCount = computed(() => {
   }
   return count;
 });
+
+const emptySegmentIds = computed(() => {
+  if (!showEmptyOnly.value) return [] as string[];
+  return orderedSegments.value.map((seg) => String(seg.id));
+});
+
+function requestDeleteEmptySegments() {
+  const ids = emptySegmentIds.value;
+  if (!ids.length) return;
+  emit('requestDeleteEmptySegments', ids);
+}
 
 // Display semantics: time range is primary; segment source is subtle metadata.
 function formatSegmentTimeRange(seg: MediaAssetSegment): string {
@@ -516,6 +532,18 @@ function formatCreatedAt(value: any): string {
         >
           {{ option.label }}
         </button>
+
+        <button
+          type="button"
+          class="text-[11px] transition cursor-pointer rounded-full px-3 py-1 ring-1 ring-black/10"
+          :class="showEmptyOnly
+            ? 'bg-white text-black'
+            : 'bg-white/10 text-white/70 hover:bg-white/20 hover:text-white'"
+          title="Show segments with no narrations"
+          @click="showEmptyOnly = !showEmptyOnly"
+        >
+          Empty
+        </button>
       </div>
 
       <div v-if="tagFilterOptions.length" class="space-y-1">
@@ -590,6 +618,19 @@ function formatCreatedAt(value: any): string {
           </button>
         </div>
       </div>
+
+      <div v-if="showEmptyOnly && props.canModerateNarrations" class="flex items-center justify-between text-[11px] text-white/60">
+        <div>{{ orderedSegments.length }} empty segment{{ orderedSegments.length === 1 ? '' : 's' }}</div>
+        <button
+          type="button"
+          class="rounded-full border border-rose-300/30 px-2.5 py-1 text-[11px] text-rose-100/90 hover:bg-rose-200/10 transition disabled:opacity-50"
+          :disabled="orderedSegments.length === 0"
+          title="Delete all empty segments in this view"
+          @click="requestDeleteEmptySegments"
+        >
+          Delete empty segments
+        </button>
+      </div>
     </div>
 
     <div v-if="(props.segments ?? []).length === 0" class="text-sm text-white/50">
@@ -601,7 +642,7 @@ function formatCreatedAt(value: any): string {
     </div>
 
     <div v-else-if="!hasSearchQuery && orderedSegments.length === 0" class="text-sm text-white/50">
-      No narrations yet.
+      {{ showEmptyOnly ? 'No empty segments.' : 'No narrations yet.' }}
     </div>
 
     <div v-else class="space-y-2">
