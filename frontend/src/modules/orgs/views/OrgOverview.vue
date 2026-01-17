@@ -404,7 +404,6 @@ const loadOverview = async () => {
     const recentAssignments = assignments.slice(0, 10);
     recentSignals.value = buildRecentSignals(recentNarrations, recentMedia, recentAssignments, lastSeenAt.value);
 
-    const groupSummaries = groups.map(toGroupSummary);
     if (currentUserId) {
       memberGroups.value = groups
         .filter((entry) => entry.memberIds.includes(currentUserId))
