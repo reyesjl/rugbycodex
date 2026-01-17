@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { Icon } from '@iconify/vue';
 import type { FeedItem as FeedItemType } from '@/modules/feed/types/FeedItem';
-import HlsSurfacePlayer from '@/modules/media/components/HlsSurfacePlayer.vue';
+import ShakaSurfacePlayer from '@/modules/media/components/ShakaSurfacePlayer.vue';
 import FeedGestureLayer from '@/modules/feed/components/FeedGestureLayer.vue';
 import FeedOverlayControls from '@/modules/feed/components/FeedOverlayControls.vue';
 import FeedMeta from '@/modules/feed/components/FeedMeta.vue';
@@ -56,7 +56,7 @@ function requestIdentityTag() {
   emit('addIdentityTag', { segmentId: String(props.feedItem.mediaAssetSegmentId) });
 }
 
-const playerRef = ref<InstanceType<typeof HlsSurfacePlayer> | null>(null);
+const playerRef = ref<InstanceType<typeof ShakaSurfacePlayer> | null>(null);
 const surfaceEl = ref<HTMLElement | null>(null);
 
 const videoEl = computed(() => (playerRef.value?.getVideoElement?.() ?? null) as HTMLVideoElement | null);
@@ -450,9 +450,9 @@ onBeforeUnmount(() => {
           @pointermove="onHoverMove"
           @pointerleave="onHoverLeave"
         >
-          <HlsSurfacePlayer
+          <ShakaSurfacePlayer
             ref="playerRef"
-            :src="src"
+            :manifest-url="src"
             :autoplay="false"
             class="h-full w-full"
             @timeupdate="handlePlayerTimeupdate"
