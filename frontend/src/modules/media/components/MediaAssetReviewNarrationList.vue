@@ -610,7 +610,7 @@ function formatCreatedAt(value: any): string {
         :key="seg.id"
         class="rounded-lg border border-white/10 bg-white/5"
         :ref="(el) => setSegmentEl(String(seg.id), el)"
-        :class="activeSegmentId && String(seg.id) === activeSegmentId ? 'ring-1 ring-yellow-300/30 bg-yellow-300/5' : ''"
+        :class="activeSegmentId && String(seg.id) === activeSegmentId ? 'border-l-2 border-l-yellow-300/60 bg-yellow-300/5' : ''"
       >
         <div class="w-full px-3 py-2 flex items-center justify-between text-left hover:bg-white/5 transition">
           <button
@@ -692,28 +692,28 @@ function formatCreatedAt(value: any): string {
           v-if="narrationsForSegment(String(seg.id)).length || visibleSegmentTags(seg).length || isTagPanelOpen(String(seg.id))"
           class="border-t border-white/10"
         >
-          <div class="px-3 py-2 space-y-2">
+          <div class="space-y-2">
             <template v-if="narrationsForSegment(String(seg.id)).length">
               <div
                 v-for="n in visibleNarrationsForSegment(String(seg.id))"
                 :key="String((n as any).id)"
-                class="rounded-md bg-black/25 ring-1 ring-white/5 p-2 transition cursor-pointer hover:bg-black/30 hover:ring-white/10"
+                class="group cursor-pointer px-3 py-2 transition hover:bg-white/5 border-t border-white/10 first:border-t-0"
                 @click="emit('jumpToSegment', seg)"
               >
                 <div class="flex items-start justify-between gap-3">
                   <div class="flex items-center gap-2">
                     <span
-                      class="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-white/80 ring-1 ring-white/10"
+                      class="rounded-full bg-white/5 px-2 py-0.5 text-[10px] font-semibold text-white/70 ring-1 ring-white/10"
                       :title="`Narration by ${formatNarrationSourceLabel(n)}`"
                     >
                       {{ formatNarrationSourceLabel(n) }}
                     </span>
-                    <div class="text-[11px] text-white/40">
+                    <div class="text-[10px] font-mono text-white/35">
                       {{ formatCreatedAt((n as any).created_at) }}
                     </div>
                   </div>
 
-                  <div class="flex items-center gap-2">
+                  <div class="flex items-center gap-2 opacity-40 transition group-hover:opacity-100 focus-within:opacity-100">
                     <button
                       type="button"
                       class="text-[11px] transition"
@@ -768,7 +768,7 @@ function formatCreatedAt(value: any): string {
 
               <div
                 v-if="narrationsForSegment(String(seg.id)).length > 1 && !isSegmentExpanded(String(seg.id))"
-                class="text-[11px] text-white/40"
+                class="px-3 text-[11px] text-white/40"
               >
                 Showing 1 of {{ narrationsForSegment(String(seg.id)).length }} narrations.
               </div>
@@ -776,7 +776,7 @@ function formatCreatedAt(value: any): string {
 
             <div
               v-if="visibleSegmentTags(seg).length || isTagPanelOpen(String(seg.id))"
-              class="pt-1 space-y-2"
+              class="px-3 pb-2 pt-1 space-y-2"
             >
               <div v-if="visibleSegmentTags(seg).length" class="flex flex-wrap gap-2">
                 <div
