@@ -12,6 +12,8 @@ const props = withDefaults(
     error?: string | null;
     canGenerate?: boolean;
     hasGenerated?: boolean;
+    collapsible?: boolean;
+    collapsed?: boolean;
   }>(),
   {
     bullets: () => [],
@@ -19,10 +21,12 @@ const props = withDefaults(
     error: null,
     canGenerate: false,
     hasGenerated: false,
+    collapsible: false,
+    collapsed: false,
   }
 );
 
-const emit = defineEmits<{ (e: 'generate'): void }>();
+const emit = defineEmits<{ (e: 'generate'): void; (e: 'toggle'): void }>();
 
 const hasBullets = computed(() => Array.isArray(props.bullets) && props.bullets.length > 0);
 
@@ -66,15 +70,33 @@ const buttonLabel = computed(() => {
         <div class="text-sm font-semibold text-white truncate">Match Summary</div>
       </div>
 
-      <button
-        v-if="state === 'normal' && canGenerate"
-        type="button"
-        class="text-xs text-violet-200 hover:text-violet-100 disabled:opacity-50"
-        :disabled="loading"
-        @click="emit('generate')"
-      >
-        {{ buttonLabel }}
-      </button>
+      <div class="flex items-center gap-2">
+        <button
+          v-if="state === 'normal' && canGenerate"
+          type="button"
+          class="text-xs text-violet-200 hover:text-violet-100 disabled:opacity-50"
+          :disabled="loading"
+          @click="emit('generate')"
+        >
+          {{ buttonLabel }}
+        </button>
+        <button
+          v-if="collapsible"
+          type="button"
+          class="text-xs text-white/60 hover:text-white"
+          @click="emit('toggle')"
+        >
+          <Icon
+            :icon="collapsed ? 'carbon:chevron-down' : 'carbon:chevron-up'"
+            width="16"
+            height="16"
+          />
+        </button>
+      </div>
+    </div>
+
+    <div v-if="collapsible && collapsed" class="mt-2 text-xs text-white/50">
+      Summary collapsed.
     </div>
 
     <div v-if="error" class="mt-2 text-xs text-rose-200">
@@ -82,13 +104,13 @@ const buttonLabel = computed(() => {
     </div>
 
     <!-- Empty state -->
-    <div v-else-if="state === 'empty'" class="mt-2">
+    <div v-else-if="state === 'empty' && !(collapsible && collapsed)" class="mt-2">
       <div class="text-sm text-white/80">No team insights yet.</div>
       <div class="mt-1 text-xs text-white/60">Add narrations to begin building match understanding.</div>
     </div>
 
     <!-- Light (locked) state -->
-    <div v-else-if="state === 'light'" class="mt-2">
+    <div v-else-if="state === 'light' && !(collapsible && collapsed)" class="mt-2">
       <div class="text-sm text-white/85">Add more narrations to unlock Match Summary.</div>
       <div class="mt-1 text-xs text-white/60">
         Summaries appear once enough feedback is added to identify patterns.
@@ -96,7 +118,7 @@ const buttonLabel = computed(() => {
     </div>
 
     <!-- Normal state -->
-    <div v-else class="mt-2">
+    <div v-else-if="!(collapsible && collapsed)" class="mt-2">
       <div v-if="hasBullets" class="mt-2">
         <ul class="space-y-1 text-sm text-white/90">
           <li v-for="(b, idx) in bullets" :key="idx" class="flex gap-2">

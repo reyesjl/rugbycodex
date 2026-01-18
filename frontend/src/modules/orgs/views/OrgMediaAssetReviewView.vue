@@ -19,6 +19,7 @@ import { computeSegmentBounds } from '@/modules/media/utils/segmentBounds';
 import { useMediaAssetReview } from '@/modules/media/composables/useMediaAssetReview';
 import { useVideoOverlayControls } from '@/modules/media/composables/useVideoOverlayControls';
 import { useSegmentPlayback } from '@/modules/media/composables/useSegmentPlayback';
+import { useTypewriter } from '@/composables/useTypewriter';
 
 import type { MatchSummaryState } from '@/modules/analysis/types/MatchSummary';
 import MatchSummaryBlock from '@/modules/analysis/components/MatchSummaryBlock.vue';
@@ -317,6 +318,40 @@ const matchSummaryBullets = computed(() => {
   if (matchSummary.value?.state !== 'normal') return [];
   return (matchSummary.value?.bullets ?? []).filter(Boolean);
 });
+
+const matchSummaryCollapsed = ref(false);
+
+const {
+  value: matchSummaryTypedText,
+  typing: matchSummaryTyping,
+  typeText: typeMatchSummary,
+} = useTypewriter();
+
+const typedMatchSummaryBullets = computed(() => {
+  return matchSummaryTypedText.value
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+});
+
+const displayMatchSummaryBullets = computed(() => {
+  if (matchSummaryTyping.value && typedMatchSummaryBullets.value.length > 0) {
+    return typedMatchSummaryBullets.value;
+  }
+  return matchSummaryBullets.value;
+});
+
+watch(
+  matchSummaryBullets,
+  (next) => {
+    if (!next || next.length === 0) {
+      matchSummaryTypedText.value = '';
+      return;
+    }
+    void typeMatchSummary(next.join('\n'), 18);
+  },
+  { immediate: true }
+);
 
 const playerRef = ref<InstanceType<typeof ShakaSurfacePlayer> | null>(null);
 const surfaceEl = ref<HTMLElement | null>(null);
@@ -1071,11 +1106,14 @@ async function handleDeleteNarration(narrationId: string) {
             >
               <MatchSummaryBlock
                 :state="matchSummaryState"
-                :bullets="matchSummaryBullets"
+                :bullets="displayMatchSummaryBullets"
                 :loading="matchSummaryLoading"
                 :error="matchSummaryError"
                 :can-generate="canGenerateMatchSummary"
                 :has-generated="Boolean(matchSummaryBullets.length)"
+                :collapsible="true"
+                :collapsed="matchSummaryCollapsed"
+                @toggle="matchSummaryCollapsed = !matchSummaryCollapsed"
                 @generate="generateMatchSummary({ forceRefresh: true })"
               />
             </div>
@@ -1135,11 +1173,14 @@ async function handleDeleteNarration(narrationId: string) {
           >
             <MatchSummaryBlock
               :state="matchSummaryState"
-              :bullets="matchSummaryBullets"
+              :bullets="displayMatchSummaryBullets"
               :loading="matchSummaryLoading"
               :error="matchSummaryError"
               :can-generate="canGenerateMatchSummary"
               :has-generated="Boolean(matchSummaryBullets.length)"
+              :collapsible="true"
+              :collapsed="matchSummaryCollapsed"
+              @toggle="matchSummaryCollapsed = !matchSummaryCollapsed"
               @generate="generateMatchSummary({ forceRefresh: true })"
             />
           </div>
