@@ -1,8 +1,4 @@
-<script setup lang="ts">
-</script>
-
+<!-- Deprecated: org leader dashboard panel removed. -->
 <template>
-  <section class="container pt-6">
-    <h1 class="text-white text-3xl">Organization Leader Panel</h1>
-  </section>
+  <div v-if="false" />
 </template>

@@ -219,16 +219,17 @@ const handleSubmit = async () => {
   }
 
   if (data?.session) {
-    supabaseMessage.value = 'Your account is ready. Redirecting you to your dashboard...';
+    supabaseMessage.value = 'Your account is ready. Redirecting you to your home...';
     submissionLogged.value = true;
     await nextTick();
+    // Behavior change: landing now resolves to onboarding or My Rugby.
     await router.push({ name: 'Dashboard' });
     signingUp.value = false;
     return;
   }
 
   supabaseMessage.value =
-    'Check your inbox to confirm your email. Once verified, you can sign in to your dashboard.';
+    'Check your inbox to confirm your email. Once verified, you can sign in to your home.';
   submissionLogged.value = true;
   signingUp.value = false;
 };

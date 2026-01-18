@@ -141,18 +141,18 @@ void mobileSheetRef.value;
           </li>
 
           <li>
-            <RouterLink to="/profile" active-class="bg-white text-black hover:!bg-white"
+            <RouterLink to="/my-rugby" active-class="bg-white text-black hover:!bg-white"
               class="flex items-center px-4 py-2 hover:bg-white/10 rounded">
-              <Icon icon="carbon:user-profile" width="20" height="20" class="mr-5" />
-              Profile
+              <Icon icon="fluent-mdl2:rugby" width="20" height="20" class="mr-5" />
+              My Rugby
             </RouterLink>
           </li>
 
           <li>
-            <RouterLink to="/dashboard" active-class="bg-white text-black hover:!bg-white"
+            <RouterLink to="/profile" active-class="bg-white text-black hover:!bg-white"
               class="flex items-center px-4 py-2 hover:bg-white/10 rounded">
-              <Icon icon="carbon:dashboard" width="20" height="20" class="mr-5" />
-              My Dashboard
+              <Icon icon="carbon:user-profile" width="20" height="20" class="mr-5" />
+              Profile
             </RouterLink>
           </li>
 
@@ -278,18 +278,18 @@ void mobileSheetRef.value;
             </li>
 
             <li>
-              <RouterLink to="/profile" active-class="bg-white text-black hover:!bg-white"
+              <RouterLink to="/my-rugby" active-class="bg-white text-black hover:!bg-white"
                 class="flex items-center px-4 py-2 hover:bg-white/10 rounded" @click="handleSidebarToggle">
-                <Icon icon="carbon:user-profile" width="20" height="20" class="mr-5" />
-                Profile
+                <Icon icon="fluent-mdl2:rugby" width="20" height="20" class="mr-5" />
+                My Rugby
               </RouterLink>
             </li>
 
             <li>
-              <RouterLink to="/dashboard" active-class="bg-white text-black hover:!bg-white"
+              <RouterLink to="/profile" active-class="bg-white text-black hover:!bg-white"
                 class="flex items-center px-4 py-2 hover:bg-white/10 rounded" @click="handleSidebarToggle">
-                <Icon icon="carbon:dashboard" width="20" height="20" class="mr-5" />
-                My Dashboard
+                <Icon icon="carbon:user-profile" width="20" height="20" class="mr-5" />
+                Profile
               </RouterLink>
             </li>
 

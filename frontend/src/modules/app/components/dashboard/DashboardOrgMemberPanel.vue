@@ -1,11 +1,4 @@
-<script setup lang="ts">
-import { useProfileDisplay } from '@/modules/profiles/composables/useProfileDisplay';
-
-const profile = useProfileDisplay();
-</script>
-
+<!-- Deprecated: org contributor dashboard panel removed. -->
 <template>
-  <section class="space-y-8 text-white">
-    <div class="text-2xl">Welcome, {{ profile.displayName }}</div>
-  </section>
+  <div v-if="false" />
 </template>

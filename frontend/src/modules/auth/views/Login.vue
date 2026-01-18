@@ -33,6 +33,7 @@ const redirectPath = () => {
   if (typeof redirect === 'string' && redirect.startsWith('/')) {
     return redirect;
   }
+  // Behavior change: send logins through the landing resolver.
   return '/dashboard';
 };
 

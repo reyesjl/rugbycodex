@@ -82,11 +82,11 @@ const {
 
           <li>
             <RouterLink
-              to="/dashboard"
+              to="/my-rugby"
               class="flex w-full items-center rounded px-4 py-2 hover:bg-white/10"
             >
               <Icon icon="carbon:chevron-left" width="20" height="20" class="mr-5" />
-              Back to Dashboard
+              Back to My Rugby
             </RouterLink>
           </li>
 
@@ -160,12 +160,12 @@ const {
           <ul class="sidebar-list">
             <li>
               <RouterLink
-                to="/dashboard"
+                to="/my-rugby"
                 class="flex w-full items-center rounded px-4 py-2 hover:bg-white/10"
                 @click="handleSidebarToggle"
               >
                 <Icon icon="carbon:chevron-left" width="20" height="20" class="mr-5" />
-                Back to Dashboard
+                Back to My Rugby
               </RouterLink>
             </li>
 

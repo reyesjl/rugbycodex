@@ -6,9 +6,19 @@ export const appRoutes: RouteRecordRaw = {
   meta: { layout: 'app', requiresAuth: true },
   children: [
     {
+      path: 'my-rugby',
+      name: 'MyRugby',
+      component: () => import('@/modules/app/views/MyRugby.vue'),
+    },
+    {
+      path: 'onboarding',
+      name: 'Onboarding',
+      component: () => import('@/modules/app/views/Onboarding.vue'),
+    },
+    {
       path: 'dashboard',
       name: 'Dashboard',
-      component: () => import('@/modules/app/views/DashboardStub.vue'),
+      component: () => import('@/modules/app/views/DashboardResolver.vue'),
     },
     {
       path: 'narrations',

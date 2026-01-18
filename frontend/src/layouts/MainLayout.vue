@@ -18,7 +18,7 @@ const navLinks = computed<NavLink[]>(() => {
     { to: '/narrations', label: 'Narrations' },
     { to: '/vaults', label: 'Vaults' },
     authStore.isAuthenticated
-      ? { to: '/dashboard', label: 'Dashboard' }
+      ? { to: '/my-rugby', label: 'My Rugby' }
       : { to: '/auth/login', label: 'Account' },
   ];
   return links.filter((l): l is NavLink => l !== null);
@@ -211,7 +211,7 @@ watch(
             class="hidden rounded-full bg-neutral-900 px-4 py-2 text-sm font-medium text-neutral-100 transition hover:bg-neutral-800 dark:hover:bg-neutral-800 md:inline-flex md:items-center">
             Log in
           </RouterLink>
-          <RouterLink v-else to="/dashboard"
+          <RouterLink v-else to="/my-rugby"
             class="hidden max-w-[14rem] truncate rounded-full bg-neutral-800/80 px-4 py-2 text-sm font-medium text-neutral-100 backdrop-blur transition hover:bg-neutral-900 md:inline-flex"
             :title="authStore.user?.user_metadata?.name ?? authStore.user?.email ?? undefined">
             {{ userDisplayName }}
@@ -254,7 +254,7 @@ watch(
             Log in
           </RouterLink>
           <div v-else class="flex flex-row items-center gap-2">
-            <RouterLink to="/dashboard"
+            <RouterLink to="/my-rugby"
               class="max-w-[14rem] truncate rounded-full bg-neutral-100/80 px-4 py-2 text-sm font-semibold text-neutral-900 transition hover:bg-white/90 md:hidden"
               :title="authStore.user?.user_metadata?.name ?? authStore.user?.email ?? undefined" @click="closeSidebar">
               {{ userDisplayName }}
