@@ -85,6 +85,7 @@ const memberAssignments = ref<FeedAssignment[]>([]);
 const memberCompletedAssignments = ref<FeedAssignment[]>([]);
 const memberGroups = ref<GroupSummary[]>([]);
 const orgAssignments = ref<OrgAssignmentListItem[]>([]);
+const completedAssignmentIds = ref<string[]>([]);
 
 const formatPreview = (value: string, maxLength = 120) => {
   const trimmed = value.trim();
@@ -162,9 +163,14 @@ const quickActions = computed<QuickAction[]>(() => {
   ];
 });
 
+const completedAssignmentIdSet = computed(() => new Set(completedAssignmentIds.value.map((id) => String(id))));
+
 const overdueAssignments = computed(() =>
   orgAssignments.value
-    .filter((assignment) => getAssignmentUrgency(assignment.due_at) === 'overdue')
+    .filter((assignment) =>
+      !completedAssignmentIdSet.value.has(String(assignment.id)) &&
+      getAssignmentUrgency(assignment.due_at) === 'overdue'
+    )
     .slice(0, 4)
 );
 
@@ -441,10 +447,15 @@ const loadOverview = async () => {
         .map(toGroupSummary);
     }
 
-    memberAssignments.value = assignmentFeed.assignedToYou
+    const assignedToYou = assignmentFeed.assignedToYou ?? [];
+    completedAssignmentIds.value = assignedToYou
+      .filter((assignment) => assignment.completed)
+      .map((assignment) => String(assignment.id));
+
+    memberAssignments.value = assignedToYou
       .filter((assignment) => !assignment.completed)
       .slice(0, 5);
-    memberCompletedAssignments.value = assignmentFeed.assignedToYou
+    memberCompletedAssignments.value = assignedToYou
       .filter((assignment) => assignment.completed)
       .slice(0, 5);
 
