@@ -1,5 +1,6 @@
-import { computed, watchEffect } from 'vue'
+import { computed, watch, watchEffect } from 'vue'
 import { storeToRefs } from 'pinia'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/modules/auth/stores/useAuthStore'
 import { useMyOrganizationsStore } from '@/modules/orgs/stores/useMyOrganizationsStore'
 import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrganizationStore'
@@ -12,6 +13,7 @@ export type DashboardVariant =
   | 'orgContributor'
 
 export function useDashboardState() {
+  const router = useRouter()
   const authStore = useAuthStore()
   const { isAdmin, isAuthenticated } = storeToRefs(authStore)
 
@@ -21,9 +23,23 @@ export function useDashboardState() {
   const activeOrgStore = useActiveOrganizationStore()
   const { orgContext } = storeToRefs(activeOrgStore)
 
+  // Load my organizations when authenticated
+  watch(
+    isAuthenticated,
+    (authed) => {
+      if (!authed) return
+      void myOrgs.load()
+    },
+    { immediate: true }
+  )
+
+  // Redirect to the correct dashboard variant
   watchEffect(() => {
-    if (!isAuthenticated.value) return
-    void myOrgs.load()
+    if (!loaded.value) return
+    if (!hasOrganizations.value) return
+    if (isAdmin.value) return
+
+    void router.replace({ name: 'Organizations' })
   })
 
   const primaryRole = computed(() =>
