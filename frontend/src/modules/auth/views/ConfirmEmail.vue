@@ -57,7 +57,7 @@ watch(email, () => {
   <div class="space-y-8">
     <header class="space-y-2">
       <h1 class="text-xl font-semibold uppercase tracking-[0.3em] text-white">EMAIL STATUS</h1>
-      <p class="text-sm text-neutral-400">
+      <p class="text-sm" :class="hasError ? 'text-rose-400' : 'text-emerald-400'">
         {{
           hasError
             ? errorMessage ?? 'Confirmation link invalid or expired.'
