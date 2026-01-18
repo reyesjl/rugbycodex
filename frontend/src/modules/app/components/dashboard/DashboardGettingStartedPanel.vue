@@ -1,55 +1,64 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import { Icon } from '@iconify/vue';
 import { RouterLink } from 'vue-router';
 import CoachGuide from '@/modules/app/components/CoachGuide.vue';
 import { useProfileDisplay } from '@/modules/profiles/composables/useProfileDisplay';
 
-const profile = useProfileDisplay();
+const { displayName, initials, username } = useProfileDisplay();
 
-const steps = [
-  {
-    title: 'Join a team or workspace',
-    description: 'Join an existing team or organization with their join code.',
-    icon: 'carbon:add-child-node',
-    to: '/organizations',
-  },
-  {
-    title: 'Create a workspace',
-    description: 'Set up a new workspace for team, club, or personal analysis.',
-    icon: 'carbon:intent-request-create',
-    to: '/organizations/create',
-  },
-  {
-    title: 'See a real example',
-    description: 'Walk through a real example of footage, narration, and tagging.',
-    icon: 'carbon:help',
-    to: '/organizations',
-  },
-];
+const greeting = computed(() => {
+  const hour = new Date().getHours();
+
+  if (hour >= 5 && hour < 12) {
+    return 'Good morning';
+  }
+
+  if (hour >= 12 && hour < 18) {
+    return 'Good afternoon';
+  }
+
+  return 'Good evening';
+});
+
 </script>
 
 <template>
   <section class="space-y-8 text-white">
-    <div class="text-2xl">Welcome, {{ profile.displayName }}</div>
-    <CoachGuide>
-      <div class="space-y-1">
-        <p class="text-lg font-semibold text-white/90">What do you want to do first?</p>
-        <p class="text-sm text-white/70">Pick a place to begin, you can always change this later.</p>
-      </div>
-    </CoachGuide>
+    <div class="text-4xl flex flex-col">
+      <div>{{ greeting }},</div>
+      <div class="text-white/60 tracking-wider">{{ username ? `@${username}` : 'new user' }}</div>
+    </div>
 
     <div class="grid gap-4 md:grid-cols-3">
       <RouterLink
-        v-for="step in steps"
-        :key="step.title"
-        :to="step.to"
-        class="rounded border border-white/10 bg-white/5 p-4 text-white hover:border-white/40"
+        to="/organizations"
+        class="rounded border p-4 text-white md:col-span-3 bg-white/5 border-blue-400/30 hover:border-blue-400/60"
       >
         <div class="rounded-full border border-white/20 p-2 w-fit">
-          <Icon :icon="step.icon" width="22" height="22" />
+          <Icon icon="carbon:add-child-node" width="22" height="22" />
         </div>
-        <p class="mt-3 text-lg font-semibold">{{ step.title }}</p>
-        <p class="text-sm text-white/70">{{ step.description }}</p>
+        <p class="mt-3 text-lg font-semibold">Join a team or workspace</p>
+        <p class="text-sm text-white/70">Join a team using a join code from your coach or organization.</p>
+      </RouterLink>
+
+      <RouterLink
+        to="/organizations/create"
+        class="rounded border p-4 text-white md:col-span-2 border-red-400/30 bg-white/5 hover:border-red-400/60"
+      >
+        <div class="rounded-full border border-white/20 p-2 w-fit">
+          <Icon icon="carbon:intent-request-create" width="22" height="22" />
+        </div>
+        <p class="mt-3 text-lg font-semibold">Create a workspace</p>
+        <p class="text-sm text-white/70">Set up a new workspace for team, club, or personal analysis.</p>
+      </RouterLink>
+
+      <RouterLink to="/organizations" class="rounded border p-4 text-white md:col-span-1 border-yellow-400/30 bg-white/5 hover:border-yellow-400/60">
+        <div class="rounded-full border border-white/20 p-2 w-fit">
+          <Icon icon="carbon:help" width="22" height="22" />
+        </div>
+        <p class="mt-3 text-lg font-semibold">See a real example</p>
+        <p class="text-sm text-white/70">Walk through a real example of footage, narration, and tagging.</p>
       </RouterLink>
     </div>
 

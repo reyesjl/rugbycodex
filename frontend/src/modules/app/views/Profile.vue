@@ -16,19 +16,11 @@ const myOrgsStore = useMyOrganizationsStore();
 const { profile, loading: profileLoading, error: profileError } = storeToRefs(profileStore);
 const { user } = storeToRefs(authStore);
 const { items: organizations, loading: orgsLoading } = storeToRefs(myOrgsStore);
-const { displayName } = useProfileDisplay();
-
-const displayInitials = computed(() => {
-  if (!profile.value?.name) return '?';
-  const parts = profile.value.name.trim().split(/\s+/).filter(p => p.length > 0);
-  if (parts.length === 0) return '?';
-  if (parts.length === 1) return parts[0]!.charAt(0).toUpperCase();
-  return (parts[0]!.charAt(0) + parts[parts.length - 1]!.charAt(0)).toUpperCase();
-});
+const { displayName, initials, username } = useProfileDisplay();
 
 const displayUsername = computed(() => {
-  if (!profile.value?.username) return '';
-  return `@${profile.value.username}`;
+  if (!username.value) return '';
+  return `@${username.value}`;
 });
 
 const isAdmin = computed(() => profile.value?.role === 'admin');
@@ -80,7 +72,7 @@ onMounted(() => {
           <div class="flex items-start gap-4">
             <!-- Avatar / Initials -->
             <div class="shrink-0 w-16 h-16 rounded-full bg-white/10 flex items-center justify-center text-xl font-semibold">
-              {{ displayInitials }}
+              {{ initials }}
             </div>
             
             <!-- Identity Details -->
