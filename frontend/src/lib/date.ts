@@ -23,19 +23,31 @@ export function formatMonthYear(value: DateLike, locale?: string): string | null
 }
 
 /**
- * Formats a Supabase timestamp as a relative day string like "3 days ago".
+ * Formats a Supabase timestamp as a relative time like "12 minutes ago".
  * - Invalid/missing dates return null
  * - Future dates clamp to "0 days ago"
+ * - Uses minutes, hours, then days
  */
 export function formatDaysAgo(value: DateLike, now: Date = new Date()): string | null {
   const date = parseSupabaseDate(value);
   if (!date) return null;
 
   const diffMs = now.getTime() - date.getTime();
-  const diffDays = Math.floor(diffMs / 86_400_000);
-  const days = Math.max(0, diffDays);
+  const clampedMs = Math.max(0, diffMs);
+  const diffMinutes = Math.floor(clampedMs / 60_000);
 
-  return days === 1 ? '1 day ago' : `${days} days ago`;
+  if (diffMinutes < 60) {
+    const minutes = diffMinutes;
+    return minutes === 1 ? '1 minute ago' : `${minutes} minutes ago`;
+  }
+
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) {
+    return diffHours === 1 ? '1 hour ago' : `${diffHours} hours ago`;
+  }
+
+  const diffDays = Math.floor(diffHours / 24);
+  return diffDays === 1 ? '1 day ago' : `${diffDays} days ago`;
 }
 
 export type RelativeDuration = {
