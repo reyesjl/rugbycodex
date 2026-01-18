@@ -1,11 +1,12 @@
 <script lang="ts" setup>
 import { ref } from 'vue';
 import { toast } from "@/lib/toast";
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { orgService } from '@/modules/orgs/services/orgServiceV2';
 import type { OrganizationType } from '@/modules/orgs/types';
 
 const router = useRouter();
+const route = useRoute();
 
 const name = ref('');
 const type = ref<OrganizationType>('team');
@@ -48,7 +49,13 @@ const submit = async () => {
       durationMs: 3000,
     });
 
-    router.push('/organizations');
+    const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : null;
+    if (redirect) {
+      // Prefer explicit return location when the user entered from onboarding or another page.
+      router.push(redirect);
+    } else {
+      router.back();
+    }
   } catch (err) {
     console.error('Failed to submit org request:', err);
     toast({
