@@ -470,7 +470,7 @@ watch(
 </script>
 
 <template>
-  <section class="container-lg py-6 text-white">
+  <section class="container-lg py-6 pb-50 text-white">
     <div v-if="resolving" class="rounded-lg border border-white/10 bg-white/5 p-6 text-white/70">
       Loading organization…
     </div>
@@ -508,12 +508,12 @@ watch(
             <div v-else-if="matchSummaries.length === 0" class="mt-4 text-sm text-white/60">
               No recent matches yet. Upload footage to start the weekly brief.
             </div>
-            <div v-else class="mt-4 flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory">
+            <div v-else class="mt-4 grid gap-4 sm:flex sm:gap-4 sm:overflow-x-auto sm:pb-2 sm:snap-x sm:snap-mandatory">
               <RouterLink
                 v-for="match in matchSummaries"
                 :key="match.id"
                 :to="match.to"
-                class="group min-w-[260px] max-w-[280px] snap-start rounded-lg border border-white/10 bg-white/5 p-3 transition hover:border-white/30 hover:bg-white/10"
+                class="group w-full sm:min-w-[240px] sm:max-w-[280px] sm:snap-start rounded-lg border border-white/10 bg-white/5 p-3 transition hover:border-white/30 hover:bg-white/10"
               >
                 <div class="relative w-full overflow-hidden rounded-md bg-white/5">
                   <div class="relative w-full pb-[56.25%]">

@@ -37,3 +37,31 @@ export function formatDaysAgo(value: DateLike, now: Date = new Date()): string |
 
   return days === 1 ? '1 day ago' : `${days} days ago`;
 }
+
+export type RelativeDuration = {
+  count: number;
+  unit: 'day' | 'week';
+  isPast: boolean;
+};
+
+/**
+ * Returns a relative duration in days or weeks.
+ * - Future dates set isPast=false, past dates isPast=true
+ * - Uses weeks for 7+ days
+ * - Uses ceiling for partial periods
+ */
+export function getRelativeDaysWeeks(value: DateLike, now: Date = new Date()): RelativeDuration | null {
+  const date = parseSupabaseDate(value);
+  if (!date) return null;
+
+  const diffMs = date.getTime() - now.getTime();
+  const isPast = diffMs < 0;
+  const absDays = Math.ceil(Math.abs(diffMs) / 86_400_000);
+
+  if (absDays >= 7) {
+    const weeks = Math.max(1, Math.ceil(absDays / 7));
+    return { count: weeks, unit: 'week', isPast };
+  }
+
+  return { count: absDays, unit: 'day', isPast };
+}
