@@ -2,10 +2,9 @@
 import { computed } from 'vue';
 import { Icon } from '@iconify/vue';
 import { RouterLink } from 'vue-router';
-import CoachGuide from '@/modules/app/components/CoachGuide.vue';
 import { useProfileDisplay } from '@/modules/profiles/composables/useProfileDisplay';
 
-const { displayName, initials, username } = useProfileDisplay();
+const { username } = useProfileDisplay();
 
 const greeting = computed(() => {
   const hour = new Date().getHours();
