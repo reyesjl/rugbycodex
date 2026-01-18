@@ -84,15 +84,24 @@ const handleSubmit = async () => {
 
 const handleResendConfirmation = async () => {
   if (!form.email || resendingConfirmation.value) return;
+  if (turnstileRequired.value && !turnstileToken.value) {
+    resendErrorMessage.value = 'Please complete the verification challenge.';
+    return;
+  }
   resendingConfirmation.value = true;
   resendSuccessMessage.value = null;
   resendErrorMessage.value = null;
 
   try {
-    const { error } = await authStore.resendConfirmationEmail(form.email, confirmationRedirectUrl);
+    const { error } = await authStore.resendConfirmationEmail(
+      form.email,
+      confirmationRedirectUrl,
+      turnstileRequired.value ? turnstileToken.value : undefined,
+    );
 
     if (error) {
       resendErrorMessage.value = error.message ?? 'Unable to resend confirmation email.';
+      turnstileRef.value?.reset();
     } else {
       resendSuccessMessage.value =
         'We just sent a new confirmation email. Check your inbox and spam folder.';
@@ -176,7 +185,7 @@ watch(
         <button
           type="button"
           class="font-semibold uppercase tracking-[0.2em] text-white underline underline-offset-4 transition hover:opacity-70 disabled:cursor-not-allowed disabled:opacity-60"
-          :disabled="resendingConfirmation"
+          :disabled="resendingConfirmation || (turnstileRequired && !turnstileToken)"
           @click="handleResendConfirmation"
         >
           {{ resendingConfirmation ? 'Sending…' : 'Resend confirmation email' }}

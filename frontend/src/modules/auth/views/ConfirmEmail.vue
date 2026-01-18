@@ -2,6 +2,7 @@
 import { ref, watch } from 'vue';
 import { RouterLink } from 'vue-router';
 import { useAuthStore } from '@/modules/auth/stores/useAuthStore';
+import TurnstileVerification from '@/components/TurnstileVerification.vue';
 
 const authStore = useAuthStore();
 const hasError = ref(false);
@@ -10,6 +11,9 @@ const email = ref('');
 const resending = ref(false);
 const resendSuccessMessage = ref<string | null>(null);
 const resendErrorMessage = ref<string | null>(null);
+const turnstileToken = ref('');
+const turnstileRequired = ref(false);
+const turnstileRef = ref<InstanceType<typeof TurnstileVerification> | null>(null);
 const confirmationRedirectUrl =
   typeof window !== 'undefined' ? `${window.location.origin}/auth/confirm-email` : undefined;
 
@@ -30,14 +34,23 @@ if (typeof window !== 'undefined') {
 
 const handleResend = async () => {
   if (!email.value || resending.value) return;
+  if (turnstileRequired.value && !turnstileToken.value) {
+    resendErrorMessage.value = 'Please complete the verification challenge.';
+    return;
+  }
   resending.value = true;
   resendSuccessMessage.value = null;
   resendErrorMessage.value = null;
 
   try {
-    const { error } = await authStore.resendConfirmationEmail(email.value, confirmationRedirectUrl);
+    const { error } = await authStore.resendConfirmationEmail(
+      email.value,
+      confirmationRedirectUrl,
+      turnstileRequired.value ? turnstileToken.value : undefined,
+    );
     if (error) {
       resendErrorMessage.value = error.message ?? 'Unable to resend confirmation email.';
+      turnstileRef.value?.reset();
       return;
     }
     resendSuccessMessage.value =
@@ -84,10 +97,17 @@ watch(email, () => {
           />
         </div>
 
+        <TurnstileVerification
+          class="mt-2 opacity-70"
+          v-model:token="turnstileToken"
+          v-model:required="turnstileRequired"
+          ref="turnstileRef"
+        />
+
         <button
           type="submit"
           class="inline-flex w-full items-center justify-center bg-white px-4 py-3 text-xs font-semibold uppercase tracking-[0.35em] text-black transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-          :disabled="resending"
+          :disabled="resending || (turnstileRequired && !turnstileToken)"
         >
           {{ resending ? 'Sending…' : 'Commit resend' }}
         </button>

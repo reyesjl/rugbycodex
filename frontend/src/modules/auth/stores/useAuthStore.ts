@@ -153,7 +153,7 @@ export const useAuthStore = defineStore('auth', () => {
     return { data: result.data, error: null };
   };
 
-  const resendConfirmationEmail = async (email: string, redirectTo?: string) => {
+  const resendConfirmationEmail = async (email: string, redirectTo?: string, captchaToken?: string) => {
     lastError.value = null;
     const emailRedirectTo =
       redirectTo ?? (typeof window !== 'undefined' ? `${window.location.origin}/auth/confirm-email` : undefined);
@@ -164,8 +164,11 @@ export const useAuthStore = defineStore('auth', () => {
       options: emailRedirectTo
         ? {
             emailRedirectTo,
+            captchaToken: captchaToken || undefined,
           }
-        : undefined,
+        : captchaToken
+          ? { captchaToken }
+          : undefined,
     });
 
     if (error) {
