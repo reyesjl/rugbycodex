@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/modules/auth/stores/useAuthStore';
@@ -44,7 +44,6 @@ const groups = ref<Array<{ group: OrgGroup; memberIds: string[] }>>([]);
 const assignments = ref<OrgAssignmentListItem[]>([]);
 const progressRows = ref<AssignmentProgressRow[]>([]);
 const editingAssignment = ref<OrgAssignmentListItem | null>(null);
-const selectAllCheckbox = ref<HTMLInputElement | null>(null);
 const showDeleteModal = ref(false);
 const deleteAssignmentId = ref<string | null>(null);
 const deleteAssignmentName = ref('this assignment');
@@ -53,20 +52,12 @@ const isDeleting = ref(false);
 const isBulkDelete = ref(false);
 const extendByDays = ref<number | null>(null);
 const isExtending = ref(false);
-const extendDropdownOpen = ref(false);
-const extendDropdownRef = ref<HTMLDivElement | null>(null);
 const extendOptions = [
   { value: 1, label: '1 day' },
   { value: 2, label: '2 days' },
   { value: 3, label: '3 days' },
   { value: 7, label: '1 week' },
 ] as const;
-
-const extendSelectedLabel = computed(() => {
-  if (!extendByDays.value) return 'Select';
-  const match = extendOptions.find((opt) => opt.value === extendByDays.value);
-  return match?.label ?? 'Select';
-});
 
 const statusFilter = ref<'all' | 'overdue' | 'due_soon' | 'completed'>('all');
 const targetFilter = ref<'all' | 'team' | 'group' | 'player'>('all');
@@ -408,6 +399,8 @@ const visibleRowIds = computed(() => {
 
 const selectedCount = computed(() => selectedAssignmentIds.value.length);
 
+const hasSelection = computed(() => selectedAssignmentIds.value.length > 0);
+
 const selectedIdSet = computed(() => new Set(selectedAssignmentIds.value));
 
 const allVisibleSelected = computed(() => {
@@ -686,11 +679,6 @@ const groupList = computed(() => {
 
 onMounted(() => {
   void load();
-  document.addEventListener('click', handleExtendDropdownOutside);
-});
-
-onBeforeUnmount(() => {
-  document.removeEventListener('click', handleExtendDropdownOutside);
 });
 
 watch(orgId, (next, prev) => {
@@ -736,13 +724,6 @@ watch(filteredRows, () => {
   selectedAssignmentIds.value = selectedAssignmentIds.value.filter((id) => visible.has(id));
 });
 
-watch([selectedCount, visibleRowIds], () => {
-  const el = selectAllCheckbox.value;
-  if (!el) return;
-  const total = visibleRowIds.value.length;
-  const selected = selectedCount.value;
-  el.indeterminate = selected > 0 && selected < total;
-});
 
 watch(groupOptions, (nextOptions) => {
   if (groupFilter.value === 'all') return;
@@ -756,23 +737,7 @@ watch(playerOptions, (nextOptions) => {
   if (!hasMatch) playerFilter.value = 'all';
 });
 
-function toggleExtendDropdown(event: MouseEvent) {
-  if (!canManage.value) return;
-  event.stopPropagation();
-  extendDropdownOpen.value = !extendDropdownOpen.value;
-}
-
-function selectExtendOption(value: number) {
-  extendByDays.value = value;
-  extendDropdownOpen.value = false;
-}
-
-function handleExtendDropdownOutside(event: MouseEvent) {
-  if (!extendDropdownRef.value) return;
-  if (!extendDropdownRef.value.contains(event.target as Node)) {
-    extendDropdownOpen.value = false;
-  }
-}
+// no custom dropdown handlers needed
 
 </script>
 
@@ -784,30 +749,20 @@ function handleExtendDropdownOutside(event: MouseEvent) {
         <p class="text-sm text-white/50">Track what was assigned, who is behind, and what’s due soon.</p>
       </div>
 
-      <div class="flex flex-col gap-3 rounded-lg border border-white/10 bg-black/60 px-3 py-2 text-xs text-white/70 md:flex-row md:items-center md:justify-between">
+      <div class="flex flex-col gap-3 rounded-t-lg border border-b-0 border-white/10 bg-black/60 px-3 py-2 text-xs text-white/70 md:flex-row md:items-center md:justify-between">
         <div class="flex flex-wrap items-center gap-2">
           <label class="flex items-center gap-2 text-white/60">
             <input
-              ref="selectAllCheckbox"
               type="checkbox"
-              class="h-3.5 w-3.5 accent-sky-400"
+              class="h-3.5 w-3.5 accent-blue-600"
               :checked="allVisibleSelected"
               :disabled="visibleRowIds.length === 0 || !canManage"
-              @change="toggleSelectAllVisible(($event.target as HTMLInputElement).checked)"
-              @click="(event) => {
-                const target = event.target as HTMLInputElement;
-                if (target.indeterminate) {
-                  event.preventDefault();
-                  target.indeterminate = false;
-                  target.checked = false;
-                  toggleSelectAllVisible(false);
-                }
-              }"
+              @change="() => toggleSelectAllVisible(!hasSelection)"
             />
           </label>
 
-          <div v-if="selectedCount > 0" class="font-semibold flex items-center gap-2 text-xs text-white/60">
-            <span>{{ selectedCount }} of {{ visibleRowIds.length }} selected</span>
+          <div v-if="selectedCount > 0" class="flex items-center gap-2 text-sm text-white/60">
+            <div class="font-semibold">{{ selectedCount }} of {{ visibleRowIds.length }} selected</div>
           </div>
 
           <div v-else class="flex items-center">
@@ -857,37 +812,19 @@ function handleExtendDropdownOutside(event: MouseEvent) {
         </div>
 
         <div v-if="selectedCount > 0" class="flex flex-wrap items-center gap-3 text-xs">
-          <div ref="extendDropdownRef" class="relative">
-            <button
-              type="button"
-              class="flex items-center gap-2 rounded border border-white/10 bg-black/70 px-2 py-1 text-xs text-white/70 transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+          <label class="flex items-center gap-2 text-white/60">
+            <span class="text-white/40">Extend by</span>
+            <select
+              v-model="extendByDays"
+              class="rounded bg-black/70 px-2 py-1 text-white ring-1 ring-white/10"
               :disabled="!canManage"
-              @click="toggleExtendDropdown"
             >
-              <span class="text-white/40">Extend by</span>
-              <span class="text-white/80">{{ extendSelectedLabel }}</span>
-              <svg class="h-3.5 w-3.5 text-white/50" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clip-rule="evenodd" />
-              </svg>
-            </button>
-
-            <div
-              v-if="extendDropdownOpen"
-              class="absolute left-0 mt-2 w-40 rounded-lg border border-white/10 bg-black/90 p-1 text-xs text-white/80 shadow-lg"
-              role="listbox"
-            >
-              <button
-                v-for="option in extendOptions"
-                :key="option.value"
-                type="button"
-                class="flex w-full items-center justify-between rounded px-2 py-1 text-left transition hover:bg-white/10"
-                :class="option.value === extendByDays ? 'bg-white/10 text-white' : ''"
-                @click="selectExtendOption(option.value)"
-              >
-                <span>{{ option.label }}</span>
-              </button>
-            </div>
-          </div>
+              <option :value="null">Select</option>
+              <option v-for="option in extendOptions" :key="option.value" :value="option.value">
+                {{ option.label }}
+              </option>
+            </select>
+          </label>
           <button
             type="button"
             class="rounded-lg border border-white/20 bg-white/10 px-3 py-1 text-xs text-white/80 transition hover:bg-white/20 disabled:opacity-50"
@@ -907,7 +844,7 @@ function handleExtendDropdownOutside(event: MouseEvent) {
         </div>
 
         <div v-else class="flex flex-wrap items-center gap-3">
-          <label class="flex items-center gap-2">
+          <label class="hidden items-center gap-2 md:flex">
             <span class="text-white/40">Status</span>
             <select
               v-model="statusFilter"
@@ -933,7 +870,7 @@ function handleExtendDropdownOutside(event: MouseEvent) {
             </select>
           </label>
 
-          <label v-if="targetFilter !== 'player' && groupOptions.length > 0" class="flex items-center gap-2">
+          <label v-if="targetFilter !== 'player' && groupOptions.length > 0" class="hidden items-center gap-2 md:flex">
             <span class="text-white/40">Group</span>
             <select
               v-model="groupFilter"
@@ -972,8 +909,8 @@ function handleExtendDropdownOutside(event: MouseEvent) {
       No assignments yet.
     </div>
 
-    <div v-else class="mt-8 space-y-4">
-      <div v-if="!hasResults" class="text-white/50">No assignments match your filters.</div>
+    <div v-else class="rounded-b-lg border border-t-0 border-white/10 bg-black/60">
+      <div v-if="!hasResults" class="px-3 py-4 text-white/50">No assignments match your filters.</div>
 
       <div v-else class="divide-y divide-white/10">
         <div
@@ -981,14 +918,14 @@ function handleExtendDropdownOutside(event: MouseEvent) {
           :key="row.id"
           class="group px-2 py-3 transition"
           :class="selectedIdSet.has(row.id)
-            ? 'border border-sky-400/40 bg-sky-500/10'
+            ? 'border border-blue-500/50 bg-blue-600/10'
             : 'border border-transparent hover:bg-white/5'"
         >
           <div class="flex items-start justify-between gap-6">
             <div class="flex min-w-0 items-start gap-3">
               <input
                 type="checkbox"
-                class="mt-1 h-3.5 w-3.5 accent-sky-400"
+                class="mt-1 h-3.5 w-3.5 accent-blue-600"
                 :checked="selectedIdSet.has(row.id)"
                 :disabled="!canManage"
                 @click.stop
