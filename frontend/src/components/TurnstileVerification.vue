@@ -14,7 +14,7 @@ const emit = defineEmits<{
   (e: 'update:required', value: boolean): void;
 }>();
 
-const { shouldRenderTurnstile, turnstileToken, turnstileContainer } = useTurnstile();
+const { shouldRenderTurnstile, turnstileToken, turnstileContainer, resetTurnstile } = useTurnstile();
 
 watch(
   () => shouldRenderTurnstile.value,
@@ -31,6 +31,10 @@ watch(
   },
   { immediate: true },
 );
+
+defineExpose({
+  reset: resetTurnstile,
+});
 </script>
 
 <template>

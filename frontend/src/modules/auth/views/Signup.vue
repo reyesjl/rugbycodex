@@ -18,6 +18,7 @@ const confirmationRedirectUrl =
 
 const turnstileToken = ref('');
 const turnstileRequired = ref(false);
+const turnstileRef = ref<InstanceType<typeof TurnstileVerification> | null>(null);
 
 const USERNAME_PATTERN = /^[a-z0-9._-]+$/;
 const USERNAME_MIN_LENGTH = 3;
@@ -212,6 +213,7 @@ const handleSubmit = async () => {
 
   if (error) {
     supabaseError.value = error.message ?? 'Something went wrong while creating your account.';
+    turnstileRef.value?.reset();
     signingUp.value = false;
     return;
   }
@@ -407,7 +409,12 @@ const textareaClass = `${inputClass} min-h-[96px]`;
         </div>
       </div>
 
-      <TurnstileVerification class="mt-2 opacity-70" v-model:token="turnstileToken" v-model:required="turnstileRequired" />
+      <TurnstileVerification
+        class="mt-2 opacity-70"
+        v-model:token="turnstileToken"
+        v-model:required="turnstileRequired"
+        ref="turnstileRef"
+      />
 
       <p v-if="supabaseError" class="text-xs text-rose-400">
         {{ supabaseError }}

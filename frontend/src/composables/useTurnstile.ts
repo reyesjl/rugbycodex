@@ -110,6 +110,13 @@ export const useTurnstile = () => {
     }
   };
 
+  const resetTurnstile = () => {
+    if (typeof window === 'undefined') return;
+    if (!turnstileWidgetId.value) return;
+    window.turnstile?.reset?.(turnstileWidgetId.value);
+    turnstileToken.value = '';
+  };
+
   const mountTurnstile = async () => {
     if (!shouldRenderTurnstile.value) return;
     if (typeof window === 'undefined') return;
@@ -126,6 +133,12 @@ export const useTurnstile = () => {
       size: 'normal',
       callback: (token: string) => {
         turnstileToken.value = token;
+      },
+      'error-callback': () => {
+        turnstileToken.value = '';
+      },
+      'expired-callback': () => {
+        turnstileToken.value = '';
       },
     });
   };
@@ -166,5 +179,6 @@ export const useTurnstile = () => {
     shouldRenderTurnstile,
     turnstileToken,
     turnstileContainer,
+    resetTurnstile,
   };
 };

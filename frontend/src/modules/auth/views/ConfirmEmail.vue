@@ -56,12 +56,12 @@ watch(email, () => {
 <template>
   <div class="space-y-8">
     <header class="space-y-2">
-      <h1 class="text-xl font-semibold uppercase tracking-[0.3em] text-white">CONFIRM EMAIL</h1>
+      <h1 class="text-xl font-semibold uppercase tracking-[0.3em] text-white">EMAIL STATUS</h1>
       <p class="text-sm text-neutral-400">
         {{
           hasError
             ? errorMessage ?? 'Confirmation link invalid or expired.'
-            : 'Verify your email address to continue.'
+            : 'Your email has been successfully verified.'
         }}
       </p>
     </header>

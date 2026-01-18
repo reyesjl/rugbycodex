@@ -15,6 +15,7 @@ const form = reactive({
 
 const turnstileToken = ref('');
 const turnstileRequired = ref(false);
+const turnstileRef = ref<InstanceType<typeof TurnstileVerification> | null>(null);
 
 const loading = ref(false);
 const errorMessage = ref<string | null>(null);
@@ -73,6 +74,7 @@ const handleSubmit = async () => {
     errorMessage.value = requiresConfirmation
       ? 'Please confirm your email before signing in.'
       : message;
+    turnstileRef.value?.reset();
     return;
   }
 
@@ -155,6 +157,7 @@ watch(
         class="mt-2 opacity-70"
         v-model:token="turnstileToken"
         v-model:required="turnstileRequired"
+        ref="turnstileRef"
       />
 
       <div class="flex justify-end text-[11px] uppercase tracking-[0.2em] text-neutral-500">

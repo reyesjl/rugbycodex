@@ -15,6 +15,7 @@ const successMessage = ref<string | null>(null);
 const errorMessage = ref<string | null>(null);
 const turnstileToken = ref('');
 const turnstileRequired = ref(false);
+const turnstileRef = ref<InstanceType<typeof TurnstileVerification> | null>(null);
 
 const handleSubmit = async () => {
   if (sending.value) return;
@@ -46,6 +47,7 @@ const handleSubmit = async () => {
 
   if (error) {
     errorMessage.value = error.message ?? 'Unable to send reset instructions. Please try again.';
+    turnstileRef.value?.reset();
     return;
   }
 
@@ -80,6 +82,7 @@ const handleSubmit = async () => {
         class="mt-2 opacity-70"
         v-model:token="turnstileToken"
         v-model:required="turnstileRequired"
+        ref="turnstileRef"
       />
 
       <p v-if="errorMessage" class="text-xs text-rose-400">
