@@ -56,13 +56,13 @@ async function initializePlayer(): Promise<boolean> {
 
   destroyPlayer();
 
-  player = new shaka.Player(el);
+  player = new shaka.Player();
+  await player.attach(el);
   player.addEventListener('error', onErrorEvent);
   player.configure({
     streaming: {
       rebufferingGoal: 2,
       bufferingGoal: 10,
-      jumpLargeGaps: true,
     },
   });
 
