@@ -81,30 +81,12 @@ void mobileSheetRef.value;
           </li>
 
           <template v-if="hasActiveOrg">
-            <li>
-              <RouterLink :to="`/organizations/${orgContext?.organization.slug}/feed`"
-                :class="[
-                  'flex items-center px-4 py-2 rounded',
-                  isFeedRouteActive ? 'bg-white text-black hover:!bg-white' : 'hover:bg-white/10',
-                ]">
-                <Icon icon="carbon:connection-signal" width="20" height="20" class="mr-5" />
-                Feed
-              </RouterLink>
-            </li>
             <li v-if="canManageOrgTools">
               <RouterLink :to="`/organizations/${orgContext?.organization.slug}/assignments`"
                 active-class="bg-white text-black hover:!bg-white"
                 class="flex items-center px-4 py-2 hover:bg-white/10 rounded">
                 <Icon icon="carbon:task" width="20" height="20" class="mr-5" />
                 Assignments
-              </RouterLink>
-            </li>
-            <li v-if="canManageOrgTools">
-              <RouterLink :to="`/organizations/${orgContext?.organization.slug}/groups`"
-                active-class="bg-white text-black hover:!bg-white"
-                class="flex items-center px-4 py-2 hover:bg-white/10 rounded">
-                <Icon icon="carbon:group" width="20" height="20" class="mr-5" />
-                Groups
               </RouterLink>
             </li>
             <li v-if="canManageOrgTools">
@@ -116,11 +98,30 @@ void mobileSheetRef.value;
               </RouterLink>
             </li>
             <li v-if="canManageOrgTools">
+              <RouterLink :to="`/organizations/${orgContext?.organization.slug}/groups`"
+                active-class="bg-white text-black hover:!bg-white"
+                class="flex items-center px-4 py-2 hover:bg-white/10 rounded">
+                <Icon icon="carbon:group" width="20" height="20" class="mr-5" />
+                Groups
+              </RouterLink>
+            </li>
+            <li v-if="canManageOrgTools">
               <RouterLink :to="`/organizations/${orgContext?.organization.slug}/usage`"
                 active-class="bg-white text-black hover:!bg-white"
                 class="flex items-center px-4 py-2 hover:bg-white/10 rounded">
                 <Icon icon="carbon:meter" width="20" height="20" class="mr-5" />
                 Usage
+              </RouterLink>
+            </li>
+            <li v-if="canManageOrgTools" class="my-3 border-t border-white/10" />
+            <li>
+              <RouterLink :to="`/organizations/${orgContext?.organization.slug}/feed`"
+                :class="[
+                  'flex items-center px-4 py-2 rounded',
+                  isFeedRouteActive ? 'bg-white text-black hover:!bg-white' : 'hover:bg-white/10',
+                ]">
+                <Icon icon="carbon:connection-signal" width="20" height="20" class="mr-5" />
+                Feed
               </RouterLink>
             </li>
             <li>
@@ -141,6 +142,7 @@ void mobileSheetRef.value;
             </li>
           </template>
 
+          <li v-if="hasActiveOrg" class="my-3 border-t border-white/10" />
           <li class="mt-5">
             <div class="flex items-center px-4 py-2 font-semibold text-white/80 select-none">
               You
@@ -217,16 +219,6 @@ void mobileSheetRef.value;
         <nav class="sidebar">
           <ul class="sidebar-list">
             <template v-if="hasActiveOrg">
-              <li>
-                <RouterLink :to="`/organizations/${orgContext?.organization.slug}/feed`"
-                  :class="[
-                    'flex items-center px-4 py-2 rounded',
-                    isFeedRouteActive ? 'bg-white text-black hover:!bg-white' : 'hover:bg-white/10',
-                  ]">
-                  <Icon icon="carbon:connection-signal" width="20" height="20" class="mr-5" />
-                  Feed
-                </RouterLink>
-              </li>
               <li v-if="canManageOrgTools">
                 <RouterLink :to="`/organizations/${orgContext?.organization.slug}/assignments`"
                   active-class="bg-white text-black hover:!bg-white"
@@ -234,15 +226,6 @@ void mobileSheetRef.value;
                   @click="handleSidebarToggle">
                   <Icon icon="carbon:task" width="20" height="20" class="mr-5" />
                   Assignments
-                </RouterLink>
-              </li>
-              <li v-if="canManageOrgTools">
-                <RouterLink :to="`/organizations/${orgContext?.organization.slug}/groups`"
-                  active-class="bg-white text-black hover:!bg-white"
-                  class="flex items-center px-4 py-2 hover:bg-white/10 rounded"
-                  @click="handleSidebarToggle">
-                  <Icon icon="carbon:group" width="20" height="20" class="mr-5" />
-                  Groups
                 </RouterLink>
               </li>
               <li v-if="canManageOrgTools">
@@ -255,6 +238,15 @@ void mobileSheetRef.value;
                 </RouterLink>
               </li>
               <li v-if="canManageOrgTools">
+                <RouterLink :to="`/organizations/${orgContext?.organization.slug}/groups`"
+                  active-class="bg-white text-black hover:!bg-white"
+                  class="flex items-center px-4 py-2 hover:bg-white/10 rounded"
+                  @click="handleSidebarToggle">
+                  <Icon icon="carbon:group" width="20" height="20" class="mr-5" />
+                  Groups
+                </RouterLink>
+              </li>
+              <li v-if="canManageOrgTools">
                 <RouterLink :to="`/organizations/${orgContext?.organization.slug}/usage`"
                   active-class="bg-white text-black hover:!bg-white"
                   class="flex items-center px-4 py-2 hover:bg-white/10 rounded"
@@ -263,7 +255,17 @@ void mobileSheetRef.value;
                   Usage
                 </RouterLink>
               </li>
-
+              <li v-if="canManageOrgTools" class="my-3 border-t border-white/10" />
+              <li>
+                <RouterLink :to="`/organizations/${orgContext?.organization.slug}/feed`"
+                  :class="[
+                    'flex items-center px-4 py-2 rounded',
+                    isFeedRouteActive ? 'bg-white text-black hover:!bg-white' : 'hover:bg-white/10',
+                  ]">
+                  <Icon icon="carbon:connection-signal" width="20" height="20" class="mr-5" />
+                  Feed
+                </RouterLink>
+              </li>
               <li>
                 <RouterLink :to="`/organizations/${orgContext?.organization.slug}/overview`"
                   active-class="bg-white text-black hover:!bg-white"
@@ -283,10 +285,9 @@ void mobileSheetRef.value;
                   Members
                 </RouterLink>
               </li>
-
-
             </template>
 
+            <li v-if="hasActiveOrg" class="my-3 border-t border-white/10" />
             <li class="mt-5">
               <div class="flex items-center px-4 py-2 font-semibold text-white/80 select-none">
                 You
