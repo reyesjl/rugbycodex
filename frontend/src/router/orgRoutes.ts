@@ -62,6 +62,14 @@ export const orgRoutes: RouteRecordRaw = {
           props: true,
         },
         {
+          path: 'usage',
+          name: 'OrgUsage',
+          alias: '/orgs/:slug/usage',
+          component: () => import('@/modules/usage/views/OrgUsageView.vue'),
+          props: true,
+          meta: { minOrgRole: 'staff' },
+        },
+        {
           path: 'media/:mediaAssetId/watch',
           name: 'OrgMediaAssetWatch',
           component: () => import('@/modules/orgs/views/OrgMediaShakaTestView.vue'),

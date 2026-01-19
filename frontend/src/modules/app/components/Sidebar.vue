@@ -115,6 +115,14 @@ void mobileSheetRef.value;
                 Media
               </RouterLink>
             </li>
+            <li v-if="canManageOrgTools">
+              <RouterLink :to="`/organizations/${orgContext?.organization.slug}/usage`"
+                active-class="bg-white text-black hover:!bg-white"
+                class="flex items-center px-4 py-2 hover:bg-white/10 rounded">
+                <Icon icon="carbon:meter" width="20" height="20" class="mr-5" />
+                Usage
+              </RouterLink>
+            </li>
             <li>
               <RouterLink :to="`/organizations/${orgContext?.organization.slug}/overview`"
                 active-class="bg-white text-black hover:!bg-white"
@@ -244,6 +252,15 @@ void mobileSheetRef.value;
                   @click="handleSidebarToggle">
                   <Icon icon="carbon:image" width="20" height="20" class="mr-5" />
                   Media
+                </RouterLink>
+              </li>
+              <li v-if="canManageOrgTools">
+                <RouterLink :to="`/organizations/${orgContext?.organization.slug}/usage`"
+                  active-class="bg-white text-black hover:!bg-white"
+                  class="flex items-center px-4 py-2 hover:bg-white/10 rounded"
+                  @click="handleSidebarToggle">
+                  <Icon icon="carbon:meter" width="20" height="20" class="mr-5" />
+                  Usage
                 </RouterLink>
               </li>
 
