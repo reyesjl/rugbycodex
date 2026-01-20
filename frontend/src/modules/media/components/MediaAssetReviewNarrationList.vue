@@ -20,8 +20,16 @@ const props = defineProps<{
   defaultSource?: 'all' | 'coach' | 'staff' | 'member' | 'ai';
   /** Controlled selection for the source filter (keeps panels in sync). */
   sourceFilter?: 'all' | 'coach' | 'staff' | 'member' | 'ai' | null;
-  /** Staff+ can edit/delete any narration; members only their own. */
+  /** Staff+ moderation capabilities. */
   canModerateNarrations?: boolean;
+  /** Staff+ can assign segments. */
+  canAssignSegments?: boolean;
+  /** Staff+ can add/remove segment tags. */
+  canTagSegments?: boolean;
+  /** Staff+ can edit narrations. */
+  canEditNarrations?: boolean;
+  /** Staff+ can delete narrations. */
+  canDeleteNarrations?: boolean;
   /** Supabase auth user id (Narration.author_id). */
   currentUserId?: string | null;
 }>();
@@ -75,7 +83,7 @@ function toggleTagPanel(segmentId: string) {
   tagPanelOpenIds.value = new Set(set);
 }
 
-const canAddQuickTags = computed(() => Boolean(props.canModerateNarrations));
+const canAddQuickTags = computed(() => Boolean(props.canTagSegments));
 
 type SourceFilter = 'all' | NarrationSourceType;
 type TagFilterOption = { key: string; type: SegmentTagType | null };
@@ -141,6 +149,7 @@ function visibleSegmentTags(seg: MediaAssetSegment): SegmentTag[] {
 }
 
 function canRemoveTag(tag: SegmentTag): boolean {
+  if (!props.canTagSegments) return false;
   if (props.canModerateNarrations) return true;
   if (tag.tag_type !== 'identity') return false;
   const userId = props.currentUserId ?? null;
@@ -164,16 +173,16 @@ function isSavedNarration(n: NarrationListItem): n is Narration {
   return !(n as any)?.status;
 }
 
-function canEditOrDelete(n: NarrationListItem): boolean {
-  // On this screen, controls should always be visible.
-  // Disable actions only for optimistic (uploading/error) placeholders.
+function canEditNarration(n: NarrationListItem): boolean {
+  if (!props.canEditNarrations) return false;
   if (!isSavedNarration(n)) return false;
+  return true;
+}
 
-  if (props.canModerateNarrations) return true;
-
-  const authorId = (n as Narration).author_id;
-  const userId = props.currentUserId ?? null;
-  return Boolean(authorId && userId && authorId === userId);
+function canDeleteNarration(n: NarrationListItem): boolean {
+  if (!props.canDeleteNarrations) return false;
+  if (!isSavedNarration(n)) return false;
+  return true;
 }
 
 function startEditing(n: Narration) {
@@ -697,7 +706,7 @@ function formatCreatedAt(value: any): string {
             </button>
 
             <button
-              v-if="props.canModerateNarrations"
+              v-if="props.canAssignSegments"
               type="button"
               class="flex items-center gap-1 text-[11px] text-white/50 hover:text-white/80 transition cursor-pointer"
               title="Assign this segment"
@@ -708,7 +717,7 @@ function formatCreatedAt(value: any): string {
             </button>
 
             <button
-              v-if="canAddQuickTags"
+              v-if="props.canTagSegments"
               type="button"
               class="text-[11px] text-white/50 hover:text-white/80 transition cursor-pointer"
               title="Add tags"
@@ -756,20 +765,18 @@ function formatCreatedAt(value: any): string {
 
                   <div class="flex items-center gap-2 opacity-40 transition group-hover:opacity-100 focus-within:opacity-100">
                     <button
+                      v-if="canEditNarration(n)"
                       type="button"
-                      class="text-[11px] transition"
-                      :class="canEditOrDelete(n) ? 'text-white/50 hover:text-white/80' : 'text-white/20 cursor-not-allowed'"
-                      :disabled="!canEditOrDelete(n)"
-                      @click.stop="canEditOrDelete(n) && startEditing(n as any)"
+                      class="text-[11px] text-white/50 hover:text-white/80 transition"
+                      @click.stop="startEditing(n as any)"
                     >
                       Edit
                     </button>
                     <button
+                      v-if="canDeleteNarration(n)"
                       type="button"
-                      class="text-[11px] transition"
-                      :class="canEditOrDelete(n) ? 'text-rose-200/70 hover:text-rose-200' : 'text-rose-200/20 cursor-not-allowed'"
-                      :disabled="!canEditOrDelete(n)"
-                      @click.stop="canEditOrDelete(n) && requestDelete(n as any)"
+                      class="text-[11px] text-rose-200/70 hover:text-rose-200 transition"
+                      @click.stop="requestDelete(n as any)"
                     >
                       Delete
                     </button>

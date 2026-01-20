@@ -28,7 +28,7 @@ import { useAudioRecording } from '@/composables/useAudioRecording';
 import { transcriptionService } from '@/modules/narrations/services/transcriptionService';
 import type { OptimisticNarration } from '@/modules/narration/composables/useNarrationRecorder';
 import type { MediaAssetSegment, MediaAssetSegmentSourceType } from '@/modules/narrations/types/MediaAssetSegment';
-import type { Narration, NarrationSourceType } from '@/modules/narrations/types/Narration';
+import type { NarrationSourceType } from '@/modules/narrations/types/Narration';
 import type { SegmentTagType } from '@/modules/media/types/SegmentTag';
 
 import { formatMinutesSeconds } from '@/lib/duration';
@@ -91,6 +91,16 @@ const membershipRole = computed(() => (orgContext.value?.membership?.role ?? nul
 const isStaffOrAbove = computed(() => hasOrgAccess(membershipRole.value, 'staff'));
 const currentUserId = computed(() => authStore.user?.id ?? null);
 
+const canAssignSegments = computed(() => isStaffOrAbove.value);
+const canTagSegments = computed(() => isStaffOrAbove.value);
+const canModerateNarrations = computed(() => isStaffOrAbove.value);
+const canEditNarrations = computed(() => isStaffOrAbove.value);
+const canDeleteNarrations = computed(() => isStaffOrAbove.value);
+const canGenerateMatchSummary = computed(() => {
+  const raw = String(membershipRole.value ?? '').toLowerCase();
+  return raw === 'owner' || raw === 'manager' || raw === 'staff';
+});
+
 const userSegmentSourceType = computed<MediaAssetSegmentSourceType>(() => {
   const raw = String(membershipRole.value ?? '').toLowerCase();
 
@@ -146,11 +156,6 @@ watch(
 
 const mediaAssetId = computed(() => String(route.params.mediaAssetId ?? ''));
 
-const canGenerateMatchSummary = computed(() => {
-  const raw = String(membershipRole.value ?? '').toLowerCase();
-  return raw === 'owner' || raw === 'manager' || raw === 'staff';
-});
-
 const mediaReview = useMediaAssetReview({
   orgId: () => activeOrgId.value,
   mediaAssetId: () => mediaAssetId.value,
@@ -205,6 +210,10 @@ function upsertSegment(next: MediaAssetSegment): void {
 }
 
 async function handleAddSegmentTag(payload: { segmentId: string; tagKey: string; tagType: SegmentTagType }) {
+  if (!canTagSegments.value) {
+    toast({ message: 'You do not have permission to modify tags.', variant: 'info', durationMs: 2500 });
+    return;
+  }
   if (!payload.segmentId) return;
   try {
     const tag = await addSegmentTag({
@@ -220,6 +229,10 @@ async function handleAddSegmentTag(payload: { segmentId: string; tagKey: string;
 }
 
 async function handleRemoveSegmentTag(payload: { segmentId: string; tagId: string }) {
+  if (!canTagSegments.value) {
+    toast({ message: 'You do not have permission to modify tags.', variant: 'info', durationMs: 2500 });
+    return;
+  }
   if (!payload.segmentId || !payload.tagId) return;
   try {
     const removed = await removeSegmentTag({
@@ -862,13 +875,9 @@ function jumpToSegment(seg: MediaAssetSegment) {
 }
 
 async function handleEditNarration(narrationId: string, transcriptRaw: string) {
-  const existing = (narrations.value as any[]).find((n) => String(n?.id) === narrationId) as Narration | undefined;
-  if (!isStaffOrAbove.value) {
-    const authorId = existing?.author_id ?? null;
-    if (!authorId || !currentUserId.value || authorId !== currentUserId.value) {
-      toast({ message: 'You can only edit your own narrations.', variant: 'info', durationMs: 2500 });
-      return;
-    }
+  if (!canEditNarrations.value) {
+    toast({ message: 'You do not have permission to edit narrations.', variant: 'info', durationMs: 2500 });
+    return;
   }
   try {
     const updated = await narrationService.updateNarrationText(narrationId, transcriptRaw);
@@ -881,13 +890,9 @@ async function handleEditNarration(narrationId: string, transcriptRaw: string) {
 }
 
 async function handleDeleteNarration(narrationId: string) {
-  const existing = (narrations.value as any[]).find((n) => String(n?.id) === narrationId) as Narration | undefined;
-  if (!isStaffOrAbove.value) {
-    const authorId = existing?.author_id ?? null;
-    if (!authorId || !currentUserId.value || authorId !== currentUserId.value) {
-      toast({ message: 'You can only delete your own narrations.', variant: 'info', durationMs: 2500 });
-      return;
-    }
+  if (!canDeleteNarrations.value) {
+    toast({ message: 'You do not have permission to delete narrations.', variant: 'info', durationMs: 2500 });
+    return;
   }
   try {
     await narrationService.deleteNarration(narrationId);
@@ -1125,7 +1130,11 @@ async function handleDeleteNarration(narrationId: string) {
               :focused-segment-id="focusedSegmentId"
               :default-source="defaultNarrationSource"
               :source-filter="narrationSourceFilter"
-              :can-moderate-narrations="isStaffOrAbove"
+              :can-moderate-narrations="canModerateNarrations"
+              :can-assign-segments="canAssignSegments"
+              :can-tag-segments="canTagSegments"
+              :can-edit-narrations="canEditNarrations"
+              :can-delete-narrations="canDeleteNarrations"
               :current-user-id="currentUserId"
               @jumpToSegment="jumpToSegment"
               @addNarration="handleAddNarrationForSegment"
@@ -1192,7 +1201,11 @@ async function handleDeleteNarration(narrationId: string) {
             :focused-segment-id="focusedSegmentId"
             :default-source="defaultNarrationSource"
             :source-filter="narrationSourceFilter"
-            :can-moderate-narrations="isStaffOrAbove"
+            :can-moderate-narrations="canModerateNarrations"
+            :can-assign-segments="canAssignSegments"
+            :can-tag-segments="canTagSegments"
+            :can-edit-narrations="canEditNarrations"
+            :can-delete-narrations="canDeleteNarrations"
             :current-user-id="currentUserId"
             @jumpToSegment="(seg) => { jumpToSegment(seg); narrationsDrawerOpen = false; }"
             @addNarration="handleAddNarrationForSegment"
