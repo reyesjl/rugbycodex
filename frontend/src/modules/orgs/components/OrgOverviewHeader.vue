@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { storeToRefs } from 'pinia';
 import { computed, ref } from 'vue';
 import { Icon } from '@iconify/vue';
 import { formatMonthYear } from '@/lib/date';
@@ -15,7 +14,6 @@ const props = defineProps<{
 }>();
 
 const activeOrganizationStore = useActiveOrganizationStore();
-const { orgContext } = storeToRefs(activeOrganizationStore);
 
 const org = computed(() => props.org);
 
