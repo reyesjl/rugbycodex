@@ -6,7 +6,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/modules/auth/stores/useAuthStore';
 import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrganizationStore';
 import { useOrgMediaStore } from '@/modules/media/stores/useOrgMediaStore';
-import { buildUploadJob, useUploadManager } from '@/modules/media/composables/useUploadManager';
+import { useUploadStore } from '@/modules/media/stores/useUploadStore';
 import { mediaService } from '@/modules/media/services/mediaService';
 import MediaAssetCard from '@/modules/orgs/components/MediaAssetCard.vue';
 import AddMediaAssetModal from '@/modules/orgs/components/AddMediaAssetModal.vue';
@@ -46,13 +46,13 @@ const assetToDelete = ref<{ id: string; name: string } | null>(null);
 const assetToEdit = ref<OrgMediaAsset | null>(null);
 const assetToReattach = ref<{ assetId: string; fileName: string; hasExistingJob: boolean } | null>(null);
 
-const uploadManager = useUploadManager();
+const uploadStore = useUploadStore();
 
-const hasInFlightUploads = computed(() => uploadManager.activeUploads.value.length > 0);
+const hasInFlightUploads = computed(() => uploadStore.activeUploads.value.length > 0);
 
 const uploadMetricsByAssetId = computed(() => {
   return new Map(
-    uploadManager.activeUploads.value.map((job) => [
+    uploadStore.activeUploads.value.map((job) => [
       job.id,
       {
         state: job.state,
@@ -156,7 +156,7 @@ function openReattachModal(assetId: string) {
   const asset = assets.value.find(a => a.id === assetId);
   if (!asset) return;
 
-  const existingJob = uploadManager.uploads.value.find(u => u.mediaId === assetId);
+  const existingJob = uploadStore.uploadsReadonly.value.find(u => u.mediaId === assetId);
 
   assetToReattach.value = {
     assetId: asset.id,
@@ -180,13 +180,13 @@ async function handleReattachFile(event: Event) {
   try {
     if (assetToReattach.value.hasExistingJob) {
       // Job exists in upload manager - reattach file
-      const existingJob = uploadManager.uploads.value.find(u => u.mediaId === assetToReattach.value!.assetId);
+      const existingJob = uploadStore.uploadsReadonly.value.find(u => u.mediaId === assetToReattach.value!.assetId);
       if (existingJob) {
-        uploadManager.reattachFile(existingJob.id, file);
+        uploadStore.reattachFile(existingJob.id, file);
       }
     } else {
       // No job exists - get new credentials but cleanup duplicate
-      const tempJob = await buildUploadJob(file, activeOrgId.value, 'rugbycodex');
+      const tempJob = await uploadStore.buildUploadJob(file, 'rugbycodex');
       
       // Delete the newly created media_assets row (we only want the original)
       await mediaService.deleteById(tempJob.mediaId);
@@ -207,7 +207,7 @@ async function handleReattachFile(event: Event) {
         fileName: assetToReattach.value.fileName,
       };
       
-      uploadManager.enqueue(resumedJob);
+      uploadStore.enqueue(resumedJob);
     }
     
     closeReattachModal();
@@ -240,9 +240,9 @@ async function confirmDeleteAsset() {
 
   try {
     // Remove from upload queue if it exists
-    const uploadJob = uploadManager.uploads.value.find(u => u.mediaId === assetToDelete.value!.id);
+    const uploadJob = uploadStore.uploadsReadonly.value.find(u => u.mediaId === assetToDelete.value!.id);
     if (uploadJob) {
-      uploadManager.remove(uploadJob.id);
+      uploadStore.remove(uploadJob.id);
     }
 
     await mediaService.deleteById(assetToDelete.value.id);
@@ -269,7 +269,7 @@ async function handleUploadSubmit(payload: { file: globalThis.File; kind: MediaA
   if (!canManage.value) return;
 
   try {
-    const job = await buildUploadJob(payload.file, activeOrgId.value, 'rugbycodex');
+    const job = await uploadStore.buildUploadJob(payload.file, 'rugbycodex');
 
     const { error: updateError } = await mediaService.updateMediaAsset(job.id, {
       kind: payload.kind,
@@ -279,7 +279,7 @@ async function handleUploadSubmit(payload: { file: globalThis.File; kind: MediaA
       throw new Error(updateError.message);
     }
 
-    uploadManager.enqueue(job);
+    uploadStore.enqueue(job);
 
     toast({
       variant: 'success',
@@ -331,7 +331,7 @@ async function handleEditSubmit(payload: { file_name: string; kind: MediaAssetKi
 }
 
 watch(
-  () => uploadManager.completedUploads.value,
+  () => uploadStore.completedUploads.value,
   async (completed) => {
     if (completed.length === 0) return;
 
@@ -347,7 +347,7 @@ watch(
     );
 
     for (const job of jobs) {
-      uploadManager.remove(job.id);
+      uploadStore.remove(job.id);
     }
 
     mediaStore.reset();
@@ -363,7 +363,7 @@ async function cleanupOrphanedUploads() {
       if (asset.status !== 'uploading') return false;
       
       // Check if this asset has an active upload session on THIS device
-      const hasActiveUpload = uploadManager.uploads.value.some(
+      const hasActiveUpload = uploadStore.uploadsReadonly.value.some(
         job => job.mediaId === asset.id
       );
       
