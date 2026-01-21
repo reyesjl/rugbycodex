@@ -93,6 +93,7 @@ async function openAssignment(assignment: FeedAssignment, mode: AssignmentFeedMo
 }
 
 const scrollerClass = 'flex gap-5 overflow-x-auto no-scrollbar scroll-smooth snap-x snap-mandatory pb-2 touch-pan-x pr-6 pl-4 scroll-pl-4 sm:pl-[calc((100vw-640px)/2+1rem)] sm:scroll-pl-[calc((100vw-640px)/2+1rem)] md:pl-[calc((100vw-768px)/2+1rem)] md:scroll-pl-[calc((100vw-768px)/2+1rem)] lg:pl-[calc((100vw-1024px)/2+1rem)] lg:scroll-pl-[calc((100vw-1024px)/2+1rem)] xl:pl-[calc((100vw-1280px)/2+1rem)] xl:scroll-pl-[calc((100vw-1280px)/2+1rem)] 2xl:pl-[calc((100vw-1536px)/2+1rem)] 2xl:scroll-pl-[calc((100vw-1536px)/2+1rem)]';
+const scrollerEndSpacerClass = 'shrink-0 w-[50vw] sm:w-[calc((100vw-640px)/2+1rem)] md:w-[calc((100vw-768px)/2+1rem)] lg:w-[calc((100vw-1024px)/2+1rem)] xl:w-[calc((100vw-1280px)/2+1rem)] 2xl:w-[calc((100vw-1536px)/2+1rem)]';
 const scrollerRefs = ref<Record<string, HTMLElement | null>>({});
 
 function setScrollerRef(key: string, el: Element | ComponentPublicInstance | null) {
@@ -159,6 +160,7 @@ function scrollSection(key: string, direction: number) {
                 :thumbnail-url="thumbnailUrl(assignment)"
                 :on-click="() => openAssignment(assignment, 'assigned_to_you')"
               />
+              <div aria-hidden="true" :class="scrollerEndSpacerClass"></div>
             </div>
           </div>
         </section>
@@ -196,6 +198,7 @@ function scrollSection(key: string, direction: number) {
                 :thumbnail-url="thumbnailUrl(assignment)"
                 :on-click="() => openAssignment(assignment, 'assigned_to_team')"
               />
+              <div aria-hidden="true" :class="scrollerEndSpacerClass"></div>
             </div>
           </div>
         </section>
@@ -237,6 +240,7 @@ function scrollSection(key: string, direction: number) {
                 :thumbnail-url="thumbnailUrl(assignment)"
                 :on-click="() => openAssignment(assignment, 'group', g.groupId)"
               />
+              <div aria-hidden="true" :class="scrollerEndSpacerClass"></div>
             </div>
           </div>
         </section>
