@@ -186,7 +186,7 @@ async function handleReattachFile(event: Event) {
       }
     } else {
       // No job exists - get new credentials but cleanup duplicate
-      const tempJob = await uploadStore.buildUploadJob(file, 'rugbycodex');
+      const tempJob = await uploadStore.startUpload(file, 'rugbycodex');
       
       // Delete the newly created media_assets row (we only want the original)
       await mediaService.deleteById(tempJob.mediaId);
@@ -269,7 +269,7 @@ async function handleUploadSubmit(payload: { file: globalThis.File; kind: MediaA
   if (!canManage.value) return;
 
   try {
-    const job = await uploadStore.buildUploadJob(payload.file, 'rugbycodex');
+    const job = await uploadStore.startUpload(payload.file, 'rugbycodex');
 
     const { error: updateError } = await mediaService.updateMediaAsset(job.id, {
       kind: payload.kind,
@@ -278,8 +278,6 @@ async function handleUploadSubmit(payload: { file: globalThis.File; kind: MediaA
     if (updateError) {
       throw new Error(updateError.message);
     }
-
-    uploadStore.enqueue(job);
 
     toast({
       variant: 'success',

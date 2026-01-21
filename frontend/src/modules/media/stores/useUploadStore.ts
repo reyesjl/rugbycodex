@@ -16,16 +16,19 @@ const STORAGE_KEY = "rugbycodex:upload-queue";
 
 export const useUploadStore = defineStore("upload", () => {
   const activeOrganizationStore = useActiveOrganizationStore();
-  const orgMediaStore = useOrgMediaStore();
 
-  const activeOrgId = computed(() => activeOrganizationStore.orgContext?.organization?.id ?? null);
+  const activeOrgId = computed(() => {
+    const ctx = activeOrganizationStore.orgContext;
+    return ctx && ctx.organization ? ctx.organization.id : null;
+  });
+
   const storageKey = computed(() => (activeOrgId.value ? `${STORAGE_KEY}:${activeOrgId.value}` : STORAGE_KEY));
 
   const uploads = shallowRef<UploadJob[]>([]);
 
   const uploadsReadonly = computed(() => uploads.value);
-  const activeUploads = computed(() => uploads.value.filter(u => u.state === "uploading"));
-  const completedUploads = computed(() => uploads.value.filter(u => u.state === "completed"));
+  const activeUploads = computed(() => uploads.value.filter((u) => u.state === "uploading"));
+  const completedUploads = computed(() => uploads.value.filter((u) => u.state === "completed"));
 
   async function buildUploadJob(file: globalThis.File, bucket: string): Promise<UploadJob> {
     const org_id = activeOrgId.value;
@@ -66,8 +69,14 @@ export const useUploadStore = defineStore("upload", () => {
     };
   }
 
+  async function startUpload(file: File, bucket: string): Promise<UploadJob> {
+    const job = await buildUploadJob(file, bucket);
+    enqueue(job);
+    return job;
+  }
+
   function persistQueue() {
-    const meta: UploadJobMeta[] = uploads.value.map(job => ({
+    const meta: UploadJobMeta[] = uploads.value.map((job) => ({
       id: job.id,
       mediaId: job.mediaId,
       orgId: job.orgId,
@@ -93,7 +102,7 @@ export const useUploadStore = defineStore("upload", () => {
       if (!raw) return [];
       const meta: UploadJobMeta[] = JSON.parse(raw);
 
-      const jobs = meta.map(m => ({
+      const jobs = meta.map((m) => ({
         ...m,
         state: m.state === "uploading" ? ("abandoned" as const) : m.state,
         file: undefined,
@@ -103,7 +112,7 @@ export const useUploadStore = defineStore("upload", () => {
       }));
 
       // Sync database for abandoned uploads
-      const abandonedJobs = jobs.filter(j => j.state === "abandoned");
+      const abandonedJobs = jobs.filter((j) => j.state === "abandoned");
       for (const job of abandonedJobs) {
         try {
           await mediaService.updateMediaAsset(job.mediaId, {
@@ -126,7 +135,7 @@ export const useUploadStore = defineStore("upload", () => {
     async (nextId, prevId) => {
       if (nextId === prevId) return;
 
-      const inFlight = uploads.value.filter(job => job.state === "uploading");
+      const inFlight = uploads.value.filter((job) => job.state === "uploading");
       if (inFlight.length > 0) {
         for (const job of inFlight) {
           job._uploader?.abort();
@@ -143,7 +152,7 @@ export const useUploadStore = defineStore("upload", () => {
           }
         }
 
-        const meta: UploadJobMeta[] = uploads.value.map(job => ({
+        const meta: UploadJobMeta[] = uploads.value.map((job) => ({
           id: job.id,
           mediaId: job.mediaId,
           orgId: job.orgId,
@@ -174,7 +183,7 @@ export const useUploadStore = defineStore("upload", () => {
       uploads.value = jobs;
       triggerRef(uploads);
     },
-    { immediate: true }
+    { immediate: true },
   );
 
   watch(
@@ -182,7 +191,7 @@ export const useUploadStore = defineStore("upload", () => {
     () => {
       persistQueue();
     },
-    { deep: true }
+    { deep: true },
   );
 
   watch(
@@ -197,26 +206,27 @@ export const useUploadStore = defineStore("upload", () => {
           mediaService.updateMediaAsset(job.id, {
             storage_path: job.storagePath,
             status: "ready",
-          })
-        )
+          }),
+        ),
       );
 
       for (const job of jobs) {
         remove(job.id);
       }
 
+      const orgMediaStore = useOrgMediaStore();
       orgMediaStore.reset();
       void orgMediaStore.loadForActiveOrg();
-    }
+    },
   );
 
   function enqueue(job: UploadJob) {
-    const inFlight = uploads.value.filter(u => u.state === "uploading").length;
-    const totalQueued = uploads.value.filter(u => u.state === "queued" || u.state === "uploading").length;
+    const inFlight = uploads.value.filter((u) => u.state === "uploading").length;
+    const totalQueued = uploads.value.filter((u) => u.state === "queued" || u.state === "uploading").length;
 
     if (inFlight >= MAX_CONCURRENT_UPLOADS && totalQueued >= MAX_QUEUED_UPLOADS) {
       throw new Error(
-        `Upload limit reached. Maximum ${MAX_QUEUED_UPLOADS} uploads allowed (${MAX_CONCURRENT_UPLOADS} concurrent).`
+        `Upload limit reached. Maximum ${MAX_QUEUED_UPLOADS} uploads allowed (${MAX_CONCURRENT_UPLOADS} concurrent).`,
       );
     }
 
@@ -230,7 +240,7 @@ export const useUploadStore = defineStore("upload", () => {
   }
 
   function reattachFile(id: string, file: File) {
-    const job = uploads.value.find(u => u.id === id);
+    const job = uploads.value.find((u) => u.id === id);
     if (!job) return;
 
     if (job.state !== "abandoned") {
@@ -248,7 +258,7 @@ export const useUploadStore = defineStore("upload", () => {
   }
 
   function cancel(id: string) {
-    const job = uploads.value.find(u => u.id === id);
+    const job = uploads.value.find((u) => u.id === id);
     if (!job) return;
 
     job._uploader?.abort();
@@ -258,17 +268,17 @@ export const useUploadStore = defineStore("upload", () => {
   }
 
   function remove(id: string) {
-    uploads.value = uploads.value.filter(u => u.id !== id);
+    uploads.value = uploads.value.filter((u) => u.id !== id);
     persistQueue();
   }
 
   function clearCompleted() {
-    uploads.value = uploads.value.filter(u => u.state !== "completed");
+    uploads.value = uploads.value.filter((u) => u.state !== "completed");
     persistQueue();
   }
 
   function clearFailed() {
-    uploads.value = uploads.value.filter(u => u.state !== "failed");
+    uploads.value = uploads.value.filter((u) => u.state !== "failed");
     persistQueue();
   }
 
@@ -281,12 +291,12 @@ export const useUploadStore = defineStore("upload", () => {
     if (inFlight >= MAX_CONCURRENT_UPLOADS) return;
 
     const available = MAX_CONCURRENT_UPLOADS - inFlight;
-    const queued = uploads.value.filter(u => u.state === "queued" && u.file);
+    const queued = uploads.value.filter((u) => u.state === "queued" && u.file);
 
     for (let i = 0; i < Math.min(available, queued.length); i++) {
       const job = queued[i];
       if (job) {
-        startUpload(job);
+        executeUpload(job);
       }
     }
   }
@@ -295,7 +305,7 @@ export const useUploadStore = defineStore("upload", () => {
    * Multipart Upload Execution
    * ======================================================= */
 
-  async function startUpload(job: UploadJob) {
+  async function executeUpload(job: UploadJob) {
     if (!job.file) {
       console.error("No file associated with upload job", job.id);
       job.state = "failed";
@@ -388,11 +398,11 @@ export const useUploadStore = defineStore("upload", () => {
   }
 
   return {
-    uploads,
     uploadsReadonly,
     activeUploads,
     completedUploads,
     buildUploadJob,
+    startUpload,
     enqueue,
     reattachFile,
     cancel,
@@ -401,7 +411,3 @@ export const useUploadStore = defineStore("upload", () => {
     clearFailed,
   };
 });
-
-export async function buildUploadJob(file: globalThis.File, bucket: string): Promise<UploadJob> {
-  return useUploadStore().buildUploadJob(file, bucket);
-}
