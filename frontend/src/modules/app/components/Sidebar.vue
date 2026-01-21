@@ -30,7 +30,7 @@ const canManageOrgTools = computed(() => {
 });
 
 const isFeedRouteActive = computed(() => {
-  return route.name === 'OrgFeed' || route.name === 'OrgFeedView' || route.name === 'OrgFeedSection';
+  return route.name === 'OrgFeed' || route.name === 'OrgFeedView';
 });
 
 const {
