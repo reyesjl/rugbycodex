@@ -24,12 +24,13 @@ import { toast } from '@/lib/toast';
 const route = useRoute();
 const authStore = useAuthStore();
 const activeOrgStore = useActiveOrganizationStore();
-const { orgContext } = storeToRefs(activeOrgStore);
+const { userReadonly } = storeToRefs(authStore);
+const { orgContextReadonly } = storeToRefs(activeOrgStore);
 
-const activeOrgId = computed(() => orgContext.value?.organization?.id ?? null);
-const activeOrgName = computed(() => orgContext.value?.organization?.name ?? null);
-const userId = computed(() => authStore.user?.id ?? null);
-const membershipRole = computed(() => (orgContext.value?.membership?.role ?? null) as any);
+const activeOrgId = computed(() => orgContextReadonly.value?.organization?.id ?? null);
+const activeOrgName = computed(() => orgContextReadonly.value?.organization?.name ?? null);
+const userId = computed(() => userReadonly.value?.id ?? null);
+const membershipRole = computed(() => (orgContextReadonly.value?.membership?.role ?? null) as any);
 const canAddIdentityTag = computed(() => hasOrgAccess(membershipRole.value, 'member'));
 
 const segmentId = computed(() => String(route.query.segmentId ?? ''));

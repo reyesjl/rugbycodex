@@ -285,6 +285,18 @@ export const useAuthStore = defineStore('auth', () => {
   };
 
   const isAuthenticated = computed(() => Boolean(user.value));
+  const userReadonly = computed(() => user.value);
+  const sessionReadonly = computed(() => session.value);
+  const isAdminReadonly = computed(() => isAdmin.value);
+  const initializingReadonly = computed(() => initializing.value);
+  const hydratedReadonly = computed(() => hydrated.value);
+  const lastErrorReadonly = computed(() => lastError.value);
+
+  const initializePostAuthContext = async () => {
+    if (!isAuthenticated.value) return;
+    if (myOrgs.loadedReadonly) return;
+    await myOrgs.load();
+  };
 
   const updateDisplayName = async (name: string) => {
     lastError.value = null;
@@ -344,6 +356,12 @@ export const useAuthStore = defineStore('auth', () => {
     hydrated,
     lastError,
     isAdmin,
+    userReadonly,
+    sessionReadonly,
+    isAdminReadonly,
+    initializingReadonly,
+    hydratedReadonly,
+    lastErrorReadonly,
     initialize,
     signIn,
     resendConfirmationEmail,
@@ -352,5 +370,6 @@ export const useAuthStore = defineStore('auth', () => {
     resetPassword,
     updatePassword,
     updateDisplayName,
+    initializePostAuthContext,
   };
 });

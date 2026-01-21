@@ -24,6 +24,8 @@ export const useActiveOrganizationStore = defineStore('activeOrganization', () =
   const memberCount = computed(() => signals.memberCount.value ?? 0)
   const resolving = computed(() => status.resolving.value)
   const error = computed(() => status.error.value)
+  const isReady = computed(() => !!orgContext.value && !status.resolving.value)
+  const orgContextReadonly = computed(() => orgContext.value)
 
   // Important: orgContext includes membership role and can become stale if the user
   // logs out and another user logs in (since Pinia stores persist in-memory).
@@ -86,6 +88,12 @@ export const useActiveOrganizationStore = defineStore('activeOrganization', () =
     status.resolving.value = false
   }
 
+  function updateOrgBio(nextBio: string) {
+    if (!orgContext.value) return
+    const normalized = nextBio?.trim() || null
+    orgContext.value.organization.bio = normalized
+  }
+
   return {
     orgContext,
     hasActiveOrg,
@@ -94,5 +102,8 @@ export const useActiveOrganizationStore = defineStore('activeOrganization', () =
     setActiveBySlug,
     clear,
     memberCount,
+    isReady,
+    orgContextReadonly,
+    updateOrgBio,
   }
 });

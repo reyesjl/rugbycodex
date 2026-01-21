@@ -49,6 +49,11 @@ export const useProfileStore = defineStore('profile', () => {
   });
 
   const isAdmin = computed(() => data.profile.value?.role === 'admin');
+  const isReady = computed(() => data.loaded.value && !status.loading.value);
+  const profileReadonly = computed(() => data.profile.value);
+  const loadedReadonly = computed(() => data.loaded.value);
+  const loadingReadonly = computed(() => status.loading.value);
+  const errorReadonly = computed(() => status.error.value);
 
   const load = async (opts?: { force?: boolean }) => {
     const force = opts?.force ?? false;
@@ -106,6 +111,11 @@ export const useProfileStore = defineStore('profile', () => {
     error,
     loaded,
     isAdmin,
+    isReady,
+    profileReadonly,
+    loadedReadonly,
+    loadingReadonly,
+    errorReadonly,
     load,
     clear,
   };

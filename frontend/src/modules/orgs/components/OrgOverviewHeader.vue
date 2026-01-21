@@ -56,9 +56,7 @@ const saveBio = async () => {
       bio: bioEditValue.value.trim() || null,
     });
 
-    if (orgContext.value) {
-      orgContext.value.organization.bio = updated.bio;
-    }
+    activeOrganizationStore.updateOrgBio(updated.bio ?? '');
 
     toast({ message: 'Bio updated successfully', variant: 'success' });
     isEditingBio.value = false;

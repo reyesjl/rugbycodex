@@ -25,7 +25,7 @@ const router = useRouter();
 const route = useRoute();
 
 const { orgContext, resolving: orgResolving } = storeToRefs(activeOrgStore);
-const { assets, status, error, isLoading } = storeToRefs(mediaStore);
+const { assets, error, isLoading, isReady } = storeToRefs(mediaStore);
 const { isAdmin } = storeToRefs(authStore);
 
 const activeOrgId = computed(() => orgContext.value?.organization?.id ?? null);
@@ -442,7 +442,7 @@ watch(activeOrgId, (orgId, prevOrgId) => {
         Loading media…
       </div>
 
-      <div v-else-if="status.state === 'error'" class="rounded-lg border border-white/10 bg-white/5 p-6 text-white/70">
+      <div v-else-if="!isReady && error" class="rounded-lg border border-white/10 bg-white/5 p-6 text-white/70">
         {{ error ?? 'Unable to load media.' }}
       </div>
 

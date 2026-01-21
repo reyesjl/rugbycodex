@@ -48,9 +48,7 @@ const handleOrgSelect = async (org: UserOrganizationSummary) => {
 }
 
 onMounted(() => {
-  if (authStore.isAuthenticated) {
-    myOrgStore.load()
-  }
+  void authStore.initializePostAuthContext()
   document.addEventListener('click', handleClickOutside)
 })
 

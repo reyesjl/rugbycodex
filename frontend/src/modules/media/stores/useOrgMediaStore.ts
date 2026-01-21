@@ -30,6 +30,7 @@ export const useOrgMediaStore = defineStore("orgMedia", () => {
   const error = toRef(status, "error");
   const isLoading = computed(() => status.state === "loading");
   const isReady = computed(() => status.state === "ready");
+  const isIdle = computed(() => status.state === "idle");
 
   const activeOrgId = computed(() => activeOrganizationStore.orgContext?.organization?.id ?? null);
 
@@ -119,6 +120,7 @@ export const useOrgMediaStore = defineStore("orgMedia", () => {
     reset,
     isLoading,
     isReady,
+    isIdle,
     narrationCountByAssetId,
     hasNarrations,
     getContextState,

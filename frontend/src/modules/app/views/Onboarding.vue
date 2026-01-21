@@ -11,13 +11,11 @@ const router = useRouter();
 const authStore = useAuthStore();
 const myOrgs = useMyOrganizationsStore();
 
-const { isAdmin, isAuthenticated } = storeToRefs(authStore);
+const { isAdmin } = storeToRefs(authStore);
 const { loaded, hasOrganizations } = storeToRefs(myOrgs);
 
 onMounted(() => {
-  if (isAuthenticated.value && !loaded.value) {
-    void myOrgs.load();
-  }
+  void authStore.initializePostAuthContext();
 });
 
 watch(

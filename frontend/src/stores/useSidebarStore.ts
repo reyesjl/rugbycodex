@@ -28,6 +28,10 @@ export const useSidebarStore = defineStore('sidebar', () => {
 
   const isOpen = ref(getInitialState());
 
+  const setOpen = (next: boolean) => {
+    isOpen.value = next;
+  };
+
   // Persist state to localStorage
   watch(isOpen, (newValue) => {
     localStorage.setItem(STORAGE_KEY, String(newValue));
@@ -38,32 +42,33 @@ export const useSidebarStore = defineStore('sidebar', () => {
     () => router.currentRoute.value.path,
     () => {
       if (isMobile.value && isOpen.value) {
-        isOpen.value = false;
+        setOpen(false);
       }
     }
   );
 
   // Actions
   const toggle = () => {
-    isOpen.value = !isOpen.value;
+    setOpen(!isOpen.value);
   };
 
   const open = () => {
-    isOpen.value = true;
+    setOpen(true);
   };
 
   const close = () => {
-    isOpen.value = false;
+    setOpen(false);
   };
 
   // Reset to viewport-aware default
   const reset = () => {
-    isOpen.value = !isMobile.value;
+    setOpen(!isMobile.value);
   };
 
   return {
     isOpen,
     isMobile: computed(() => isMobile.value),
+    setOpen,
     toggle,
     open,
     close,

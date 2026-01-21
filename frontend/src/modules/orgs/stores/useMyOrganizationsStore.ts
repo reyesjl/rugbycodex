@@ -52,6 +52,11 @@ export const useMyOrganizationsStore = defineStore('myOrganizations', () => {
     const fallbackOrg = computed(() => data.items.value[0] ?? null);
     const hasOrganizations = computed(() => data.items.value.length > 0);
     const membershipCount = computed(() => data.items.value.length);
+    const isReady = computed(() => data.loaded.value && !status.loading.value);
+    const itemsReadonly = computed(() => data.items.value);
+    const loadedReadonly = computed(() => data.loaded.value);
+    const loadingReadonly = computed(() => status.loading.value);
+    const errorReadonly = computed(() => status.error.value);
 
     /**
      * Load the user’s organizations.
@@ -105,6 +110,11 @@ export const useMyOrganizationsStore = defineStore('myOrganizations', () => {
         fallbackOrg,
         hasOrganizations,
         membershipCount,
+        isReady,
+        itemsReadonly,
+        loadedReadonly,
+        loadingReadonly,
+        errorReadonly,
         load,
         clear,
         refresh,
