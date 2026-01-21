@@ -8,6 +8,7 @@ import { handleSupabaseEdgeError } from "@/lib/handleSupabaseEdgeError";
 import { getMediaDurationSeconds, sanitizeFileName } from "@/modules/media/utils/assetUtilities";
 import { mediaService } from "@/modules/media/services/mediaService";
 import { useActiveOrganizationStore } from "@/modules/orgs/stores/useActiveOrganizationStore";
+import { useOrgMediaStore } from "@/modules/media/stores/useOrgMediaStore";
 
 const MAX_CONCURRENT_UPLOADS = 3;
 const MAX_QUEUED_UPLOADS = 5;
@@ -15,6 +16,7 @@ const STORAGE_KEY = "rugbycodex:upload-queue";
 
 export const useUploadStore = defineStore("upload", () => {
   const activeOrganizationStore = useActiveOrganizationStore();
+  const orgMediaStore = useOrgMediaStore();
 
   const activeOrgId = computed(() => activeOrganizationStore.orgContext?.organization?.id ?? null);
   const storageKey = computed(() => (activeOrgId.value ? `${STORAGE_KEY}:${activeOrgId.value}` : STORAGE_KEY));
@@ -181,6 +183,31 @@ export const useUploadStore = defineStore("upload", () => {
       persistQueue();
     },
     { deep: true }
+  );
+
+  watch(
+    () => completedUploads.value,
+    async (completed) => {
+      if (completed.length === 0) return;
+
+      const jobs = [...completed];
+
+      await Promise.all(
+        jobs.map((job) =>
+          mediaService.updateMediaAsset(job.id, {
+            storage_path: job.storagePath,
+            status: "ready",
+          })
+        )
+      );
+
+      for (const job of jobs) {
+        remove(job.id);
+      }
+
+      orgMediaStore.reset();
+      void orgMediaStore.loadForActiveOrg();
+    }
   );
 
   function enqueue(job: UploadJob) {

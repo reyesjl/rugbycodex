@@ -48,11 +48,11 @@ const assetToReattach = ref<{ assetId: string; fileName: string; hasExistingJob:
 
 const uploadStore = useUploadStore();
 
-const hasInFlightUploads = computed(() => uploadStore.activeUploads.value.length > 0);
+const hasInFlightUploads = computed(() => uploadStore.activeUploads.length > 0);
 
 const uploadMetricsByAssetId = computed(() => {
   return new Map(
-    uploadStore.activeUploads.value.map((job) => [
+    uploadStore.activeUploads.map((job) => [
       job.id,
       {
         state: job.state,
@@ -156,7 +156,7 @@ function openReattachModal(assetId: string) {
   const asset = assets.value.find(a => a.id === assetId);
   if (!asset) return;
 
-  const existingJob = uploadStore.uploadsReadonly.value.find(u => u.mediaId === assetId);
+  const existingJob = uploadStore.uploadsReadonly.find(u => u.mediaId === assetId);
 
   assetToReattach.value = {
     assetId: asset.id,
@@ -180,7 +180,7 @@ async function handleReattachFile(event: Event) {
   try {
     if (assetToReattach.value.hasExistingJob) {
       // Job exists in upload manager - reattach file
-      const existingJob = uploadStore.uploadsReadonly.value.find(u => u.mediaId === assetToReattach.value!.assetId);
+      const existingJob = uploadStore.uploadsReadonly.find(u => u.mediaId === assetToReattach.value!.assetId);
       if (existingJob) {
         uploadStore.reattachFile(existingJob.id, file);
       }
@@ -240,7 +240,7 @@ async function confirmDeleteAsset() {
 
   try {
     // Remove from upload queue if it exists
-    const uploadJob = uploadStore.uploadsReadonly.value.find(u => u.mediaId === assetToDelete.value!.id);
+    const uploadJob = uploadStore.uploadsReadonly.find(u => u.mediaId === assetToDelete.value!.id);
     if (uploadJob) {
       uploadStore.remove(uploadJob.id);
     }
@@ -330,31 +330,6 @@ async function handleEditSubmit(payload: { file_name: string; kind: MediaAssetKi
   }
 }
 
-watch(
-  () => uploadStore.completedUploads.value,
-  async (completed) => {
-    if (completed.length === 0) return;
-
-    const jobs = [...completed];
-
-    await Promise.all(
-      jobs.map((job) =>
-        mediaService.updateMediaAsset(job.id, {
-          storage_path: job.storagePath,
-          status: 'ready',
-        })
-      )
-    );
-
-    for (const job of jobs) {
-      uploadStore.remove(job.id);
-    }
-
-    mediaStore.reset();
-    void mediaStore.loadForActiveOrg();
-  }
-);
-
 async function cleanupOrphanedUploads() {
   if (!activeOrgId.value) return;
 
@@ -363,7 +338,7 @@ async function cleanupOrphanedUploads() {
       if (asset.status !== 'uploading') return false;
       
       // Check if this asset has an active upload session on THIS device
-      const hasActiveUpload = uploadStore.uploadsReadonly.value.some(
+      const hasActiveUpload = uploadStore.uploadsReadonly.some(
         job => job.mediaId === asset.id
       );
       
