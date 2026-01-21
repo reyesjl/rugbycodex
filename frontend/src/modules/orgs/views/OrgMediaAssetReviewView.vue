@@ -7,7 +7,7 @@ import { useRoute } from 'vue-router';
 import ShakaSurfacePlayer from '@/modules/media/components/ShakaSurfacePlayer.vue';
 import FeedGestureLayer from '@/modules/feed/components/FeedGestureLayer.vue';
 import FeedOverlayControls from '@/modules/feed/components/FeedOverlayControls.vue';
-import NarrationRecorder from '@/modules/narration/components/NarrationRecorder.vue';
+import NarrationRecorder from '@/modules/narrations/components/NarrationRecorder.vue';
 
 import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrganizationStore';
 import { useAuthStore } from '@/modules/auth/stores/useAuthStore';
@@ -26,7 +26,7 @@ import MatchSummaryBlock from '@/modules/analysis/components/MatchSummaryBlock.v
 
 import { useAudioRecording } from '@/composables/useAudioRecording';
 import { transcriptionService } from '@/modules/narrations/services/transcriptionService';
-import type { OptimisticNarration } from '@/modules/narration/composables/useNarrationRecorder';
+import type { OptimisticNarration } from '@/modules/narrations/composables/useNarrationRecorder';
 import type { MediaAssetSegment, MediaAssetSegmentSourceType } from '@/modules/narrations/types/MediaAssetSegment';
 import type { NarrationSourceType } from '@/modules/narrations/types/Narration';
 import type { SegmentTagType } from '@/modules/media/types/SegmentTag';

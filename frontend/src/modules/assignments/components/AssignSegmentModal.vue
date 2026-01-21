@@ -11,7 +11,7 @@ import type { OrgGroup } from '@/modules/groups/types';
 
 import { assignmentsService } from '@/modules/assignments/services/assignmentsService';
 import type { AssignmentTargetType } from '@/modules/assignments/types';
-import { narrationService } from '@/modules/narration/services/narrationService';
+import { narrationService } from '@/modules/narrations/services/narrationService';
 import type { Narration } from '@/modules/narrations/types/Narration';
 
 import MemberPill from '@/modules/orgs/components/MemberPill.vue';

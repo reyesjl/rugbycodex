@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
 import type { Narration } from '@/modules/narrations/types/Narration';
-import type { NarrationListItem } from '@/modules/narration/composables/useNarrationRecorder';
+import type { NarrationListItem } from '@/modules/narrations/composables/useNarrationRecorder';
 
 const props = withDefaults(
   defineProps<{

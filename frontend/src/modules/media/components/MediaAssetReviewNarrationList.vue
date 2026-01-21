@@ -6,7 +6,7 @@ import type { Narration, NarrationSourceType } from '@/modules/narrations/types/
 import type { MediaAssetSegment } from '@/modules/narrations/types/MediaAssetSegment';
 import type { SegmentTag, SegmentTagType } from '@/modules/media/types/SegmentTag';
 import { formatMinutesSeconds } from '@/lib/duration';
-import type { NarrationListItem } from '@/modules/narration/composables/useNarrationRecorder';
+import type { NarrationListItem } from '@/modules/narrations/composables/useNarrationRecorder';
 import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrganizationStore';
 import { useNarrationSearch } from '@/modules/media/composables/useNarrationSearch';
 

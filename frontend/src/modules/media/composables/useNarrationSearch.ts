@@ -1,7 +1,7 @@
 import { ref, watch, type Ref } from 'vue';
 import { narrationService, type NarrationSearchResultRow } from '@/modules/narrations/services/narrationService';
 import type { MediaAssetSegment } from '@/modules/narrations/types/MediaAssetSegment';
-import type { NarrationListItem } from '@/modules/narration/composables/useNarrationRecorder';
+import type { NarrationListItem } from '@/modules/narrations/composables/useNarrationRecorder';
 
 type UseNarrationSearchOptions = {
   segments: Ref<MediaAssetSegment[]>;
