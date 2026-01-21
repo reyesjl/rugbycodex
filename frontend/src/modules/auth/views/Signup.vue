@@ -236,7 +236,7 @@ const handleSubmit = async () => {
 
 const inputClass =
   'block w-full border-b border-neutral-600 bg-transparent py-2 text-sm text-white placeholder:text-neutral-500 focus:border-white focus:outline-none';
-const selectClass = `${inputClass} pr-8`;
+const selectClass = `${inputClass} pr-8 bg-neutral-900`;
 const textareaClass = `${inputClass} min-h-[96px]`;
 </script>
 
@@ -265,7 +265,7 @@ const textareaClass = `${inputClass} min-h-[96px]`;
       </div>
 
       <div class="space-y-4">
-        <div class="text-[10px] font-semibold uppercase tracking-[0.35em] text-neutral-500">Identity</div>
+        <div class="text-[10px] font-semibold uppercase tracking-[0.35em] text-orange-400">Identity</div>
         <div class="space-y-4">
           <div class="space-y-1">
             <label for="name" class="text-[10px] font-semibold uppercase tracking-[0.3em] text-neutral-400">
@@ -296,7 +296,7 @@ const textareaClass = `${inputClass} min-h-[96px]`;
       </div>
 
       <div class="space-y-4 pt-6">
-        <div class="text-[10px] font-semibold uppercase tracking-[0.35em] text-neutral-500">Access</div>
+        <div class="text-[10px] font-semibold uppercase tracking-[0.35em] text-orange-400">Access</div>
         <div class="space-y-4">
           <div class="space-y-1">
             <label for="email" class="text-[10px] font-semibold uppercase tracking-[0.3em] text-neutral-400">
@@ -349,7 +349,7 @@ const textareaClass = `${inputClass} min-h-[96px]`;
       </div>
 
       <div class="space-y-4 pt-6">
-        <div class="text-[10px] font-semibold uppercase tracking-[0.35em] text-neutral-500">Context</div>
+        <div class="text-[10px] font-semibold uppercase tracking-[0.35em] text-orange-400">Context</div>
         <div class="space-y-4">
           <div class="space-y-1">
             <label for="role" class="text-[10px] font-semibold uppercase tracking-[0.3em] text-neutral-400">
@@ -359,7 +359,7 @@ const textareaClass = `${inputClass} min-h-[96px]`;
               id="role"
               v-model="form.role"
               required
-              :class="[selectClass, form.role ? 'text-white' : 'text-neutral-500']"
+              :class="[selectClass, 'dark-select', form.role ? 'text-white' : 'text-neutral-500']"
             >
               <option v-for="opt in roleOptions" :key="opt.value" :value="opt.value" :disabled="opt.disabled" :hidden="opt.disabled">
                 {{ opt.label }}
@@ -381,7 +381,7 @@ const textareaClass = `${inputClass} min-h-[96px]`;
             <select
               id="referral"
               v-model="form.referral"
-              :class="[selectClass, form.referral ? 'text-white' : 'text-neutral-500']"
+              :class="[selectClass, 'dark-select', form.referral ? 'text-white' : 'text-neutral-500']"
             >
               <option v-for="opt in referralOptions" :key="opt.value" :value="opt.value" :disabled="opt.disabled" :hidden="opt.disabled">
                 {{ opt.label }}
@@ -392,7 +392,7 @@ const textareaClass = `${inputClass} min-h-[96px]`;
       </div>
 
       <div class="space-y-4 pt-6">
-        <div class="text-[10px] font-semibold uppercase tracking-[0.35em] text-neutral-500">Optional</div>
+        <div class="text-[10px] font-semibold uppercase tracking-[0.35em] text-orange-400">Optional</div>
         <div class="space-y-4">
           <div class="space-y-1">
             <label for="phone" class="text-[10px] font-semibold uppercase tracking-[0.3em] text-neutral-400">
@@ -454,3 +454,10 @@ const textareaClass = `${inputClass} min-h-[96px]`;
     </footer>
   </div>
 </template>
+
+<style scoped>
+.dark-select option {
+  background-color: #0a0a0a;
+  color: #ffffff;
+}
+</style>
