@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabaseClient";
+import { invokeEdge } from "@/lib/api";
 import { requireUserId } from "@/modules/auth/identity";
 import type { Narration, NarrationSourceType } from "../types/Narration";
 import type { PostgrestError } from "@supabase/supabase-js";
@@ -130,7 +131,7 @@ function triggerNarrationEmbedding(narrationId: string): void {
   // Fire-and-forget: do not await; do not block UI; swallow errors.
   void (async () => {
     try {
-      const { error } = await supabase.functions.invoke('generate-narration-embedding', {
+      const { error } = await invokeEdge('generate-narration-embedding', {
         body: { narrationId },
       });
       if (error) {
@@ -150,7 +151,7 @@ async function generateQueryEmbedding(queryText: string): Promise<number[]> {
     throw new Error('Missing query text.');
   }
 
-  const { data, error } = await supabase.functions.invoke('generate-query-embedding', {
+  const { data, error } = await invokeEdge('generate-query-embedding', {
     body: { query_text: trimmed },
   });
 

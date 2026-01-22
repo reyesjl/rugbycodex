@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js";
 import { getAuthContext } from "../_shared/auth.ts";
 import { corsHeaders, handleCors } from "../_shared/cors.ts";
+import { withObservability } from "../_shared/observability.ts";
 
 /**
  * Role hierarchy definition: member < staff < manager < owner
@@ -30,7 +31,7 @@ function generateJoinCode(): string {
   return code;
 }
 
-serve(async (req) => {
+serve(withObservability("refresh-org-join-code", async (req) => {
   try {
     // Handle CORS preflight
     const cors = handleCors(req);
@@ -193,4 +194,4 @@ serve(async (req) => {
       }
     );
   }
-});
+}));

@@ -3,7 +3,8 @@ import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getAuthContext } from "../_shared/auth.ts";
 import { corsHeaders, handleCors } from "../_shared/cors.ts";
-serve(async (req)=>{
+import { withObservability } from "../_shared/observability.ts";
+serve(withObservability("reject-organization-request", async (req)=>{
   try {
     // Handle OPTIONS preflight
     const cors = handleCors(req);
@@ -81,4 +82,4 @@ serve(async (req)=>{
       headers: corsHeaders
     });
   }
-});
+}));

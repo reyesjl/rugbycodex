@@ -3,6 +3,7 @@ import { getSignedUrl } from "npm:@aws-sdk/s3-request-presigner";
 import { getAuthContext, getClientBoundToRequest } from "../_shared/auth.ts";
 import { corsHeaders, handleCors, jsonResponse } from "../_shared/cors.ts";
 import { isOrgMember } from "../_shared/orgs.ts";
+import { logEvent, withObservability } from "../_shared/observability.ts";
 
 const WASABI_S3_ENDPOINT = "https://s3.us-east-1.wasabisys.com";
 const WASABI_REGION = "us-east-1";
@@ -32,6 +33,22 @@ const DEFAULT_PRESIGN_TTL_SECONDS = 60 * 60; // 1 hour
 /* =========================================================
  * Helpers
  * ======================================================= */
+
+let activeRequestId: string | undefined;
+
+function logMessage(
+  severity: "debug" | "info" | "warn" | "error",
+  message: string,
+  fields?: Record<string, unknown>,
+) {
+  logEvent({
+    severity,
+    event_type: "log",
+    message,
+    request_id: activeRequestId,
+    ...(fields ?? {}),
+  });
+}
 
 function parseMediaId(reqBody: unknown): string | null {
   if (!reqBody || typeof reqBody !== "object") return null;
@@ -204,7 +221,7 @@ async function fetchPlaylistText(opts: {
 
   if (opts.logFetched) {
     // Log result of get object
-    console.log("HLS manifest fetched", {
+    logMessage("info", "HLS manifest fetched", {
       manifestKey: opts.key,
       contentType: resp.ContentType,
       contentLength: resp.ContentLength,
@@ -255,7 +272,7 @@ async function rewriteMediaPlaylistToPresignedUrls(opts: {
       if (!segmentKey) return line;
 
       if (opts.logSignAttempt) {
-        console.log("HLS segment sign attempt", {
+        logMessage("info", "HLS segment sign attempt", {
           index,
           segmentKey,
         });
@@ -273,7 +290,7 @@ async function rewriteMediaPlaylistToPresignedUrls(opts: {
         return signedUrl;
       } catch (err: any) {
         if (opts.logSignFailure) {
-          console.error("HLS segment signing FAILED", {
+          logMessage("error", "HLS segment signing FAILED", {
             index,
             segmentKey,
             errorName: err?.name,
@@ -321,7 +338,7 @@ async function rewriteMasterPlaylistGraph(opts: {
     if (!variantKey) continue;
 
     // Keep the existing log message (previously used for signing the original variant).
-    console.log("HLS variant sign attempt", {
+    logMessage("info", "HLS variant sign attempt", {
       index,
       variantKey,
     });
@@ -335,7 +352,7 @@ async function rewriteMasterPlaylistGraph(opts: {
         }),
       );
 
-      console.log("HLS manifest fetched", {
+      logMessage("info", "HLS manifest fetched", {
         manifestKey: variantKey,
         contentType: resp.ContentType,
         contentLength: resp.ContentLength,
@@ -343,7 +360,7 @@ async function rewriteMasterPlaylistGraph(opts: {
 
       variantText = await readBodyAsText(resp.Body);
     } catch (err: any) {
-      console.error("Wasabi HLS manifest read failed", {
+      logMessage("error", "Wasabi HLS manifest read failed", {
         name: err?.name,
         code: err?.Code,
         httpStatus: err?.$metadata?.httpStatusCode,
@@ -354,7 +371,7 @@ async function rewriteMasterPlaylistGraph(opts: {
 
     const variantLinesSplit = variantText.split(/\r?\n/);
     const diag = classifyPlaylist(variantLinesSplit);
-    console.log("HLS playlist type", {
+    logMessage("info", "HLS playlist type", {
       segmentCount: diag.segmentLines.length,
       variantCount: diag.variantLines.length,
     });
@@ -374,7 +391,7 @@ async function rewriteMasterPlaylistGraph(opts: {
       variantSourceKey: variantKey,
     });
 
-    console.log("Uploading rewritten HLS manifest", {
+    logMessage("info", "Uploading rewritten HLS manifest", {
       rewrittenManifestKey: presignedVariantKey,
       size: rewrittenVariant.length,
     });
@@ -389,11 +406,11 @@ async function rewriteMasterPlaylistGraph(opts: {
         }),
       );
 
-      console.log("Rewritten HLS manifest upload OK", {
+      logMessage("info", "Rewritten HLS manifest upload OK", {
         rewrittenManifestKey: presignedVariantKey,
       });
     } catch (err: any) {
-      console.error("Wasabi presigned playlist write failed", {
+      logMessage("error", "Wasabi presigned playlist write failed", {
         name: err?.name,
         code: err?.Code,
         httpStatus: err?.$metadata?.httpStatusCode,
@@ -421,7 +438,7 @@ async function rewriteMasterPlaylistGraph(opts: {
   });
 
   // Preserve detection log for both playlist types
-  console.log("HLS playlist type", {
+  logMessage("info", "HLS playlist type", {
     segmentCount: classifyPlaylist(opts.rootLines).segmentLines.length,
     variantCount: variantLines.length,
   });
@@ -433,7 +450,8 @@ async function rewriteMasterPlaylistGraph(opts: {
  * Handler
  * ======================================================= */
 
-Deno.serve(async (req) => {
+Deno.serve(withObservability("get-wasabi-playback-playlist", async (req, ctx) => {
+  activeRequestId = ctx.requestId;
   const corsResponse = handleCors(req);
   if (corsResponse) return corsResponse;
 
@@ -442,7 +460,7 @@ Deno.serve(async (req) => {
     req.headers.get("x-supabase-region") ??
     req.headers.get("x-vercel-region") ??
     "unknown";
-  console.log("edge_region:", edgeRegion);
+  logMessage("info", "edge_region", { edge_region: edgeRegion });
 
   try {
     if (req.method !== "POST") {
@@ -492,7 +510,7 @@ Deno.serve(async (req) => {
     const manifestKey = `${streamingPrefix}/${HLS_MANIFEST_KEY}`;
 
     // Log the manifest lookup key
-    console.log("HLS manifest lookup", {
+    logMessage("info", "HLS manifest lookup", {
       mediaId,
       orgId,
       bucket,
@@ -560,19 +578,19 @@ Deno.serve(async (req) => {
         const segmentLines = lines.filter(isSegmentLine);
         const variantLines = lines.filter(isVariantLine);
 
-        console.log("HLS playlist type", {
+        logMessage("info", "HLS playlist type", {
           segmentCount: segmentLines.length,
           variantCount: variantLines.length,
         });
 
-        console.log("HLS manifest parsed", {
+        logMessage("info", "HLS manifest parsed", {
           manifestKey,
           totalLines: lines.length,
           segmentCount: segmentLines.length,
           sampleSegments: segmentLines.slice(0, 5),
         });
       } catch (err: any) {
-        console.error("Wasabi HLS manifest read failed", {
+        logMessage("error", "Wasabi HLS manifest read failed", {
           name: err?.name,
           code: err?.Code,
           httpStatus: err?.$metadata?.httpStatusCode,
@@ -597,12 +615,12 @@ Deno.serve(async (req) => {
       const variantLines = lines.filter(isVariantLine);
 
       // Required detection log for both playlist types
-      console.log("HLS playlist type", {
+      logMessage("info", "HLS playlist type", {
         segmentCount: segmentLines.length,
         variantCount: variantLines.length,
       });
 
-      console.log("HLS signing summary", {
+      logMessage("info", "HLS signing summary", {
         mediaId,
         segmentCount: segmentLines.length,
         variantCount: variantLines.length,
@@ -636,7 +654,7 @@ Deno.serve(async (req) => {
       const rewrittenManifestKey = `${streamingPrefix}/presigned/${HLS_MANIFEST_KEY}`;
 
       // Upload rewritten playlist
-      console.log("Uploading rewritten HLS manifest", {
+      logMessage("info", "Uploading rewritten HLS manifest", {
         rewrittenManifestKey,
         size: rewrittenPlaylist.length,
       });
@@ -650,11 +668,11 @@ Deno.serve(async (req) => {
           }),
         );
         // Upload successful
-        console.log("Rewritten HLS manifest upload OK", {
+        logMessage("info", "Rewritten HLS manifest upload OK", {
           rewrittenManifestKey,
         });
       } catch (err: any) {
-        console.error("Wasabi presigned playlist write failed", {
+        logMessage("error", "Wasabi presigned playlist write failed", {
           name: err?.name,
           code: err?.Code,
           httpStatus: err?.$metadata?.httpStatusCode,
@@ -706,7 +724,7 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: "Playlist not found" }, 404);
       }
     } catch (err: any) {
-      console.error("Wasabi HLS manifest read failed", {
+      logMessage("error", "Wasabi HLS manifest read failed", {
         name: err?.name,
         code: err?.Code,
         httpStatus: err?.$metadata?.httpStatusCode,
@@ -736,7 +754,7 @@ Deno.serve(async (req) => {
     const segmentLines = lines.filter(isSegmentLine);
     const variantLines = lines.filter(isVariantLine);
 
-    console.log("HLS playlist type", {
+    logMessage("info", "HLS playlist type", {
       segmentCount: segmentLines.length,
       variantCount: variantLines.length,
     });
@@ -772,8 +790,10 @@ Deno.serve(async (req) => {
       },
     });
   } catch (err) {
-    console.error("Unhandled playback playlist error:", err);
+    logMessage("error", "Unhandled playback playlist error", {
+      error_message: err instanceof Error ? err.message : String(err),
+    });
     return jsonResponse({ error: "Unexpected server error" }, 500);
   }
-});
+}));
 

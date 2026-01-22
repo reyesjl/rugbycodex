@@ -25,6 +25,27 @@ const bootstrap = async () => {
   await router.isReady();
   app.mount('#app');
 
+  window.addEventListener('error', (event) => {
+    console.log(JSON.stringify({
+      severity: 'error',
+      event_type: 'metric',
+      metric_name: 'frontend_js_errors_total',
+      metric_value: 1,
+      tags: { error_type: event?.error?.name ?? 'Error' },
+    }));
+  });
+
+  window.addEventListener('unhandledrejection', (event) => {
+    const reason = (event as PromiseRejectionEvent).reason;
+    console.log(JSON.stringify({
+      severity: 'error',
+      event_type: 'metric',
+      metric_name: 'frontend_js_errors_total',
+      metric_value: 1,
+      tags: { error_type: reason?.name ?? 'UnhandledRejection' },
+    }));
+  });
+
   // Check cookie consent status
   const { consent, hasDecided } = useCookieConsent();
   if (hasDecided.value && consent.value === 'accepted') {

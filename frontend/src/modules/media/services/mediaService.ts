@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabaseClient";
+import { invokeEdge } from "@/lib/api";
 import { handleSupabaseEdgeError } from "@/lib/handleSupabaseEdgeError";
 import type { OrgMediaAsset } from "@/modules/media/types/OrgMediaAsset";
 import type { PostgrestError } from "@supabase/supabase-js";
@@ -120,7 +121,7 @@ async function withRetry<T>(
 }
 
 async function fetchSignedHlsPlaylist(mediaId: string): Promise<string> {
-  const response = await supabase.functions.invoke("get-wasabi-playback-playlist", {
+  const response = await invokeEdge("get-wasabi-playback-playlist", {
     body: {
       media_id: mediaId,
     },
@@ -138,7 +139,7 @@ async function fetchPresignedHlsPlaylistUrl(
   mediaId: string,
   bucket: string
 ): Promise<string> {
-  const response = await supabase.functions.invoke("get-playback-playlist", {
+  const response = await invokeEdge("get-playback-playlist", {
     body: {
       mode: "url",
       org_id: orgId,
@@ -423,7 +424,7 @@ export const mediaService = {
     total_segments_created?: number;
     errors?: Array<{ asset_id: string; error: string }>;
   }> {
-    const response = await supabase.functions.invoke("generate-media-segments", {
+    const response = await invokeEdge("generate-media-segments", {
       body: mediaAssetId ? { mediaAssetId } : {},
     });
 

@@ -5,6 +5,11 @@ from datetime import datetime, timezone
 import psutil
 from dotenv import load_dotenv
 from supabase import create_client, Client
+import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parents[1]))
+from utils.observability import log_event
 
 load_dotenv()
 
@@ -79,17 +84,28 @@ while True:
                 .execute()
         )
         if response.error:
-            print("Heartbeat failed:", response.error)
+            log_event(
+                severity="error",
+                event_type="heartbeat_failure",
+                error_code="SUPABASE_WRITE_FAILED",
+                error_message=str(response.error),
+                device_name=DEVICE_NAME,
+            )
         else:
-            print(
-                "Heartbeat:",
-                "ok",
-                "GPU load:",
-                gpu_util,
-                "GPU temp:",
-                gpu_temp,
+            log_event(
+                severity="info",
+                event_type="heartbeat_success",
+                device_name=DEVICE_NAME,
+                gpu_utilization=gpu_util,
+                temperature_c=gpu_temp,
             )
     except Exception as e:
-        print("Heartbeat failed:", e)
+        log_event(
+            severity="error",
+            event_type="heartbeat_failure",
+            error_code="SUPABASE_WRITE_FAILED",
+            error_message=str(e),
+            device_name=DEVICE_NAME,
+        )
 
     time.sleep(15)

@@ -3,8 +3,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 import { handleCors, jsonResponse } from "../_shared/cors.ts";
 import { errorResponse } from "../_shared/errors.ts";
+import { withObservability } from "../_shared/observability.ts";
 
-Deno.serve(async (req) => {
+Deno.serve(withObservability("set-primary-org", async (req) => {
   // Handle OPTIONS preflight
   const cors = handleCors(req);
   if (cors) return cors;
@@ -120,4 +121,4 @@ Deno.serve(async (req) => {
       500,
     );
   }
-});
+}));

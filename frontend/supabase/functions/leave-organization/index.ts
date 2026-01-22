@@ -1,7 +1,8 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-serve(async (req)=>{
+import { withObservability } from "../_shared/observability.ts";
+serve(withObservability("leave-organization", async (req)=>{
   try {
     if (req.method !== "POST") {
       return new Response("Method Not Allowed", {
@@ -92,4 +93,4 @@ serve(async (req)=>{
       status: 500
     });
   }
-});
+}));

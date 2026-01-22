@@ -3,6 +3,11 @@ import boto3
 from dotenv import load_dotenv
 import os
 from supabase import create_client, Client
+import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parents[1]))
+from utils.observability import log_event
 
 load_dotenv()  # loads .env into environment variables
 
@@ -50,13 +55,25 @@ while True:
     )
 
     if response.data is None or len(response.data) == 0:
-        print("No media cleanup jobs found.")
+        log_event(
+            severity="info",
+            event_type="job_queue_depth",
+            queue_name="media_cleanup_jobs",
+            depth=0,
+        )
         time.sleep(21600)  # 6 hours
         continue
 
     for record in response.data:
         if VERBOSE_LOGGING:
-            print(f"Found media cleanup job: {record['id']} for asset at {record['storage_path']} in bucket {record['bucket']}")
+            log_event(
+                severity="info",
+                event_type="job_dequeue",
+                queue_name="media_cleanup_jobs",
+                job_id=str(record['id']),
+                bucket=record['bucket'],
+                storage_path=record['storage_path'],
+            )
         try:
             if not record['storage_path']:
                 raise ValueError("storage_path is empty")
@@ -70,7 +87,13 @@ while True:
                 raise ValueError("Invalid storage_path format")
 
             if VERBOSE_LOGGING:
-                print(f"Deleting all objects with prefix: {delete_prefix} in bucket: {record['bucket']}")
+                log_event(
+                    severity="info",
+                    event_type="cleanup_start",
+                    job_id=str(record['id']),
+                    bucket=record['bucket'],
+                    delete_prefix=delete_prefix,
+                )
 
             # List and delete all objects with the prefix
             bucket = record['bucket']
@@ -83,7 +106,12 @@ while True:
                     # Prepare objects for batch deletion (max 1000 at a time)
                     if VERBOSE_LOGGING:
                         for obj in page['Contents']:
-                            print("Deleting: ", obj)
+                            log_event(
+                                severity="debug",
+                                event_type="cleanup_object",
+                                job_id=str(record['id']),
+                                key=obj.get('Key'),
+                            )
 
                     objects_to_delete = [{'Key': obj['Key']} for obj in page['Contents']]
                     
@@ -95,7 +123,13 @@ while True:
                         delete_count += len(objects_to_delete)
             
             if VERBOSE_LOGGING:
-                print(f"Deleted {delete_count} objects from {delete_prefix}")
+                log_event(
+                    severity="info",
+                    event_type="cleanup_complete",
+                    job_id=str(record['id']),
+                    delete_count=delete_count,
+                    delete_prefix=delete_prefix,
+                )
             
             # Mark as processed
             supabase.table("media_cleanup_jobs").update({
@@ -103,14 +137,24 @@ while True:
             }).eq("id", record['id']).execute()
             
         except Exception as e:
-            print(f"Error determining delete prefix for cleanup job {record['id']}: {e}")
+            log_event(
+                severity="error",
+                event_type="cleanup_failed",
+                job_id=str(record['id']),
+                error_code="WASABI_DELETE_FAILED",
+                error_message=str(e),
+            )
             supabase.table("media_cleanup_jobs").update({
                 "processed_at": "now()",
                 "error": str(e)
             }).eq("id", record['id']).execute()
             continue
 
-    print("Completed media cleanup job cycle. Sleeping for 6 hours.")
+    log_event(
+        severity="info",
+        event_type="job_cycle_complete",
+        queue_name="media_cleanup_jobs",
+    )
 
     time.sleep(21600)  # 6 hours
 

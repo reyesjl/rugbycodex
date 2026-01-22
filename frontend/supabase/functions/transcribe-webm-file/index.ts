@@ -1,8 +1,9 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { corsHeaders, handleCors, jsonResponse } from '../_shared/cors.ts';
 import { getAuthContext } from '../_shared/auth.ts';
+import { logEvent, withObservability } from '../_shared/observability.ts';
 
-serve(async (req) => {
+serve(withObservability('transcribe-webm-file', async (req, ctx) => {
   // Handle preflight requests
   const corsResponse = handleCors(req);
   if (corsResponse) return corsResponse;
@@ -15,6 +16,14 @@ serve(async (req) => {
     // Authenticate user
     const { userId } = await getAuthContext(req);
     if (!userId) {
+      logEvent({
+        severity: 'warn',
+        event_type: 'auth_failure',
+        request_id: ctx.requestId,
+        function: 'transcribe-webm-file',
+        error_code: 'AUTH_INVALID_TOKEN',
+        error_message: 'Unauthorized',
+      });
       return jsonResponse({ error: "Unauthorized" }, 401);
     }
 
@@ -50,6 +59,7 @@ serve(async (req) => {
     const fallbackName = isMp4 ? 'audio.m4a' : 'audio.webm';
     form.append('file', blob, uploadedName || fallbackName);
     form.append("model", "whisper-1");
+    const openaiStart = performance.now();
     const response = await fetch("https://api.openai.com/v1/audio/transcriptions", {
       method: "POST",
       headers: {
@@ -57,10 +67,34 @@ serve(async (req) => {
       },
       body: form
     });
+    const openaiDuration = Math.round(performance.now() - openaiStart);
+    logEvent({
+      severity: 'info',
+      event_type: 'metric',
+      metric_name: 'api_external_call_latency_ms',
+      metric_value: openaiDuration,
+      tags: { service: 'openai', function: 'transcribe-webm-file' },
+    });
     const data = await response.json();
     return jsonResponse({ text: data.text });
   } catch (err) {
-    console.error(err);
+    const message = err instanceof Error ? err.message : String(err);
+    logEvent({
+      severity: 'error',
+      event_type: 'request_error',
+      request_id: ctx.requestId,
+      function: 'transcribe-webm-file',
+      error_code: 'OPENAI_FAILED',
+      error_message: message,
+      stack: err instanceof Error ? err.stack : undefined,
+    });
+    logEvent({
+      severity: 'error',
+      event_type: 'metric',
+      metric_name: 'api_external_call_errors_total',
+      metric_value: 1,
+      tags: { service: 'openai', function: 'transcribe-webm-file' },
+    });
     return jsonResponse({ error: err.message }, 500);
   }
-});
+}));

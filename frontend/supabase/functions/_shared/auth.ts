@@ -1,5 +1,6 @@
 // supabase/functions/_shared/auth.ts
 import { createClient } from 'npm:@supabase/supabase-js@2.47.10';
+import { getRequestId, logEvent } from './observability.ts';
 
 export interface AuthContext {
   userId: string | null;
@@ -22,10 +23,18 @@ export function getClientBoundToRequest(req: Request) {
  * - Returns { userId, isAdmin }
  */
 export async function getAuthContext(req: Request): Promise<AuthContext> {
+  const requestId = getRequestId(req);
   const supabase = getClientBoundToRequest(req);
   const { data, error } = await supabase.auth.getUser();
 
   if (error || !data?.user) {
+    logEvent({
+      severity: 'warn',
+      event_type: 'auth_failure',
+      request_id: requestId,
+      error_code: 'AUTH_INVALID_TOKEN',
+      error_message: error?.message ?? 'Missing user session',
+    });
     return { userId: null, isAdmin: false };
   }
 
@@ -55,6 +64,21 @@ export async function getAuthContext(req: Request): Promise<AuthContext> {
       isAdmin = false;
     }
   }
+
+  logEvent({
+    severity: 'info',
+    event_type: 'auth_success',
+    request_id: requestId,
+    user_id: userId,
+  });
+
+  logEvent({
+    severity: 'info',
+    event_type: 'role_resolution',
+    request_id: requestId,
+    user_id: userId,
+    is_admin: isAdmin,
+  });
 
   return { userId, isAdmin };
 }

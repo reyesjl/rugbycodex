@@ -3,10 +3,11 @@ import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getAuthContext } from "../_shared/auth.ts";
 import { corsHeaders, handleCors } from "../_shared/cors.ts";
+import { logEvent, withObservability } from "../_shared/observability.ts";
 
 const SEGMENT_DURATION_SECONDS = 30;
 
-serve(async (req) => {
+serve(withObservability("generate-media-segments", async (req, ctx) => {
   try {
     // Handle CORS preflight
     const cors = handleCors(req);
@@ -27,6 +28,14 @@ serve(async (req) => {
     // Extract caller identity from JWT
     const { userId: callerId, isAdmin } = await getAuthContext(req);
     if (!callerId) {
+      logEvent({
+        severity: "warn",
+        event_type: "auth_failure",
+        request_id: ctx.requestId,
+        function: "generate-media-segments",
+        error_code: "AUTH_INVALID_TOKEN",
+        error_message: "Authentication required",
+      });
       return new Response(
         JSON.stringify({
           error: {
@@ -40,6 +49,15 @@ serve(async (req) => {
 
     // Enforce admin-only access
     if (!isAdmin) {
+      logEvent({
+        severity: "warn",
+        event_type: "permission_denied",
+        request_id: ctx.requestId,
+        function: "generate-media-segments",
+        user_id: callerId,
+        error_code: "AUTH_PERMISSION_DENIED",
+        error_message: "Admin privileges required",
+      });
       return new Response(
         JSON.stringify({
           error: {
@@ -102,7 +120,15 @@ serve(async (req) => {
         .maybeSingle();
 
       if (fetchError) {
-        console.error("Error fetching media asset:", fetchError);
+        logEvent({
+          severity: "error",
+          event_type: "request_error",
+          request_id: ctx.requestId,
+          function: "generate-media-segments",
+          media_id: mediaAssetId?.trim?.(),
+          error_code: "SUPABASE_READ_FAILED",
+          error_message: fetchError.message,
+        });
         return new Response(
           JSON.stringify({
             error: {
@@ -136,7 +162,14 @@ serve(async (req) => {
         .gt("duration_seconds", 0);
 
       if (fetchError) {
-        console.error("Error fetching media assets:", fetchError);
+        logEvent({
+          severity: "error",
+          event_type: "request_error",
+          request_id: ctx.requestId,
+          function: "generate-media-segments",
+          error_code: "SUPABASE_READ_FAILED",
+          error_message: fetchError.message,
+        });
         return new Response(
           JSON.stringify({
             error: {
@@ -233,6 +266,15 @@ serve(async (req) => {
     }
 
     // Return success with stats
+    logEvent({
+      severity: "info",
+      event_type: "segments_generated",
+      request_id: ctx.requestId,
+      assets_processed: assetsProcessed,
+      assets_skipped: assetsSkipped,
+      total_segments_created: totalSegmentsCreated,
+    });
+
     return new Response(
       JSON.stringify({
         status: "completed",
@@ -244,7 +286,16 @@ serve(async (req) => {
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err) {
-    console.error("Unexpected error in generate-media-segments:", err);
+    const message = err instanceof Error ? err.message : String(err);
+    logEvent({
+      severity: "error",
+      event_type: "request_error",
+      request_id: ctx.requestId,
+      function: "generate-media-segments",
+      error_code: "UNEXPECTED_SERVER_ERROR",
+      error_message: message,
+      stack: err instanceof Error ? err.stack : undefined,
+    });
     return new Response(
       JSON.stringify({
         error: {
@@ -255,4 +306,4 @@ serve(async (req) => {
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
-});
+}));

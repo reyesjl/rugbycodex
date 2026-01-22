@@ -5,6 +5,7 @@ import OpenAI from "https://esm.sh/openai@4.73.1?target=deno";
 
 import { handleCors, jsonResponse } from "../_shared/cors.ts";
 import { errorResponse } from "../_shared/errors.ts";
+import { withObservability } from "../_shared/observability.ts";
 
 type GenerateEmbeddingBody = {
   narrationId?: string;
@@ -173,7 +174,7 @@ async function generateEmbedding(openai: OpenAI, text: string): Promise<number[]
   return embedding;
 }
 
-Deno.serve(async (req) => {
+Deno.serve(withObservability("generate-narration-embedding", async (req) => {
   // Handle OPTIONS preflight
   const cors = handleCors(req);
   if (cors) return cors;
@@ -298,4 +299,4 @@ Deno.serve(async (req) => {
       500,
     );
   }
-});
+}));

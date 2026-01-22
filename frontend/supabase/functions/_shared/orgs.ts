@@ -1,4 +1,5 @@
 import type { SupabaseClient } from 'jsr:@supabase/supabase-js@2';
+import { logEvent } from './observability.ts';
 
 /**
  * @param orgId 
@@ -6,7 +7,12 @@ import type { SupabaseClient } from 'jsr:@supabase/supabase-js@2';
  * @param supabase The existing Supabase client instance
  * @returns True if the user is a member of the organization, false otherwise
  */
-export async function isOrgMember(orgId: string, userId: string, supabase: SupabaseClient): boolean {
+export async function isOrgMember(
+  orgId: string,
+  userId: string,
+  supabase: SupabaseClient,
+  requestId?: string,
+): boolean {
   const { data, error } = await supabase
     .from('org_members')
     .select('user_id')
@@ -15,7 +21,15 @@ export async function isOrgMember(orgId: string, userId: string, supabase: Supab
     .single();
 
   if (error) {
-    console.error('Error checking org membership:', error);
+    logEvent({
+      severity: 'error',
+      event_type: 'org_membership_check_failed',
+      request_id: requestId,
+      org_id: orgId,
+      user_id: userId,
+      error_code: 'SUPABASE_READ_FAILED',
+      error_message: error.message,
+    });
     return false;
   }
 

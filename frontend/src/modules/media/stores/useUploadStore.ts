@@ -3,7 +3,7 @@ import { defineStore } from "pinia";
 import { S3Client } from "@aws-sdk/client-s3";
 import { Upload } from "@aws-sdk/lib-storage";
 import type { UploadJob, UploadJobMeta } from "@/modules/media/types/UploadStatus";
-import { supabase } from "@/lib/supabaseClient";
+import { invokeEdge } from "@/lib/api";
 import { handleSupabaseEdgeError } from "@/lib/handleSupabaseEdgeError";
 import { getMediaDurationSeconds, sanitizeFileName } from "@/modules/media/utils/assetUtilities";
 import { mediaService } from "@/modules/media/services/mediaService";
@@ -37,7 +37,7 @@ export const useUploadStore = defineStore("upload", () => {
     }
 
     const duration_seconds = await getMediaDurationSeconds(file);
-    const response = await supabase.functions.invoke("get-wasabi-upload-session", {
+    const response = await invokeEdge("get-wasabi-upload-session", {
       body: {
         org_id,
         bucket,
@@ -324,6 +324,23 @@ export const useUploadStore = defineStore("upload", () => {
     persistQueue();
     triggerRef(uploads);
 
+    console.log(JSON.stringify({
+      severity: "info",
+      event_type: "upload_start",
+      media_id: job.mediaId,
+      org_id: job.orgId,
+      file_name: job.fileName,
+      file_size_bytes: job.fileSize,
+    }));
+
+    console.log(JSON.stringify({
+      severity: "info",
+      event_type: "metric",
+      metric_name: "frontend_media_upload_duration_ms",
+      metric_value: 0,
+      tags: { org_id: job.orgId },
+    }));
+
     const { error } = await mediaService.updateMediaAsset(job.id, {
       storage_path: job.storagePath,
       file_size_bytes: job.file.size,
@@ -374,6 +391,17 @@ export const useUploadStore = defineStore("upload", () => {
           job.uploadSpeedBps = e.loaded / elapsedSeconds;
         }
 
+        if (job.progress % 25 === 0) {
+          console.log(JSON.stringify({
+            severity: "info",
+            event_type: "upload_progress",
+            media_id: job.mediaId,
+            org_id: job.orgId,
+            progress: job.progress,
+            bytes_uploaded: job.bytesUploaded,
+          }));
+        }
+
         persistQueue();
         triggerRef(uploads);
       }
@@ -384,13 +412,43 @@ export const useUploadStore = defineStore("upload", () => {
       job.state = "completed";
       job.progress = 100;
       persistQueue();
+
+      console.log(JSON.stringify({
+        severity: "info",
+        event_type: "upload_success",
+        media_id: job.mediaId,
+        org_id: job.orgId,
+      }));
     } catch (err) {
       console.error("Upload failed for job", job.id, err);
+      console.log(JSON.stringify({
+        severity: "error",
+        event_type: "upload_failure",
+        media_id: job.mediaId,
+        org_id: job.orgId,
+        error_code: "WASABI_UPLOAD_FAILED",
+        error_message: err instanceof Error ? err.message : String(err),
+      }));
+      console.log(JSON.stringify({
+        severity: "error",
+        event_type: "metric",
+        metric_name: "frontend_media_upload_failures_total",
+        metric_value: 1,
+        tags: { reason: "WASABI_UPLOAD_FAILED" },
+      }));
       if (job.state === "uploading") {
         job.state = "failed";
         persistQueue();
       }
     } finally {
+      const elapsedMs = Date.now() - uploadStartTime;
+      console.log(JSON.stringify({
+        severity: "info",
+        event_type: "metric",
+        metric_name: "frontend_media_upload_duration_ms",
+        metric_value: elapsedMs,
+        tags: { org_id: job.orgId },
+      }));
       job._uploader = undefined;
       triggerRef(uploads);
       processQueue();

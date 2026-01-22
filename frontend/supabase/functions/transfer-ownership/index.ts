@@ -2,7 +2,8 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getAuthContext } from "../_shared/auth.ts";
-serve(async (req)=>{
+import { withObservability } from "../_shared/observability.ts";
+serve(withObservability("transfer-ownership", async (req)=>{
   try {
     const { userId, isAdmin } = await getAuthContext(req);
     if (!userId) {
@@ -81,4 +82,4 @@ serve(async (req)=>{
       status: 500
     });
   }
-});
+}));
