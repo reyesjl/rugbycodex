@@ -114,4 +114,4 @@ serve(withObservability("get-inactive-organizations", async (req)=>{
       status: 500
     });
   }
-});
+}));
