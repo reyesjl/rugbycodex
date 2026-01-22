@@ -16,7 +16,7 @@ interface Emits {
   (e: 'recording-stopped'): void;
 }
 
-defineProps<Props>();
+const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
 const {
