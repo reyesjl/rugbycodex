@@ -12,7 +12,7 @@ export async function isOrgMember(
   userId: string,
   supabase: SupabaseClient,
   requestId?: string,
-): boolean {
+): Promise<boolean> {
   const { data, error } = await supabase
     .from('org_members')
     .select('user_id')
