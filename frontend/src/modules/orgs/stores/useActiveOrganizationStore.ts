@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue'
 import type { UserOrganizationSummary } from '@/modules/orgs/types'
 import { orgService } from '@/modules/orgs/services/orgServiceV2'
 import { useAuthStore } from '@/modules/auth/stores/useAuthStore'
+import { setActiveOrgId } from './activeOrgContext'
 
 export const useActiveOrganizationStore = defineStore('activeOrganization', () => {
   const authStore = useAuthStore()
@@ -61,6 +62,7 @@ export const useActiveOrganizationStore = defineStore('activeOrganization', () =
       if (token !== resolveToken.value) return
 
       orgContext.value = nextOrg
+      setActiveOrgId(nextOrg.organization.id ?? null)
 
       const nextMemberCount = await orgService.getMemberCount(nextOrg.organization.id)
       if (token !== resolveToken.value) return
@@ -72,6 +74,7 @@ export const useActiveOrganizationStore = defineStore('activeOrganization', () =
       status.error.value = err instanceof Error ? err.message : 'Unable to resolve organization.'
       orgContext.value = null
       signals.memberCount.value = null
+      setActiveOrgId(null)
     } finally {
       if (token === resolveToken.value) {
         status.resolving.value = false
@@ -86,6 +89,7 @@ export const useActiveOrganizationStore = defineStore('activeOrganization', () =
     signals.memberCount.value = null
     status.error.value = null
     status.resolving.value = false
+    setActiveOrgId(null)
   }
 
   function updateOrgBio(nextBio: string) {

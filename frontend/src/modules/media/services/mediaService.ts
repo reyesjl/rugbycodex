@@ -125,6 +125,7 @@ async function fetchSignedHlsPlaylist(mediaId: string): Promise<string> {
     body: {
       media_id: mediaId,
     },
+    orgScoped: true,
   });
 
   if (response.error) {
@@ -146,6 +147,7 @@ async function fetchPresignedHlsPlaylistUrl(
       media_id: mediaId,
       bucket,
     },
+    orgScoped: true,
   });
 
   if (response.error) {

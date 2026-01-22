@@ -95,7 +95,7 @@ export function useNarrationRecorder() {
         const audioBlob = await blobPromise;
 
         // Existing pipeline: Edge transcription, then create narration row.
-        const { text } = await transcriptionService.transcribeAudio(audioBlob, ctx.orgId);
+        const { text } = await transcriptionService.transcribeAudio(audioBlob);
 
         const narration = await narrationService.createNarration({
           orgId: ctx.orgId,

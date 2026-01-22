@@ -227,6 +227,7 @@ export const orgService = {
   async setPrimaryOrg(orgId: string): Promise<void> {
     const { error } = await invokeEdge("set-primary-org", {
       body: { orgId },
+      orgScoped: true,
     });
 
     if (error) {
@@ -591,6 +592,7 @@ export const orgService = {
   async getJoinCode(orgId: string): Promise<OrgJoinCode> {
     const { data, error } = await invokeEdge("get-org-join-code", {
       body: { orgId },
+      orgScoped: true,
     });
 
     if (error) {
@@ -625,6 +627,7 @@ export const orgService = {
   async refreshJoinCode(orgId: string): Promise<OrgJoinCode> {
     const { data, error } = await invokeEdge("refresh-org-join-code", {
       body: { orgId },
+      orgScoped: true,
     });
 
     if (error) {
@@ -865,6 +868,7 @@ export const orgService = {
         userId,
         role,
       },
+      orgScoped: true,
     });
 
     if (error) {
@@ -904,6 +908,7 @@ export const orgService = {
   async transferOwnership(orgId: string, newOwnerId: string): Promise<Organization> {
     const { data, error } = await invokeEdge("transfer-ownership", {
       body: { orgId, newOwnerId },
+      orgScoped: true,
     });
 
     if (error) {
@@ -935,6 +940,7 @@ export const orgService = {
   async leaveOrg(orgId: string): Promise<void> {
     const { error } = await invokeEdge("leave-organization", {
       body: { orgId },
+      orgScoped: true,
     });
 
     if (error) {
@@ -1269,6 +1275,7 @@ export const orgService = {
   async assignOwner(orgId: string, userId: string): Promise<Organization> {
     const { data, error } = await invokeEdge("assign-organization-owner", {
       body: { orgId, userId },
+      orgScoped: true,
     });
 
     if (error) {
@@ -1444,6 +1451,7 @@ export const orgService = {
   async canUpload(orgId: string, fileSizeBytes: number): Promise<UploadEligibility> {
     const { data, error } = await invokeEdge("check-upload-eligibility", {
       body: { orgId, fileSizeBytes },
+      orgScoped: true,
     });
 
     if (error) {
@@ -1481,6 +1489,7 @@ export const orgService = {
   async getOrgOverview(orgId: string): Promise<OrgOverview> {
     const { data, error } = await invokeEdge("get-organization-overview", {
       body: { orgId },
+      orgScoped: true,
     });
 
     if (error) {
@@ -1513,6 +1522,7 @@ export const orgService = {
   async getOrgStats(orgId: string): Promise<OrgStats> {
     const { data, error } = await invokeEdge("get-organization-stats", {
       body: { orgId },
+      orgScoped: true,
     });
 
     if (error) {
@@ -1579,6 +1589,7 @@ export const orgService = {
   async getJobSummary(orgId: string): Promise<OrgJobSummary> {
     const { data, error } = await invokeEdge("get-organization-job-summary", {
       body: { orgId },
+      orgScoped: true,
     });
 
     if (error) {
@@ -1649,6 +1660,7 @@ export const orgService = {
   async getOrgHealth(orgId: string): Promise<OrgHealth> {
     const { data, error } = await invokeEdge("get-organization-health", {
       body: { orgId },
+      orgScoped: true,
     });
 
     if (error) {

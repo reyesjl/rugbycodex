@@ -836,7 +836,7 @@ async function endRecordingNonBlocking() {
   Promise.resolve()
     .then(async () => {
       const audioBlob = await blobPromise;
-      const { text } = await transcriptionService.transcribeAudio(audioBlob, orgId);
+      const { text } = await transcriptionService.transcribeAudio(audioBlob);
       return narrationService.createNarration({
         orgId,
         mediaAssetId,

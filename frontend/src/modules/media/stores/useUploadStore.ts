@@ -44,6 +44,7 @@ export const useUploadStore = defineStore("upload", () => {
         file_name: sanitizeFileName(file.name),
         duration_seconds,
       },
+      orgScoped: true,
     });
 
     if (response.error) {

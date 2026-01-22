@@ -133,6 +133,7 @@ function triggerNarrationEmbedding(narrationId: string): void {
     try {
       const { error } = await invokeEdge('generate-narration-embedding', {
         body: { narrationId },
+        orgScoped: true,
       });
       if (error) {
         // Consistent with codebase: await and warn, do not throw

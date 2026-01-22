@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabaseClient";
+import { activeOrgIdRef } from "@/modules/orgs/stores/activeOrgContext";
 
-type InvokeOptions = Parameters<typeof supabase.functions.invoke>[1];
+type InvokeOptions = Parameters<typeof supabase.functions.invoke>[1] & { orgScoped?: boolean };
 
 type LogEvent = {
   severity: "debug" | "info" | "warn" | "error";
@@ -32,13 +33,41 @@ export async function invokeEdge(functionName: string, options?: InvokeOptions) 
   const { data: sessionData } = await supabase.auth.getSession();
   const accessToken = sessionData?.session?.access_token;
 
+  const { orgScoped, ...edgeOptions } = options ?? {};
+  const baseHeaders = { ...(edgeOptions.headers ?? {}) };
+  const hasOrgHeader = Object.keys(baseHeaders).some((header) => header.toLowerCase() === "x-org-id");
+  const isDev = import.meta.env?.DEV ?? false;
+
+  let headers = { ...baseHeaders };
+
+  if (orgScoped) {
+    const activeOrgId = activeOrgIdRef.value;
+    if (!activeOrgId) {
+      const message = `Unable to call org-scoped edge function "${functionName}" without an active organization.`;
+      if (isDev) {
+        console.warn(`[invokeEdge] ${message}`);
+      }
+      throw new Error(message);
+    }
+    if (!hasOrgHeader) {
+      if (isDev) {
+        console.warn(
+          `[invokeEdge] org-scoped function "${functionName}" was invoked without an x-org-id header; injecting active organization id "${activeOrgId}".`
+        );
+      }
+      headers = { ...headers, "x-org-id": activeOrgId };
+    }
+  }
+
+  const finalHeaders = {
+    ...headers,
+    ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    "x-request-id": requestId,
+  };
+
   const response = await supabase.functions.invoke(functionName, {
-    ...options,
-    headers: {
-      ...(options?.headers ?? {}),
-      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-      "x-request-id": requestId,
-    },
+    ...edgeOptions,
+    headers: finalHeaders,
   });
 
   const durationMs = Math.round(performance.now() - start);

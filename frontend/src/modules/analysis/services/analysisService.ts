@@ -85,6 +85,7 @@ export const analysisService = {
         media_asset_id: id,
         mode,
       },
+      orgScoped: true,
     });
 
     if (response.error) {

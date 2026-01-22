@@ -11,10 +11,7 @@ import type { TranscriptionResponse } from '@/modules/narrations/types/Transcrip
  * @param audioBlob - The audio data to transcribe
  * @returns The transcribed text
  */
-export async function transcribeAudio(
-  audioBlob: Blob,
-  orgId?: string
-): Promise<TranscriptionResponse> {
+export async function transcribeAudio(audioBlob: Blob): Promise<TranscriptionResponse> {
   const formData = new FormData();
 
   const mime = (audioBlob.type || '').toLowerCase();
@@ -23,7 +20,7 @@ export async function transcribeAudio(
 
   const { data, error } = await invokeEdge('transcribe-webm-file', {
     body: formData,
-    headers: orgId ? { 'x-org-id': orgId } : undefined,
+    orgScoped: true,
   });
 
   if (error) {
