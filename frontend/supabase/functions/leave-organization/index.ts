@@ -10,6 +10,9 @@ serve(withObservability("leave-organization", async (req)=>{
         status: 405
       });
     }
+    console.warn("AUTH CLIENT DEBUG", {
+      hasAuthorizationHeader: !!req.headers.get("Authorization"),
+    });
     const { orgId } = await req.json();
     if (!orgId) {
       return new Response("orgId is required", {

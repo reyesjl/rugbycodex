@@ -1,9 +1,8 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
-import { createClient } from "npm:@supabase/supabase-js@2";
 
 import { handleCors, jsonResponse } from "../_shared/cors.ts";
-import { getAuthContext } from "../_shared/auth.ts";
+import { getAuthContext, getClientBoundToRequest } from "../_shared/auth.ts";
 
 import type {
   AssignmentContext,
@@ -120,6 +119,9 @@ serve(async (req: Request) => {
   const requestId = getRequestId(req);
 
   try {
+    console.warn("AUTH CLIENT DEBUG", {
+      hasAuthorizationHeader: !!req.headers.get("Authorization"),
+    });
     const { userId } = await getAuthContext(req);
     try {
       requireAuthenticated(userId);
@@ -146,14 +148,7 @@ serve(async (req: Request) => {
       return jsonResponse({ error: "Forbidden" }, 403);
     }
 
-    const authHeader = req.headers.get("Authorization") ?? "";
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-      {
-        global: authHeader ? { headers: { Authorization: authHeader } } : undefined,
-      }
-    );
+    const supabase = getClientBoundToRequest(req);
 
     logEvent({
       severity: "info",

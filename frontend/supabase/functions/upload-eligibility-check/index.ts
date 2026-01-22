@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getClientBoundToRequest } from "../_shared/auth.ts";
 import { logEvent, withObservability } from "../_shared/observability.ts";
 import { allowAdminBypass, getUserRoleFromRequest, requireAuthenticated, requireOrgRoleSource, requireRole } from "../_shared/roles.ts";
 serve(withObservability("upload-eligibility-check", async (req, ctx)=>{
@@ -10,6 +10,10 @@ serve(withObservability("upload-eligibility-check", async (req, ctx)=>{
         status: 405
       });
     }
+
+    console.warn("AUTH CLIENT DEBUG", {
+      hasAuthorizationHeader: !!req.headers.get("Authorization"),
+    });
     const { orgId, fileSizeBytes } = await req.json();
     if (!orgId || !fileSizeBytes || fileSizeBytes <= 0) {
       return new Response("Invalid input", {
@@ -30,13 +34,7 @@ serve(withObservability("upload-eligibility-check", async (req, ctx)=>{
         status: 401
       });
     }
-    const supabase = createClient(Deno.env.get("SUPABASE_URL"), Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"), {
-      global: {
-        headers: {
-          Authorization: authHeader
-        }
-      }
-    });
+    const supabase = getClientBoundToRequest(req);
     // Identify caller
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user) {

@@ -22,6 +22,9 @@ Deno.serve(withObservability("join-organization-with-code", async (req) => {
   }
 
   try {
+    console.warn("AUTH CLIENT DEBUG", {
+      hasAuthorizationHeader: !!req.headers.get("Authorization"),
+    });
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return errorResponse(

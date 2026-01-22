@@ -7,6 +7,7 @@ import { transcriptionService } from '@/modules/narrations/services/transcriptio
 
 interface Props {
   modelValue: string;
+  orgId?: string;
 }
 
 interface Emits {
@@ -102,7 +103,7 @@ async function handleTranscribe() {
   transcriptionError.value = null;
 
   try {
-    const result = await transcriptionService.transcribeAudio(audioBlob);
+    const result = await transcriptionService.transcribeAudio(audioBlob, props.orgId);
     hasTranscribed.value = true;
 
     // Use typewriter effect to display transcription

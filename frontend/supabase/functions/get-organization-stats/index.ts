@@ -17,6 +17,9 @@ serve(withObservability("get-organization-stats", async (req)=>{
         status: 405
       });
     }
+    console.warn("AUTH CLIENT DEBUG", {
+      hasAuthorizationHeader: !!req.headers.get("Authorization"),
+    });
     const { userId, isAdmin } = await getAuthContext(req);
     try {
       requireAuthenticated(userId);

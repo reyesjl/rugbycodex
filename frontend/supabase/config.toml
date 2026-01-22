@@ -380,3 +380,96 @@ s3_region = "env(S3_REGION)"
 s3_access_key = "env(S3_ACCESS_KEY)"
 # Configures AWS_SECRET_ACCESS_KEY for S3 bucket
 s3_secret_key = "env(S3_SECRET_KEY)"
+
+[functions.ai-orchestrator]
+verify_jwt = false
+
+[functions.approve-and-create-organization]
+verify_jwt = false
+
+[functions.approve-organization-request]
+verify_jwt = false
+
+[functions.assign-organization-owner]
+verify_jwt = false
+
+[functions.change-member-role]
+verify_jwt = false
+
+[functions.create-organization]
+verify_jwt = false
+
+[functions.generate-narration-embedding]
+verify_jwt = false
+
+[functions.generate-query-embedding]
+verify_jwt = false
+
+[functions.get-inactive-organizations]
+verify_jwt = false
+
+[functions.get-org-join-code]
+verify_jwt = false
+
+[functions.get-organization-health]
+verify_jwt = false
+
+[functions.get-organization-job-summary]
+verify_jwt = false
+
+[functions.get-organization-overview]
+verify_jwt = false
+
+[functions.get-organization-stats]
+verify_jwt = false
+
+[functions.get-organizations-near-limit]
+verify_jwt = false
+
+[functions.get-playback-playlist]
+verify_jwt = false
+
+[functions.get-recently-created-organizations]
+verify_jwt = false
+
+[functions.get-wasabi-playback-playlist]
+verify_jwt = false
+
+[functions.get-wasabi-upload-session]
+verify_jwt = false
+
+[functions.join-organization-with-code]
+verify_jwt = false
+
+[functions.leave-organization]
+verify_jwt = false
+
+[functions.list-organization-requests]
+verify_jwt = false
+
+[functions.list-organizations-admin]
+verify_jwt = false
+
+[functions.refresh-org-join-code]
+verify_jwt = false
+
+[functions.reject-organization-request]
+verify_jwt = false
+
+[functions.set-primary-org]
+verify_jwt = false
+
+[functions.summarize-media-asset]
+verify_jwt = false
+
+[functions.transcribe-wav-file]
+verify_jwt = false
+
+[functions.transcribe-webm-file]
+verify_jwt = false
+
+[functions.transfer-ownership]
+verify_jwt = false
+
+[functions.upload-eligibility-check]
+verify_jwt = false

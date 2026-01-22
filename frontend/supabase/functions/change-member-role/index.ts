@@ -1,6 +1,5 @@
 import { serve } from "https://deno.land/std/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js";
-import { getAuthContext } from "../_shared/auth.ts";
+import { getAuthContext, getClientBoundToRequest } from "../_shared/auth.ts";
 import { corsHeaders, handleCors } from "../_shared/cors.ts";
 import {
   allowAdminBypass,
@@ -45,6 +44,10 @@ serve(withObservability("change-member-role", async (req) => {
       );
     }
 
+    console.warn("AUTH CLIENT DEBUG", {
+      hasAuthorizationHeader: !!req.headers.get("Authorization"),
+    });
+
     // Extract caller identity from JWT
     const { userId: callerId, isAdmin } = await getAuthContext(req);
     try {
@@ -88,10 +91,7 @@ serve(withObservability("change-member-role", async (req) => {
       );
     }
 
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
+    const supabase = getClientBoundToRequest(req);
 
     // =========================================================================
     // Authorization: Load caller's membership to determine their authority

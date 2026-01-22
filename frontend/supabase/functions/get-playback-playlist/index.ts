@@ -213,6 +213,10 @@ Deno.serve(withObservability("get-playback-playlist", async (req, ctx) => {
       return jsonResponse({ error: "Method Not Allowed" }, 405);
     }
 
+    console.warn("AUTH CLIENT DEBUG", {
+      hasAuthorizationHeader: !!req.headers.get("Authorization"),
+    });
+
     const supabase = getClientBoundToRequest(req);
     const { userId } = await getAuthContext(req);
     if (!userId) {

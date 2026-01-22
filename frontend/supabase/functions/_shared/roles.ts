@@ -72,9 +72,17 @@ export async function getUserRoleFromRequest(
     orgId?: string | null;
   },
 ): Promise<{ userId: string | null; role: Role; source: RoleSource }> {
+  console.warn("ROLE CLIENT DEBUG", {
+    usingBoundClient: !!opts?.supabase,
+  });
   const supabase = opts?.supabase ?? getClientBoundToRequest(req);
 
   const { data, error } = await supabase.auth.getUser();
+  console.warn("ROLE DEBUG: auth.getUser()", {
+    userId: data?.user?.id ?? null,
+    hasUser: !!data?.user,
+    error: error?.message,
+  });
   if (error || !data?.user) {
     return { userId: null, role: "viewer", source: "none" };
   }
@@ -82,6 +90,10 @@ export async function getUserRoleFromRequest(
   const userId = data.user.id ?? null;
 
   if (opts?.orgId) {
+    console.warn("ROLE DEBUG: org lookup start", {
+      userId,
+      orgId: opts?.orgId,
+    });
     const { data: membership } = await supabase
       .from("org_members")
       .select("role")
@@ -89,16 +101,42 @@ export async function getUserRoleFromRequest(
       .eq("user_id", userId)
       .maybeSingle();
 
+    console.warn("ROLE DEBUG: org lookup result", {
+      userId,
+      orgId: opts?.orgId,
+      membershipFound: !!membership,
+      rawRole: membership?.role,
+    });
+
     if (membership?.role) {
-      return { userId, role: normalizeRole(membership.role), source: "org" };
+      const role = normalizeRole(membership.role);
+      const source: RoleSource = "org";
+      console.warn("ROLE DEBUG: resolved role", {
+        userId,
+        role,
+        source,
+      });
+      return { userId, role, source };
     }
   }
 
+  console.warn("ROLE DEBUG: falling back to JWT role", {
+    userId,
+    orgId: opts?.orgId,
+  });
   const roleFromJwt = extractRoleFromJwt(req.headers.get("Authorization"));
-  return { userId, role: normalizeRole(roleFromJwt), source: "jwt" };
+  const role = normalizeRole(roleFromJwt);
+  const source: RoleSource = "jwt";
+  console.warn("ROLE DEBUG: resolved role", {
+    userId,
+    role,
+    source,
+  });
+  return { userId, role, source };
 }
 
 export function requireOrgRoleSource(source: "org" | "jwt" | "none") {
+  console.warn("ROLE DEBUG: requireOrgRoleSource()", { source });
   if (source !== "org") {
     const err = new Error("Forbidden: org role required");
     (err as any).status = 403;

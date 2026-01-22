@@ -95,7 +95,7 @@ function handleRecordingStopped() {
       <h2 class="text-white text-sm font-semibold">Add Narration</h2>
 
       <!-- Audio Recorder -->
-      <AudioRecorder v-model="narrationText" @recording-started="handleRecordingStarted"
+      <AudioRecorder v-model="narrationText" :org-id="props.orgId" @recording-started="handleRecordingStarted"
         @recording-stopped="handleRecordingStopped" />
 
       <!-- Text Input -->

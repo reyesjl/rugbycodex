@@ -103,6 +103,9 @@ Deno.serve(withObservability("generate-query-embedding", async (req, ctx) => {
   }
 
   try {
+    console.warn("AUTH CLIENT DEBUG", {
+      hasAuthorizationHeader: !!req.headers.get("Authorization"),
+    });
     try {
       const { userId, role } = await getUserRoleFromRequest(req);
       requireAuthenticated(userId);

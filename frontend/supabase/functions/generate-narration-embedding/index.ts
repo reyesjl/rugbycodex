@@ -189,6 +189,9 @@ Deno.serve(withObservability("generate-narration-embedding", async (req) => {
   }
 
   try {
+    console.warn("AUTH CLIENT DEBUG", {
+      hasAuthorizationHeader: !!req.headers.get("Authorization"),
+    });
     const body = (await req.json().catch(() => null)) as GenerateEmbeddingBody | null;
 
     const narrationId = asTrimmedString(body?.narrationId);

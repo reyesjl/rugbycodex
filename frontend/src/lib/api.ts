@@ -29,11 +29,14 @@ export function makeRequestId(): string {
 export async function invokeEdge(functionName: string, options?: InvokeOptions) {
   const requestId = makeRequestId();
   const start = performance.now();
+  const { data: sessionData } = await supabase.auth.getSession();
+  const accessToken = sessionData?.session?.access_token;
 
   const response = await supabase.functions.invoke(functionName, {
     ...options,
     headers: {
       ...(options?.headers ?? {}),
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       "x-request-id": requestId,
     },
   });

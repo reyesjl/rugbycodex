@@ -20,6 +20,9 @@ Deno.serve(withObservability("set-primary-org", async (req) => {
   }
 
   try {
+    console.warn("AUTH CLIENT DEBUG", {
+      hasAuthorizationHeader: !!req.headers.get("Authorization"),
+    });
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return errorResponse(

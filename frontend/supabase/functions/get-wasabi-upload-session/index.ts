@@ -19,6 +19,9 @@ Deno.serve(withObservability("get-wasabi-upload-session", async (req, ctx) => {
     if (req.method !== "POST") {
       return jsonResponse({ error: "Method Not Allowed" }, 405);
     }
+    console.warn("AUTH CLIENT DEBUG", {
+      hasAuthorizationHeader: !!req.headers.get("Authorization"),
+    });
     const supabase = getClientBoundToRequest(req);
     const { userId, isAdmin } = await getAuthContext(req);
     try {

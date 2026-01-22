@@ -1,6 +1,6 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { corsHeaders, handleCors, jsonResponse } from '../_shared/cors.ts';
-import { getAuthContext } from '../_shared/auth.ts';
+import { getAuthContext, getClientBoundToRequest } from '../_shared/auth.ts';
 import { getUserRoleFromRequest, requireAuthenticated, requireRole } from '../_shared/roles.ts';
 import { logEvent, withObservability } from '../_shared/observability.ts';
 
@@ -14,11 +14,34 @@ serve(withObservability('transcribe-webm-file', async (req, ctx) => {
       return jsonResponse({ error: "Method not allowed" }, 405);
     }
 
+    console.warn("AUTH CLIENT DEBUG", {
+      hasAuthorizationHeader: !!req.headers.get("Authorization"),
+    });
+
     // Authenticate user
     const { userId } = await getAuthContext(req);
     try {
       requireAuthenticated(userId);
-      const { role } = await getUserRoleFromRequest(req);
+      const orgId = req.headers.get("x-org-id");
+      console.warn("TRANSCRIBE DEBUG: parsed orgId", { orgId });
+      console.warn("TRANSCRIBE DEBUG: calling getUserRoleFromRequest()", {
+        orgId,
+      });
+      const supabase = getClientBoundToRequest(req);
+      const { role, source } = await getUserRoleFromRequest(req, {
+        supabase,
+        orgId: orgId ?? undefined,
+      });
+      console.warn("TRANSCRIBE DEBUG: role resolution result", {
+        userId,
+        role,
+        source,
+      });
+      console.warn("TRANSCRIBE DEBUG: applying guards", {
+        userId,
+        role,
+        source,
+      });
       requireRole(role, "member");
     } catch (err) {
       logEvent({

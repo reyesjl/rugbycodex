@@ -230,6 +230,10 @@ serve(withObservability("summarize-media-asset", async (req: Request) => {
       return jsonResponse({ error: "Method not allowed" }, 405);
     }
 
+    console.warn("AUTH CLIENT DEBUG", {
+      hasAuthorizationHeader: !!req.headers.get("Authorization"),
+    });
+
     const { userId } = await getAuthContext(req);
     try {
       requireAuthenticated(userId);
