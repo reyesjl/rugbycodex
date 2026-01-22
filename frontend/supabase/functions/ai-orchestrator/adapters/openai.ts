@@ -1,4 +1,4 @@
-import { logEvent, logError } from "../observability.ts";
+import { logEvent } from "../../_shared/observability.ts";
 
 type Message = { role: "system" | "user"; content: string };
 
@@ -56,9 +56,13 @@ export async function callLLM(options: CallOptions) {
 
   if (!resp.ok) {
     const text = await resp.text().catch(() => "");
-    logError("openai_error", new Error(text || resp.statusText), {
+    logEvent({
+      severity: "error",
+      event_type: "openai_error",
+      function: "ai-orchestrator",
       status: resp.status,
       duration_ms: durationMs,
+      error_message: text || resp.statusText,
     });
     throw new Error(`OpenAI request failed (${resp.status}).`);
   }
@@ -73,13 +77,24 @@ export async function callLLM(options: CallOptions) {
   try {
     parsed = JSON.parse(outputText);
   } catch (err) {
-    logError("openai_parse_error", err, { output_text: outputText.slice(0, 500) });
+    const error = err as { message?: string; stack?: string };
+    logEvent({
+      severity: "error",
+      event_type: "openai_parse_error",
+      function: "ai-orchestrator",
+      error_message: error?.message ?? String(err),
+      stack: error?.stack,
+      output_text: outputText.slice(0, 500),
+    });
     throw new Error("Failed to parse OpenAI JSON response.");
   }
 
   const usage = payload?.usage ?? {};
 
-  logEvent("openai_response", {
+  logEvent({
+    severity: "info",
+    event_type: "openai_response",
+    function: "ai-orchestrator",
     model,
     duration_ms: durationMs,
     input_tokens: usage?.input_tokens,

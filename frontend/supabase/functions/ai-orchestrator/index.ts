@@ -19,7 +19,7 @@ import type {
 } from "./types.ts";
 
 import { callLLM } from "./adapters/openai.ts";
-import { logError, logEvent } from "./observability.ts";
+import { getRequestId, logEvent } from "../_shared/observability.ts";
 import { normalizeRole, requireRole, roleAtLeast } from "./policies/roleGuards.ts";
 import { validateAutoAssignments } from "./policies/toolGuards.ts";
 import { autoAssignPrompt } from "./prompts/autoAssign.ts";
@@ -110,6 +110,8 @@ serve(async (req: Request) => {
     return jsonResponse({ error: "Method not allowed" }, 405);
   }
 
+  const requestId = getRequestId(req);
+
   try {
     const { userId } = await getAuthContext(req);
     if (!userId) {
@@ -144,7 +146,11 @@ serve(async (req: Request) => {
       }
     );
 
-    logEvent("ai_orchestrator_request_start", {
+    logEvent({
+      severity: "info",
+      event_type: "ai_orchestrator_request_start",
+      request_id: requestId,
+      function: "ai-orchestrator",
       user_id: requestUserId,
       org_id: orgId,
       mode,
@@ -227,7 +233,11 @@ serve(async (req: Request) => {
         assignments: assignmentContext,
       };
 
-      logEvent("ai_orchestrator_my_rugby_context", {
+      logEvent({
+        severity: "info",
+        event_type: "ai_orchestrator_my_rugby_context",
+        request_id: requestId,
+        function: "ai-orchestrator",
         user_id: requestUserId,
         org_id: orgId,
         role_mode: roleMode,
@@ -313,7 +323,11 @@ serve(async (req: Request) => {
         narrations: narrationsContext,
       };
 
-      logEvent("ai_orchestrator_match_summary_context", {
+      logEvent({
+        severity: "info",
+        event_type: "ai_orchestrator_match_summary_context",
+        request_id: requestId,
+        function: "ai-orchestrator",
         user_id: requestUserId,
         org_id: orgId,
         asset_ids: [assetId],
@@ -355,7 +369,11 @@ serve(async (req: Request) => {
 
       if (jobError) throw jobError;
 
-      logEvent("ai_orchestrator_match_summary_saved", {
+      logEvent({
+        severity: "info",
+        event_type: "ai_orchestrator_match_summary_saved",
+        request_id: requestId,
+        function: "ai-orchestrator",
         user_id: requestUserId,
         org_id: orgId,
         job_id: job?.id ?? null,
@@ -419,7 +437,11 @@ serve(async (req: Request) => {
         existing_assignments: buildAssignmentContext(existingAssignments),
       };
 
-      logEvent("ai_orchestrator_auto_assign_context", {
+      logEvent({
+        severity: "info",
+        event_type: "ai_orchestrator_auto_assign_context",
+        request_id: requestId,
+        function: "ai-orchestrator",
         user_id: requestUserId,
         org_id: orgId,
         asset_ids: [assetId],
@@ -471,7 +493,11 @@ serve(async (req: Request) => {
         });
       }
 
-      logEvent("ai_orchestrator_auto_assign_complete", {
+      logEvent({
+        severity: "info",
+        event_type: "ai_orchestrator_auto_assign_complete",
+        request_id: requestId,
+        function: "ai-orchestrator",
         user_id: requestUserId,
         org_id: orgId,
         assignment_count: results.length,
@@ -485,7 +511,15 @@ serve(async (req: Request) => {
 
     return jsonResponse({ error: "Invalid mode" }, 400);
   } catch (err) {
-    logError("ai_orchestrator_error", err);
+    const error = err as { message?: string; stack?: string };
+    logEvent({
+      severity: "error",
+      event_type: "ai_orchestrator_error",
+      request_id: requestId,
+      function: "ai-orchestrator",
+      error_message: error?.message ?? String(err),
+      stack: error?.stack,
+    });
     return jsonResponse({ error: "Internal Server Error" }, 500);
   }
 });
