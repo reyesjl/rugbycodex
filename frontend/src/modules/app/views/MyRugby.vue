@@ -1,22 +1,12 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { watchEffect } from 'vue'
-import { storeToRefs } from 'pinia'
-import { useRouter } from 'vue-router'
-import { useAuthStore } from '@/modules/auth/stores/useAuthStore'
 import { useProfileDisplay } from '@/modules/profiles/composables/useProfileDisplay';
-import { useMyOrganizationsStore } from '@/modules/orgs/stores/useMyOrganizationsStore'
-import { toast } from '@/lib/toast'
-import PersonalWorkOnsCard from '@/modules/app/components/PersonalWorkOnsCard.vue'
+import { useMyRugbyOrchestrator } from '@/modules/app/composables/useMyRugbyOrchestrator';
+import PersonalWorkOnsCard from '@/modules/app/components/PersonalWorkOnsCard.vue';
+import CoachFocusCard from '../components/CoachFocusCard.vue';
+import DemoMyRugbyCard from '@/modules/app/components/DemoMyRugbyCard.vue';
 
-const router = useRouter()
-const authStore = useAuthStore()
-const myOrgs = useMyOrganizationsStore()
-
-const { isAuthenticated, isAdmin } = storeToRefs(authStore)
-const { loaded, hasOrganizations } = storeToRefs(myOrgs)
-
-const hasShownRedirectToast = ref(false)
+const { mode, isEmptyState } = useMyRugbyOrchestrator();
 const workOnsCollapsed = ref(false)
 
 const { username } = useProfileDisplay();
@@ -36,61 +26,67 @@ const greeting = computed(() => {
     return 'Good evening';
 });
 
-// Behavior change: redirect to onboarding if no orgs exist.
-watchEffect(() => {
-    if (!isAuthenticated.value) return
-    if (!loaded.value) return
-    if (isAdmin.value) return
-
-    if (!hasOrganizations.value) {
-        if (!hasShownRedirectToast.value) {
-            // Behavior change: notify when redirecting to onboarding due to no orgs.
-            toast({
-                variant: 'info',
-                message: 'Join or create a workspace to start using My Rugby.',
-                durationMs: 3000,
-            })
-            hasShownRedirectToast.value = true
-        }
-        void router.replace({ name: 'Onboarding' })
-    }
-})
 </script>
 
 <template>
-    <section class="container-lg space-y-8 pt-6 pb-20 text-white">
+    <section class="container-lg space-y-8 pt-6 pb-10 text-white">
         <div class="text-4xl flex flex-col">
             <div>{{ greeting }},</div>
             <div class="text-white/60 tracking-wider">{{ username ? `@${username}` : 'new user' }}</div>
         </div>
     </section>
 
-    <section class="container-lg text-white">
+    <section class="container-lg text-white space-y-4">
         <PersonalWorkOnsCard
+            v-if="mode === 'player' && !isEmptyState"
             :collapsible="true"
             :collapsed="workOnsCollapsed"
             @toggle="workOnsCollapsed = !workOnsCollapsed"
         />
+        <CoachFocusCard
+            v-if="mode === 'coach' && !isEmptyState"
+            :collapsible="true"
+            :collapsed="workOnsCollapsed"
+            @toggle="workOnsCollapsed = !workOnsCollapsed"
+        />
+        <DemoMyRugbyCard
+            v-if="isEmptyState"
+        />
     </section>
 
-    <section class="container-lg text-white pt-40">
-        <div class="text-3xl font-semibold">Recent activity</div>
+    <section class="container-lg text-white pt-20">
+        <div class="text-2xl font-semibold">Recent activity</div>
         <div class="pt-4">
-            <div class="text-xs text-white/30">Nothing for you to review here. You're all caught up!</div>
+            <div v-if="isEmptyState" class="text-xs text-white/40">
+                This section will fill in once your team starts uploading matches and adding feedback.
+            </div>
+            <div v-else>
+                <div class="text-xs text-white/30">Nothing for you to review here. You're all caught up!</div>
+            </div>
         </div>
     </section>
 
-    <section class="container-lg text-white pt-40">
-        <div class="text-3xl font-semibold">Your moments</div>
+    <section class="container-lg text-white pt-20">
+        <div class="text-2xl font-semibold">Your moments</div>
         <div class="pt-4">
-            <div class="text-xs text-white/30">No moments were found. Start capturing your highlights with the "That's me" button!</div>
+            <div v-if="isEmptyState" class="text-xs text-white/40">
+                This section will fill in once your team starts uploading matches and adding feedback.
+            </div>
+            <div v-else>
+                <div class="text-xs text-white/30">No moments were found. Start capturing your highlights with the "That's me" button!</div>
+            </div>
         </div>
     </section>
 
-    <section class="container-lg text-white pt-40 pb-20">
-        <div class="text-3xl font-semibold">Your tasks</div>
+    <section class="container-lg text-white py-20">
+        <div class="text-2xl font-semibold">Your tasks</div>
         <div class="pt-4">
-            <div class="text-xs text-white/30">You've watched all the clips assigned to you! Nice work!</div>
+            <div v-if="isEmptyState" class="text-xs text-white/40">
+                This section will fill in once your team starts uploading matches and adding feedback.
+            </div>
+            <div v-else>
+                <div class="text-xs text-white/30">You've watched all the clips assigned to you! Nice work!</div>
+            </div>
         </div>
     </section>
 </template>

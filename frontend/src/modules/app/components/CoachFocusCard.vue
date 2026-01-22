@@ -14,10 +14,11 @@ const props = withDefaults(
 const emit = defineEmits<{ (e: 'toggle'): void }>();
 
 const bullets = [
-  'Keep your hips square when accelerating through contact.',
-  'Scan earlier before receiving the ball to identify space.',
-  'Stay connected in defense to close inside channels, dont get beat on inside shoulder.',
-  'Drive legs in tackles, stay in the fight to win the gain line.',
+  'Defensive alignment is breaking down after kicks, especially on the left edge.',
+  'Support runners are arriving late on line breaks, missed chances to convert momentum.',
+  'Exit shape becomes disorganized under pressure in the final third.',
+  'Ruck speed drops noticeably late in halves, slowing phase play.',
+  'Too many tackles are being made high, allowing offloads and second efforts.',
 ];
 
 const {
@@ -59,9 +60,9 @@ watch(
       <div class="flex items-start gap-2 min-w-0">
         <Icon icon="carbon:ai-generate" width="16" height="16" class="text-violet-200 mt-0.5" />
         <div class="min-w-0">
-          <div class="text-sm font-semibold text-white truncate">Key Work-ons</div>
+          <div class="text-sm font-semibold text-white truncate">Key Focus Areas</div>
           <div class="text-xs text-white/60">
-            From moments you tagged yourself in and coach narrations. Updated weekly.
+            From your narrations and match analysis. Updated weekly.
             <span><RouterLink class="underline" to="/moments">Learn more.</RouterLink></span>
           </div>
         </div>
@@ -86,7 +87,7 @@ watch(
     </div>
 
     <div v-if="props.collapsible && props.collapsed" class="mt-2 text-xs text-white/50">
-      Work-ons collapsed.
+      Focus areas collapsed.
     </div>
 
     <div v-else class="mt-3">
