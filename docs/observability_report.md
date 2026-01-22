@@ -13,13 +13,11 @@
 - frontend/src/lib/api.ts
 - jetson_scripts/utils/observability.py
 - jetson_scripts/utils/__init__.py
-- frontend/supabase/migrations/20260122_add_request_trace_id_to_jobs.sql
 - docs/observability_report.md
 
 ### Edge Functions (wrapped with `withObservability`)
 - frontend/supabase/functions/get-wasabi-upload-session/index.ts
 - frontend/supabase/functions/upload-eligibility-check/index.ts
-- frontend/supabase/functions/generate-media-segments/index.ts
 - frontend/supabase/functions/transcribe-webm-file/index.ts
 - frontend/supabase/functions/transcribe-wav-file/index.ts
 - frontend/supabase/functions/generate-query-embedding/index.ts

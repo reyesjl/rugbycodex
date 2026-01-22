@@ -4,6 +4,7 @@ import OpenAI from "https://esm.sh/openai@4.73.1?target=deno";
 
 import { handleCors, jsonResponse } from "../_shared/cors.ts";
 import { errorResponse } from "../_shared/errors.ts";
+import { getUserRoleFromRequest, requireAuthenticated, requireRole } from "../_shared/roles.ts";
 import { logEvent, withObservability } from "../_shared/observability.ts";
 
 type GenerateQueryEmbeddingBody = {
@@ -102,6 +103,18 @@ Deno.serve(withObservability("generate-query-embedding", async (req, ctx) => {
   }
 
   try {
+    try {
+      const { userId, role } = await getUserRoleFromRequest(req);
+      requireAuthenticated(userId);
+      requireRole(role, "member");
+    } catch (err) {
+      const status = (err as any)?.status ?? 403;
+      if (status === 401) {
+        return errorResponse("AUTH_REQUIRED", "Authentication required.", 401);
+      }
+      return errorResponse("FORBIDDEN", "Forbidden", 403);
+    }
+
     const body = (await req.json().catch(() => null)) as GenerateQueryEmbeddingBody | null;
 
     const queryText = asTrimmedString(body?.query_text);

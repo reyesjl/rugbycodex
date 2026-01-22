@@ -3,6 +3,7 @@ import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 
 import { corsHeaders, handleCors, jsonResponse } from "../_shared/cors.ts";
 import { getAuthContext, getClientBoundToRequest } from "../_shared/auth.ts";
+import { getUserRoleFromRequest, requireAuthenticated, requireOrgRoleSource, requireRole } from "../_shared/roles.ts";
 import { withObservability } from "../_shared/observability.ts";
 
 type SegmentRow = {
@@ -230,7 +231,9 @@ serve(withObservability("summarize-media-asset", async (req: Request) => {
     }
 
     const { userId } = await getAuthContext(req);
-    if (!userId) {
+    try {
+      requireAuthenticated(userId);
+    } catch {
       return jsonResponse({ error: "Unauthorized" }, 401);
     }
 
@@ -272,22 +275,13 @@ serve(withObservability("summarize-media-asset", async (req: Request) => {
       return jsonResponse({ error: "Media asset missing org_id" }, 500);
     }
 
-    // Verify caller membership role in org_members
-    const { data: membership, error: membershipError } = await supabase
-      .from("org_members")
-      .select("role")
-      .eq("org_id", orgId)
-      .eq("user_id", userId)
-      .maybeSingle();
-
-    if (membershipError) {
-      console.error("summarize_media_asset org_members error", membershipError);
-      // If RLS blocks, treat as forbidden rather than leaking existence.
-      return jsonResponse({ error: "Forbidden" }, 403);
-    }
-
-    const callerRole = normalizeRole((membership as any)?.role);
-    if (!callerRole || !ALLOWED_ROLES.has(callerRole)) {
+    // Verify caller role (staff+)
+    try {
+      const { role, source } = await getUserRoleFromRequest(req, { supabase, orgId });
+      requireOrgRoleSource(source);
+      requireRole(role, "staff");
+    } catch (err) {
+      console.error("summarize_media_asset role guard error", err);
       return jsonResponse({ error: "Forbidden" }, 403);
     }
 

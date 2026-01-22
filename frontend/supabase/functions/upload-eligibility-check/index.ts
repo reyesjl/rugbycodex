@@ -2,6 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { logEvent, withObservability } from "../_shared/observability.ts";
+import { allowAdminBypass, getUserRoleFromRequest, requireAuthenticated, requireOrgRoleSource, requireRole } from "../_shared/roles.ts";
 serve(withObservability("upload-eligibility-check", async (req, ctx)=>{
   try {
     if (req.method !== "POST") {
@@ -52,13 +53,32 @@ serve(withObservability("upload-eligibility-check", async (req, ctx)=>{
       });
     }
     const userId = user.id;
+    try {
+      requireAuthenticated(userId);
+    } catch {
+      return new Response("Unauthorized", {
+        status: 401
+      });
+    }
     // Check platform admin
     const { data: profile } = await supabase.from("profiles").select("role").eq("id", userId).single();
     let isAuthorized = profile?.role === "admin";
-    // Check org membership if not admin
-    if (!isAuthorized) {
-      const { data: membership } = await supabase.from("org_members").select("role").eq("org_id", orgId).eq("user_id", userId).maybeSingle();
-      isAuthorized = !!membership;
+    // Check org role if not admin
+    let enforceRole = false;
+    allowAdminBypass(isAuthorized, () => {
+      enforceRole = true;
+    });
+
+    if (enforceRole) {
+      try {
+        const { userId: orgUserId, role, source } = await getUserRoleFromRequest(req, { supabase, orgId });
+        requireAuthenticated(orgUserId);
+        requireOrgRoleSource(source);
+        requireRole(role, "member");
+        isAuthorized = true;
+      } catch {
+        isAuthorized = false;
+      }
     }
     if (!isAuthorized) {
       logEvent({

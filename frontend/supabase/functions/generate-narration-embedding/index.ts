@@ -5,6 +5,7 @@ import OpenAI from "https://esm.sh/openai@4.73.1?target=deno";
 
 import { handleCors, jsonResponse } from "../_shared/cors.ts";
 import { errorResponse } from "../_shared/errors.ts";
+import { getUserRoleFromRequest, requireAuthenticated, requireOrgRoleSource, requireRole } from "../_shared/roles.ts";
 import { withObservability } from "../_shared/observability.ts";
 
 type GenerateEmbeddingBody = {
@@ -190,6 +191,15 @@ Deno.serve(withObservability("generate-narration-embedding", async (req) => {
   try {
     const body = (await req.json().catch(() => null)) as GenerateEmbeddingBody | null;
 
+    const narrationId = asTrimmedString(body?.narrationId);
+    if (!narrationId && !asBoolean(body?.backfill)) {
+      return errorResponse(
+        "NARRATION_ID_REQUIRED",
+        "A narrationId must be provided.",
+        400,
+      );
+    }
+
     const backfill = asBoolean(body?.backfill);
     const force = asBoolean(body?.force);
 
@@ -206,6 +216,45 @@ Deno.serve(withObservability("generate-narration-embedding", async (req) => {
     }
 
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
+
+    // If not backfill, resolve org_id for authorization
+    if (!asBoolean(body?.backfill)) {
+      const { data: narrationOrg, error: orgError } = await supabaseAdmin
+        .from("narrations")
+        .select("org_id")
+        .eq("id", narrationId)
+        .maybeSingle();
+
+      if (orgError) {
+        console.error("Narration lookup failed:", orgError);
+        return errorResponse(
+          "NARRATION_LOOKUP_FAILED",
+          "Failed to load narration.",
+          500,
+        );
+      }
+
+      if (!narrationOrg?.org_id) {
+        return errorResponse(
+          "NARRATION_NOT_FOUND",
+          "Narration not found.",
+          404,
+        );
+      }
+
+      try {
+        const { userId, role, source } = await getUserRoleFromRequest(req, { orgId: String(narrationOrg.org_id) });
+        requireAuthenticated(userId);
+        requireOrgRoleSource(source);
+        requireRole(role, "member");
+      } catch (err) {
+        const status = (err as any)?.status ?? 403;
+        if (status === 401) {
+          return errorResponse("AUTH_REQUIRED", "Authentication required.", 401);
+        }
+        return errorResponse("FORBIDDEN", "Forbidden", 403);
+      }
+    }
 
     const apiKey = Deno.env.get("OPENAI_API_KEY") ?? "";
     if (!apiKey) {
@@ -270,15 +319,6 @@ Deno.serve(withObservability("generate-narration-embedding", async (req) => {
     // -------------------------------------------------------------------------
     // Single narration mode
     // -------------------------------------------------------------------------
-    const narrationId = asTrimmedString(body?.narrationId);
-    if (!narrationId) {
-      return errorResponse(
-        "NARRATION_ID_REQUIRED",
-        "A narrationId must be provided.",
-        400,
-      );
-    }
-
     const result = await generateAndStoreEmbedding({
       supabaseAdmin,
       openai,

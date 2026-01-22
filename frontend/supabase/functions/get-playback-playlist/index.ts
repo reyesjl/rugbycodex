@@ -1,6 +1,6 @@
 import { getAuthContext, getClientBoundToRequest } from "../_shared/auth.ts";
 import { corsHeaders, handleCors, jsonResponse } from "../_shared/cors.ts";
-import { isOrgMember } from "../_shared/orgs.ts";
+import { getUserRoleFromRequest, requireRole } from "../_shared/roles.ts";
 import { logEvent, withObservability } from "../_shared/observability.ts";
 
 const CDN_BASE_URL = "https://cdn.rugbycodex.com";
@@ -214,7 +214,7 @@ Deno.serve(withObservability("get-playback-playlist", async (req, ctx) => {
     }
 
     const supabase = getClientBoundToRequest(req);
-    const { userId, isAdmin } = await getAuthContext(req);
+    const { userId } = await getAuthContext(req);
     if (!userId) {
       logEvent({
         severity: "warn",
@@ -224,7 +224,6 @@ Deno.serve(withObservability("get-playback-playlist", async (req, ctx) => {
         error_code: "AUTH_INVALID_TOKEN",
         error_message: "Unauthorized",
       });
-      return jsonResponse({ error: "Unauthorized" }, 401);
     }
 
     const body = await req.json().catch(() => null);
@@ -252,21 +251,21 @@ Deno.serve(withObservability("get-playback-playlist", async (req, ctx) => {
       return jsonResponse({ error: "Media asset missing org_id" }, 500);
     }
 
-    if (!isAdmin) {
-      const member = await isOrgMember(orgId, userId, supabase, ctx.requestId);
-      if (!member) {
-        logEvent({
-          severity: "warn",
-          event_type: "permission_denied",
-          request_id: ctx.requestId,
-          function: "get-playback-playlist",
-          org_id: orgId,
-          user_id: userId,
-          error_code: "AUTH_PERMISSION_DENIED",
-          error_message: "User is not a member of organization",
-        });
-        return jsonResponse({ error: "Forbidden" }, 403);
-      }
+    try {
+      const { role } = await getUserRoleFromRequest(req, { supabase, orgId });
+      requireRole(role, "viewer");
+    } catch {
+      logEvent({
+        severity: "warn",
+        event_type: "permission_denied",
+        request_id: ctx.requestId,
+        function: "get-playback-playlist",
+        org_id: orgId,
+        user_id: userId,
+        error_code: "AUTH_PERMISSION_DENIED",
+        error_message: "User is not authorized for playback",
+      });
+      return jsonResponse({ error: "Forbidden" }, 403);
     }
 
     const streamingPrefix = `orgs/${orgId}/uploads/${mediaId}/streaming`;

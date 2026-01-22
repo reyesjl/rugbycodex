@@ -20,7 +20,14 @@ import type {
 
 import { callLLM } from "./adapters/openai.ts";
 import { getRequestId, logEvent } from "../_shared/observability.ts";
-import { normalizeRole, requireRole, roleAtLeast } from "./policies/roleGuards.ts";
+import {
+  getUserRoleFromRequest,
+  normalizeRole,
+  requireAuthenticated,
+  requireOrgRoleSource,
+  requireRole,
+  roleAtLeast,
+} from "../_shared/roles.ts";
 import { validateAutoAssignments } from "./policies/toolGuards.ts";
 import { autoAssignPrompt } from "./prompts/autoAssign.ts";
 import { matchSummaryPrompt } from "./prompts/matchSummary.ts";
@@ -114,7 +121,9 @@ serve(async (req: Request) => {
 
   try {
     const { userId } = await getAuthContext(req);
-    if (!userId) {
+    try {
+      requireAuthenticated(userId);
+    } catch {
       return jsonResponse({ error: "Unauthorized" }, 401);
     }
 
@@ -156,22 +165,20 @@ serve(async (req: Request) => {
       mode,
     });
 
-    const { data: membership, error: membershipError } = await supabase
-      .from("org_members")
-      .select("org_id, user_id, role")
-      .eq("org_id", orgId)
-      .eq("user_id", requestUserId)
-      .maybeSingle();
+    const { userId: orgUserId, role, source } = await getUserRoleFromRequest(req, {
+      supabase,
+      orgId,
+    });
 
-    if (membershipError) {
-      throw membershipError;
+    try {
+      requireAuthenticated(orgUserId);
+      requireOrgRoleSource(source);
+    } catch (err) {
+      const status = (err as any)?.status ?? 403;
+      return jsonResponse({ error: status === 401 ? "Unauthorized" : "Forbidden" }, status);
     }
 
-    if (!membership) {
-      return jsonResponse({ error: "Forbidden" }, 403);
-    }
-
-    const role: Role = normalizeRole(membership.role);
+    const normalizedRole: Role = normalizeRole(role);
 
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
@@ -188,9 +195,9 @@ serve(async (req: Request) => {
     const groupIds = groupMemberships.map((row) => row.group_id);
 
     if (mode === "my_rugby") {
-      requireRole(role, "member");
+      requireRole(normalizedRole, "member");
 
-      const roleMode = roleAtLeast(role, "staff") ? "coach" : "player";
+      const roleMode = roleAtLeast(normalizedRole, "staff") ? "coach" : "player";
       const matchAssets = await listMatchAssets(supabase, orgId, 2);
       const assetIds = matchAssets.map((asset) => asset.id);
       const segments = await listSegmentsForAssets(supabase, assetIds);
@@ -282,7 +289,7 @@ serve(async (req: Request) => {
     }
 
     if (mode === "match_summary") {
-      requireRole(role, "staff");
+      requireRole(normalizedRole, "staff");
 
       const assetId = asNonEmptyString(body?.context?.asset_id);
       if (!assetId) {
@@ -387,7 +394,7 @@ serve(async (req: Request) => {
     }
 
     if (mode === "auto_assign") {
-      requireRole(role, "staff");
+      requireRole(normalizedRole, "staff");
 
       const assetId = asNonEmptyString(body?.context?.asset_id);
       const message = asNonEmptyString(body?.message);
@@ -511,6 +518,10 @@ serve(async (req: Request) => {
 
     return jsonResponse({ error: "Invalid mode" }, 400);
   } catch (err) {
+    const status = (err as any)?.status;
+    if (status === 401 || status === 403) {
+      return jsonResponse({ error: err instanceof Error ? err.message : "Forbidden" }, status);
+    }
     const error = err as { message?: string; stack?: string };
     logEvent({
       severity: "error",

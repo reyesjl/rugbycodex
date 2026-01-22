@@ -1,7 +1,13 @@
 import { GetSessionTokenCommand, STSClient } from "npm:@aws-sdk/client-sts";
 import { getAuthContext, getClientBoundToRequest } from "../_shared/auth.ts";
 import { handleCors, jsonResponse } from "../_shared/cors.ts";
-import { isOrgMember } from "../_shared/orgs.ts";
+import {
+  allowAdminBypass,
+  getUserRoleFromRequest,
+  requireAuthenticated,
+  requireOrgRoleSource,
+  requireRole,
+} from "../_shared/roles.ts";
 import { insertMediaAsset } from "../_shared/media.ts";
 import { logEvent, withObservability } from "../_shared/observability.ts";
 
@@ -15,7 +21,9 @@ Deno.serve(withObservability("get-wasabi-upload-session", async (req, ctx) => {
     }
     const supabase = getClientBoundToRequest(req);
     const { userId, isAdmin } = await getAuthContext(req);
-    if (!userId) {
+    try {
+      requireAuthenticated(userId);
+    } catch {
       return jsonResponse({ error: "Unauthorized" }, 401);
     }
 
@@ -29,9 +37,18 @@ Deno.serve(withObservability("get-wasabi-upload-session", async (req, ctx) => {
     }
 
     // Verify org membership unless admin
-    if (!isAdmin) {
-      const isMember = await isOrgMember(org_id, userId, supabase, ctx.requestId);
-      if (!isMember) {
+    let enforceRole = false;
+    allowAdminBypass(isAdmin, () => {
+      enforceRole = true;
+    });
+
+    if (enforceRole) {
+      try {
+        const { userId: orgUserId, role, source } = await getUserRoleFromRequest(req, { supabase, orgId: org_id });
+        requireAuthenticated(orgUserId);
+        requireOrgRoleSource(source);
+        requireRole(role, "member");
+      } catch {
         logEvent({
           severity: "warn",
           event_type: "permission_denied",
@@ -40,7 +57,7 @@ Deno.serve(withObservability("get-wasabi-upload-session", async (req, ctx) => {
           org_id,
           user_id: userId,
           error_code: "AUTH_PERMISSION_DENIED",
-          error_message: "User is not a member of organization",
+          error_message: "User is not authorized for org upload",
         });
         return jsonResponse({ error: "You must be a member of the Org to Upload Media" }, 403);
       }

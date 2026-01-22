@@ -2,6 +2,13 @@ import { serve } from "https://deno.land/std/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js";
 import { getAuthContext } from "../_shared/auth.ts";
 import { corsHeaders, handleCors } from "../_shared/cors.ts";
+import {
+  allowAdminBypass,
+  getUserRoleFromRequest,
+  requireAuthenticated,
+  requireOrgRoleSource,
+  requireRole,
+} from "../_shared/roles.ts";
 import { withObservability } from "../_shared/observability.ts";
 
 /**
@@ -39,7 +46,9 @@ serve(withObservability("get-org-join-code", async (req) => {
 
     // Extract caller identity from JWT
     const { userId: callerId, isAdmin } = await getAuthContext(req);
-    if (!callerId) {
+    try {
+      requireAuthenticated(callerId);
+    } catch {
       return new Response(
         JSON.stringify({
           error: {
@@ -71,40 +80,35 @@ serve(withObservability("get-org-join-code", async (req) => {
     );
 
     // =========================================================================
-    // Authorization: Load caller's membership to determine their authority
+    // Authorization: Staff+ required (admin bypass)
     // =========================================================================
-    if (!isAdmin) {
-      // Platform admins bypass membership checks; non-admins must have membership
-      const { data: callerMembership, error: callerError } = await supabase
-        .from("org_members")
-        .select("role")
-        .eq("org_id", orgId)
-        .eq("user_id", callerId)
-        .maybeSingle();
+    let enforceRole = false;
+    allowAdminBypass(isAdmin, () => {
+      enforceRole = true;
+    });
 
-      if (callerError || !callerMembership) {
-        return new Response(
-          JSON.stringify({
-            error: {
-              code: "NOT_ORG_MEMBER",
-              message: "You are not a member of this organization.",
-            },
-          }),
-          {
-            status: 403,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
-        );
-      }
-
-      const callerRole = callerMembership.role as OrgRole;
-
-      // Authorization policy:
-      // - owner: can access join code
-      // - manager: can access join code
-      // - staff: can access join code
-      // - member: cannot access join code (policy decision: members are not authorized to share invite codes)
-      if (!PRIVILEGED_ROLES.includes(callerRole as typeof PRIVILEGED_ROLES[number])) {
+    if (enforceRole) {
+      try {
+        const { userId, role, source } = await getUserRoleFromRequest(req, { supabase, orgId });
+        requireAuthenticated(userId);
+        requireOrgRoleSource(source);
+        requireRole(role, "staff");
+      } catch (err) {
+        const code = (err as any)?.code;
+        if (code === "ORG_ROLE_REQUIRED") {
+          return new Response(
+            JSON.stringify({
+              error: {
+                code: "NOT_ORG_MEMBER",
+                message: "You are not a member of this organization.",
+              },
+            }),
+            {
+              status: 403,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            }
+          );
+        }
         return new Response(
           JSON.stringify({
             error: {

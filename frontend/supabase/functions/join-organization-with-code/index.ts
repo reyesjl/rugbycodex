@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 import { handleCors, jsonResponse } from "../_shared/cors.ts";
 import { errorResponse } from "../_shared/errors.ts";
+import { getUserRoleFromRequest, requireAuthenticated, requireRole } from "../_shared/roles.ts";
 import { withObservability } from "../_shared/observability.ts";
 
 const JOIN_CODE_TTL_MS = 24 * 60 * 60 * 1000;
@@ -28,6 +29,18 @@ Deno.serve(withObservability("join-organization-with-code", async (req) => {
         "Missing Authorization header.",
         401,
       );
+    }
+
+    try {
+      const { userId, role } = await getUserRoleFromRequest(req);
+      requireAuthenticated(userId);
+      requireRole(role, "viewer");
+    } catch (err) {
+      const status = (err as any)?.status ?? 403;
+      if (status === 401) {
+        return errorResponse("AUTH_REQUIRED", "You must be signed in to join an organization.", 401);
+      }
+      return errorResponse("FORBIDDEN", "Forbidden", 403);
     }
 
     const body = (await req.json().catch(() => null)) as

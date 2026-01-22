@@ -2,6 +2,13 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getAuthContext } from "../_shared/auth.ts";
+import {
+  allowAdminBypass,
+  getUserRoleFromRequest,
+  requireAuthenticated,
+  requireOrgRoleSource,
+  requireRole,
+} from "../_shared/roles.ts";
 import { withObservability } from "../_shared/observability.ts";
 serve(withObservability("get-organization-stats", async (req)=>{
   try {
@@ -11,15 +18,11 @@ serve(withObservability("get-organization-stats", async (req)=>{
       });
     }
     const { userId, isAdmin } = await getAuthContext(req);
-    if (!userId) {
+    try {
+      requireAuthenticated(userId);
+    } catch {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
-        headers: { "Content-Type": "application/json" }
-      });
-    }
-    if (!isAdmin) {
-      return new Response(JSON.stringify({ error: "Forbidden" }), {
-        status: 403,
         headers: { "Content-Type": "application/json" }
       });
     }
@@ -28,6 +31,24 @@ serve(withObservability("get-organization-stats", async (req)=>{
       return new Response("orgId is required", {
         status: 400
       });
+    }
+    let enforceRole = false;
+    allowAdminBypass(isAdmin, () => {
+      enforceRole = true;
+    });
+
+    if (enforceRole) {
+      try {
+        const { userId: orgUserId, role, source } = await getUserRoleFromRequest(req, { orgId });
+        requireAuthenticated(orgUserId);
+        requireOrgRoleSource(source);
+        requireRole(role, "manager");
+      } catch {
+        return new Response(JSON.stringify({ error: "Forbidden" }), {
+          status: 403,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
     }
     const authHeader = req.headers.get("Authorization")!;
     const supabase = createClient(Deno.env.get("SUPABASE_URL"), Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"), {

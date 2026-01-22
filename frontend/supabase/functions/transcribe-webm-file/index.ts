@@ -1,6 +1,7 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { corsHeaders, handleCors, jsonResponse } from '../_shared/cors.ts';
 import { getAuthContext } from '../_shared/auth.ts';
+import { getUserRoleFromRequest, requireAuthenticated, requireRole } from '../_shared/roles.ts';
 import { logEvent, withObservability } from '../_shared/observability.ts';
 
 serve(withObservability('transcribe-webm-file', async (req, ctx) => {
@@ -15,7 +16,11 @@ serve(withObservability('transcribe-webm-file', async (req, ctx) => {
 
     // Authenticate user
     const { userId } = await getAuthContext(req);
-    if (!userId) {
+    try {
+      requireAuthenticated(userId);
+      const { role } = await getUserRoleFromRequest(req);
+      requireRole(role, "member");
+    } catch (err) {
       logEvent({
         severity: 'warn',
         event_type: 'auth_failure',
@@ -24,7 +29,9 @@ serve(withObservability('transcribe-webm-file', async (req, ctx) => {
         error_code: 'AUTH_INVALID_TOKEN',
         error_message: 'Unauthorized',
       });
-      return jsonResponse({ error: "Unauthorized" }, 401);
+      const status = (err as any)?.status ?? 403;
+      const message = status === 401 ? "Unauthorized" : "Forbidden";
+      return jsonResponse({ error: message }, status);
     }
 
     const formData = await req.formData();

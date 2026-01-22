@@ -1,8 +1,8 @@
 import { GetObjectCommand, PutObjectCommand, S3Client } from "npm:@aws-sdk/client-s3";
 import { getSignedUrl } from "npm:@aws-sdk/s3-request-presigner";
-import { getAuthContext, getClientBoundToRequest } from "../_shared/auth.ts";
+import { getClientBoundToRequest } from "../_shared/auth.ts";
 import { corsHeaders, handleCors, jsonResponse } from "../_shared/cors.ts";
-import { isOrgMember } from "../_shared/orgs.ts";
+import { getUserRoleFromRequest, requireRole } from "../_shared/roles.ts";
 import { logEvent, withObservability } from "../_shared/observability.ts";
 
 const WASABI_S3_ENDPOINT = "https://s3.us-east-1.wasabisys.com";
@@ -468,10 +468,6 @@ Deno.serve(withObservability("get-wasabi-playback-playlist", async (req, ctx) =>
     }
 
     const supabase = getClientBoundToRequest(req);
-    const { userId, isAdmin } = await getAuthContext(req);
-    if (!userId) {
-      return jsonResponse({ error: "Unauthorized" }, 401);
-    }
 
     const body = await req.json().catch(() => null);
     const mediaId = parseMediaId(body);
@@ -499,11 +495,11 @@ Deno.serve(withObservability("get-wasabi-playback-playlist", async (req, ctx) =>
       return jsonResponse({ error: "Media asset missing org_id" }, 500);
     }
 
-    if (!isAdmin) {
-      const member = await isOrgMember(orgId, userId, supabase);
-      if (!member) {
-        return jsonResponse({ error: "Forbidden" }, 403);
-      }
+    try {
+      const { role } = await getUserRoleFromRequest(req, { supabase, orgId });
+      requireRole(role, "viewer");
+    } catch {
+      return jsonResponse({ error: "Forbidden" }, 403);
     }
 
     const streamingPrefix = `orgs/${orgId}/uploads/${mediaId}/streaming`;

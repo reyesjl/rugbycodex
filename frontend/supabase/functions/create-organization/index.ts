@@ -1,6 +1,8 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getAuthContext } from "../_shared/auth.ts";
+import { requireAuthenticated, requirePlatformAdmin } from "../_shared/roles.ts";
 import { withObservability } from "../_shared/observability.ts";
 serve(withObservability("create-organization", async (req)=>{
   try {
@@ -21,6 +23,14 @@ serve(withObservability("create-organization", async (req)=>{
         status: 401
       });
     }
+    const authContext = await getAuthContext(req);
+    try {
+      requireAuthenticated(authContext.userId);
+    } catch {
+      return new Response("Unauthorized", {
+        status: 401
+      });
+    }
     const supabase = createClient(Deno.env.get("SUPABASE_URL"), Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"), {
       global: {
         headers: {
@@ -37,10 +47,13 @@ serve(withObservability("create-organization", async (req)=>{
     }
     // Verify platform admin / moderator
     const { data: profile, error: profileError } = await supabase.from("profiles").select("role").eq("id", user.id).single();
-    if (profileError || ![
+    const isPlatformAdmin = authContext.isAdmin || [
       "admin",
       "moderator"
-    ].includes(profile.role)) {
+    ].includes(profile.role);
+    try {
+      requirePlatformAdmin(isPlatformAdmin);
+    } catch {
       return new Response("Forbidden", {
         status: 403
       });

@@ -2,6 +2,8 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders, handleCors } from "../_shared/cors.ts";
+import { getAuthContext } from "../_shared/auth.ts";
+import { requireAuthenticated, requirePlatformAdmin } from "../_shared/roles.ts";
 import { withObservability } from "../_shared/observability.ts";
 serve(withObservability("list-organization-requests", async (req)=>{
   try {
@@ -31,6 +33,15 @@ serve(withObservability("list-organization-requests", async (req)=>{
       }
     });
     // Identify caller
+    const authContext = await getAuthContext(req);
+    try {
+      requireAuthenticated(authContext.userId);
+    } catch {
+      return new Response("Unauthorized", {
+        status: 401,
+        headers: corsHeaders
+      });
+    }
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user) {
       return new Response("Unauthorized", {
@@ -46,10 +57,13 @@ serve(withObservability("list-organization-requests", async (req)=>{
         headers: corsHeaders
       });
     }
-    if (![
+    const isPlatformAdmin = authContext.isAdmin || [
       "admin",
       "moderator"
-    ].includes(profile.role)) {
+    ].includes(profile.role);
+    try {
+      requirePlatformAdmin(isPlatformAdmin);
+    } catch {
       return new Response("Forbidden", {
         status: 403,
         headers: corsHeaders

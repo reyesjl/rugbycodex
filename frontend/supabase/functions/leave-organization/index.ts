@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getUserRoleFromRequest, requireAuthenticated, requireOrgRoleSource, requireRole } from "../_shared/roles.ts";
 import { withObservability } from "../_shared/observability.ts";
 serve(withObservability("leave-organization", async (req)=>{
   try {
@@ -19,6 +20,18 @@ serve(withObservability("leave-organization", async (req)=>{
     if (!authHeader) {
       return new Response("Missing Authorization header", {
         status: 401
+      });
+    }
+    try {
+      const { userId, role, source } = await getUserRoleFromRequest(req, { orgId });
+      requireAuthenticated(userId);
+      requireOrgRoleSource(source);
+      requireRole(role, "viewer");
+    } catch (err) {
+      const status = (err as any)?.status ?? 403;
+      const message = status === 401 ? "Unauthorized" : "Forbidden";
+      return new Response(message, {
+        status
       });
     }
     const supabase = createClient(Deno.env.get("SUPABASE_URL"), Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"), {

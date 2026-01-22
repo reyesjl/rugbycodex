@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 import { handleCors, jsonResponse } from "../_shared/cors.ts";
 import { errorResponse } from "../_shared/errors.ts";
+import { getUserRoleFromRequest, requireAuthenticated, requireOrgRoleSource, requireRole } from "../_shared/roles.ts";
 import { withObservability } from "../_shared/observability.ts";
 
 Deno.serve(withObservability("set-primary-org", async (req) => {
@@ -39,6 +40,19 @@ Deno.serve(withObservability("set-primary-org", async (req) => {
         "An orgId must be provided.",
         400,
       );
+    }
+
+    try {
+      const { userId, role, source } = await getUserRoleFromRequest(req, { orgId });
+      requireAuthenticated(userId);
+      requireOrgRoleSource(source);
+      requireRole(role, "viewer");
+    } catch (err) {
+      const status = (err as any)?.status ?? 403;
+      if (status === 401) {
+        return errorResponse("AUTH_REQUIRED", "You must be signed in to set your primary organization.", 401);
+      }
+      return errorResponse("FORBIDDEN", "Forbidden", 403);
     }
 
     // Identify the caller (user-scoped client)

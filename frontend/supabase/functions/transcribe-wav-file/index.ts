@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { logEvent, withObservability } from '../_shared/observability.ts';
+import { getUserRoleFromRequest, requireAuthenticated, requireRole } from '../_shared/roles.ts';
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -13,6 +14,20 @@ serve(withObservability('transcribe-wav-file', async (req, ctx)=>{
     });
   }
   try {
+    try {
+      const { userId, role } = await getUserRoleFromRequest(req);
+      requireAuthenticated(userId);
+      requireRole(role, "member");
+    } catch (err) {
+      const status = (err as any)?.status ?? 403;
+      const message = status === 401 ? "Unauthorized" : "Forbidden";
+      return new Response(JSON.stringify({
+        error: message
+      }), {
+        status,
+        headers: corsHeaders
+      });
+    }
     // Only accept POST
     if (req.method !== "POST") {
       return new Response(JSON.stringify({

@@ -2,6 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getAuthContext } from "../_shared/auth.ts";
+import { requireAuthenticated, requirePlatformAdmin } from "../_shared/roles.ts";
 import { withObservability } from "../_shared/observability.ts";
 serve(withObservability("list-organizations-admin", async (req)=>{
   try {
@@ -11,15 +12,14 @@ serve(withObservability("list-organizations-admin", async (req)=>{
       });
     }
     const { userId, isAdmin } = await getAuthContext(req);
-    if (!userId) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { "Content-Type": "application/json" }
-      });
-    }
-    if (!isAdmin) {
-      return new Response(JSON.stringify({ error: "Forbidden" }), {
-        status: 403,
+    try {
+      requireAuthenticated(userId);
+      requirePlatformAdmin(isAdmin);
+    } catch (err) {
+      const status = (err as any)?.status ?? 403;
+      const message = status === 401 ? "Unauthorized" : "Forbidden";
+      return new Response(JSON.stringify({ error: message }), {
+        status,
         headers: { "Content-Type": "application/json" }
       });
     }
