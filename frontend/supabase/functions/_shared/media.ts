@@ -1,4 +1,5 @@
 import type { SupabaseClient } from 'jsr:@supabase/supabase-js@2';
+import { logEvent } from './observability.ts';
 
 export interface MediaAssetFields {
   id?: string;
@@ -18,7 +19,8 @@ export interface MediaAssetFields {
 
 export async function insertMediaAsset(
   fields: MediaAssetFields,
-  supabase: SupabaseClient
+  supabase: SupabaseClient,
+  requestId?: string,
 ) {
   const { data, error } = await supabase
     .from('media_assets')
@@ -40,7 +42,15 @@ export async function insertMediaAsset(
     .single();
 
   if (error) {
-    console.error('Error inserting media asset:', error);
+    logEvent({
+      severity: 'error',
+      event_type: 'media_asset_insert_failed',
+      request_id: requestId,
+      org_id: fields.org_id,
+      user_id: fields.uploader_id,
+      error_code: 'SUPABASE_WRITE_FAILED',
+      error_message: error.message,
+    });
     throw new Error(`Failed to insert media asset: ${error.message}`);
   }
 

@@ -2,7 +2,7 @@
  * Service for audio transcription
  */
 
-import { supabase } from '@/lib/supabaseClient';
+import { invokeEdge } from '@/lib/api';
 import { handleSupabaseEdgeError } from '@/lib/handleSupabaseEdgeError';
 import type { TranscriptionResponse } from '@/modules/narrations/types/TranscriptionResponse';
 
@@ -20,7 +20,7 @@ export async function transcribeAudio(
   const fileName = mime.includes('mp4') ? 'audio.m4a' : mime.includes('wav') ? 'audio.wav' : 'audio.webm';
   formData.append('file', audioBlob, fileName);
 
-  const { data, error } = await supabase.functions.invoke('transcribe-webm-file', {
+  const { data, error } = await invokeEdge('transcribe-webm-file', {
     body: formData,
   });
 

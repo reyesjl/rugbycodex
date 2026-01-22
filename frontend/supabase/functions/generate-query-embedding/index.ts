@@ -4,6 +4,7 @@ import OpenAI from "https://esm.sh/openai@4.73.1?target=deno";
 
 import { handleCors, jsonResponse } from "../_shared/cors.ts";
 import { errorResponse } from "../_shared/errors.ts";
+import { logEvent, withObservability } from "../_shared/observability.ts";
 
 type GenerateQueryEmbeddingBody = {
   query_text?: string;
@@ -18,17 +19,42 @@ function asTrimmedString(value: unknown): string | null {
   return t ? t : null;
 }
 
-async function generateEmbedding(openai: OpenAI, text: string): Promise<number[]> {
+async function generateEmbedding(openai: OpenAI, text: string, requestId?: string): Promise<number[]> {
   let embedding: number[] = [];
   try {
+    const start = performance.now();
     const resp = await openai.embeddings.create({
       model: EMBEDDING_MODEL,
       input: text,
     });
 
+    const duration = Math.round(performance.now() - start);
+    logEvent({
+      severity: "info",
+      event_type: "metric",
+      metric_name: "api_external_call_latency_ms",
+      metric_value: duration,
+      tags: { service: "openai", function: "generate-query-embedding" },
+    });
+
     embedding = resp.data?.[0]?.embedding ?? [];
   } catch (err) {
-    console.error("OpenAI embeddings request failed:", err);
+    logEvent({
+      severity: "error",
+      event_type: "request_error",
+      request_id: requestId,
+      function: "generate-query-embedding",
+      error_code: "OPENAI_FAILED",
+      error_message: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined,
+    });
+    logEvent({
+      severity: "error",
+      event_type: "metric",
+      metric_name: "api_external_call_errors_total",
+      metric_value: 1,
+      tags: { service: "openai", function: "generate-query-embedding" },
+    });
     throw {
       kind: "handled" as const,
       response: errorResponse(
@@ -40,7 +66,15 @@ async function generateEmbedding(openai: OpenAI, text: string): Promise<number[]
   }
 
   if (!Array.isArray(embedding) || embedding.length !== EMBEDDING_DIMS) {
-    console.error("Embedding dimension mismatch:", { got: embedding?.length });
+    logEvent({
+      severity: "error",
+      event_type: "request_error",
+      request_id: requestId,
+      function: "generate-query-embedding",
+      error_code: "EMBEDDING_DIMENSION_MISMATCH",
+      error_message: "Embedding dimension mismatch",
+      got: embedding?.length,
+    });
     throw {
       kind: "handled" as const,
       response: errorResponse(
@@ -54,7 +88,7 @@ async function generateEmbedding(openai: OpenAI, text: string): Promise<number[]
   return embedding;
 }
 
-Deno.serve(async (req) => {
+Deno.serve(withObservability("generate-query-embedding", async (req, ctx) => {
   // Handle OPTIONS preflight
   const cors = handleCors(req);
   if (cors) return cors;
@@ -89,18 +123,26 @@ Deno.serve(async (req) => {
     }
 
     const openai = new OpenAI({ apiKey });
-    const embedding = await generateEmbedding(openai, queryText);
+    const embedding = await generateEmbedding(openai, queryText, ctx.requestId);
     return jsonResponse({ embedding });
   } catch (err: any) {
     if (err?.kind === "handled" && err?.response instanceof Response) {
       return err.response;
     }
 
-    console.error("Unexpected error in generate-query-embedding:", err);
+    logEvent({
+      severity: "error",
+      event_type: "request_error",
+      request_id: ctx.requestId,
+      function: "generate-query-embedding",
+      error_code: "UNEXPECTED_SERVER_ERROR",
+      error_message: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined,
+    });
     return errorResponse(
       "UNEXPECTED_SERVER_ERROR",
       "Unexpected server error.",
       500,
     );
   }
-});
+}));

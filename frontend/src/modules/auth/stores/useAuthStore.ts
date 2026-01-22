@@ -132,6 +132,11 @@ export const useAuthStore = defineStore('auth', () => {
   };
 
   const signIn = async (email: string, password: string, captchaToken?: string) => {
+    console.log(JSON.stringify({
+      severity: 'info',
+      event_type: 'login_start',
+      email,
+    }));
     lastError.value = null;
     const result = await supabase.auth.signInWithPassword({
       email,
@@ -146,10 +151,21 @@ export const useAuthStore = defineStore('auth', () => {
     if (result.error) {
       const normalizedError = normalizeAuthError(result.error) ?? result.error;
       lastError.value = normalizedError.message;
+      console.log(JSON.stringify({
+        severity: 'error',
+        event_type: 'login_failure',
+        error_code: normalizedError?.status ? `AUTH_${normalizedError.status}` : 'AUTH_FAILED',
+        error_message: normalizedError.message,
+      }));
       return { data: null, error: normalizedError };
     }
 
     setAuthState(result.data.session ?? null);
+    console.log(JSON.stringify({
+      severity: 'info',
+      event_type: 'login_success',
+      user_id: result.data.session?.user?.id ?? null,
+    }));
     return { data: result.data, error: null };
   };
 
@@ -226,6 +242,11 @@ export const useAuthStore = defineStore('auth', () => {
 
   const signOut = async () => {
     lastError.value = null;
+    console.log(JSON.stringify({
+      severity: 'info',
+      event_type: 'logout',
+      user_id: user.value?.id ?? null,
+    }));
     const { error } = await supabase.auth.signOut();
     if (error) {
       const handled = await handleSessionExpiry(error, { skipServerSignOut: true });

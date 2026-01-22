@@ -1,6 +1,7 @@
 import { getAuthContext, getClientBoundToRequest } from "../_shared/auth.ts";
 import { corsHeaders, handleCors, jsonResponse } from "../_shared/cors.ts";
 import { isOrgMember } from "../_shared/orgs.ts";
+import { logEvent, withObservability } from "../_shared/observability.ts";
 
 const CDN_BASE_URL = "https://cdn.rugbycodex.com";
 const HLS_MANIFEST_KEY = "index.m3u8";
@@ -190,7 +191,7 @@ async function rewriteMasterPlaylistToCdn(opts: {
  * Handler
  * ======================================================= */
 
-Deno.serve(async (req) => {
+Deno.serve(withObservability("get-playback-playlist", async (req, ctx) => {
   const corsResponse = handleCors(req);
   if (corsResponse) return corsResponse;
 
@@ -199,7 +200,13 @@ Deno.serve(async (req) => {
     req.headers.get("x-supabase-region") ??
     req.headers.get("x-vercel-region") ??
     "unknown";
-  console.log("edge_region:", edgeRegion);
+  logEvent({
+    severity: "info",
+    event_type: "edge_region",
+    request_id: ctx.requestId,
+    function: "get-playback-playlist",
+    edge_region: edgeRegion,
+  });
 
   try {
     if (req.method !== "POST") {
@@ -209,6 +216,14 @@ Deno.serve(async (req) => {
     const supabase = getClientBoundToRequest(req);
     const { userId, isAdmin } = await getAuthContext(req);
     if (!userId) {
+      logEvent({
+        severity: "warn",
+        event_type: "auth_failure",
+        request_id: ctx.requestId,
+        function: "get-playback-playlist",
+        error_code: "AUTH_INVALID_TOKEN",
+        error_message: "Unauthorized",
+      });
       return jsonResponse({ error: "Unauthorized" }, 401);
     }
 
@@ -238,8 +253,18 @@ Deno.serve(async (req) => {
     }
 
     if (!isAdmin) {
-      const member = await isOrgMember(orgId, userId, supabase);
+      const member = await isOrgMember(orgId, userId, supabase, ctx.requestId);
       if (!member) {
+        logEvent({
+          severity: "warn",
+          event_type: "permission_denied",
+          request_id: ctx.requestId,
+          function: "get-playback-playlist",
+          org_id: orgId,
+          user_id: userId,
+          error_code: "AUTH_PERMISSION_DENIED",
+          error_message: "User is not a member of organization",
+        });
         return jsonResponse({ error: "Forbidden" }, 403);
       }
     }
@@ -248,10 +273,14 @@ Deno.serve(async (req) => {
     const manifestKey = `${streamingPrefix}/${HLS_MANIFEST_KEY}`;
 
     // Log the manifest lookup key
-    console.log("HLS manifest lookup", {
-      mediaId,
-      orgId,
-      manifestKey,
+    logEvent({
+      severity: "info",
+      event_type: "hls_manifest_lookup",
+      request_id: ctx.requestId,
+      function: "get-playback-playlist",
+      media_id: mediaId,
+      org_id: orgId,
+      manifest_key: manifestKey,
       mode,
     });
 
@@ -263,9 +292,13 @@ Deno.serve(async (req) => {
       // Return the CDN URL directly
       const cdnUrl = `${CDN_BASE_URL}/${manifestKey}`;
 
-      console.log("Returning CDN URL", {
-        mediaId,
-        cdnUrl,
+      logEvent({
+        severity: "info",
+        event_type: "cdn_url_returned",
+        request_id: ctx.requestId,
+        function: "get-playback-playlist",
+        media_id: mediaId,
+        cdn_url: cdnUrl,
       });
 
       // Return the CDN URL as raw text
@@ -286,7 +319,16 @@ Deno.serve(async (req) => {
     let playlistText: string;
 
     try {
+      const fetchStart = performance.now();
       const response = await fetch(cdnPlaylistUrl);
+      const fetchDuration = Math.round(performance.now() - fetchStart);
+      logEvent({
+        severity: "info",
+        event_type: "metric",
+        metric_name: "api_external_call_latency_ms",
+        metric_value: fetchDuration,
+        tags: { service: "cdn", function: "get-playback-playlist" },
+      });
 
       if (!response.ok) {
         if (response.status === 404) {
@@ -301,9 +343,21 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: "Playlist not found" }, 404);
       }
     } catch (err: any) {
-      console.error("CDN HLS manifest read failed", {
+      logEvent({
+        severity: "error",
+        event_type: "request_error",
+        request_id: ctx.requestId,
+        function: "get-playback-playlist",
+        error_code: "CDN_READ_FAILED",
+        error_message: err?.message ?? "CDN read failed",
         url: cdnPlaylistUrl,
-        error: err?.message,
+      });
+      logEvent({
+        severity: "error",
+        event_type: "metric",
+        metric_name: "api_external_call_errors_total",
+        metric_value: 1,
+        tags: { service: "cdn", function: "get-playback-playlist" },
       });
 
       return jsonResponse(
@@ -320,9 +374,13 @@ Deno.serve(async (req) => {
     const segmentLines = lines.filter(isSegmentLine);
     const variantLines = lines.filter(isVariantLine);
 
-    console.log("HLS playlist type", {
-      segmentCount: segmentLines.length,
-      variantCount: variantLines.length,
+    logEvent({
+      severity: "info",
+      event_type: "hls_playlist_type",
+      request_id: ctx.requestId,
+      function: "get-playback-playlist",
+      segment_count: segmentLines.length,
+      variant_count: variantLines.length,
     });
 
     const rewrittenText =
@@ -346,7 +404,15 @@ Deno.serve(async (req) => {
       },
     });
   } catch (err) {
-    console.error("Unhandled playback playlist error:", err);
+    logEvent({
+      severity: "error",
+      event_type: "request_error",
+      request_id: ctx.requestId,
+      function: "get-playback-playlist",
+      error_code: "UNEXPECTED_SERVER_ERROR",
+      error_message: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined,
+    });
     return jsonResponse({ error: "Unexpected server error" }, 500);
   }
-});
+}));

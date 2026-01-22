@@ -3,10 +3,11 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 import { handleCors, jsonResponse } from "../_shared/cors.ts";
 import { errorResponse } from "../_shared/errors.ts";
+import { withObservability } from "../_shared/observability.ts";
 
 const JOIN_CODE_TTL_MS = 24 * 60 * 60 * 1000;
 
-Deno.serve(async (req) => {
+Deno.serve(withObservability("join-organization-with-code", async (req) => {
   // Handle OPTIONS preflight
   const cors = handleCors(req);
   if (cors) return cors;
@@ -221,4 +222,4 @@ Deno.serve(async (req) => {
       500,
     );
   }
-});
+}));

@@ -4,11 +4,15 @@ from dotenv import load_dotenv
 import os
 import time
 import psutil
+import sys
+from pathlib import Path
 
 from supabase import create_client, Client
 
 from models import JobState, TranscodingJob
 from stream_worker import StreamWorker
+sys.path.append(str(Path(__file__).resolve().parents[1]))
+from utils.observability import log_event
 
 load_dotenv()  # loads .env into environment variables
 
@@ -28,7 +32,12 @@ def can_add_worker(
     vm = psutil.virtual_memory()
     free_mb = vm.available / (1024 * 1024)
 
-    print(f"System load: CPU {cpu}%, Free Memory: {free_mb} MB")
+    log_event(
+        severity="info",
+        event_type="system_load",
+        cpu_percent=cpu,
+        free_memory_mb=free_mb,
+    )
 
     return (cpu < cpu_threshold) and (free_mb > min_free_mem_mb)
 
@@ -40,14 +49,22 @@ workers: Dict[UUID, StreamWorker] = {}
 def cleanup_finished_workers():
     finished_jobs = [job_id for job_id, worker in workers.items() if not worker.is_alive()]
     for job_id in finished_jobs:
-        print(f"Cleaning up finished worker for job: {job_id}")
+        log_event(
+            severity="info",
+            event_type="worker_cleanup",
+            job_id=str(job_id),
+        )
         del workers[job_id]
 
 
 while True:
 
     if VERBOSE_LOGGING:
-        print(f"Checking for new jobs... Active workers: {len(workers)}")
+        log_event(
+            severity="info",
+            event_type="job_poll",
+            active_workers=len(workers),
+        )
 
     response = (
     supabase
@@ -55,6 +72,8 @@ while True:
         .select("""
             id,
             state,
+            request_id,
+            trace_id,
             media_asset:media_asset_id (
                 id,
                 org_id,
@@ -77,17 +96,55 @@ while True:
 
     active_jobs: List[TranscodingJob] = [TranscodingJob.from_row(row) for row in response.data]
 
+    log_event(
+        severity="info",
+        event_type="metric",
+        metric_name="job_queue_depth",
+        metric_value=len(active_jobs),
+        tags={"queue_name": "transcode"},
+    )
+
     for job in active_jobs:
         if VERBOSE_LOGGING:
-            print(job)
-            print("Full media asset path:", job.media_asset.full_input_path())
-            print("Output media asset path:", job.media_asset.full_output_path())
+            log_event(
+                severity="info",
+                event_type="job_candidate",
+                job_id=str(job.job_id),
+                org_id=str(job.media_asset.org_id),
+                media_id=str(job.media_asset.id),
+                request_id=job.request_id,
+                trace_id=job.trace_id,
+                input_path=job.media_asset.full_input_path(),
+                output_path=job.media_asset.full_output_path(),
+            )
 
         if job.job_id not in workers and can_add_worker():
-            print(f"Starting new job: {job.job_id}, state: {job.job_state}")
+            log_event(
+                severity="info",
+                event_type="job_dequeue",
+                job_id=str(job.job_id),
+                org_id=str(job.media_asset.org_id),
+                media_id=str(job.media_asset.id),
+                request_id=job.request_id,
+                trace_id=job.trace_id,
+                state=job.job_state.value,
+            )
+            log_event(
+                severity="info",
+                event_type="metric",
+                metric_name="job_dequeue_total",
+                metric_value=1,
+                tags={"queue_name": "transcode"},
+            )
             workers[job.job_id] = StreamWorker(job, supabase)
             workers[job.job_id].start()
-            print("Job Running")
+            log_event(
+                severity="info",
+                event_type="job_started",
+                job_id=str(job.job_id),
+                request_id=job.request_id,
+                trace_id=job.trace_id,
+            )
 
 
     time.sleep(5)

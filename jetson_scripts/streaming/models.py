@@ -71,6 +71,8 @@ class TranscodingJob:
     job_id: UUID
     job_state: JobState
     media_asset: MediaAsset
+    request_id: str | None = None
+    trace_id: str | None = None
 
     @staticmethod
     def from_row(row: dict) -> "TranscodingJob":
@@ -78,6 +80,8 @@ class TranscodingJob:
             job_id=UUID(row["id"]),
             job_state=JobState(row["state"]),
             media_asset=MediaAsset.from_row(row["media_asset"]),
+            request_id=row.get("request_id"),
+            trace_id=row.get("trace_id"),
         )
 
     def __str__(self):
@@ -86,5 +90,7 @@ TranscodingJob(
     job_id      = {self.job_id},
     job_state   = {self.job_state},
     media_asset = {self.media_asset}
+    request_id  = {self.request_id},
+    trace_id    = {self.trace_id}
 )
         """

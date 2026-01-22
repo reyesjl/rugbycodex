@@ -1,7 +1,8 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-serve(async (req)=>{
+import { logEvent, withObservability } from "../_shared/observability.ts";
+serve(withObservability("upload-eligibility-check", async (req, ctx)=>{
   try {
     if (req.method !== "POST") {
       return new Response("Method Not Allowed", {
@@ -16,6 +17,14 @@ serve(async (req)=>{
     }
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
+      logEvent({
+        severity: "warn",
+        event_type: "auth_failure",
+        request_id: ctx.requestId,
+        function: "upload-eligibility-check",
+        error_code: "AUTH_INVALID_TOKEN",
+        error_message: "Missing Authorization header",
+      });
       return new Response("Missing Authorization header", {
         status: 401
       });
@@ -30,6 +39,14 @@ serve(async (req)=>{
     // Identify caller
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user) {
+      logEvent({
+        severity: "warn",
+        event_type: "auth_failure",
+        request_id: ctx.requestId,
+        function: "upload-eligibility-check",
+        error_code: "AUTH_INVALID_TOKEN",
+        error_message: userError?.message ?? "Unauthorized",
+      });
       return new Response("Unauthorized", {
         status: 401
       });
@@ -44,6 +61,16 @@ serve(async (req)=>{
       isAuthorized = !!membership;
     }
     if (!isAuthorized) {
+      logEvent({
+        severity: "warn",
+        event_type: "permission_denied",
+        request_id: ctx.requestId,
+        function: "upload-eligibility-check",
+        org_id: orgId,
+        user_id: userId,
+        error_code: "AUTH_PERMISSION_DENIED",
+        error_message: "User is not authorized for org",
+      });
       return new Response(JSON.stringify({
         allowed: false,
         reason: "not_authorized",
@@ -62,6 +89,15 @@ serve(async (req)=>{
     // Fetch org storage limit
     const { data: org, error: orgError } = await supabase.from("organizations").select("storage_limit_mb").eq("id", orgId).single();
     if (orgError || !org) {
+      logEvent({
+        severity: "error",
+        event_type: "request_error",
+        request_id: ctx.requestId,
+        function: "upload-eligibility-check",
+        org_id: orgId,
+        error_code: "ORG_NOT_FOUND",
+        error_message: orgError?.message ?? "Organization not found",
+      });
       return new Response("Organization not found", {
         status: 404
       });
@@ -70,6 +106,15 @@ serve(async (req)=>{
     // Aggregate current usage
     const { data: usage, error: usageError } = await supabase.from("media_assets").select("file_size_bytes").eq("org_id", orgId);
     if (usageError) {
+      logEvent({
+        severity: "error",
+        event_type: "request_error",
+        request_id: ctx.requestId,
+        function: "upload-eligibility-check",
+        org_id: orgId,
+        error_code: "SUPABASE_READ_FAILED",
+        error_message: usageError.message,
+      });
       return new Response("Failed to calculate usage", {
         status: 500
       });
@@ -95,9 +140,18 @@ serve(async (req)=>{
       }
     });
   } catch (err) {
-    console.error(err);
+    const message = err instanceof Error ? err.message : String(err);
+    logEvent({
+      severity: "error",
+      event_type: "request_error",
+      request_id: ctx.requestId,
+      function: "upload-eligibility-check",
+      error_code: "UNEXPECTED_SERVER_ERROR",
+      error_message: message,
+      stack: err instanceof Error ? err.stack : undefined,
+    });
     return new Response("Internal Server Error", {
       status: 500
     });
   }
-});
+}));

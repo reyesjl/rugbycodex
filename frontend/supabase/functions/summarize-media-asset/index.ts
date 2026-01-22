@@ -3,6 +3,7 @@ import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 
 import { corsHeaders, handleCors, jsonResponse } from "../_shared/cors.ts";
 import { getAuthContext, getClientBoundToRequest } from "../_shared/auth.ts";
+import { withObservability } from "../_shared/observability.ts";
 
 type SegmentRow = {
   id: string;
@@ -219,7 +220,7 @@ async function callOpenAI(
   return { bullets, model };
 }
 
-serve(async (req: Request) => {
+serve(withObservability("summarize-media-asset", async (req: Request) => {
   const cors = handleCors(req);
   if (cors) return cors;
 
@@ -481,4 +482,4 @@ serve(async (req: Request) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
-});
+}));

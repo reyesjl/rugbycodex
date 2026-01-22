@@ -439,6 +439,15 @@ function seekRelative(deltaSeconds: number) {
   seekRelativeInternal(deltaSeconds);
   suppressBufferingUntilMs.value = Date.now() + 500;
   isBuffering.value = false;
+
+  console.log(JSON.stringify({
+    severity: 'info',
+    event_type: 'segment_seek',
+    org_id: activeOrgId.value ?? null,
+    media_id: asset.value?.id ?? null,
+    delta_seconds: deltaSeconds,
+    current_time: currentTime.value ?? null,
+  }));
 }
 
 function seekRelativeWithFeedback(deltaSeconds: number) {
@@ -477,6 +486,15 @@ function handleLoadedMetadata(p: { duration: number }) {
 function handlePlay() {
   isPlaying.value = true;
   flashPlayPause('play');
+
+  console.log(JSON.stringify({
+    severity: 'info',
+    event_type: 'segment_play',
+    org_id: activeOrgId.value ?? null,
+    media_id: asset.value?.id ?? null,
+    segment_id: activeSegmentId.value ?? null,
+    current_time: currentTime.value ?? null,
+  }));
 }
 
 function handlePause() {
@@ -791,6 +809,14 @@ async function endRecordingNonBlocking() {
     return;
   }
 
+  console.log(JSON.stringify({
+    severity: 'info',
+    event_type: 'narration_create',
+    org_id: orgId,
+    media_id: mediaAssetId,
+    segment_id: String(targetSegment.id),
+  }));
+
   const optimisticId = `optimistic-${Date.now()}-${Math.random().toString(16).slice(2)}`;
   const optimistic: OptimisticNarration = {
     id: optimisticId,
@@ -895,6 +921,13 @@ async function handleDeleteNarration(narrationId: string) {
     return;
   }
   try {
+    console.log(JSON.stringify({
+      severity: 'info',
+      event_type: 'narration_delete',
+      org_id: activeOrgId.value ?? null,
+      media_id: asset.value?.id ?? null,
+      narration_id: narrationId,
+    }));
     await narrationService.deleteNarration(narrationId);
     narrations.value = (narrations.value as any[]).filter((n) => String(n.id) !== narrationId);
     toast({ message: 'Narration deleted.', variant: 'success', durationMs: 1500 });

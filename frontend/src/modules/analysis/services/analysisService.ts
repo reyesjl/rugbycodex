@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabaseClient";
+import { invokeEdge } from "@/lib/api";
 import { handleSupabaseEdgeError } from "@/lib/handleSupabaseEdgeError";
 import type { MatchSummary, MatchSummaryState } from "@/modules/analysis/types/MatchSummary";
 
@@ -80,7 +80,7 @@ export const analysisService = {
 
     const mode: MatchSummaryMode = options?.mode ?? 'summary';
 
-    const response = await supabase.functions.invoke("summarize-media-asset", {
+    const response = await invokeEdge("summarize-media-asset", {
       body: {
         media_asset_id: id,
         mode,

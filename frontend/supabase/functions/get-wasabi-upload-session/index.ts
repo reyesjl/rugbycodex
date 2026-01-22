@@ -3,8 +3,9 @@ import { getAuthContext, getClientBoundToRequest } from "../_shared/auth.ts";
 import { handleCors, jsonResponse } from "../_shared/cors.ts";
 import { isOrgMember } from "../_shared/orgs.ts";
 import { insertMediaAsset } from "../_shared/media.ts";
+import { logEvent, withObservability } from "../_shared/observability.ts";
 
-Deno.serve(async (req) => {
+Deno.serve(withObservability("get-wasabi-upload-session", async (req, ctx) => {
   const corsResponse = handleCors(req);
   if (corsResponse) return corsResponse;
 
@@ -29,8 +30,18 @@ Deno.serve(async (req) => {
 
     // Verify org membership unless admin
     if (!isAdmin) {
-      const isMember = await isOrgMember(org_id, userId, supabase);
+      const isMember = await isOrgMember(org_id, userId, supabase, ctx.requestId);
       if (!isMember) {
+        logEvent({
+          severity: "warn",
+          event_type: "permission_denied",
+          request_id: ctx.requestId,
+          function: "get-wasabi-upload-session",
+          org_id,
+          user_id: userId,
+          error_code: "AUTH_PERMISSION_DENIED",
+          error_message: "User is not a member of organization",
+        });
         return jsonResponse({ error: "You must be a member of the Org to Upload Media" }, 403);
       }
     }
@@ -45,7 +56,7 @@ Deno.serve(async (req) => {
       status: "uploading",
       duration_seconds,
       base_org_storage_path: base_storage_path,
-    }, supabase);
+    }, supabase, ctx.requestId);
 
     const mediaId = newAsset.id;
 
@@ -78,12 +89,30 @@ Deno.serve(async (req) => {
       DurationSeconds: 3600, // 1 hour
     });
 
+    const stsStart = performance.now();
     const sessionResponse = await stsClient.send(getSessionTokenCommand);
+    const stsDuration = Math.round(performance.now() - stsStart);
+    logEvent({
+      severity: "info",
+      event_type: "metric",
+      metric_name: "api_external_call_latency_ms",
+      metric_value: stsDuration,
+      tags: { service: "wasabi_sts", function: "get-wasabi-upload-session" },
+    });
     const credentials = sessionResponse.Credentials;
 
     if (!credentials) {
       return jsonResponse({ error: "Failed to obtain temporary credentials" }, 500);
     }
+
+    logEvent({
+      severity: "info",
+      event_type: "upload_session_created",
+      request_id: ctx.requestId,
+      org_id,
+      user_id: userId,
+      media_id: mediaId,
+    });
 
     return jsonResponse({
       credentials: {
@@ -96,7 +125,23 @@ Deno.serve(async (req) => {
       media_id: mediaId,
     });
   } catch (err) {
-    console.error("Error in get-wasabi-upload-session:", err);
+    const message = err instanceof Error ? err.message : String(err);
+    logEvent({
+      severity: "error",
+      event_type: "request_error",
+      request_id: ctx.requestId,
+      function: "get-wasabi-upload-session",
+      error_code: "WASABI_UPLOAD_FAILED",
+      error_message: message,
+      stack: err instanceof Error ? err.stack : undefined,
+    });
+    logEvent({
+      severity: "error",
+      event_type: "metric",
+      metric_name: "api_external_call_errors_total",
+      metric_value: 1,
+      tags: { service: "wasabi_sts", function: "get-wasabi-upload-session" },
+    });
     return jsonResponse({ error: `${err}` }, 500);
   }
-});
+}));
