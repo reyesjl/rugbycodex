@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { ref } from 'vue';
 import CoachGuide from '@/modules/app/components/CoachGuide.vue';
 import OrganizationsSection from './admin/OrganizationsSection.vue';
 import OperationsSection from './admin/OperationsSection.vue';
