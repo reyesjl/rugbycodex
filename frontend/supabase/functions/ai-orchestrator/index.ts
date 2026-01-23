@@ -2,6 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 
 import { handleCors, jsonResponse } from "../_shared/cors.ts";
+import { errorResponse } from "../_shared/errors.ts";
 import { getAuthContext, getClientBoundToRequest } from "../_shared/auth.ts";
 
 import type {
@@ -113,7 +114,7 @@ serve(async (req: Request) => {
   if (cors) return cors;
 
   if (req.method !== "POST") {
-    return jsonResponse({ error: "Method not allowed" }, 405);
+    return errorResponse("METHOD_NOT_ALLOWED", "Only POST is allowed for this endpoint.", 405);
   }
 
   const requestId = getRequestId(req);
@@ -125,15 +126,16 @@ serve(async (req: Request) => {
     const { userId } = await getAuthContext(req);
     try {
       requireAuthenticated(userId);
-    } catch {
-      return jsonResponse({ error: "Unauthorized" }, 401);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unauthorized";
+      return errorResponse("AUTH_REQUIRED", message, 401);
     }
 
     let body: OrchestratorRequest;
     try {
       body = (await req.json()) as OrchestratorRequest;
     } catch {
-      return jsonResponse({ error: "Invalid JSON body" }, 400);
+      return errorResponse("INVALID_REQUEST", "Invalid JSON body", 400);
     }
 
     const requestUserId = asNonEmptyString(body?.user_id);
@@ -141,11 +143,11 @@ serve(async (req: Request) => {
     const mode = asNonEmptyString(body?.mode) as OrchestratorMode | null;
 
     if (!requestUserId || !orgId || !mode) {
-      return jsonResponse({ error: "user_id, org_id, and mode are required" }, 400);
+      return errorResponse("MISSING_REQUIRED_FIELDS", "user_id, org_id, and mode are required", 400);
     }
 
     if (requestUserId !== userId) {
-      return jsonResponse({ error: "Forbidden" }, 403);
+      return errorResponse("FORBIDDEN", "Forbidden", 403);
     }
 
     const supabase = getClientBoundToRequest(req);
@@ -170,7 +172,8 @@ serve(async (req: Request) => {
       requireOrgRoleSource(source);
     } catch (err) {
       const status = (err as any)?.status ?? 403;
-      return jsonResponse({ error: status === 401 ? "Unauthorized" : "Forbidden" }, status);
+      const message = err instanceof Error ? err.message : (status === 401 ? "Unauthorized" : "Forbidden");
+      return errorResponse(status === 401 ? "AUTH_REQUIRED" : "FORBIDDEN", message, status);
     }
 
     const normalizedRole: Role = normalizeRole(role);
@@ -183,7 +186,7 @@ serve(async (req: Request) => {
 
     if (profileError) throw profileError;
     if (!profile) {
-      return jsonResponse({ error: "Profile not found" }, 404);
+      return errorResponse("NOT_FOUND", "Profile not found", 404);
     }
 
     const groupMemberships = await listGroupMemberships(supabase, profile.id);
@@ -288,7 +291,7 @@ serve(async (req: Request) => {
 
       const assetId = asNonEmptyString(body?.context?.asset_id);
       if (!assetId) {
-        return jsonResponse({ error: "context.asset_id is required" }, 400);
+        return errorResponse("MISSING_REQUIRED_FIELDS", "context.asset_id is required", 400);
       }
 
       const { data: asset, error: assetError } = await supabase
@@ -300,7 +303,7 @@ serve(async (req: Request) => {
 
       if (assetError) throw assetError;
       if (!asset || asset.kind !== "match") {
-        return jsonResponse({ error: "Match asset not found" }, 404);
+        return errorResponse("NOT_FOUND", "Match asset not found", 404);
       }
 
       const segments = await listSegmentsForAssets(supabase, [assetId]);
@@ -395,11 +398,11 @@ serve(async (req: Request) => {
       const message = asNonEmptyString(body?.message);
 
       if (!assetId) {
-        return jsonResponse({ error: "context.asset_id is required" }, 400);
+        return errorResponse("MISSING_REQUIRED_FIELDS", "context.asset_id is required", 400);
       }
 
       if (!message) {
-        return jsonResponse({ error: "message is required" }, 400);
+        return errorResponse("MISSING_REQUIRED_FIELDS", "message is required", 400);
       }
 
       const { data: asset, error: assetError } = await supabase
@@ -411,7 +414,7 @@ serve(async (req: Request) => {
 
       if (assetError) throw assetError;
       if (!asset || asset.kind !== "match") {
-        return jsonResponse({ error: "Match asset not found" }, 404);
+        return errorResponse("NOT_FOUND", "Match asset not found", 404);
       }
 
       const segments = await listSegmentsForAssets(supabase, [assetId]);
@@ -511,11 +514,12 @@ serve(async (req: Request) => {
       });
     }
 
-    return jsonResponse({ error: "Invalid mode" }, 400);
+    return errorResponse("INVALID_REQUEST", "Invalid mode", 400);
   } catch (err) {
     const status = (err as any)?.status;
     if (status === 401 || status === 403) {
-      return jsonResponse({ error: err instanceof Error ? err.message : "Forbidden" }, status);
+      const message = err instanceof Error ? err.message : "Forbidden";
+      return errorResponse(status === 401 ? "AUTH_REQUIRED" : "FORBIDDEN", message, status);
     }
     const error = err as { message?: string; stack?: string };
     logEvent({
@@ -526,6 +530,7 @@ serve(async (req: Request) => {
       error_message: error?.message ?? String(err),
       stack: error?.stack,
     });
-    return jsonResponse({ error: "Internal Server Error" }, 500);
+    const message = err instanceof Error ? err.message : "Internal Server Error";
+    return errorResponse("UNEXPECTED_SERVER_ERROR", message, 500);
   }
 });

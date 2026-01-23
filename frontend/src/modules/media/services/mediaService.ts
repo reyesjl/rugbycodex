@@ -1,6 +1,11 @@
 import { supabase } from "@/lib/supabaseClient";
 import { invokeEdge } from "@/lib/api";
 import { handleSupabaseEdgeError } from "@/lib/handleSupabaseEdgeError";
+import {
+  isRetryableError,
+  isNotFoundError,
+  getErrorStatus,
+} from "@/lib/handleEdgeFunctionError";
 import type { OrgMediaAsset } from "@/modules/media/types/OrgMediaAsset";
 import type { PostgrestError } from "@supabase/supabase-js";
 
@@ -61,34 +66,6 @@ type NarrationCountRow = {
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function getFunctionErrorStatus(error: unknown): number | null {
-  if (!error || typeof error !== "object") return null;
-  const maybe = error as {
-    status?: number;
-    context?: { status?: number; response?: { status?: number } };
-  };
-  return maybe.status ?? maybe.context?.status ?? maybe.context?.response?.status ?? null;
-}
-
-function isNetworkError(error: unknown): boolean {
-  if (error instanceof TypeError) return true;
-  if (!error || typeof error !== "object") return false;
-  const name = (error as { name?: string }).name;
-  return name === "FunctionsFetchError";
-}
-
-function isRetryableFunctionError(error: unknown): boolean {
-  const status = getFunctionErrorStatus(error);
-  if (status === 503) return true;
-  if (status === 404) return false;
-  if (status !== null) return false;
-  return isNetworkError(error);
-}
-
-function isNotFoundFunctionError(error: unknown): boolean {
-  return getFunctionErrorStatus(error) === 404;
 }
 
 async function withRetry<T>(
@@ -360,10 +337,10 @@ export const mediaService = {
     try {
       url = await withRetry(
         () => fetchPresignedHlsPlaylistUrl(orgId, mediaId, resolvedBucket),
-        isRetryableFunctionError
+        isRetryableError
       );
     } catch (error) {
-      if (isNotFoundFunctionError(error)) {
+      if (isNotFoundError(error)) {
         throw new Error('This clip is not ready for playback yet.');
       }
       if (error instanceof Error && error.message === PLAYBACK_ERROR_MESSAGE) {
@@ -390,10 +367,10 @@ export const mediaService = {
     try {
       playlistText = await withRetry(
         () => fetchSignedHlsPlaylist(mediaId),
-        isRetryableFunctionError
+        isRetryableError
       );
     } catch (error) {
-      if (isNotFoundFunctionError(error)) {
+      if (isNotFoundError(error)) {
         throw new Error("This clip is not ready for playback yet.");
       }
       if (error instanceof Error && error.message === PLAYBACK_ERROR_MESSAGE) {

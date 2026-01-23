@@ -1,7 +1,8 @@
 import { GetObjectCommand, PutObjectCommand, S3Client } from "npm:@aws-sdk/client-s3";
 import { getSignedUrl } from "npm:@aws-sdk/s3-request-presigner";
 import { getClientBoundToRequest } from "../_shared/auth.ts";
-import { corsHeaders, handleCors, jsonResponse } from "../_shared/cors.ts";
+import { handleCors, jsonResponse } from "../_shared/cors.ts";
+import { errorResponse } from "../_shared/errors.ts";
 import { getUserRoleFromRequest, requireRole } from "../_shared/roles.ts";
 import { logEvent, withObservability } from "../_shared/observability.ts";
 
@@ -464,7 +465,7 @@ Deno.serve(withObservability("get-wasabi-playback-playlist", async (req, ctx) =>
 
   try {
     if (req.method !== "POST") {
-      return jsonResponse({ error: "Method Not Allowed" }, 405);
+      return errorResponse("METHOD_NOT_ALLOWED", "Only POST is allowed for this endpoint.", 405);
     }
 
     console.warn("AUTH CLIENT DEBUG", {
@@ -476,7 +477,7 @@ Deno.serve(withObservability("get-wasabi-playback-playlist", async (req, ctx) =>
     const body = await req.json().catch(() => null);
     const mediaId = parseMediaId(body);
     if (!mediaId) {
-      return jsonResponse({ error: "Missing required field: media_id" }, 400);
+      return errorResponse("MISSING_REQUIRED_FIELDS", "Missing required field: media_id", 400);
     }
 
     const mode = parseMode(body);
@@ -489,21 +490,23 @@ Deno.serve(withObservability("get-wasabi-playback-playlist", async (req, ctx) =>
       .maybeSingle();
 
     if (assetError || !asset) {
-      return jsonResponse({ error: "Media asset not found" }, 404);
+      console.error("Media asset not found:", assetError);
+      return errorResponse("NOT_FOUND", "Media asset not found", 404);
     }
 
     const orgId = String(asset.org_id ?? "");
     const bucket = String(asset.bucket ?? "").trim() || "rugbycodex";
 
     if (!orgId) {
-      return jsonResponse({ error: "Media asset missing org_id" }, 500);
+      return errorResponse("UNEXPECTED_SERVER_ERROR", "Media asset missing org_id", 500);
     }
 
     try {
       const { role } = await getUserRoleFromRequest(req, { supabase, orgId });
       requireRole(role, "viewer");
-    } catch {
-      return jsonResponse({ error: "Forbidden" }, 403);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Forbidden";
+      return errorResponse("FORBIDDEN", message, 403);
     }
 
     const streamingPrefix = `orgs/${orgId}/uploads/${mediaId}/streaming`;
@@ -524,11 +527,11 @@ Deno.serve(withObservability("get-wasabi-playback-playlist", async (req, ctx) =>
     const uploaderSecretAccessKey = Deno.env.get("WASABI_UPLOADER_SECRET");
 
     if (!readerAccessKeyId || !readerSecretAccessKey) {
-      return jsonResponse({ error: "Wasabi reader credentials not configured" }, 500);
+      return errorResponse("WASABI_CREDENTIALS_MISSING", "Wasabi reader credentials not configured", 500);
     }
 
     if (!uploaderAccessKeyId || !uploaderSecretAccessKey) {
-      return jsonResponse({ error: "Wasabi uploader credentials not configured" }, 500);
+      return errorResponse("WASABI_CREDENTIALS_MISSING", "Wasabi uploader credentials not configured", 500);
     }
 
     const readerS3 = new S3Client({
@@ -570,7 +573,7 @@ Deno.serve(withObservability("get-wasabi-playback-playlist", async (req, ctx) =>
         });
 
         if (!playlistText.trim()) {
-          return jsonResponse({ error: "Playlist not found" }, 404);
+          return errorResponse("NOT_FOUND", "Playlist not found", 404);
         }
 
         // Log basic manifest diagnostics
@@ -601,7 +604,7 @@ Deno.serve(withObservability("get-wasabi-playback-playlist", async (req, ctx) =>
           err?.name === "NoSuchKey" ||
           err?.$metadata?.httpStatusCode === 404
         ) {
-          return jsonResponse({ error: "Playlist not found" }, 404);
+          return errorResponse("NOT_FOUND", "Playlist not found", 404);
         }
 
         return jsonResponse(
@@ -701,7 +704,6 @@ Deno.serve(withObservability("get-wasabi-playback-playlist", async (req, ctx) =>
       return new Response(presignedPlaylistUrl, {
         status: 200,
         headers: {
-          ...corsHeaders,
           "Content-Type": "text/plain",
         },
       });
@@ -721,7 +723,7 @@ Deno.serve(withObservability("get-wasabi-playback-playlist", async (req, ctx) =>
       });
 
       if (!playlistText.trim()) {
-        return jsonResponse({ error: "Playlist not found" }, 404);
+        return errorResponse("NOT_FOUND", "Playlist not found", 404);
       }
     } catch (err: any) {
       logMessage("error", "Wasabi HLS manifest read failed", {
@@ -736,7 +738,7 @@ Deno.serve(withObservability("get-wasabi-playback-playlist", async (req, ctx) =>
         err?.name === "NoSuchKey" ||
         err?.$metadata?.httpStatusCode === 404
       ) {
-        return jsonResponse({ error: "Playlist not found" }, 404);
+        return errorResponse("NOT_FOUND", "Playlist not found", 404);
       }
 
       // Transient / retryable
@@ -785,15 +787,15 @@ Deno.serve(withObservability("get-wasabi-playback-playlist", async (req, ctx) =>
     return new Response(rewrittenText, {
       status: 200,
       headers: {
-        ...corsHeaders,
         "Content-Type": "application/vnd.apple.mpegurl",
       },
     });
   } catch (err) {
+    const message = err instanceof Error ? err.message : "Unexpected server error";
     logMessage("error", "Unhandled playback playlist error", {
-      error_message: err instanceof Error ? err.message : String(err),
+      error_message: message,
     });
-    return jsonResponse({ error: "Unexpected server error" }, 500);
+    return errorResponse("UNEXPECTED_SERVER_ERROR", message, 500);
   }
 }));
 

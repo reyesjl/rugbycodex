@@ -1,5 +1,10 @@
 import { supabase } from "@/lib/supabaseClient";
 import { activeOrgIdRef } from "@/modules/orgs/stores/activeOrgContext";
+import {
+  FunctionsHttpError,
+  FunctionsRelayError,
+  FunctionsFetchError,
+} from "@supabase/supabase-js";
 
 type InvokeOptions = Parameters<typeof supabase.functions.invoke>[1] & { orgScoped?: boolean };
 
@@ -72,14 +77,47 @@ export async function invokeEdge(functionName: string, options?: InvokeOptions) 
 
   const durationMs = Math.round(performance.now() - start);
 
-  logEvent({
-    severity: response.error ? "error" : "info",
-    event_type: "client_request",
-    request_id: requestId,
-    function: functionName,
-    duration_ms: durationMs,
-    error: response.error ? String(response.error) : undefined,
-  });
+  // Enhanced error logging following Supabase best practices
+  if (response.error) {
+    let errorType = "unknown";
+    let errorStatus: number | undefined;
+    let errorCode: string | undefined;
+
+    if (response.error instanceof FunctionsHttpError) {
+      errorType = "http";
+      errorStatus = response.error.context.status;
+      try {
+        const body = await response.error.context.clone().json();
+        errorCode = body?.error?.code;
+      } catch {
+        // Ignore JSON parse errors
+      }
+    } else if (response.error instanceof FunctionsRelayError) {
+      errorType = "relay";
+    } else if (response.error instanceof FunctionsFetchError) {
+      errorType = "fetch";
+    }
+
+    logEvent({
+      severity: "error",
+      event_type: "client_request",
+      request_id: requestId,
+      function: functionName,
+      duration_ms: durationMs,
+      error_type: errorType,
+      error_status: errorStatus,
+      error_code: errorCode,
+      error_message: response.error.message,
+    });
+  } else {
+    logEvent({
+      severity: "info",
+      event_type: "client_request",
+      request_id: requestId,
+      function: functionName,
+      duration_ms: durationMs,
+    });
+  }
 
   logEvent({
     severity: "info",

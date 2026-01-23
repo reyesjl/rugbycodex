@@ -1,7 +1,8 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 
-import { corsHeaders, handleCors, jsonResponse } from "../_shared/cors.ts";
+import { handleCors, jsonResponse } from "../_shared/cors.ts";
+import { errorResponse } from "../_shared/errors.ts";
 import { getAuthContext, getClientBoundToRequest } from "../_shared/auth.ts";
 import { getUserRoleFromRequest, requireAuthenticated, requireOrgRoleSource, requireRole } from "../_shared/roles.ts";
 import { withObservability } from "../_shared/observability.ts";
@@ -227,7 +228,7 @@ serve(withObservability("summarize-media-asset", async (req: Request) => {
 
   try {
     if (req.method !== "POST") {
-      return jsonResponse({ error: "Method not allowed" }, 405);
+      return errorResponse("METHOD_NOT_ALLOWED", "Only POST is allowed for this endpoint.", 405);
     }
 
     console.warn("AUTH CLIENT DEBUG", {
@@ -237,20 +238,21 @@ serve(withObservability("summarize-media-asset", async (req: Request) => {
     const { userId } = await getAuthContext(req);
     try {
       requireAuthenticated(userId);
-    } catch {
-      return jsonResponse({ error: "Unauthorized" }, 401);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unauthorized";
+      return errorResponse("AUTH_REQUIRED", message, 401);
     }
 
     let body: any;
     try {
       body = await req.json();
     } catch {
-      return jsonResponse({ error: "Invalid JSON body" }, 400);
+      return errorResponse("INVALID_REQUEST", "Invalid JSON body", 400);
     }
 
     const mediaAssetId = String(body?.media_asset_id ?? body?.mediaAssetId ?? "").trim();
     if (!mediaAssetId) {
-      return jsonResponse({ error: "media_asset_id is required" }, 400);
+      return errorResponse("MISSING_REQUIRED_FIELDS", "media_asset_id is required", 400);
     }
 
     const rawMode = String(body?.mode ?? "summary").trim().toLowerCase();
@@ -267,16 +269,16 @@ serve(withObservability("summarize-media-asset", async (req: Request) => {
 
     if (assetError) {
       console.error("summarize_media_asset media_assets error", assetError);
-      return jsonResponse({ error: "Failed to load media asset" }, 500);
+      return errorResponse("DB_QUERY_FAILED", "Failed to load media asset", 500);
     }
 
     if (!asset) {
-      return jsonResponse({ error: "Media asset not found" }, 404);
+      return errorResponse("NOT_FOUND", "Media asset not found", 404);
     }
 
     const orgId = String((asset as any).org_id ?? "").trim();
     if (!orgId) {
-      return jsonResponse({ error: "Media asset missing org_id" }, 500);
+      return errorResponse("UNEXPECTED_SERVER_ERROR", "Media asset missing org_id", 500);
     }
 
     // Verify caller role (staff+)
@@ -286,7 +288,8 @@ serve(withObservability("summarize-media-asset", async (req: Request) => {
       requireRole(role, "staff");
     } catch (err) {
       console.error("summarize_media_asset role guard error", err);
-      return jsonResponse({ error: "Forbidden" }, 403);
+      const message = err instanceof Error ? err.message : "Forbidden";
+      return errorResponse("FORBIDDEN", message, 403);
     }
 
     // Load segments to derive time ranges
@@ -297,7 +300,7 @@ serve(withObservability("summarize-media-asset", async (req: Request) => {
 
     if (segError) {
       console.error("summarize_media_asset segments error", segError);
-      return jsonResponse({ error: "Failed to load segments" }, 500);
+      return errorResponse("DB_QUERY_FAILED", "Failed to load segments", 500);
     }
 
     const segments = (segRows ?? []) as SegmentRow[];
@@ -330,7 +333,7 @@ serve(withObservability("summarize-media-asset", async (req: Request) => {
 
         if (fallback.error) {
           console.error("summarize_media_asset narrations error", fallback.error);
-          return jsonResponse({ error: "Failed to load narrations" }, 500);
+          return errorResponse("DB_QUERY_FAILED", "Failed to load narrations", 500);
         }
         narrationsAll = (fallback.data ?? []) as NarrationRow[];
       }
@@ -475,9 +478,6 @@ serve(withObservability("summarize-media-asset", async (req: Request) => {
   } catch (err) {
     console.error("summarize_media_asset unexpected error", err);
     const message = err instanceof Error ? err.message : "Internal Server Error";
-    return new Response(JSON.stringify({ error: message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return errorResponse("UNEXPECTED_SERVER_ERROR", message, 500);
   }
 }));

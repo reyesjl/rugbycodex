@@ -1,74 +1,74 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { corsHeaders, handleCors } from "../_shared/cors.ts";
+import { handleCors, jsonResponse } from "../_shared/cors.ts";
+import { errorResponse } from "../_shared/errors.ts";
 import { getAuthContext } from "../_shared/auth.ts";
 import { requireAuthenticated, requirePlatformAdmin } from "../_shared/roles.ts";
 import { withObservability } from "../_shared/observability.ts";
-serve(withObservability("list-organization-requests", async (req)=>{
-  try {
-    // Handle OPTIONS preflight
-    const cors = handleCors(req);
-    if (cors) return cors;
 
+serve(withObservability("list-organization-requests", async (req) => {
+  const cors = handleCors(req);
+  if (cors) return cors;
+
+  try {
     if (req.method !== "POST") {
-      return new Response("Method Not Allowed", {
-        status: 405,
-        headers: corsHeaders
-      });
+      return errorResponse("METHOD_NOT_ALLOWED", "Only POST is allowed for this endpoint.", 405);
     }
+
     const filters = await req.json();
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      return new Response("Missing Authorization header", {
-        status: 401,
-        headers: corsHeaders
-      });
+      return errorResponse("AUTH_REQUIRED", "Missing Authorization header", 401);
     }
-    const supabase = createClient(Deno.env.get("SUPABASE_URL"), Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"), {
-      global: {
-        headers: {
-          Authorization: authHeader
+
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+      {
+        global: {
+          headers: {
+            Authorization: authHeader
+          }
         }
       }
-    });
+    );
+
     // Identify caller
     const authContext = await getAuthContext(req);
     try {
       requireAuthenticated(authContext.userId);
-    } catch {
-      return new Response("Unauthorized", {
-        status: 401,
-        headers: corsHeaders
-      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unauthorized";
+      return errorResponse("AUTH_REQUIRED", message, 401);
     }
+
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user) {
-      return new Response("Unauthorized", {
-        status: 401,
-        headers: corsHeaders
-      });
+      console.error("Failed to get user:", userError);
+      return errorResponse("AUTH_INVALID_TOKEN", userError?.message || "Unauthorized", 401);
     }
+
     // Verify platform admin / moderator
-    const { data: profile, error: profileError } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+
     if (profileError) {
-      return new Response("Profile not found", {
-        status: 403,
-        headers: corsHeaders
-      });
+      console.error("Profile lookup failed:", profileError);
+      return errorResponse("FORBIDDEN", "Profile not found", 403);
     }
-    const isPlatformAdmin = authContext.isAdmin || [
-      "admin",
-      "moderator"
-    ].includes(profile.role);
+
+    const isPlatformAdmin = authContext.isAdmin || ["admin", "moderator"].includes(profile.role);
     try {
       requirePlatformAdmin(isPlatformAdmin);
-    } catch {
-      return new Response("Forbidden", {
-        status: 403,
-        headers: corsHeaders
-      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Forbidden";
+      return errorResponse("FORBIDDEN", message, 403);
     }
+
     // Build query
     let query = supabase.from("organization_requests").select(`
         id,
@@ -96,6 +96,7 @@ serve(withObservability("list-organization-requests", async (req)=>{
           role
         )
       `);
+
     // Apply filters
     if (filters?.status) {
       query = query.eq("status", filters.status);
@@ -118,32 +119,22 @@ serve(withObservability("list-organization-requests", async (req)=>{
     if (filters?.search) {
       query = query.or(`requested_name.ilike.%${filters.search}%`);
     }
+
     const limit = filters?.limit ?? 25;
     const offset = filters?.offset ?? 0;
-    query = query.order("created_at", {
-      ascending: false
-    }).range(offset, offset + limit - 1);
+    query = query.order("created_at", { ascending: false }).range(offset, offset + limit - 1);
+
     // Execute
     const { data, error } = await query;
     if (error) {
-      console.error(error);
-      return new Response("Query failed", {
-        status: 500,
-        headers: corsHeaders
-      });
+      console.error("Query failed:", error);
+      return errorResponse("DB_QUERY_FAILED", "Failed to fetch organization requests", 500);
     }
-    return new Response(JSON.stringify(data), {
-      status: 200,
-      headers: {
-        ...corsHeaders,
-        "Content-Type": "application/json"
-      }
-    });
+
+    return jsonResponse(data, 200);
   } catch (err) {
-    console.error(err);
-    return new Response("Internal Server Error", {
-      status: 500,
-      headers: corsHeaders
-    });
+    const message = err instanceof Error ? err.message : "Internal Server Error";
+    console.error("Unexpected error in list-organization-requests:", err);
+    return errorResponse("UNEXPECTED_SERVER_ERROR", message, 500);
   }
 }));

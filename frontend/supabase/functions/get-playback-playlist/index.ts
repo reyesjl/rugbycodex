@@ -1,5 +1,6 @@
 import { getAuthContext, getClientBoundToRequest } from "../_shared/auth.ts";
-import { corsHeaders, handleCors, jsonResponse } from "../_shared/cors.ts";
+import { handleCors, jsonResponse } from "../_shared/cors.ts";
+import { errorResponse } from "../_shared/errors.ts";
 import { getUserRoleFromRequest, requireRole } from "../_shared/roles.ts";
 import { logEvent, withObservability } from "../_shared/observability.ts";
 
@@ -210,7 +211,7 @@ Deno.serve(withObservability("get-playback-playlist", async (req, ctx) => {
 
   try {
     if (req.method !== "POST") {
-      return jsonResponse({ error: "Method Not Allowed" }, 405);
+      return errorResponse("METHOD_NOT_ALLOWED", "Only POST is allowed for this endpoint.", 405);
     }
 
     console.warn("AUTH CLIENT DEBUG", {
@@ -233,7 +234,7 @@ Deno.serve(withObservability("get-playback-playlist", async (req, ctx) => {
     const body = await req.json().catch(() => null);
     const mediaId = parseMediaId(body);
     if (!mediaId) {
-      return jsonResponse({ error: "Missing required field: media_id" }, 400);
+      return errorResponse("MISSING_REQUIRED_FIELDS", "Missing required field: media_id", 400);
     }
 
     const mode = parseMode(body);
@@ -246,19 +247,20 @@ Deno.serve(withObservability("get-playback-playlist", async (req, ctx) => {
       .maybeSingle();
 
     if (assetError || !asset) {
-      return jsonResponse({ error: "Media asset not found" }, 404);
+      console.error("Media asset not found:", assetError);
+      return errorResponse("NOT_FOUND", "Media asset not found", 404);
     }
 
     const orgId = String(asset.org_id ?? "");
 
     if (!orgId) {
-      return jsonResponse({ error: "Media asset missing org_id" }, 500);
+      return errorResponse("UNEXPECTED_SERVER_ERROR", "Media asset missing org_id", 500);
     }
 
     try {
       const { role } = await getUserRoleFromRequest(req, { supabase, orgId });
       requireRole(role, "viewer");
-    } catch {
+    } catch (err) {
       logEvent({
         severity: "warn",
         event_type: "permission_denied",
@@ -269,7 +271,8 @@ Deno.serve(withObservability("get-playback-playlist", async (req, ctx) => {
         error_code: "AUTH_PERMISSION_DENIED",
         error_message: "User is not authorized for playback",
       });
-      return jsonResponse({ error: "Forbidden" }, 403);
+      const message = err instanceof Error ? err.message : "Forbidden";
+      return errorResponse("FORBIDDEN", message, 403);
     }
 
     const streamingPrefix = `orgs/${orgId}/uploads/${mediaId}/streaming`;
@@ -308,7 +311,6 @@ Deno.serve(withObservability("get-playback-playlist", async (req, ctx) => {
       return new Response(cdnUrl, {
         status: 200,
         headers: {
-          ...corsHeaders,
           "Content-Type": "text/plain",
         },
       });
@@ -335,7 +337,7 @@ Deno.serve(withObservability("get-playback-playlist", async (req, ctx) => {
 
       if (!response.ok) {
         if (response.status === 404) {
-          return jsonResponse({ error: "Playlist not found" }, 404);
+          return errorResponse("NOT_FOUND", "Playlist not found", 404);
         }
         throw new Error(`CDN returned ${response.status}`);
       }
@@ -343,7 +345,7 @@ Deno.serve(withObservability("get-playback-playlist", async (req, ctx) => {
       playlistText = await response.text();
 
       if (!playlistText.trim()) {
-        return jsonResponse({ error: "Playlist not found" }, 404);
+        return errorResponse("NOT_FOUND", "Playlist not found", 404);
       }
     } catch (err: any) {
       logEvent({
@@ -363,10 +365,7 @@ Deno.serve(withObservability("get-playback-playlist", async (req, ctx) => {
         tags: { service: "cdn", function: "get-playback-playlist" },
       });
 
-      return jsonResponse(
-        { error: "Playlist temporarily unavailable" },
-        503,
-      );
+      return errorResponse("UNEXPECTED_SERVER_ERROR", "Playlist temporarily unavailable", 503);
     }
 
     /* =========================================================
@@ -402,20 +401,20 @@ Deno.serve(withObservability("get-playback-playlist", async (req, ctx) => {
     return new Response(rewrittenText, {
       status: 200,
       headers: {
-        ...corsHeaders,
         "Content-Type": "application/vnd.apple.mpegurl",
       },
     });
   } catch (err) {
+    const message = err instanceof Error ? err.message : "Unexpected server error";
     logEvent({
       severity: "error",
       event_type: "request_error",
       request_id: ctx.requestId,
       function: "get-playback-playlist",
       error_code: "UNEXPECTED_SERVER_ERROR",
-      error_message: err instanceof Error ? err.message : String(err),
+      error_message: message,
       stack: err instanceof Error ? err.stack : undefined,
     });
-    return jsonResponse({ error: "Unexpected server error" }, 500);
+    return errorResponse("UNEXPECTED_SERVER_ERROR", message, 500);
   }
 }));

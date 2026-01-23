@@ -1,6 +1,8 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { handleCors, jsonResponse } from "../_shared/cors.ts";
+import { errorResponse } from "../_shared/errors.ts";
 import { getAuthContext } from "../_shared/auth.ts";
 import {
   allowAdminBypass,
@@ -10,31 +12,33 @@ import {
   requireRole,
 } from "../_shared/roles.ts";
 import { withObservability } from "../_shared/observability.ts";
-serve(withObservability("get-organization-overview", async (req)=>{
+
+serve(withObservability("get-organization-overview", async (req) => {
+  const cors = handleCors(req);
+  if (cors) return cors;
+
   try {
     if (req.method !== "POST") {
-      return new Response("Method Not Allowed", {
-        status: 405
-      });
+      return errorResponse("METHOD_NOT_ALLOWED", "Only POST is allowed for this endpoint.", 405);
     }
+
     console.warn("AUTH CLIENT DEBUG", {
       hasAuthorizationHeader: !!req.headers.get("Authorization"),
     });
+
     const { userId, isAdmin } = await getAuthContext(req);
     try {
       requireAuthenticated(userId);
-    } catch {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { "Content-Type": "application/json" }
-      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unauthorized";
+      return errorResponse("AUTH_REQUIRED", message, 401);
     }
+
     const { orgId } = await req.json();
     if (!orgId) {
-      return new Response("orgId is required", {
-        status: 400
-      });
+      return errorResponse("MISSING_REQUIRED_FIELDS", "orgId is required", 400);
     }
+
     let enforceRole = false;
     allowAdminBypass(isAdmin, () => {
       enforceRole = true;
@@ -46,28 +50,37 @@ serve(withObservability("get-organization-overview", async (req)=>{
         requireAuthenticated(orgUserId);
         requireOrgRoleSource(source);
         requireRole(role, "manager");
-      } catch {
-        return new Response(JSON.stringify({ error: "Forbidden" }), {
-          status: 403,
-          headers: { "Content-Type": "application/json" }
-        });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Forbidden";
+        return errorResponse("FORBIDDEN", message, 403);
       }
     }
+
     const authHeader = req.headers.get("Authorization")!;
-    const supabase = createClient(Deno.env.get("SUPABASE_URL"), Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"), {
-      global: {
-        headers: {
-          Authorization: authHeader
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+      {
+        global: {
+          headers: {
+            Authorization: authHeader
+          }
         }
       }
-    });
+    );
+
     const computedAt = new Date().toISOString();
+
     // Organization
-    const { data: organization, error: orgError } = await supabase.from("organizations").select("id, owner, slug, name, created_at, storage_limit_mb, bio, visibility, type").eq("id", orgId).single();
+    const { data: organization, error: orgError } = await supabase
+      .from("organizations")
+      .select("id, owner, slug, name, created_at, storage_limit_mb, bio, visibility, type")
+      .eq("id", orgId)
+      .single();
+
     if (orgError || !organization) {
-      return new Response("Organization not found", {
-        status: 404
-      });
+      console.error("Organization not found:", orgError);
+      return errorResponse("NOT_FOUND", "Organization not found", 404);
     }
     // Membership + authorization
     const { data: membership } = await supabase.from("org_members").select("org_id, user_id, role, joined_at").eq("org_id", orgId).eq("user_id", userId).maybeSingle();
@@ -106,7 +119,7 @@ serve(withObservability("get-organization-overview", async (req)=>{
       head: true
     }).eq("org_id", orgId);
     // Response — OrgOverview
-    return new Response(JSON.stringify({
+    return jsonResponse({
       organization,
       membership,
       stats: {
@@ -147,16 +160,10 @@ serve(withObservability("get-organization-overview", async (req)=>{
         computed_at: computedAt
       },
       computed_at: computedAt
-    }), {
-      status: 200,
-      headers: {
-        "Content-Type": "application/json"
-      }
-    });
+    }, 200);
   } catch (err) {
-    console.error(err);
-    return new Response("Internal Server Error", {
-      status: 500
-    });
+    const message = err instanceof Error ? err.message : "Internal Server Error";
+    console.error("Unexpected error in get-organization-overview:", err);
+    return errorResponse("UNEXPECTED_SERVER_ERROR", message, 500);
   }
 }));

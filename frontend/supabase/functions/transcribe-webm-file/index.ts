@@ -1,24 +1,23 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
-import { corsHeaders, handleCors, jsonResponse } from '../_shared/cors.ts';
+import { handleCors, jsonResponse } from '../_shared/cors.ts';
+import { errorResponse } from '../_shared/errors.ts';
 import { getAuthContext, getClientBoundToRequest } from '../_shared/auth.ts';
 import { getUserRoleFromRequest, requireAuthenticated, requireRole } from '../_shared/roles.ts';
 import { logEvent, withObservability } from '../_shared/observability.ts';
 
 serve(withObservability('transcribe-webm-file', async (req, ctx) => {
-  // Handle preflight requests
-  const corsResponse = handleCors(req);
-  if (corsResponse) return corsResponse;
+  const cors = handleCors(req);
+  if (cors) return cors;
+
   try {
-    // Only accept POST
     if (req.method !== "POST") {
-      return jsonResponse({ error: "Method not allowed" }, 405);
+      return errorResponse("METHOD_NOT_ALLOWED", "Only POST is allowed for this endpoint.", 405);
     }
 
     console.warn("AUTH CLIENT DEBUG", {
       hasAuthorizationHeader: !!req.headers.get("Authorization"),
     });
 
-    // Authenticate user
     const { userId } = await getAuthContext(req);
     try {
       requireAuthenticated(userId);
@@ -53,14 +52,14 @@ serve(withObservability('transcribe-webm-file', async (req, ctx) => {
         error_message: 'Unauthorized',
       });
       const status = (err as any)?.status ?? 403;
-      const message = status === 401 ? "Unauthorized" : "Forbidden";
-      return jsonResponse({ error: message }, status);
+      const message = err instanceof Error ? err.message : (status === 401 ? "Unauthorized" : "Forbidden");
+      return errorResponse(status === 401 ? "AUTH_REQUIRED" : "FORBIDDEN", message, status);
     }
 
     const formData = await req.formData();
     const file = formData.get("file");
     if (!file) {
-      return jsonResponse({ error: "No file provided" }, 400);
+      return errorResponse("MISSING_REQUIRED_FIELDS", "No file provided", 400);
     }
 
     // Validate file type.
@@ -72,8 +71,9 @@ serve(withObservability('transcribe-webm-file', async (req, ctx) => {
     const isMp4 = uploadedType.includes('mp4') || uploadedName.endsWith('.mp4') || uploadedName.endsWith('.m4a');
 
     if (!isWebM && !isMp4) {
-      return jsonResponse(
-        { error: 'Invalid file type. Supported: WebM (.webm) and MP4/AAC (.m4a, .mp4).' },
+      return errorResponse(
+        "INVALID_FILE_TYPE",
+        "Invalid file type. Supported: WebM (.webm) and MP4/AAC (.m4a, .mp4).",
         400
       );
     }
@@ -125,6 +125,6 @@ serve(withObservability('transcribe-webm-file', async (req, ctx) => {
       metric_value: 1,
       tags: { service: 'openai', function: 'transcribe-webm-file' },
     });
-    return jsonResponse({ error: err.message }, 500);
+    return errorResponse("UNEXPECTED_SERVER_ERROR", message, 500);
   }
 }));

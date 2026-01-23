@@ -2,61 +2,62 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getAuthContext } from "../_shared/auth.ts";
-import { corsHeaders, handleCors } from "../_shared/cors.ts";
+import { handleCors, jsonResponse } from "../_shared/cors.ts";
+import { errorResponse } from "../_shared/errors.ts";
 import { requireAuthenticated, requirePlatformAdmin } from "../_shared/roles.ts";
 import { withObservability } from "../_shared/observability.ts";
-serve(withObservability("approve-and-create-organization", async (req) => {
-  try {
-    // Handle OPTIONS preflight
-    const cors = handleCors(req);
-    if (cors) return cors;
 
+serve(withObservability("approve-and-create-organization", async (req) => {
+  const cors = handleCors(req);
+  if (cors) return cors;
+
+  try {
     if (req.method !== "POST") {
-      return new Response("Method Not Allowed", {
-        status: 405,
-        headers: corsHeaders
-      });
+      return errorResponse("METHOD_NOT_ALLOWED", "Only POST is allowed for this endpoint.", 405);
     }
+
     const { userId, isAdmin } = await getAuthContext(req);
     try {
       requireAuthenticated(userId);
       requirePlatformAdmin(isAdmin);
     } catch (err) {
       const status = (err as any)?.status ?? 403;
-      const message = status === 401 ? "Unauthorized" : "Forbidden";
-      return new Response(JSON.stringify({ error: message }), {
-        status,
-        headers: { ...corsHeaders, "Content-Type": "application/json" }
-      });
+      const message = err instanceof Error ? err.message : (status === 401 ? "Unauthorized" : "Forbidden");
+      return errorResponse(status === 401 ? "AUTH_REQUIRED" : "FORBIDDEN", message, status);
     }
+
     const { requestId, set_primary_org = true } = await req.json();
     if (!requestId) {
-      return new Response("requestId is required", {
-        status: 400,
-        headers: corsHeaders
-      });
+      return errorResponse("MISSING_REQUIRED_FIELDS", "requestId is required", 400);
     }
+
     const authHeader = req.headers.get("Authorization")!;
-    const supabase = createClient(Deno.env.get("SUPABASE_URL"), Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"), {
-      global: {
-        headers: {
-          Authorization: authHeader
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+      {
+        global: {
+          headers: {
+            Authorization: authHeader
+          }
         }
       }
-    });
+    );
+
     // Fetch organization request
-    const { data: request, error: requestError } = await supabase.from("organization_requests").select("*").eq("id", requestId).single();
+    const { data: request, error: requestError } = await supabase
+      .from("organization_requests")
+      .select("*")
+      .eq("id", requestId)
+      .single();
+
     if (requestError) {
-      return new Response("Organization request not found", {
-        status: 404,
-        headers: corsHeaders
-      });
+      console.error("Organization request not found:", requestError);
+      return errorResponse("NOT_FOUND", "Organization request not found", 404);
     }
+
     if (request.status !== "pending") {
-      return new Response("Only pending requests can be approved and created", {
-        status: 409,
-        headers: corsHeaders
-      });
+      return errorResponse("INVALID_REQUEST", "Only pending requests can be approved and created", 409);
     }
 
     // Generate unique slug from name
@@ -105,11 +106,8 @@ serve(withObservability("approve-and-create-organization", async (req) => {
         .maybeSingle();
 
       if (codeLookupError) {
-        console.error(codeLookupError);
-        return new Response("Failed to generate join code", {
-          status: 500,
-          headers: corsHeaders
-        });
+        console.error("Failed to generate join code:", codeLookupError);
+        return errorResponse("UNEXPECTED_SERVER_ERROR", "Failed to generate join code", 500);
       }
 
       if (!existingByCode) {
@@ -119,29 +117,29 @@ serve(withObservability("approve-and-create-organization", async (req) => {
     }
 
     if (!joinCode) {
-      return new Response("Failed to generate unique join code", {
-        status: 500,
-        headers: corsHeaders
-      });
+      return errorResponse("UNEXPECTED_SERVER_ERROR", "Failed to generate unique join code", 500);
     }
 
     // Create organization
-    const { data: organization, error: orgError } = await supabase.from("organizations").insert({
-      name: request.requested_name,
-      slug: slug,
-      owner: request.requester_id,
-      type: request.requested_type ?? null,
-      visibility: "private",
-      join_code: joinCode,
-      join_code_set_at: new Date().toISOString()
-    }).select("*").single();
+    const { data: organization, error: orgError } = await supabase
+      .from("organizations")
+      .insert({
+        name: request.requested_name,
+        slug: slug,
+        owner: request.requester_id,
+        type: request.requested_type ?? null,
+        visibility: "private",
+        join_code: joinCode,
+        join_code_set_at: new Date().toISOString()
+      })
+      .select("*")
+      .single();
+
     if (orgError) {
       console.error("Failed to create organization:", orgError);
-      return new Response("Failed to create organization", {
-        status: 500,
-        headers: corsHeaders
-      });
+      return errorResponse("DB_QUERY_FAILED", "Failed to create organization", 500);
     }
+
     if (!organization?.id) {
       console.error("Organization insert returned no row:", {
         requestId,
@@ -149,47 +147,47 @@ serve(withObservability("approve-and-create-organization", async (req) => {
         slug,
         joinCode
       });
-      return new Response("Failed to create organization", {
-        status: 500,
-        headers: corsHeaders
-      });
+      return errorResponse("UNEXPECTED_SERVER_ERROR", "Failed to create organization", 500);
     }
     const orgId = organization.id;
+
     // Create canonical owner membership
-    const { error: memberError } = await supabase.from("org_members").insert({
-      org_id: orgId,
-      user_id: request.requester_id,
-      role: "owner"
-    });
+    const { error: memberError } = await supabase
+      .from("org_members")
+      .insert({
+        org_id: orgId,
+        user_id: request.requester_id,
+        role: "owner"
+      });
+
     if (memberError) {
-      console.error(memberError);
+      console.error("Failed to create owner membership:", memberError);
       // rollback organization if membership creation fails
       await supabase.from("organizations").delete().eq("id", orgId);
-      return new Response("Failed to create owner membership", {
-        status: 500,
-        headers: corsHeaders
-      });
+      return errorResponse("DB_QUERY_FAILED", "Failed to create owner membership", 500);
     }
+
     // Approve request and link org
-    const { data: updatedRequest, error: updateError } = await supabase.from("organization_requests").update({
-      status: "approved",
-      reviewed_by: userId,
-      reviewed_at: new Date().toISOString(),
-      organization_id: orgId
-    }).eq("id", requestId).select("*").single();
+    const { data: updatedRequest, error: updateError } = await supabase
+      .from("organization_requests")
+      .update({
+        status: "approved",
+        reviewed_by: userId,
+        reviewed_at: new Date().toISOString(),
+        organization_id: orgId
+      })
+      .eq("id", requestId)
+      .select("*")
+      .single();
+
     if (updateError) {
       console.error("Failed to update organization request after org creation:", updateError);
-      return new Response("Organization created but failed to update request", {
-        status: 500,
-        headers: corsHeaders
-      });
+      return errorResponse("DB_QUERY_FAILED", "Organization created but failed to update request", 500);
     }
+
     if (!updatedRequest?.id) {
       console.error("Request update returned no row:", { requestId, orgId });
-      return new Response("Organization created but failed to update request", {
-        status: 500,
-        headers: corsHeaders
-      });
+      return errorResponse("UNEXPECTED_SERVER_ERROR", "Organization created but failed to update request", 500);
     }
     // Optionally set primary_org for owner
     // if (set_primary_org) {
@@ -197,22 +195,15 @@ serve(withObservability("approve-and-create-organization", async (req) => {
     //     primary_org: orgId
     //   }).eq("id", request.requester_id);
     // }
+
     // Success
-    return new Response(JSON.stringify({
+    return jsonResponse({
       request: updatedRequest,
       organization
-    }), {
-      status: 201,
-      headers: {
-        ...corsHeaders,
-        "Content-Type": "application/json"
-      }
-    });
+    }, 201);
   } catch (err) {
+    const message = err instanceof Error ? err.message : "Internal Server Error";
     console.error("approve-and-create-organization unexpected error:", err);
-    return new Response("Internal Server Error", {
-      status: 500,
-      headers: corsHeaders
-    });
+    return errorResponse("UNEXPECTED_SERVER_ERROR", message, 500);
   }
 }));

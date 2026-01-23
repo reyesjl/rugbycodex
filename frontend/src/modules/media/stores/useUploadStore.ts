@@ -4,7 +4,7 @@ import { S3Client } from "@aws-sdk/client-s3";
 import { Upload } from "@aws-sdk/lib-storage";
 import type { UploadJob, UploadJobMeta } from "@/modules/media/types/UploadStatus";
 import { invokeEdge } from "@/lib/api";
-import { handleSupabaseEdgeError } from "@/lib/handleSupabaseEdgeError";
+import { handleEdgeFunctionError } from "@/lib/handleEdgeFunctionError";
 import { getMediaDurationSeconds, sanitizeFileName } from "@/modules/media/utils/assetUtilities";
 import { mediaService } from "@/modules/media/services/mediaService";
 import { useActiveOrganizationStore } from "@/modules/orgs/stores/useActiveOrganizationStore";
@@ -48,7 +48,7 @@ export const useUploadStore = defineStore("upload", () => {
     });
 
     if (response.error) {
-      throw await handleSupabaseEdgeError(response.error, "Failed to create upload session.");
+      throw await handleEdgeFunctionError(response.error, "Failed to create upload session.");
     }
 
     const { credentials, storage_path, media_id } = response.data;

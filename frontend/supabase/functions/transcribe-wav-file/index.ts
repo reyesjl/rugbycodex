@@ -1,54 +1,36 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
+import { handleCors, jsonResponse } from '../_shared/cors.ts';
+import { errorResponse } from '../_shared/errors.ts';
 import { logEvent, withObservability } from '../_shared/observability.ts';
 import { getUserRoleFromRequest, requireAuthenticated, requireRole } from '../_shared/roles.ts';
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-client-info, apikey'
-};
-serve(withObservability('transcribe-wav-file', async (req, ctx)=>{
-  // Handle preflight requests
-  if (req.method === "OPTIONS") {
-    return new Response(null, {
-      headers: corsHeaders
-    });
-  }
+
+serve(withObservability('transcribe-wav-file', async (req, ctx) => {
+  const cors = handleCors(req);
+  if (cors) return cors;
+
   try {
+    if (req.method !== "POST") {
+      return errorResponse("METHOD_NOT_ALLOWED", "Only POST is allowed for this endpoint.", 405);
+    }
+
     console.warn("AUTH CLIENT DEBUG", {
       hasAuthorizationHeader: !!req.headers.get("Authorization"),
     });
+
     try {
       const { userId, role } = await getUserRoleFromRequest(req);
       requireAuthenticated(userId);
       requireRole(role, "member");
     } catch (err) {
       const status = (err as any)?.status ?? 403;
-      const message = status === 401 ? "Unauthorized" : "Forbidden";
-      return new Response(JSON.stringify({
-        error: message
-      }), {
-        status,
-        headers: corsHeaders
-      });
+      const message = err instanceof Error ? err.message : (status === 401 ? "Unauthorized" : "Forbidden");
+      return errorResponse(status === 401 ? "AUTH_REQUIRED" : "FORBIDDEN", message, status);
     }
-    // Only accept POST
-    if (req.method !== "POST") {
-      return new Response(JSON.stringify({
-        error: "Method not allowed"
-      }), {
-        status: 405,
-        headers: corsHeaders
-      });
-    }
+
     const formData = await req.formData();
     const file = formData.get("file");
     if (!file) {
-      return new Response(JSON.stringify({
-        error: "No file provided"
-      }), {
-        status: 400,
-        headers: corsHeaders
-      });
+      return errorResponse("MISSING_REQUIRED_FIELDS", "No file provided", 400);
     }
     const arrayBuffer = await file.arrayBuffer();
     const blob = new Blob([
@@ -77,23 +59,16 @@ serve(withObservability('transcribe-wav-file', async (req, ctx)=>{
       tags: { service: 'openai', function: 'transcribe-wav-file' },
     });
     const data = await response.json();
-    return new Response(JSON.stringify({
-      transcription: data.text
-    }), {
-      status: 200,
-      headers: {
-        ...corsHeaders,
-        "Content-Type": "application/json"
-      }
-    });
+    return jsonResponse({ transcription: data.text }, 200);
   } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
     logEvent({
       severity: 'error',
       event_type: 'request_error',
       request_id: ctx.requestId,
       function: 'transcribe-wav-file',
       error_code: 'OPENAI_FAILED',
-      error_message: err instanceof Error ? err.message : String(err),
+      error_message: message,
       stack: err instanceof Error ? err.stack : undefined,
     });
     logEvent({
@@ -103,11 +78,6 @@ serve(withObservability('transcribe-wav-file', async (req, ctx)=>{
       metric_value: 1,
       tags: { service: 'openai', function: 'transcribe-wav-file' },
     });
-    return new Response(JSON.stringify({
-      error: err.message
-    }), {
-      status: 500,
-      headers: corsHeaders
-    });
+    return errorResponse("UNEXPECTED_SERVER_ERROR", message, 500);
   }
 }));
