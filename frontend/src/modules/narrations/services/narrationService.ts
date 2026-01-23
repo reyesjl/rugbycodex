@@ -3,7 +3,7 @@ import { invokeEdge } from "@/lib/api";
 import { requireUserId } from "@/modules/auth/identity";
 import type { Narration, NarrationSourceType } from "../types/Narration";
 import type { PostgrestError } from "@supabase/supabase-js";
-import { handleSupabaseEdgeError } from "@/lib/handleSupabaseEdgeError";
+import { handleEdgeFunctionError } from "@/lib/handleEdgeFunctionError";
 
 /**
  * Service layer for narration data access and mutation.
@@ -137,7 +137,7 @@ function triggerNarrationEmbedding(narrationId: string): void {
       });
       if (error) {
         // Consistent with codebase: await and warn, do not throw
-        const normalized = await handleSupabaseEdgeError(error, '[embedding] Embedding trigger failed');
+        const normalized = await handleEdgeFunctionError(error, '[embedding] Embedding trigger failed');
         console.warn('[embedding] Embedding trigger error (swallowed):', normalized);
       }
     } catch (err) {
@@ -157,7 +157,7 @@ async function generateQueryEmbedding(queryText: string): Promise<number[]> {
   });
 
   if (error) {
-    throw await handleSupabaseEdgeError(error, 'Unable to generate search embedding.');
+    throw await handleEdgeFunctionError(error, 'Unable to generate search embedding.');
   }
 
   const embedding = normalizeEmbeddingVector((data as any)?.embedding);

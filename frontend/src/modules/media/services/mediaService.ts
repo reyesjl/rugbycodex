@@ -1,7 +1,7 @@
 import { supabase } from "@/lib/supabaseClient";
 import { invokeEdge } from "@/lib/api";
-import { handleSupabaseEdgeError } from "@/lib/handleSupabaseEdgeError";
 import {
+  handleEdgeFunctionError,
   isRetryableError,
   isNotFoundError,
   getErrorStatus,
@@ -106,7 +106,7 @@ async function fetchSignedHlsPlaylist(mediaId: string): Promise<string> {
   });
 
   if (response.error) {
-    throw await handleSupabaseEdgeError(response.error, "Unable to fetch playlist.");
+    throw await handleEdgeFunctionError(response.error, "Unable to fetch playlist.");
   }
 
   return typeof response.data === "string" ? response.data : String(response.data ?? "");
@@ -128,7 +128,7 @@ async function fetchPresignedHlsPlaylistUrl(
   });
 
   if (response.error) {
-    throw await handleSupabaseEdgeError(response.error, "Unable to fetch playlist URL.");
+    throw await handleEdgeFunctionError(response.error, "Unable to fetch playlist URL.");
   }
 
   const data = response.data as unknown;

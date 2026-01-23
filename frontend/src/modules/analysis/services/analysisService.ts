@@ -1,5 +1,5 @@
 import { invokeEdge } from "@/lib/api";
-import { handleSupabaseEdgeError } from "@/lib/handleSupabaseEdgeError";
+import { handleEdgeFunctionError } from "@/lib/handleEdgeFunctionError";
 import type { MatchSummary, MatchSummaryState } from "@/modules/analysis/types/MatchSummary";
 
 export type MatchSummaryMode = 'state' | 'summary';
@@ -89,7 +89,7 @@ export const analysisService = {
     });
 
     if (response.error) {
-      throw await handleSupabaseEdgeError(response.error, "Unable to generate match summary.");
+      throw await handleEdgeFunctionError(response.error, "Unable to generate match summary.");
     }
 
     const data = response.data as any;

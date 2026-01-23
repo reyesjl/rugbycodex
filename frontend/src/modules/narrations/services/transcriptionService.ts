@@ -3,7 +3,7 @@
  */
 
 import { invokeEdge } from '@/lib/api';
-import { handleSupabaseEdgeError } from '@/lib/handleSupabaseEdgeError';
+import { handleEdgeFunctionError } from '@/lib/handleEdgeFunctionError';
 import type { TranscriptionResponse } from '@/modules/narrations/types/TranscriptionResponse';
 
 /**
@@ -24,7 +24,7 @@ export async function transcribeAudio(audioBlob: Blob): Promise<TranscriptionRes
   });
 
   if (error) {
-    throw await handleSupabaseEdgeError(
+    throw await handleEdgeFunctionError(
       error,
       'Unable to transcribe audio. Please try again.'
     );

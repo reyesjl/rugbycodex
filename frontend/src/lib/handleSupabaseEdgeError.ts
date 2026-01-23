@@ -1,3 +1,13 @@
+/**
+ * @deprecated This error handler is deprecated. Use `handleEdgeFunctionError` from 
+ * `@/lib/handleEdgeFunctionError` instead, which follows Supabase's official error 
+ * handling best practices with proper instanceof checks for FunctionsHttpError, 
+ * FunctionsRelayError, and FunctionsFetchError.
+ * 
+ * This file is kept temporarily for backward compatibility and will be removed in a future release.
+ * All services have been migrated to the new handler as of 2026-01-23.
+ */
+
 function parseJson(text: string | null | undefined) {
   if (!text) return null;
   try {
