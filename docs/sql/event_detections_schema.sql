@@ -8,6 +8,7 @@ CREATE TYPE event_detection_type AS ENUM ('scrum', 'lineout', 'try', 'kick');
 -- Event detections table
 CREATE TABLE public.event_detections (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
+  org_id uuid NOT NULL,
   media_asset_id uuid NOT NULL,
   event_type event_detection_type NOT NULL,
   start_seconds double precision NOT NULL CHECK (start_seconds >= 0),
@@ -22,6 +23,7 @@ CREATE TABLE public.event_detections (
   segment_id uuid, -- Optional link to auto-generated segment
   
   CONSTRAINT event_detections_pkey PRIMARY KEY (id),
+  CONSTRAINT event_detections_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE,
   CONSTRAINT event_detections_media_asset_id_fkey FOREIGN KEY (media_asset_id) REFERENCES public.media_assets(id) ON DELETE CASCADE,
   CONSTRAINT event_detections_verified_by_fkey FOREIGN KEY (verified_by) REFERENCES public.profiles(id),
   CONSTRAINT event_detections_segment_id_fkey FOREIGN KEY (segment_id) REFERENCES public.media_asset_segments(id) ON DELETE SET NULL

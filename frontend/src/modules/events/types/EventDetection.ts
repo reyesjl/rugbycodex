@@ -13,6 +13,7 @@ export type EventDetectionType = 'scrum' | 'lineout' | 'try' | 'kick';
  */
 export interface EventDetection {
   id: string;
+  org_id: string;
   media_asset_id: string;
   event_type: EventDetectionType;
   start_seconds: number;
