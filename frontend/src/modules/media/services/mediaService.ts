@@ -4,7 +4,6 @@ import {
   handleEdgeFunctionError,
   isRetryableError,
   isNotFoundError,
-  getErrorStatus,
 } from "@/lib/handleEdgeFunctionError";
 import type { OrgMediaAsset } from "@/modules/media/types/OrgMediaAsset";
 import type { PostgrestError } from "@supabase/supabase-js";

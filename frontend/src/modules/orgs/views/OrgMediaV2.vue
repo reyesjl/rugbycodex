@@ -297,9 +297,9 @@ async function handleUploadSubmit(payload: { file: globalThis.File; kind: MediaA
       // Make storage quota errors more user-friendly
       if (errorMessage.includes('Storage quota exceeded')) {
         const match = errorMessage.match(/limit (\d+) MB, used (\d+) MB/);
-        if (match) {
-          const limit = parseInt(match[1]);
-          const used = parseInt(match[2]);
+        if (match?.[1] && match?.[2]) {
+          const limit = parseInt(match[1], 10);
+          const used = parseInt(match[2], 10);
           const limitGB = (limit / 1024).toFixed(2);
           const usedGB = (used / 1024).toFixed(2);
           errorMessage = `Storage quota exceeded. Your organization is using ${usedGB} GB of ${limitGB} GB. Please delete some media or contact support to increase your storage limit.`;
