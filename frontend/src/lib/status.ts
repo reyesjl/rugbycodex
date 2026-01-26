@@ -26,6 +26,8 @@ export function getMediaAssetStatusDisplay(status: string | null | undefined): S
       return { label: 'Ready', icon: 'carbon:radio-button-checked', textClass: 'text-emerald-400/80' };
     case 'uploading':
       return { label: 'Uploading', icon: 'carbon:cloud-upload', textClass: 'text-blue-400/80' };
+    case 'uploaded':
+      return { label: 'Uploaded', icon: 'carbon:checkmark', textClass: 'text-blue-300/80' };
     case 'interrupted':
       return { label: 'Upload interrupted.', icon: 'carbon:warning-alt', iconClass: 'text-yellow-500/70', textClass: 'text-yellow-500/80' };
     case 'failed':

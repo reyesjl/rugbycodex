@@ -1,7 +1,8 @@
 import { defineStore } from "pinia";
-import { computed, reactive, toRef, watch } from "vue";
+import { computed, onUnmounted, reactive, toRef, watch } from "vue";
 import { useActiveOrganizationStore } from "@/modules/orgs/stores/useActiveOrganizationStore";
 import { mediaService } from "@/modules/media/services/mediaService";
+import { supabase } from "@/lib/supabaseClient";
 import type { OrgMediaAsset } from "@/modules/media/types/OrgMediaAsset";
 
 export type OrgMediaStatus = "idle" | "loading" | "ready" | "error";
@@ -9,6 +10,9 @@ export type OrgMediaStatus = "idle" | "loading" | "ready" | "error";
 export type MediaContextState = "no_context" | "in_progress" | "contextualized";
 
 let loadToken = 0;
+let pollingInterval: number | null = null;
+let pollCount = 0;
+let lastFullReload = 0;
 
 export const useOrgMediaStore = defineStore("orgMedia", () => {
   const activeOrganizationStore = useActiveOrganizationStore();
@@ -34,6 +38,10 @@ export const useOrgMediaStore = defineStore("orgMedia", () => {
 
   const activeOrgId = computed(() => activeOrganizationStore.orgContext?.organization?.id ?? null);
 
+  const processingAssets = computed(() =>
+    data.assets.filter(a => a.status === 'ready' && !a.streaming_ready)
+  );
+
   function narrationCountByAssetId(assetId: string): number {
     return data.narrationCounts[assetId] ?? 0;
   }
@@ -55,6 +63,93 @@ export const useOrgMediaStore = defineStore("orgMedia", () => {
     return "contextualized";
   }
 
+  function getPollingDelay(): number {
+    if (pollCount < 6) return 5000;
+    if (pollCount < 12) return 10000;
+    if (pollCount < 18) return 30000;
+    return 60000;
+  }
+
+  async function pollProcessingAssets() {
+    const orgId = activeOrgId.value;
+    if (!orgId) {
+      stopPolling();
+      return;
+    }
+
+    const processingIds = processingAssets.value.map(a => a.id);
+    if (processingIds.length === 0) {
+      stopPolling();
+      return;
+    }
+
+    const timeSinceReload = Date.now() - lastFullReload;
+    if (timeSinceReload < 3000) {
+      pollingInterval = window.setTimeout(pollProcessingAssets, getPollingDelay());
+      return;
+    }
+
+    pollCount++;
+
+    try {
+      const { data: updated, error } = await supabase
+        .from('media_assets')
+        .select('id, status, streaming_ready')
+        .eq('org_id', orgId)
+        .in('id', processingIds);
+
+      if (error) throw error;
+
+      if (updated && updated.length > 0) {
+        let completedCount = 0;
+        
+        updated.forEach((updatedAsset: any) => {
+          const index = data.assets.findIndex(a => a.id === updatedAsset.id);
+          if (index !== -1) {
+            const wasProcessing = !data.assets[index].streaming_ready;
+            
+            data.assets[index].streaming_ready = updatedAsset.streaming_ready;
+            data.assets[index].status = updatedAsset.status;
+            
+            if (wasProcessing && updatedAsset.streaming_ready) {
+              completedCount++;
+            }
+          }
+        });
+
+        if (completedCount > 0) {
+          console.log(`[OrgMedia] ✅ ${completedCount} video(s) finished processing and ready to watch!`);
+        }
+      }
+
+      if (processingAssets.value.length > 0) {
+        pollingInterval = window.setTimeout(pollProcessingAssets, getPollingDelay());
+      } else {
+        console.log('[OrgMedia] All videos processed, stopping poll');
+        stopPolling();
+      }
+    } catch (err) {
+      console.error('[OrgMedia] Polling error:', err);
+      pollingInterval = window.setTimeout(pollProcessingAssets, getPollingDelay());
+    }
+  }
+
+  function startPolling() {
+    if (pollingInterval) return;
+    
+    console.log('[OrgMedia] 🔄 Starting polling for processing videos');
+    pollCount = 0;
+    pollingInterval = window.setTimeout(pollProcessingAssets, getPollingDelay());
+  }
+
+  function stopPolling() {
+    if (pollingInterval) {
+      clearTimeout(pollingInterval);
+      pollingInterval = null;
+      pollCount = 0;
+    }
+  }
+
   async function loadForActiveOrg() {
     const orgId = activeOrgId.value;
     if (!orgId) return;
@@ -63,6 +158,7 @@ export const useOrgMediaStore = defineStore("orgMedia", () => {
 
     loadToken += 1;
     const token = loadToken;
+    lastFullReload = Date.now();
 
     status.state = "loading";
     status.error = null;
@@ -97,6 +193,7 @@ export const useOrgMediaStore = defineStore("orgMedia", () => {
 
   function reset() {
     loadToken += 1;
+    stopPolling();
     data.assets = [];
     data.narrationCounts = {};
     data.loadedOrgId = null;
@@ -104,10 +201,20 @@ export const useOrgMediaStore = defineStore("orgMedia", () => {
     status.error = null;
   }
 
+  watch(processingAssets, (assets) => {
+    if (assets.length > 0 && !pollingInterval) {
+      startPolling();
+    }
+  }, { immediate: true });
+
   watch(activeOrgId, (nextId, prevId) => {
     if (nextId !== prevId) {
       reset();
     }
+  });
+
+  onUnmounted(() => {
+    stopPolling();
   });
 
   return {

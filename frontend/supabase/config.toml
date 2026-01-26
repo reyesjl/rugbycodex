@@ -476,3 +476,6 @@ verify_jwt = false
 
 [functions.dispatch-job-to-sqs]
 verify_jwt = false
+
+[functions.complete-upload]
+verify_jwt = false

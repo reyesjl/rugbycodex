@@ -53,6 +53,7 @@ const overlayIconName = computed(() => {
   if (status === 'ready' && !props.asset.streaming_ready) return 'carbon:data-regular';
   if (status === 'ready') return 'carbon:play-filled-alt';
   if (status === 'uploading') return 'ei:spinner';
+  if (status === 'uploaded') return 'ei:spinner';
   return statusDisplay.value.icon ?? 'ei:spinner';
 });
 
@@ -63,7 +64,7 @@ const overlayIconClass = computed(() => {
   if (status === 'processing' || (status === 'ready' && !props.asset.streaming_ready)) {
     return 'text-white/40 animate-spin';
   }
-  if (status === 'uploading') return 'text-white/40 animate-spin';
+  if (status === 'uploading' || status === 'uploaded') return 'text-white/40 animate-spin';
   return 'text-white/40';
 });
 

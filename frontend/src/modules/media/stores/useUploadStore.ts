@@ -203,68 +203,34 @@ export const useUploadStore = defineStore("upload", () => {
 
       const jobs = [...completed];
 
-      // Mark assets as ready in database
+      // Complete upload: verify, create job, and dispatch to SQS
       await Promise.all(
-        jobs.map((job) =>
-          mediaService.updateMediaAsset(job.id, {
-            storage_path: job.storagePath,
-            status: "ready",
-          }),
-        ),
-      );
-
-      // Wait for DB trigger to create jobs (avoid race condition)
-      console.log("[Upload] Waiting 1.5s for DB trigger to create jobs...");
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-
-      // Dispatch transcode jobs to AWS SQS with retry logic
-      for (const job of jobs) {
-        let attempts = 0;
-        const maxAttempts = 3;
-        let success = false;
-
-        while (attempts < maxAttempts && !success) {
-          attempts++;
+        jobs.map(async (job) => {
           try {
-            console.log(`[Upload] Dispatching transcode job for media ${job.id} (attempt ${attempts}/${maxAttempts})`);
+            console.log(`[Upload] Completing upload for media ${job.id}...`);
             
-            const response = await invokeEdge("dispatch-job-to-sqs", {
+            const response = await invokeEdge("complete-upload", {
               body: {
                 media_id: job.id,
                 org_id: job.orgId,
-                type: "transcode",
+                storage_path: job.storagePath,
               },
               orgScoped: true,
             });
 
             if (response.error) {
-              console.error(`[Upload] Dispatch attempt ${attempts} failed:`, response.error);
-              
-              // Retry if job not found yet (race condition)
-              if (attempts < maxAttempts && response.error.message?.includes("JOB_NOT_FOUND")) {
-                console.log(`[Upload] Job not found yet, waiting 1s before retry...`);
-                await new Promise((resolve) => setTimeout(resolve, 1000));
-                continue;
-              }
-              
-              // Other errors - don't retry
-              break;
+              console.error(`[Upload] Failed to complete upload for media ${job.id}:`, response.error);
             } else {
-              console.log(`[Upload] Dispatched job ${response.data?.job_id} to AWS SQS (message: ${response.data?.message_id})`);
-              success = true;
+              console.log(
+                `[Upload] Successfully completed upload for media ${job.id} - ` +
+                `job ${response.data?.job_id} dispatched (message: ${response.data?.message_id})`
+              );
             }
           } catch (err) {
-            console.error(`[Upload] Exception on attempt ${attempts}:`, err);
-            if (attempts < maxAttempts) {
-              await new Promise((resolve) => setTimeout(resolve, 1000));
-            }
+            console.error(`[Upload] Exception completing upload for media ${job.id}:`, err);
           }
-        }
-
-        if (!success) {
-          console.error(`[Upload] Failed to dispatch job for media ${job.id} after ${maxAttempts} attempts. Upload succeeded but job may not be processed.`);
-        }
-      }
+        })
+      );
 
       // Clean up completed jobs from upload queue
       for (const job of jobs) {
