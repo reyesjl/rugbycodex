@@ -76,7 +76,8 @@ const filteredAssets = computed(() => {
 
 // Group assets by time period
 const groupedAssets = computed(() => {
-  const groups: Record<string, OrgMediaAsset[]> = {
+  type GroupLabel = 'Today' | 'Yesterday' | 'This Week' | 'This Month';
+  const groups: Record<GroupLabel, OrgMediaAsset[]> = {
     'Today': [],
     'Yesterday': [],
     'This Week': [],
@@ -97,9 +98,9 @@ const groupedAssets = computed(() => {
     const assetDate = new Date(asset.created_at);
     
     if (assetDate >= todayStart) {
-      groups['Today'].push(asset);
+      groups.Today.push(asset);
     } else if (assetDate >= yesterdayStart) {
-      groups['Yesterday'].push(asset);
+      groups.Yesterday.push(asset);
     } else if (assetDate >= weekStart) {
       groups['This Week'].push(asset);
     } else if (assetDate >= monthStart) {
