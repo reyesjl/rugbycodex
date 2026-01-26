@@ -106,10 +106,13 @@ export const useOrgMediaStore = defineStore("orgMedia", () => {
         updated.forEach((updatedAsset: any) => {
           const index = data.assets.findIndex(a => a.id === updatedAsset.id);
           if (index !== -1) {
-            const wasProcessing = !data.assets[index].streaming_ready;
-            
-            data.assets[index].streaming_ready = updatedAsset.streaming_ready;
-            data.assets[index].status = updatedAsset.status;
+            const existingAsset = data.assets[index];
+            if (!existingAsset) return;
+
+            const wasProcessing = !existingAsset.streaming_ready;
+
+            existingAsset.streaming_ready = updatedAsset.streaming_ready;
+            existingAsset.status = updatedAsset.status;
             
             if (wasProcessing && updatedAsset.streaming_ready) {
               completedCount++;
