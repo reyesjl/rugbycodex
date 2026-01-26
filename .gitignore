@@ -30,3 +30,4 @@ frontend/src/assets/
 *.png
 
 /aws_workers
+test_edge_functions.sh

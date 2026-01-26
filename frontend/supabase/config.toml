@@ -479,3 +479,9 @@ verify_jwt = false
 
 [functions.complete-upload]
 verify_jwt = false
+
+[functions.get-event-detections]
+verify_jwt = false
+
+[functions.trigger-event-detection]
+verify_jwt = false
