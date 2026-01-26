@@ -90,15 +90,15 @@ watch(
         <div
           v-if="orgMenuOpen"
           ref="orgMenuRef"
-          class="absolute left-0 mt-2 w-56 rounded-md border border-white/20 bg-black p-2 text-sm shadow-2xl"
+          class="absolute left-0 mt-2 w-56 rounded-md border border-white/10 bg-black/90 p-2 text-sm"
         >
           <!-- Org list -->
           <template v-if="hasOrganizations">
             <button
               v-for="org in items"
               :key="org.organization.id"
-              class="flex text-xs cursor-pointer w-full items-center justify-between gap-3 rounded px-3 py-2 border border-transparent"
-              :class="activeOrgId === org.organization.id ? 'border-green-500 bg-green-500/30 hover:bg-green-700/70' : 'hover:bg-white/10'"
+              class="flex text-xs cursor-pointer w-full items-center justify-between gap-3 rounded px-3 py-2 border border-transparent transition text-white"
+              :class="activeOrgId === org.organization.id ? 'border-green-500/50 bg-green-500/20 hover:bg-green-500/30' : 'hover:bg-white/15'"
               @click="handleOrgSelect(org)"
             >
               <span class="truncate">{{ org.organization.name }}</span>
@@ -117,7 +117,7 @@ watch(
 
           <RouterLink
             to="/organizations"
-            class="text-xs flex items-center rounded px-3 py-2 hover:bg-white/10"
+            class="text-xs flex items-center rounded px-3 py-2 hover:bg-white/15 transition text-white"
             @click="closeOrgMenu"
           >
             <Icon icon="carbon:group-presentation" width="15" height="15" class="mr-2" />
@@ -126,7 +126,7 @@ watch(
 
           <RouterLink
             to="/organizations/create"
-            class="text-xs flex items-center rounded px-3 py-2 hover:bg-white/10"
+            class="text-xs flex items-center rounded px-3 py-2 hover:bg-white/15 transition text-white"
             @click="closeOrgMenu"
           >
             <Icon icon="carbon:add" width="15" height="15" class="mr-2" />
@@ -137,7 +137,7 @@ watch(
 
           <RouterLink
             to="/"
-            class="text-xs flex items-center rounded px-3 py-2 hover:bg-white/10"
+            class="text-xs flex items-center rounded px-3 py-2 hover:bg-white/15 transition text-white"
             @click="closeOrgMenu"
           >
             <Icon icon="carbon:home" width="15" height="15" class="mr-2" />

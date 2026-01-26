@@ -35,6 +35,10 @@ const thumbnailUrl = computed(() => {
 
 const showThumbnail = computed(() => !!thumbnailUrl.value);
 
+const isReadyToPlay = computed(() => {
+  return props.asset.status === 'ready' && props.asset.streaming_ready;
+});
+
 const isStreamingProcessing = computed(
   () => props.asset.status === 'ready' && !props.asset.streaming_ready
 );
@@ -211,9 +215,10 @@ function clipTitle(fileName: string) {
           {{ formatDaysAgo(asset.created_at) ?? 'Unknown date' }}
         </div>
 
-        <!-- Status -->
+        <!-- Actions and Status Row -->
         <div class="flex items-center justify-between gap-2">
-          <div class="inline-flex items-center gap-1 text-xs min-w-0">
+          <!-- Status - only show if not ready -->
+          <div v-if="!isReadyToPlay || isAbandoned || showUploadProgress" class="inline-flex items-center gap-1 text-xs min-w-0">
             <Icon
               v-if="statusDisplay.icon"
               :icon="statusDisplay.icon!"
@@ -232,6 +237,10 @@ function clipTitle(fileName: string) {
             </span>
           </div>
 
+          <!-- Spacer to push actions to the right when no status -->
+          <div v-else class="flex-1"></div>
+
+          <!-- Actions menu -->
           <div class="relative">
             <button
               v-if="canManage"
@@ -245,7 +254,7 @@ function clipTitle(fileName: string) {
 
             <div
               v-if="menuOpen && canManage"
-              class="absolute right-0 bottom-full mb-2 min-w-28 rounded-md border border-white/20 bg-black text-white shadow-none"
+              class="absolute right-0 bottom-full mb-2 min-w-28 rounded-md border border-white/10 bg-black/60 backdrop-blur-md text-white"
               @click.stop
             >
               <button

@@ -63,6 +63,91 @@ const uploadMetricsByAssetId = computed(() => {
   );
 });
 
+const searchQuery = ref('');
+
+const filteredAssets = computed(() => {
+  if (!searchQuery.value.trim()) return assets.value;
+  const query = searchQuery.value.toLowerCase();
+  return assets.value.filter(asset => 
+    asset.file_name.toLowerCase().includes(query) ||
+    asset.kind?.toLowerCase().includes(query)
+  );
+});
+
+// Group assets by time period
+const groupedAssets = computed(() => {
+  const groups: Record<string, OrgMediaAsset[]> = {
+    'Today': [],
+    'Yesterday': [],
+    'This Week': [],
+    'This Month': [],
+  };
+  
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterdayStart = new Date(todayStart);
+  yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+  const weekStart = new Date(todayStart);
+  weekStart.setDate(weekStart.getDate() - 7);
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  
+  const olderGroups: Record<string, OrgMediaAsset[]> = {};
+  
+  filteredAssets.value.forEach(asset => {
+    const assetDate = new Date(asset.created_at);
+    
+    if (assetDate >= todayStart) {
+      groups['Today'].push(asset);
+    } else if (assetDate >= yesterdayStart) {
+      groups['Yesterday'].push(asset);
+    } else if (assetDate >= weekStart) {
+      groups['This Week'].push(asset);
+    } else if (assetDate >= monthStart) {
+      groups['This Month'].push(asset);
+    } else {
+      // Group by month for older items
+      const monthKey = assetDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
+      if (!olderGroups[monthKey]) olderGroups[monthKey] = [];
+      olderGroups[monthKey].push(asset);
+    }
+  });
+  
+  // Combine all groups, removing empty ones
+  const result: { label: string; assets: OrgMediaAsset[] }[] = [];
+  
+  Object.entries(groups).forEach(([label, assets]) => {
+    if (assets.length > 0) {
+      result.push({ label, assets });
+    }
+  });
+  
+  // Add older groups sorted by date (newest first)
+  Object.entries(olderGroups)
+    .sort((a, b) => new Date(b[0]).getTime() - new Date(a[0]).getTime())
+    .forEach(([label, assets]) => {
+      result.push({ label, assets });
+    });
+  
+  return result;
+});
+
+function scrollStrip(event: MouseEvent, direction: 'left' | 'right') {
+  const button = event.currentTarget as HTMLElement;
+  const stripContainer = button.parentElement?.querySelector('.overflow-x-auto') as HTMLElement;
+  if (!stripContainer) return;
+  
+  const scrollAmount = 300; // Scroll by ~1 card width + gap
+  const currentScroll = stripContainer.scrollLeft;
+  const targetScroll = direction === 'left' 
+    ? currentScroll - scrollAmount 
+    : currentScroll + scrollAmount;
+  
+  stripContainer.scrollTo({
+    left: targetScroll,
+    behavior: 'smooth'
+  });
+}
+
 function openAddMedia() {
   if (!activeOrgId.value) return;
   if (!canManage.value) return;
@@ -396,41 +481,57 @@ watch(activeOrgId, (orgId, prevOrgId) => {
 </script>
 
 <template>
-  <div class="container-lg space-y-4 py-6 text-white pb-20">
-    <div class="flex items-center justify-between gap-3">
-      <h1 class="text-white text-3xl">Footage</h1>
-      <button
-        v-if="canManage"
-        type="button"
-        class="flex gap-2 items-center rounded-lg px-2 py-1 border border-green-500 bg-green-500/70 hover:bg-green-700/70 text-xs transition disabled:opacity-50"
-        :disabled="orgResolving || !orgContext"
-        @click="openAddMedia"
-      >
-        <Icon icon="carbon:upload" width="15" height="15" />
-        Upload
-      </button>
-    </div>
+  <div class="min-h-screen text-white pb-20">
+    <!-- Header - contained -->
+    <div class="container-lg py-6">
+      <div class="flex items-center justify-between gap-6 mb-6">
+        <h1 class="text-4xl font-light tracking-tight text-white">Footage</h1>
+        <button
+          v-if="canManage"
+          type="button"
+          class="flex gap-1.5 items-center px-3 py-1.5 rounded-md bg-orange-600 hover:bg-orange-700 text-xs text-white font-medium transition disabled:opacity-50 cursor-pointer"
+          :disabled="orgResolving || !orgContext"
+          @click="openAddMedia"
+        >
+          <Icon icon="carbon:upload" width="14" height="14" />
+          Upload
+        </button>
+      </div>
 
-    <div
-      v-if="hasInFlightUploads"
-      class="rounded-lg border border-white/10 bg-white/5 p-4 text-white/70"
-      aria-label="Upload status"
-    >
-      <div class="text-sm">
-        Upload in progress. Please do not navigate away from this page.
+      <!-- Search bar -->
+      <div v-if="assets.length > 0" class="relative max-w-md">
+        <Icon icon="carbon:search" class="absolute left-0 top-1/2 -translate-y-1/2 text-white/30" width="20" height="20" />
+        <input
+          v-model="searchQuery"
+          type="text"
+          placeholder="Search footage..."
+          class="w-full pl-8 pr-4 py-3 bg-transparent border-0 border-b border-white/10 text-white placeholder:text-white/30 focus:outline-none focus:border-white/30 transition text-base"
+        />
+      </div>
+
+      <!-- Upload notification -->
+      <div
+        v-if="hasInFlightUploads"
+        class="mt-4 rounded-xl border border-blue-500/30 bg-blue-500/10 p-4 text-blue-300"
+        aria-label="Upload status"
+      >
+        <div class="text-sm font-medium">
+          Upload in progress. Please do not navigate away from this page.
+        </div>
       </div>
     </div>
 
-    <div v-if="orgResolving" class="rounded-lg border border-white/10 bg-white/5 p-6 text-white/70">
-      Loading organization…
-    </div>
+    <!-- Loading/Error states - contained -->
+    <div class="container-lg">
+      <div v-if="orgResolving" class="rounded-lg border border-white/10 bg-white/5 p-6 text-white/70">
+        Loading organization…
+      </div>
 
-    <div v-else-if="!orgContext" class="rounded-lg border border-white/10 bg-white/5 p-6 text-white/70">
-      No active organization.
-    </div>
+      <div v-else-if="!orgContext" class="rounded-lg border border-white/10 bg-white/5 p-6 text-white/70">
+        No active organization.
+      </div>
 
-    <div v-else class="space-y-4">
-      <div v-if="isLoading" class="rounded-lg border border-white/10 bg-white/5 p-6 text-white/70">
+      <div v-else-if="isLoading" class="rounded-lg border border-white/10 bg-white/5 p-6 text-white/70">
         Loading media…
       </div>
 
@@ -438,29 +539,86 @@ watch(activeOrgId, (orgId, prevOrgId) => {
         {{ error ?? 'Unable to load media.' }}
       </div>
 
-      <div v-else-if="assets.length === 0" class="rounded-lg border border-white/10 bg-white/5 p-6 text-white/70">
-        No media assets yet.
+      <!-- Empty state -->
+      <div v-else-if="assets.length === 0" class="flex flex-col items-center justify-center rounded-2xl border border-white/10 bg-white/5 p-16 text-center">
+        <Icon icon="carbon:video" class="text-white/20 mb-6" width="64" height="64" />
+        <h2 class="text-xl font-light text-white/80 mb-2">No media yet</h2>
+        <p class="text-sm text-white/50 mb-6">Upload your first video to get started</p>
+        <button
+          v-if="canManage"
+          type="button"
+          class="flex gap-1.5 items-center px-3 py-1.5 rounded-md bg-orange-600 hover:bg-orange-700 text-xs text-white font-medium transition cursor-pointer"
+          @click="openAddMedia"
+        >
+          <Icon icon="carbon:upload" width="14" height="14" />
+          Upload video
+        </button>
+      </div>
+    </div>
+
+    <!-- Horizontal scrolling strips - full bleed -->
+    <div v-if="!isLoading && isReady && assets.length > 0" class="space-y-8 mt-6">
+      <!-- No results -->
+      <div v-if="filteredAssets.length === 0" class="container-lg">
+        <div class="text-center py-12 text-white/50">
+          <Icon icon="carbon:search" class="mx-auto mb-3" width="32" height="32" />
+          <p>No results found for "{{ searchQuery }}"</p>
+        </div>
       </div>
 
-      <div v-else class="space-y-2">
-        <div class="text-white/70">{{ assets.length }} asset(s)</div>
+      <!-- Each time period strip -->
+      <div v-for="group in groupedAssets" :key="group.label" class="space-y-3">
+        <!-- Section header - contained -->
+        <div class="container-lg flex items-baseline gap-2">
+          <h2 class="text-lg font-light text-white/90">{{ group.label }}</h2>
+          <span class="text-sm text-white/40">({{ group.assets.length }})</span>
+        </div>
 
-        <div
-          class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
-          aria-label="Organization media assets"
-        >
-          <MediaAssetCard
-            v-for="asset in assets"
-            :key="asset.id"
-            :asset="asset"
-            :can-manage="canManage"
-            :upload-metrics="uploadMetricsByAssetId.get(asset.id)"
-            @open="openAsset(asset.id)"
-            @review="openReview(asset.id)"
-            @delete="openConfirmDelete(asset.id)"
-            @edit="openEditMedia(asset.id)"
-            @reattach="openReattachModal(asset.id)"
-          />
+        <!-- Horizontal scrolling strip - full bleed with padding -->
+        <div class="relative group/strip">
+          <!-- Left arrow (desktop only) -->
+          <button
+            type="button"
+            class="hidden lg:flex absolute left-4 top-1/2 -translate-y-1/2 z-10 w-10 h-10 items-center justify-center rounded-full bg-black/80 border border-white/20 text-white/80 hover:text-white hover:bg-black transition opacity-0 group-hover/strip:opacity-100"
+            @click="scrollStrip($event, 'left')"
+            aria-label="Scroll left"
+          >
+            <Icon icon="carbon:chevron-left" width="20" height="20" />
+          </button>
+
+          <!-- Right arrow (desktop only) -->
+          <button
+            type="button"
+            class="hidden lg:flex absolute right-4 top-1/2 -translate-y-1/2 z-10 w-10 h-10 items-center justify-center rounded-full bg-black/80 border border-white/20 text-white/80 hover:text-white hover:bg-black transition opacity-0 group-hover/strip:opacity-100"
+            @click="scrollStrip($event, 'right')"
+            aria-label="Scroll right"
+          >
+            <Icon icon="carbon:chevron-right" width="20" height="20" />
+          </button>
+
+          <!-- Scrollable container -->
+          <div class="overflow-x-auto scrollbar-hide" ref="stripContainer">
+            <div class="flex gap-4 pl-6 pr-6 lg:pl-12 lg:pr-12 pb-2">
+              <div
+                v-for="asset in group.assets"
+                :key="asset.id"
+                class="flex-none w-64"
+              >
+                <MediaAssetCard
+                  :asset="asset"
+                  :can-manage="canManage"
+                  :upload-metrics="uploadMetricsByAssetId.get(asset.id)"
+                  @open="openAsset(asset.id)"
+                  @review="openReview(asset.id)"
+                  @delete="openConfirmDelete(asset.id)"
+                  @edit="openEditMedia(asset.id)"
+                  @reattach="openReattachModal(asset.id)"
+                />
+              </div>
+              <!-- Spacer to allow scrolling past the end -->
+              <div class="flex-none w-6 lg:w-12"></div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -542,4 +700,37 @@ watch(activeOrgId, (orgId, prevOrgId) => {
 </template>
 
 <style scoped>
+/* Hide scrollbar but keep functionality */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Smooth momentum scrolling on iOS */
+.scrollbar-hide {
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+</style>
+
+<style scoped>
+/* Hide scrollbar but keep functionality */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Smooth momentum scrolling on iOS */
+.scrollbar-hide {
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
 </style>

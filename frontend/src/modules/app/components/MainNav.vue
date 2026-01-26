@@ -174,11 +174,11 @@ watch(
               <div
                 v-if="menuOpen"
                 ref="userMenuRef"
-                class="absolute right-0 mt-2 w-56 rounded-md border border-white/20 bg-black/90 p-2 text-sm shadow-2xl"
+                class="absolute right-0 mt-2 w-56 rounded-md border border-white/10 bg-black/90 p-2 text-sm"
               >
                 <RouterLink
                   to="/profile"
-                  class="flex items-center rounded px-3 py-2 text-white hover:bg-white/10"
+                  class="flex items-center rounded px-3 py-2 text-white hover:bg-white/15 transition"
                   @click="closeMenu"
                 >
                   <Icon icon="carbon:user-profile" width="18" height="18" class="mr-2" />
@@ -186,7 +186,7 @@ watch(
                 </RouterLink>
                 <RouterLink
                   to="/settings"
-                  class="flex items-center rounded px-3 py-2 text-white hover:bg-white/10"
+                  class="flex items-center rounded px-3 py-2 text-white hover:bg-white/15 transition"
                   @click="closeMenu"
                 >
                   <Icon icon="carbon:settings" width="18" height="18" class="mr-2" />
@@ -194,7 +194,7 @@ watch(
                 </RouterLink>
                 <button
                   type="button"
-                  class="mt-1 flex w-full items-center rounded px-3 py-2 text-left text-rose-300 hover:bg-rose-500/10"
+                  class="mt-1 flex w-full items-center rounded px-3 py-2 text-left text-rose-300 hover:bg-rose-500/10 transition"
                   @click="handleLogout"
                   :disabled="loggingOut"
                 >

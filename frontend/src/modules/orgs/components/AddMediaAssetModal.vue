@@ -180,7 +180,7 @@ async function submit() {
           <button
             type="button"
             @click="submit"
-            class="px-2 py-1 text-xs rounded-lg border border-green-500 bg-green-500/70 hover:bg-green-700/70 transition disabled:opacity-50"
+            class="px-3 py-1.5 text-xs rounded-md bg-green-600 hover:bg-green-700 text-white font-medium transition disabled:opacity-50 cursor-pointer"
             :disabled="!canSubmit"
           >
             <span v-if="loading">Starting…</span>
