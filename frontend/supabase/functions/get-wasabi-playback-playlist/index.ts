@@ -1,7 +1,7 @@
 import { GetObjectCommand, PutObjectCommand, S3Client } from "npm:@aws-sdk/client-s3";
 import { getSignedUrl } from "npm:@aws-sdk/s3-request-presigner";
 import { getClientBoundToRequest } from "../_shared/auth.ts";
-import { handleCors, jsonResponse } from "../_shared/cors.ts";
+import { handleCors, jsonResponse, corsHeaders } from "../_shared/cors.ts";
 import { errorResponse } from "../_shared/errors.ts";
 import { getUserRoleFromRequest, requireRole } from "../_shared/roles.ts";
 import { logEvent, withObservability } from "../_shared/observability.ts";
@@ -787,6 +787,7 @@ Deno.serve(withObservability("get-wasabi-playback-playlist", async (req, ctx) =>
     return new Response(rewrittenText, {
       status: 200,
       headers: {
+        ...corsHeaders,
         "Content-Type": "application/vnd.apple.mpegurl",
       },
     });

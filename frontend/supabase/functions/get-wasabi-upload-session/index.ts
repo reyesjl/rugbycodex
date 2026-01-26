@@ -35,9 +35,14 @@ Deno.serve(withObservability("get-wasabi-upload-session", async (req, ctx) => {
       return errorResponse("AUTH_REQUIRED", message, 401);
     }
 
-    const { org_id, bucket, file_name, duration_seconds } = await req.json();
+    const { org_id, bucket, file_name, file_size_bytes, duration_seconds } = await req.json();
     if (!org_id || !bucket || !file_name || !duration_seconds) {
       return errorResponse("MISSING_REQUIRED_FIELDS", "org_id, bucket, file_name, and duration_seconds are required", 400);
+    }
+    
+    const fileSizeBytes = Number(file_size_bytes || 0);
+    if (fileSizeBytes <= 0) {
+      return errorResponse("INVALID_FILE_SIZE", "file_size_bytes must be greater than 0", 400);
     }
 
     if (bucket !== "rugbycodex") {
@@ -72,16 +77,56 @@ Deno.serve(withObservability("get-wasabi-upload-session", async (req, ctx) => {
       }
     }
 
+    // Check storage quota BEFORE creating media asset
+    const { data: org, error: orgError } = await supabase
+      .from("organizations")
+      .select("storage_limit_mb")
+      .eq("id", org_id)
+      .single();
+
+    if (orgError || !org) {
+      return errorResponse("ORG_LOOKUP_FAILED", orgError?.message || "Organization not found", 404);
+    }
+
+    const limit_bytes = org.storage_limit_mb * 1024 * 1024;
+
+    // Calculate current usage
+    const { data: usage, error: usageError } = await supabase
+      .from("media_assets")
+      .select("file_size_bytes")
+      .eq("org_id", org_id);
+
+    if (usageError) {
+      return errorResponse("DB_QUERY_FAILED", "Failed to calculate storage usage", 500);
+    }
+
+    const used_bytes = usage.reduce((sum, row) => sum + Number(row.file_size_bytes), 0);
+    const remaining_bytes = limit_bytes - used_bytes;
+
+    // Check if upload would exceed quota
+    if (remaining_bytes < fileSizeBytes) {
+      const limitMB = Math.round(limit_bytes / (1024 * 1024));
+      const usedMB = Math.round(used_bytes / (1024 * 1024));
+      const attemptedMB = Math.round(fileSizeBytes / (1024 * 1024));
+      
+      return errorResponse(
+        "STORAGE_QUOTA_EXCEEDED",
+        `Storage quota exceeded for org ${org_id} (limit ${limitMB} MB, used ${usedMB} MB, attempted +${attemptedMB} MB)`,
+        403
+      );
+    }
+
     // The base storage path to protect duplicate upload files within the org
     const base_storage_path = `orgs/${org_id}/uploads/`;
 
-    // Insert initial row
+    // Insert initial row with actual file size
     let newAsset;
     try {
       newAsset = await insertMediaAsset({
         org_id,
         uploader_id: userId,
         file_name,
+        file_size_bytes: fileSizeBytes,
         status: "uploading",
         duration_seconds,
         base_org_storage_path: base_storage_path,

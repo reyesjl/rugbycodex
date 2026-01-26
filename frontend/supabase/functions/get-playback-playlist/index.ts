@@ -1,5 +1,5 @@
 import { getAuthContext, getClientBoundToRequest } from "../_shared/auth.ts";
-import { handleCors, jsonResponse } from "../_shared/cors.ts";
+import { handleCors, jsonResponse, corsHeaders } from "../_shared/cors.ts";
 import { errorResponse } from "../_shared/errors.ts";
 import { getUserRoleFromRequest, requireRole } from "../_shared/roles.ts";
 import { logEvent, withObservability } from "../_shared/observability.ts";
@@ -311,6 +311,7 @@ Deno.serve(withObservability("get-playback-playlist", async (req, ctx) => {
       return new Response(cdnUrl, {
         status: 200,
         headers: {
+          ...corsHeaders,
           "Content-Type": "text/plain",
         },
       });
@@ -401,6 +402,7 @@ Deno.serve(withObservability("get-playback-playlist", async (req, ctx) => {
     return new Response(rewrittenText, {
       status: 200,
       headers: {
+        ...corsHeaders,
         "Content-Type": "application/vnd.apple.mpegurl",
       },
     });

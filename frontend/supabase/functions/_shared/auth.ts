@@ -17,6 +17,21 @@ export function getClientBoundToRequest(req: Request) {
 }
 
 /**
+ * Create a Supabase client with service role permissions
+ * Use ONLY for operations that need to bypass RLS
+ */
+export function getServiceRoleClient() {
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  return createClient(supabaseUrl, serviceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
+}
+
+/**
  * getAuthContext
  * - Verifies the access token via auth.getUser()
  * - Extracts user_role only from the verified session payload
