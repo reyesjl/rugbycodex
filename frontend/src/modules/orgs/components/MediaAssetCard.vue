@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { Icon } from '@iconify/vue';
+import LoadingDot from '@/components/LoadingDot.vue';
 import type { OrgMediaAsset } from '@/modules/media/types/OrgMediaAsset';
 import type { UploadState } from '@/modules/media/types/UploadStatus';
 import { formatDaysAgo } from '@/lib/date';
@@ -9,7 +10,6 @@ import { formatHoursMinutes } from '@/lib/duration';
 
 const props = defineProps<{
   asset: OrgMediaAsset;
-  narrationCount: number;
   canManage?: boolean;
   uploadMetrics?: {
     state: UploadState;
@@ -49,40 +49,29 @@ const isAbandoned = computed(() => {
 const overlayIconName = computed(() => {
   if (isAbandoned.value) return 'carbon:warning-alt';
   const status = props.asset.status;
-  if (status === 'processing') return 'carbon:data-regular';
-  if (status === 'ready' && !props.asset.streaming_ready) return 'carbon:data-regular';
-  if (status === 'ready') return 'carbon:play-filled-alt';
-  if (status === 'uploading') return 'ei:spinner';
-  if (status === 'uploaded') return 'ei:spinner';
-  return statusDisplay.value.icon ?? 'ei:spinner';
+  if (status === 'ready' && props.asset.streaming_ready) return 'carbon:play-filled-alt';
+  // For uploading, uploaded, processing - we'll use LoadingDot instead
+  return null;
+});
+
+const showLoadingDot = computed(() => {
+  const status = props.asset.status;
+  return status === 'uploading' || status === 'uploaded' || status === 'processing' || 
+         (status === 'ready' && !props.asset.streaming_ready);
+});
+
+const loadingDotColor = computed(() => {
+  const status = props.asset.status;
+  if (status === 'uploading' || status === 'uploaded') return 'text-blue-400';
+  if (status === 'processing' || (status === 'ready' && !props.asset.streaming_ready)) return 'text-amber-400';
+  return 'text-white/60';
 });
 
 const overlayIconClass = computed(() => {
   if (isAbandoned.value) return 'text-yellow-500/70';
   const status = props.asset.status;
   if (status === 'ready' && props.asset.streaming_ready) return 'text-white/30';
-  if (status === 'processing' || (status === 'ready' && !props.asset.streaming_ready)) {
-    return 'text-white/40 animate-spin';
-  }
-  if (status === 'uploading' || status === 'uploaded') return 'text-white/40 animate-spin';
   return 'text-white/40';
-});
-
-const contextProgressStyle = computed(() => {
-  const progress = Math.min(props.narrationCount / 5, 1);
-  return { width: `${Math.round(progress * 100)}%` };
-});
-
-const contextFillClass = computed(() => {
-  const count = props.narrationCount;
-  if (count <= 0) return 'bg-transparent';
-  if (count >= 10) return 'bg-emerald-300/40';
-  return 'bg-amber-300/40';
-});
-
-const narrationCountLabel = computed(() => {
-  const count = props.narrationCount;
-  return count === 1 ? '1 narration' : `${count} narrations`;
 });
 
 const showUploadProgress = computed(
@@ -179,10 +168,22 @@ function clipTitle(fileName: string) {
           />
 
           <div
-            v-if="!showThumbnail || isStreamingProcessing"
+            v-if="!showThumbnail || isStreamingProcessing || showLoadingDot"
             class="absolute inset-0 flex items-center justify-center"
           >
-            <Icon :icon="overlayIconName" class="h-10 w-10" :class="overlayIconClass" />
+            <!-- Use LoadingDot for processing states -->
+            <LoadingDot
+              v-if="showLoadingDot"
+              size="lg"
+              :color="loadingDotColor"
+            />
+            <!-- Use regular icon for other states -->
+            <Icon
+              v-else-if="overlayIconName"
+              :icon="overlayIconName"
+              class="h-10 w-10"
+              :class="overlayIconClass"
+            />
           </div>
         </div>
 
@@ -193,12 +194,9 @@ function clipTitle(fileName: string) {
         </div>
       </div>
 
-      <!-- Context coverage indicator (thin bar) OR upload progress -->
+      <!-- Upload progress -->
       <div v-if="showUploadProgress" class="mt-2 h-1 w-full rounded bg-white/10">
-        <div class="h-full rounded bg-green-500/70" :style="uploadProgressStyle" />
-      </div>
-      <div v-else class="mt-2 h-1 w-full rounded bg-white/10">
-        <div class="h-full rounded" :class="contextFillClass" :style="contextProgressStyle" />
+        <div class="h-full rounded bg-blue-500/70" :style="uploadProgressStyle" />
       </div>
 
       <!-- Metadata -->
@@ -210,7 +208,7 @@ function clipTitle(fileName: string) {
           {{ asset.kind }}
         </div>
         <div class="text-xs text-white/50">
-          {{ narrationCountLabel }} • {{ formatDaysAgo(asset.created_at) ?? 'Unknown date' }}
+          {{ formatDaysAgo(asset.created_at) ?? 'Unknown date' }}
         </div>
 
         <!-- Status -->

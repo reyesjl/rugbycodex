@@ -453,14 +453,13 @@ watch(activeOrgId, (orgId, prevOrgId) => {
             v-for="asset in assets"
             :key="asset.id"
             :asset="asset"
-            :narration-count="mediaStore.narrationCountByAssetId(asset.id)"
             :can-manage="canManage"
             :upload-metrics="uploadMetricsByAssetId.get(asset.id)"
-            @open="openAsset"
-            @review="openReview"
-            @edit="openEditMedia"
-            @delete="openConfirmDelete"
-            @reattach="openReattachModal"
+            @open="openAsset(asset.id)"
+            @review="openReview(asset.id)"
+            @delete="openConfirmDelete(asset.id)"
+            @edit="openEditMedia(asset.id)"
+            @reattach="openReattachModal(asset.id)"
           />
         </div>
       </div>
