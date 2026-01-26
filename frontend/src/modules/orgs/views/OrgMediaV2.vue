@@ -64,14 +64,26 @@ const uploadMetricsByAssetId = computed(() => {
 });
 
 const searchQuery = ref('');
+const selectedKind = ref<'all' | 'match' | 'training'>('all');
 
 const filteredAssets = computed(() => {
-  if (!searchQuery.value.trim()) return assets.value;
-  const query = searchQuery.value.toLowerCase();
-  return assets.value.filter(asset => 
-    asset.file_name.toLowerCase().includes(query) ||
-    asset.kind?.toLowerCase().includes(query)
-  );
+  let filtered = assets.value;
+  
+  // Filter by kind
+  if (selectedKind.value !== 'all') {
+    filtered = filtered.filter(asset => asset.kind === selectedKind.value);
+  }
+  
+  // Filter by search query
+  if (searchQuery.value.trim()) {
+    const query = searchQuery.value.toLowerCase();
+    filtered = filtered.filter(asset => 
+      asset.file_name.toLowerCase().includes(query) ||
+      asset.kind?.toLowerCase().includes(query)
+    );
+  }
+  
+  return filtered;
 });
 
 // Group assets by time period
@@ -499,15 +511,48 @@ watch(activeOrgId, (orgId, prevOrgId) => {
         </button>
       </div>
 
-      <!-- Search bar -->
-      <div v-if="assets.length > 0" class="relative max-w-md">
-        <Icon icon="carbon:search" class="absolute left-0 top-1/2 -translate-y-1/2 text-white/30" width="20" height="20" />
-        <input
-          v-model="searchQuery"
-          type="text"
-          placeholder="Search footage..."
-          class="w-full pl-8 pr-4 py-3 bg-transparent border-0 border-b border-white/10 text-white placeholder:text-white/30 focus:outline-none focus:border-white/30 transition text-base"
-        />
+      <!-- Search bar and filters -->
+      <div v-if="assets.length > 0" class="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6">
+        <!-- Search -->
+        <div class="relative w-full sm:max-w-md sm:flex-1">
+          <Icon icon="carbon:search" class="absolute left-0 top-1/2 -translate-y-1/2 text-white/30" width="20" height="20" />
+          <input
+            v-model="searchQuery"
+            type="text"
+            placeholder="Search footage..."
+            class="w-full pl-8 pr-4 py-3 bg-transparent border-0 border-b border-white/10 text-white placeholder:text-white/30 focus:outline-none focus:border-white/30 transition text-base"
+          />
+        </div>
+
+        <!-- Kind filter toggle -->
+        <div class="flex items-center gap-3 text-sm">
+          <button
+            type="button"
+            @click="selectedKind = 'all'"
+            class="transition"
+            :class="selectedKind === 'all' ? 'text-white font-semibold' : 'text-white/40 hover:text-white/60'"
+          >
+            All
+          </button>
+          <div class="h-4 w-px bg-white/20"></div>
+          <button
+            type="button"
+            @click="selectedKind = 'match'"
+            class="transition"
+            :class="selectedKind === 'match' ? 'text-white font-semibold' : 'text-white/40 hover:text-white/60'"
+          >
+            Match
+          </button>
+          <div class="h-4 w-px bg-white/20"></div>
+          <button
+            type="button"
+            @click="selectedKind = 'training'"
+            class="transition"
+            :class="selectedKind === 'training' ? 'text-white font-semibold' : 'text-white/40 hover:text-white/60'"
+          >
+            Training
+          </button>
+        </div>
       </div>
 
       <!-- Upload notification -->

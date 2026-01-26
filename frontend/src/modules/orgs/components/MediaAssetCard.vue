@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, onMounted, onUnmounted } from 'vue';
 import { Icon } from '@iconify/vue';
 import LoadingDot from '@/components/LoadingDot.vue';
 import type { OrgMediaAsset } from '@/modules/media/types/OrgMediaAsset';
@@ -95,6 +95,8 @@ const uploadSpeedLabel = computed(() => {
 });
 
 const menuOpen = ref(false);
+const menuRef = ref<HTMLElement | null>(null);
+const menuButtonRef = ref<HTMLElement | null>(null);
 
 const canManage = computed(() => Boolean(props.canManage));
 
@@ -105,6 +107,21 @@ function closeMenu() {
 function toggleMenu() {
   menuOpen.value = !menuOpen.value;
 }
+
+function handleClickOutside(event: MouseEvent) {
+  if (!menuOpen.value) return;
+  const target = event.target as Node | null;
+  if (menuButtonRef.value?.contains(target) || menuRef.value?.contains(target)) return;
+  closeMenu();
+}
+
+onMounted(() => {
+  document.addEventListener('click', handleClickOutside);
+});
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside);
+});
 
 function handleEdit() {
   if (!canManage.value) return;
@@ -244,6 +261,7 @@ function clipTitle(fileName: string) {
           <div class="relative">
             <button
               v-if="canManage"
+              ref="menuButtonRef"
               type="button"
               class="rounded p-1 text-white/50 hover:bg-white/10 hover:text-white/80 transition"
               aria-label="More actions"
@@ -254,6 +272,7 @@ function clipTitle(fileName: string) {
 
             <div
               v-if="menuOpen && canManage"
+              ref="menuRef"
               class="absolute right-0 bottom-full mb-2 min-w-28 rounded-md border border-white/10 bg-black/60 backdrop-blur-md text-white"
               @click.stop
             >
