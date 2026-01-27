@@ -17,8 +17,8 @@ const props = defineProps<{
   narrations: NarrationListItem[];
   activeSegmentId?: string | null;
   focusedSegmentId?: string | null;
-  defaultSource?: 'all' | 'coach' | 'staff' | 'member' | 'ai';
-  sourceFilter?: 'all' | 'coach' | 'staff' | 'member' | 'ai' | null;
+  defaultSource?: 'all' | 'coach' | 'staff' | 'member';
+  sourceFilter?: 'all' | 'coach' | 'staff' | 'member' | null;
   canModerateNarrations?: boolean;
   canAssignSegments?: boolean;
   canTagSegments?: boolean;
@@ -91,7 +91,7 @@ function classForTagType(tagType: SegmentTagType | null | undefined): string {
 
 function normalizeNarrationSourceType(value: unknown): NarrationSourceType {
   const raw = String(value ?? '').toLowerCase();
-  if (raw === 'coach' || raw === 'staff' || raw === 'member' || raw === 'ai') {
+  if (raw === 'coach' || raw === 'staff' || raw === 'member') {
     return raw as NarrationSourceType;
   }
   return 'member';
@@ -209,7 +209,7 @@ const {
 
 function normalizeSource(value: unknown): SourceFilter {
   const raw = String(value ?? '').toLowerCase();
-  if (raw === 'coach' || raw === 'staff' || raw === 'member' || raw === 'ai') {
+  if (raw === 'coach' || raw === 'staff' || raw === 'member') {
     return raw as SourceFilter;
   }
   return 'all';

@@ -2,7 +2,7 @@ import type { UUID } from "@/modules/orgs/types/UUID";
 import type { OrgId } from "@/modules/orgs/types/OrgId";
 import type { UserId } from "@/modules/orgs/types/UserId";
 
-export type NarrationSourceType = 'coach' | 'staff' | 'member' | 'ai';
+export type NarrationSourceType = 'coach' | 'staff' | 'member';
 
 export type Narration = {
   id: UUID;

@@ -76,7 +76,7 @@ async function getList<T = NarrationRow>(query: ListQueryResult<T>): Promise<T[]
 
 function normalizeNarrationSourceType(value: unknown): NarrationSourceType {
   const raw = String(value ?? '').toLowerCase();
-  if (raw === 'coach' || raw === 'staff' || raw === 'member' || raw === 'ai') {
+  if (raw === 'coach' || raw === 'staff' || raw === 'member') {
     return raw as NarrationSourceType;
   }
   return 'member';
@@ -223,19 +223,16 @@ export const narrationService = {
     mediaAssetId: string;
     mediaAssetSegmentId: string;
     transcriptRaw: string;
-    /** Optional: system/AI narrations can pass sourceType: 'ai' and authorId: null. */
+    /** Optional: override narration source type. */
     sourceType?: NarrationSourceType | null;
     authorId?: string | null;
   }): Promise<Narration> {
-    const isSystemNarration = input.sourceType === 'ai' || input.authorId === null;
-    let authorId: string | null = null;
+    const authorId = input.authorId ?? requireUserId();
     let sourceType: NarrationSourceType;
 
-    if (isSystemNarration) {
-      authorId = null;
-      sourceType = 'ai';
+    if (input.sourceType) {
+      sourceType = normalizeNarrationSourceType(input.sourceType);
     } else {
-      authorId = input.authorId ?? requireUserId();
       // Snapshot org_members.role -> narration.source_type at creation time.
       const role = await getOrgMemberRole(input.orgId, authorId);
       sourceType = mapMembershipRoleToNarrationSourceType(role);

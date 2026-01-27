@@ -30,7 +30,6 @@ const SOURCE_FILTERS: Array<{ value: SourceFilter; label: string }> = [
   { value: 'coach', label: 'Coach' },
   { value: 'staff', label: 'Staff' },
   { value: 'member', label: 'Member' },
-  { value: 'ai', label: 'AI' },
 ];
 
 const tagFiltersExpanded = ref(false);

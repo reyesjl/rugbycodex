@@ -30,7 +30,7 @@ function isSavedNarration(n: NarrationListItem): n is Narration {
 
 function normalizeNarrationSourceType(value: unknown): NarrationSourceType {
   const raw = String(value ?? '').toLowerCase();
-  if (raw === 'coach' || raw === 'staff' || raw === 'member' || raw === 'ai') {
+  if (raw === 'coach' || raw === 'staff' || raw === 'member') {
     return raw as NarrationSourceType;
   }
   return 'member';
@@ -42,13 +42,11 @@ function narrationSourceTypeFor(item: NarrationListItem): NarrationSourceType {
 
 const sourceLabel = computed(() => {
   const source = narrationSourceTypeFor(props.narration);
-  if (source === 'ai') return 'AI';
   return `${source.charAt(0).toUpperCase()}${source.slice(1)}`;
 });
 
 const sourceColorClass = computed(() => {
   const source = narrationSourceTypeFor(props.narration);
-  if (source === 'ai') return 'bg-slate-700/50 text-slate-300';
   if (source === 'coach') return 'bg-slate-700/50 text-slate-300';
   if (source === 'staff') return 'bg-slate-700/50 text-slate-300';
   return 'bg-slate-700/50 text-slate-300';

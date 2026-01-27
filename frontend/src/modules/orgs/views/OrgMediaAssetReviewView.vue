@@ -128,7 +128,7 @@ type NarrationSourceFilter = 'all' | NarrationSourceType;
 
 function normalizeNarrationSource(value: unknown): NarrationSourceFilter {
   const raw = String(value ?? '').toLowerCase();
-  if (raw === 'coach' || raw === 'staff' || raw === 'member' || raw === 'ai') {
+  if (raw === 'coach' || raw === 'staff' || raw === 'member') {
     return raw as NarrationSourceFilter;
   }
   return 'all';
