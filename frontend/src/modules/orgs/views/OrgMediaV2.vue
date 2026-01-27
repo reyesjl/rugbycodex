@@ -250,6 +250,8 @@ function closeConfirmDelete() {
   assetToDelete.value = null;
 }
 
+
+
 function openReattachModal(assetId: string) {
   const asset = assets.value.find(a => a.id === assetId);
   if (!asset) return;
@@ -625,7 +627,7 @@ watch(activeOrgId, (orgId, prevOrgId) => {
           <!-- Left arrow (desktop only) -->
           <button
             type="button"
-            class="hidden lg:flex absolute left-4 top-1/2 -translate-y-1/2 z-10 w-10 h-10 items-center justify-center rounded-full bg-black/80 border border-white/20 text-white/80 hover:text-white hover:bg-black transition opacity-0 group-hover/strip:opacity-100"
+            class="hidden lg:flex absolute left-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 items-center justify-center rounded-full bg-black/80 border border-white/20 text-white/80 hover:text-white hover:bg-black transition opacity-0 group-hover/strip:opacity-100"
             @click="scrollStrip($event, 'left')"
             aria-label="Scroll left"
           >
@@ -635,7 +637,7 @@ watch(activeOrgId, (orgId, prevOrgId) => {
           <!-- Right arrow (desktop only) -->
           <button
             type="button"
-            class="hidden lg:flex absolute right-4 top-1/2 -translate-y-1/2 z-10 w-10 h-10 items-center justify-center rounded-full bg-black/80 border border-white/20 text-white/80 hover:text-white hover:bg-black transition opacity-0 group-hover/strip:opacity-100"
+            class="hidden lg:flex absolute right-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 items-center justify-center rounded-full bg-black/80 border border-white/20 text-white/80 hover:text-white hover:bg-black transition opacity-0 group-hover/strip:opacity-100"
             @click="scrollStrip($event, 'right')"
             aria-label="Scroll right"
           >
@@ -659,6 +661,7 @@ watch(activeOrgId, (orgId, prevOrgId) => {
                   @delete="openConfirmDelete(asset.id)"
                   @edit="openEditMedia(asset.id)"
                   @reattach="openReattachModal(asset.id)"
+
                 />
               </div>
               <!-- Spacer to allow scrolling past the end -->

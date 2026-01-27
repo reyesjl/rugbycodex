@@ -8,6 +8,7 @@ import ShakaSurfacePlayer from '@/modules/media/components/ShakaSurfacePlayer.vu
 import FeedGestureLayer from '@/modules/feed/components/FeedGestureLayer.vue';
 import FeedOverlayControls from '@/modules/feed/components/FeedOverlayControls.vue';
 import NarrationRecorder from '@/modules/narrations/components/NarrationRecorder.vue';
+import MediaProcessingStatusBanner from '@/modules/media/components/MediaProcessingStatusBanner.vue';
 
 import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrganizationStore';
 import { useAuthStore } from '@/modules/auth/stores/useAuthStore';
@@ -20,6 +21,7 @@ import { useMediaAssetReview } from '@/modules/media/composables/useMediaAssetRe
 import { useVideoOverlayControls } from '@/modules/media/composables/useVideoOverlayControls';
 import { useSegmentPlayback } from '@/modules/media/composables/useSegmentPlayback';
 import { useTypewriter } from '@/composables/useTypewriter';
+import { useMediaProcessingStatus } from '@/modules/media/composables/useMediaProcessingStatus';
 
 import type { MatchSummaryState } from '@/modules/analysis/types/MatchSummary';
 import MatchSummaryBlock from '@/modules/analysis/components/MatchSummaryBlock.vue';
@@ -176,6 +178,10 @@ const {
   removeSegmentTag,
   generateMatchSummary,
 } = mediaReview;
+
+// Processing status composable
+const mediaAssetRef = computed(() => asset.value);
+const { processingStatus, detectionCount } = useMediaProcessingStatus(mediaAssetRef);
 
 const narrationTargetSegmentId = ref<string | null>(null);
 
@@ -970,6 +976,14 @@ async function handleDeleteNarration(narrationId: string) {
       <div v-else class="grid grid-cols-1 gap-4 md:grid-cols-5">
         <!-- Player column -->
         <div class="md:col-span-3 space-y-3">
+          <!-- Processing Status Banner (shows for blocking or background processing) -->
+          <MediaProcessingStatusBanner 
+            v-if="processingStatus.isBlockingProcessing || processingStatus.isBackgroundProcessing" 
+            :status="processingStatus" 
+            :show-watch-message="true"
+            mode="banner"
+          />
+          
           <!-- Mobile: full-bleed video surface (like Feed); md+: rounded container -->
           <div class="-mx-4 md:mx-0">
             <div class="overflow-hidden bg-black ring-1 ring-white/10 md:rounded-xl md:bg-white/5">

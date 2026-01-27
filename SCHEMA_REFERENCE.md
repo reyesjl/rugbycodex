@@ -140,6 +140,14 @@ CREATE TABLE public.media_assets (
   kind USER-DEFINED NOT NULL DEFAULT 'match'::media_asset_kind,
   streaming_ready boolean NOT NULL DEFAULT false,
   thumbnail_path text,
+  processing_stage text DEFAULT 'uploaded',
+    -- Current processing stage:
+    -- 'uploaded': File uploaded, transcode queued
+    -- 'transcoding': Transcode in progress
+    -- 'transcoded': Transcode complete, streaming ready
+    -- 'detecting_events': Event detection in progress
+    -- 'complete': All processing complete
+    -- 'failed': Processing failed
   CONSTRAINT media_assets_pkey PRIMARY KEY (id),
   CONSTRAINT media_assets_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id),
   CONSTRAINT media_assets_uploader_id_fkey FOREIGN KEY (uploader_id) REFERENCES public.profiles(id)

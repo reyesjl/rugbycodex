@@ -39,7 +39,12 @@ export const useOrgMediaStore = defineStore("orgMedia", () => {
   const activeOrgId = computed(() => activeOrganizationStore.orgContext?.organization?.id ?? null);
 
   const processingAssets = computed(() =>
-    data.assets.filter(a => a.status === 'ready' && !a.streaming_ready)
+    data.assets.filter(a => 
+      // Transcoding: status ready but not streaming_ready yet
+      (a.status === 'ready' && !a.streaming_ready) ||
+      // Event detection: actively detecting events
+      (a.processing_stage === 'detecting_events')
+    )
   );
 
   function narrationCountByAssetId(assetId: string): number {
@@ -159,6 +164,13 @@ export const useOrgMediaStore = defineStore("orgMedia", () => {
 
     if (data.loadedOrgId === orgId) return;
 
+    await forceReload();
+  }
+
+  async function forceReload() {
+    const orgId = activeOrgId.value;
+    if (!orgId) return;
+
     loadToken += 1;
     const token = loadToken;
     lastFullReload = Date.now();
@@ -183,6 +195,12 @@ export const useOrgMediaStore = defineStore("orgMedia", () => {
 
       data.loadedOrgId = orgId;
       status.state = "ready";
+      
+      // Check if polling should start after reload
+      if (processingAssets.value.length > 0 && !pollingInterval) {
+        console.log('[OrgMedia] 🔄 Auto-starting polling after reload');
+        startPolling();
+      }
     } catch (err) {
       if (token !== loadToken) return;
 
@@ -227,6 +245,7 @@ export const useOrgMediaStore = defineStore("orgMedia", () => {
     error,
     loadedOrgId,
     loadForActiveOrg,
+    forceReload,
     reset,
     isLoading,
     isReady,

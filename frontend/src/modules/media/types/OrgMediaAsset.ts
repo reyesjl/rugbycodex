@@ -22,6 +22,7 @@ export type OrgMediaAsset = {
   title?: string | null;
   kind: MediaAssetKind;
   status: MediaAssetStatus;
+  processing_stage?: string | null;
   created_at: Date;
   base_org_storage_path: string;
 };

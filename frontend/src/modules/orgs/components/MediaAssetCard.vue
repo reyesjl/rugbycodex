@@ -2,6 +2,8 @@
 import { computed, ref, onMounted, onUnmounted } from 'vue';
 import { Icon } from '@iconify/vue';
 import LoadingDot from '@/components/LoadingDot.vue';
+import MediaProcessingStatusBanner from '@/modules/media/components/MediaProcessingStatusBanner.vue';
+import { useMediaProcessingStatus } from '@/modules/media/composables/useMediaProcessingStatus';
 import type { OrgMediaAsset } from '@/modules/media/types/OrgMediaAsset';
 import type { UploadState } from '@/modules/media/types/UploadStatus';
 import { formatDaysAgo } from '@/lib/date';
@@ -22,7 +24,11 @@ const emit = defineEmits(['open', 'review', 'delete', 'reattach', 'edit']);
 
 const statusDisplay = computed(() => getMediaAssetStatusDisplay(props.asset.status));
 
-const isInteractive = computed(() => props.asset.status === 'ready' && props.asset.streaming_ready);
+// Use processing status composable
+const { processingStatus } = useMediaProcessingStatus(computed(() => props.asset));
+
+// Video is interactive once it's watchable (streaming_ready = true)
+const isInteractive = computed(() => processingStatus.value.isWatchable);
 
 const isActivelyUploading = computed(() => props.uploadMetrics?.state === 'uploading');
 
@@ -50,31 +56,36 @@ const isAbandoned = computed(() => {
   return props.asset.status === 'interrupted' || props.uploadMetrics?.state === 'abandoned';
 });
 
+// Show overlay only during blocking processing (transcoding)
+const showBlockingOverlay = computed(() => {
+  return processingStatus.value.isBlockingProcessing;
+});
+
+// Show small badge for background processing (event detection)
+const showBackgroundBadge = computed(() => {
+  return processingStatus.value.isBackgroundProcessing;
+});
+
 const overlayIconName = computed(() => {
+  // Don't show icon if we're showing processing overlays/badges
+  if (showBlockingOverlay.value || showBackgroundBadge.value) return null;
+  
   if (isAbandoned.value) return 'carbon:warning-alt';
-  const status = props.asset.status;
-  if (status === 'ready' && props.asset.streaming_ready) return 'carbon:play-filled-alt';
-  // For uploading, uploaded, processing - we'll use LoadingDot instead
+  if (isInteractive.value) return 'carbon:play-filled-alt';
   return null;
 });
 
 const showLoadingDot = computed(() => {
-  const status = props.asset.status;
-  return status === 'uploading' || status === 'uploaded' || status === 'processing' || 
-         (status === 'ready' && !props.asset.streaming_ready);
+  return false; // We use overlays and badges instead
 });
 
 const loadingDotColor = computed(() => {
-  const status = props.asset.status;
-  if (status === 'uploading' || status === 'uploaded') return 'text-blue-400';
-  if (status === 'processing' || (status === 'ready' && !props.asset.streaming_ready)) return 'text-amber-400';
   return 'text-white/60';
 });
 
 const overlayIconClass = computed(() => {
   if (isAbandoned.value) return 'text-yellow-500/70';
-  const status = props.asset.status;
-  if (status === 'ready' && props.asset.streaming_ready) return 'text-white/30';
+  if (isInteractive.value) return 'text-white/30';
   return 'text-white/40';
 });
 
@@ -182,25 +193,33 @@ function clipTitle(fileName: string) {
           <img
             v-if="thumbnailUrl"
             class="absolute inset-0 h-full w-full object-cover"
-            :class="isStreamingProcessing ? 'opacity-60' : ''"
             :src="thumbnailUrl"
             :alt="clipTitle(asset.file_name)"
             loading="lazy"
           />
 
+          <!-- Blocking Processing Overlay (transcoding) -->
+          <MediaProcessingStatusBanner 
+            v-if="showBlockingOverlay"
+            :status="processingStatus" 
+            mode="overlay"
+          />
+
+          <!-- Background Processing Badge (event detection) -->
           <div
-            v-if="!showThumbnail || isStreamingProcessing || showLoadingDot"
+            v-else-if="showBackgroundBadge"
+            class="absolute top-2 right-2 z-10 flex items-center gap-1.5 rounded-full bg-purple-600/30 px-2.5 py-1 text-xs font-medium text-white backdrop-blur-md ring-1 ring-white/20"
+          >
+            <LoadingDot size="sm" color="#FFFFFF" />
+            <span>Analyzing</span>
+          </div>
+
+          <!-- Play icon or abandoned warning (when not processing) -->
+          <div
+            v-if="!showBlockingOverlay && !showBackgroundBadge && overlayIconName"
             class="absolute inset-0 flex items-center justify-center"
           >
-            <!-- Use LoadingDot for processing states -->
-            <LoadingDot
-              v-if="showLoadingDot"
-              size="lg"
-              :color="loadingDotColor"
-            />
-            <!-- Use regular icon for other states -->
             <Icon
-              v-else-if="overlayIconName"
               :icon="overlayIconName"
               class="h-10 w-10"
               :class="overlayIconClass"
@@ -258,7 +277,7 @@ function clipTitle(fileName: string) {
           <div v-else class="flex-1"></div>
 
           <!-- Actions menu -->
-          <div class="relative">
+          <div class="relative z-20">
             <button
               v-if="canManage"
               ref="menuButtonRef"
@@ -273,7 +292,7 @@ function clipTitle(fileName: string) {
             <div
               v-if="menuOpen && canManage"
               ref="menuRef"
-              class="absolute right-0 bottom-full mb-2 min-w-28 rounded-md border border-white/10 bg-black/60 backdrop-blur-md text-white"
+              class="absolute right-0 bottom-full mb-2 min-w-28 rounded-md border border-white/10 bg-black/60 backdrop-blur-md text-white z-50"
               @click.stop
             >
               <button
@@ -291,9 +310,11 @@ function clipTitle(fileName: string) {
               >
                 Edit
               </button>
+              <!-- Manual event detection trigger (for testing) -->
+
               <button
                 type="button"
-                class="w-full px-3 py-2 text-left text-xs text-red-300 hover:bg-white/10 transition"
+                class="w-full px-3 py-2 text-left text-xs text-red-300 hover:bg-white/10 transition border-t border-white/10"
                 @click="handleDelete"
               >
                 Delete

@@ -14,6 +14,155 @@ interface TriggerRequest {
   auto_dispatch?: boolean; // If true, automatically dispatch to SQS
 }
 
+interface SQSConfig {
+  region: string;
+  access_key: string;
+  secret_key: string;
+  analysis_queue_url: string;
+}
+
+function getSQSConfig(): SQSConfig {
+  return {
+    region: Deno.env.get("AWS_REGION") || "us-east-1",
+    access_key: Deno.env.get("AWS_ACCESS_KEY_ID") || "",
+    secret_key: Deno.env.get("AWS_SECRET_ACCESS_KEY") || "",
+    analysis_queue_url: Deno.env.get("SQS_ANALYSIS_QUEUE_URL") || "",
+  };
+}
+
+async function createSQSSignature(
+  method: string,
+  url: URL,
+  body: string,
+  config: SQSConfig
+): Promise<Record<string, string>> {
+  const crypto = globalThis.crypto.subtle;
+  
+  const date = new Date();
+  const dateStamp = date.toISOString().split("T")[0].replace(/-/g, "");
+  const amzDate = date.toISOString().replace(/[:\-]|\.\d{3}/g, "");
+  
+  const service = "sqs";
+  const region = config.region;
+  const credentialScope = `${dateStamp}/${region}/${service}/aws4_request`;
+  
+  const canonicalHeaders = [
+    `host:${url.hostname}`,
+    `x-amz-date:${amzDate}`,
+  ].join("\n");
+  
+  const signedHeaders = "host;x-amz-date";
+  
+  const encoder = new TextEncoder();
+  const bodyHash = Array.from(
+    new Uint8Array(await crypto.digest("SHA-256", encoder.encode(body)))
+  )
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  
+  const canonicalRequest = [
+    method,
+    url.pathname,
+    url.search.slice(1),
+    canonicalHeaders,
+    "",
+    signedHeaders,
+    bodyHash,
+  ].join("\n");
+  
+  const canonicalRequestHash = Array.from(
+    new Uint8Array(await crypto.digest("SHA-256", encoder.encode(canonicalRequest)))
+  )
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  
+  const stringToSign = [
+    "AWS4-HMAC-SHA256",
+    amzDate,
+    credentialScope,
+    canonicalRequestHash,
+  ].join("\n");
+  
+  async function hmac(key: Uint8Array, data: string): Promise<Uint8Array> {
+    const cryptoKey = await crypto.importKey(
+      "raw",
+      key,
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign"]
+    );
+    return new Uint8Array(await crypto.sign("HMAC", cryptoKey, encoder.encode(data)));
+  }
+  
+  let signingKey = encoder.encode(`AWS4${config.secret_key}`);
+  signingKey = await hmac(signingKey, dateStamp);
+  signingKey = await hmac(signingKey, region);
+  signingKey = await hmac(signingKey, service);
+  signingKey = await hmac(signingKey, "aws4_request");
+  
+  const signature = Array.from(await hmac(signingKey, stringToSign))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  
+  const authorization = [
+    `AWS4-HMAC-SHA256 Credential=${config.access_key}/${credentialScope}`,
+    `SignedHeaders=${signedHeaders}`,
+    `Signature=${signature}`,
+  ].join(", ");
+  
+  return {
+    "host": url.hostname,
+    "x-amz-date": amzDate,
+    "authorization": authorization,
+  };
+}
+
+async function sendToSQS(
+  queueUrl: string,
+  messageBody: Record<string, any>,
+  config: SQSConfig,
+  requestId: string
+): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  try {
+    const url = new URL(queueUrl);
+    const body = new URLSearchParams({
+      Action: "SendMessage",
+      MessageBody: JSON.stringify(messageBody),
+    }).toString();
+    
+    const headers = await createSQSSignature("POST", url, body, config);
+    
+    logEvent({
+      severity: "info",
+      event_type: "sqs_send_attempt",
+      request_id: requestId,
+      queue_url: queueUrl,
+    });
+    
+    const response = await fetch(url.toString(), {
+      method: "POST",
+      headers: {
+        ...headers,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body,
+    });
+    
+    if (!response.ok) {
+      return { success: false, error: `SQS request failed: ${response.status}` };
+    }
+    
+    const text = await response.text();
+    const messageIdMatch = text.match(/<MessageId>([^<]+)<\/MessageId>/);
+    const messageId = messageIdMatch ? messageIdMatch[1] : undefined;
+    
+    return { success: true, messageId };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    return { success: false, error: message };
+  }
+}
+
 Deno.serve(withObservability("trigger-event-detection", async (req, ctx) => {
   const corsResponse = handleCors(req);
   if (corsResponse) return corsResponse;
@@ -134,6 +283,31 @@ Deno.serve(withObservability("trigger-event-detection", async (req, ctx) => {
       org_id: mediaAsset.org_id,
     });
 
+    // Update processing_stage immediately for instant UI feedback
+    const { error: stageUpdateError } = await serviceClient
+      .from("media_assets")
+      .update({ processing_stage: "detecting_events" })
+      .eq("id", media_id);
+
+    if (stageUpdateError) {
+      logEvent({
+        severity: "warn",
+        event_type: "processing_stage_update_failed",
+        request_id: ctx.requestId,
+        media_id,
+        error: stageUpdateError.message,
+      });
+      // Don't fail the request - worker will update it anyway
+    } else {
+      logEvent({
+        severity: "info",
+        event_type: "processing_stage_updated",
+        request_id: ctx.requestId,
+        media_id,
+        stage: "detecting_events",
+      });
+    }
+
     const response: any = {
       success: true,
       job_id: newJob.id,
@@ -142,61 +316,64 @@ Deno.serve(withObservability("trigger-event-detection", async (req, ctx) => {
 
     // Auto-dispatch to SQS if requested
     if (auto_dispatch) {
-      try {
-        const dispatchUrl = new URL(
-          "/functions/v1/dispatch-job-to-sqs",
-          Deno.env.get("SUPABASE_URL") || req.url
+      const sqsConfig = getSQSConfig();
+      
+      if (!sqsConfig.access_key || !sqsConfig.secret_key) {
+        logEvent({
+          severity: "warn",
+          event_type: "sqs_config_missing",
+          request_id: ctx.requestId,
+          job_id: newJob.id,
+        });
+        response.dispatched = false;
+        response.dispatch_error = "AWS credentials not configured";
+      } else if (!sqsConfig.analysis_queue_url) {
+        logEvent({
+          severity: "warn",
+          event_type: "sqs_queue_url_missing",
+          request_id: ctx.requestId,
+          job_id: newJob.id,
+        });
+        response.dispatched = false;
+        response.dispatch_error = "SQS analysis queue URL not configured";
+      } else {
+        const messageBody = {
+          job_id: newJob.id,
+          media_id,
+          org_id: mediaAsset.org_id,
+          type: "event_detection",
+        };
+
+        const sqsResult = await sendToSQS(
+          sqsConfig.analysis_queue_url,
+          messageBody,
+          sqsConfig,
+          ctx.requestId
         );
 
-        const dispatchResponse = await fetch(dispatchUrl.toString(), {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": req.headers.get("Authorization") || "",
-          },
-          body: JSON.stringify({
-            job_id: newJob.id,
-            media_id,
-            org_id: mediaAsset.org_id,
-            type: "analysis",
-          }),
-        });
-
-        if (dispatchResponse.ok) {
-          const dispatchData = await dispatchResponse.json();
+        if (sqsResult.success) {
           response.dispatched = true;
-          response.message_id = dispatchData.message_id;
+          response.message_id = sqsResult.messageId;
           
           logEvent({
             severity: "info",
-            event_type: "job_auto_dispatched",
+            event_type: "job_dispatched",
             request_id: ctx.requestId,
             job_id: newJob.id,
-            message_id: dispatchData.message_id,
+            sqs_message_id: sqsResult.messageId,
           });
         } else {
           response.dispatched = false;
-          response.dispatch_error = `Failed to dispatch: ${dispatchResponse.status}`;
+          response.dispatch_error = sqsResult.error;
           
           logEvent({
             severity: "warn",
-            event_type: "auto_dispatch_failed",
+            event_type: "sqs_dispatch_failed",
             request_id: ctx.requestId,
             job_id: newJob.id,
-            status: dispatchResponse.status,
+            error: sqsResult.error,
           });
         }
-      } catch (dispatchError) {
-        response.dispatched = false;
-        response.dispatch_error = dispatchError instanceof Error ? dispatchError.message : "Unknown error";
-        
-        logEvent({
-          severity: "warn",
-          event_type: "auto_dispatch_error",
-          request_id: ctx.requestId,
-          job_id: newJob.id,
-          error: response.dispatch_error,
-        });
       }
     }
 
