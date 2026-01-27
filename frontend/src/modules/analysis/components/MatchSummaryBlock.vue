@@ -51,7 +51,7 @@ const buttonLabel = computed(() => {
 
 <template>
   <div :class="containerClass">
-    <div class="flex items-center justify-between gap-3">
+    <div v-if="state === 'normal'" class="flex items-center justify-between gap-3">
       <div class="flex items-center gap-2 min-w-0">
         <Icon
           v-if="state === 'normal'"
@@ -95,7 +95,7 @@ const buttonLabel = computed(() => {
       </div>
     </div>
 
-    <div v-if="collapsible && collapsed" class="mt-2 text-xs text-white/50">
+    <div v-if="collapsible && collapsed && state === 'normal'" class="mt-2 text-xs text-white/50">
       Summary collapsed.
     </div>
 
@@ -104,16 +104,18 @@ const buttonLabel = computed(() => {
     </div>
 
     <!-- Empty state -->
-    <div v-else-if="state === 'empty' && !(collapsible && collapsed)" class="mt-2">
-      <div class="text-sm text-white/80">No team insights yet.</div>
-      <div class="mt-1 text-xs text-white/60">Add narrations to begin building match understanding.</div>
+    <div v-else-if="state === 'empty'" class="mt-2">
+      <div class="flex items-center gap-2 text-sm text-white/85">
+        <Icon icon="carbon:locked" width="16" height="16" class="text-white/60" />
+        <span>Add more narrations to unlock Match Summary.</span>
+      </div>
     </div>
 
     <!-- Light (locked) state -->
-    <div v-else-if="state === 'light' && !(collapsible && collapsed)" class="mt-2">
-      <div class="text-sm text-white/85">Add more narrations to unlock Match Summary.</div>
-      <div class="mt-1 text-xs text-white/60">
-        Summaries appear once enough feedback is added to identify patterns.
+    <div v-else-if="state === 'light'" class="mt-2">
+      <div class="flex items-center gap-2 text-sm text-white/85">
+        <Icon icon="carbon:locked" width="16" height="16" class="text-white/60" />
+        <span>Add more narrations to unlock Match Summary.</span>
       </div>
     </div>
 

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { Icon } from '@iconify/vue';
 import type { MediaAssetSegment } from '@/modules/narrations/types/MediaAssetSegment';
 
 const props = defineProps<{
@@ -125,7 +126,7 @@ const hoverSeconds = ref<number | null>(null);
 const timelineWidthPx = ref<number>(0);
 
 const MAG_WIDTH_PX = 240;
-const MAG_HEIGHT_PX = 44;
+const MAG_HEIGHT_PX = 20;
 const MAG_WINDOW_PCT = 0.08;
 const MAG_WINDOW_MIN_SECONDS = 6;
 const MAG_WINDOW_MAX_SECONDS = 180;
@@ -285,13 +286,13 @@ function jumpNext() {
     <div class="flex items-center gap-2">
       <button
         type="button"
-        class="h-8 w-8 shrink-0 rounded-lg bg-white/5 ring-1 ring-white/10 text-white/70 hover:bg-white/10 hover:text-white disabled:opacity-40 hover:cursor-pointer"
+        class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/5 ring-1 ring-white/10 text-white/70 hover:bg-white/10 hover:text-white disabled:opacity-40 hover:cursor-pointer"
         :disabled="!canJumpPrev"
         @click="jumpPrev"
         aria-label="Previous segment"
         title="Previous segment"
       >
-        ‹
+        <Icon icon="carbon:previous-outline" class="h-5 w-5" />
       </button>
 
       <div class="relative flex-1">
@@ -377,13 +378,13 @@ function jumpNext() {
 
       <button
         type="button"
-        class="h-8 w-8 shrink-0 rounded-lg bg-white/5 ring-1 ring-white/10 text-white/70 hover:bg-white/10 hover:text-white disabled:opacity-40 hover:cursor-pointer"
+        class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/5 ring-1 ring-white/10 text-white/70 hover:bg-white/10 hover:text-white disabled:opacity-40 hover:cursor-pointer"
         :disabled="!canJumpNext"
         @click="jumpNext"
         aria-label="Next segment"
         title="Next segment"
       >
-        ›
+        <Icon icon="carbon:next-outline" class="h-5 w-5" />
       </button>
     </div>
   </div>
