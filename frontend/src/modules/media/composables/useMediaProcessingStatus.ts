@@ -1,6 +1,5 @@
-import { ref, computed, watch } from 'vue';
+import { ref, computed } from 'vue';
 import type { Ref } from 'vue';
-import { eventDetectionService } from '@/modules/events/services/eventDetectionService';
 
 export interface MediaAsset {
   id: string;
@@ -22,7 +21,6 @@ export interface ProcessingStatus {
 
 export function useMediaProcessingStatus(mediaAsset: Ref<MediaAsset | null>) {
   const detectionCount = ref<number | null>(null);
-  const isLoadingDetections = ref(false);
 
   const processingStatus = computed<ProcessingStatus>(() => {
     if (!mediaAsset.value) {
@@ -153,29 +151,8 @@ export function useMediaProcessingStatus(mediaAsset: Ref<MediaAsset | null>) {
     }
   });
 
-  // Fetch detection count when stage is complete
-  watch(
-    () => mediaAsset.value?.processing_stage,
-    async (newStage) => {
-      if (newStage === 'complete' && mediaAsset.value && !isLoadingDetections.value) {
-        isLoadingDetections.value = true;
-        try {
-          const result = await eventDetectionService.getEventDetections(mediaAsset.value.id);
-          detectionCount.value = result.stats?.total_count || 0;
-        } catch (error) {
-          console.error('Failed to fetch detection count:', error);
-          detectionCount.value = null;
-        } finally {
-          isLoadingDetections.value = false;
-        }
-      }
-    },
-    { immediate: true }
-  );
-
   return {
     processingStatus,
     detectionCount,
-    isLoadingDetections,
   };
 }
