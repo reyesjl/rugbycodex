@@ -317,6 +317,10 @@ function narrationsForSegment(segId: string): NarrationListItem[] {
   return filteredNarrationsBySegment.value.get(String(segId)) ?? [];
 }
 
+function allNarrationsForSegment(segId: string): NarrationListItem[] {
+  return narrationsBySegment.value.get(String(segId)) ?? [];
+}
+
 function visibleNarrationsForSegment(segId: string): NarrationListItem[] {
   const list = narrationsForSegment(segId);
   if (list.length <= 1) return list;
@@ -369,7 +373,7 @@ const sourceFilteredSegments = computed(() => {
 const orderedSegments = computed(() => {
   const base = [...sourceFilteredSegments.value].sort((a, b) => (a.start_seconds ?? 0) - (b.start_seconds ?? 0));
   if (showEmptyOnly.value) {
-    return base.filter((s) => narrationsForSegment(String(s.id)).length === 0);
+    return base.filter((s) => allNarrationsForSegment(String(s.id)).length === 0);
   }
   return base.filter((s) => {
     const hasNarrations = narrationsForSegment(String(s.id)).length > 0;
