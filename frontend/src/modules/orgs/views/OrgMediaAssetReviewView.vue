@@ -973,9 +973,9 @@ async function handleDeleteNarration(narrationId: string) {
         {{ error }}
       </div>
 
-      <div v-else class="grid grid-cols-1 gap-4 md:grid-cols-5">
+      <div v-else class="grid grid-cols-1 gap-6 md:grid-cols-5">
         <!-- Player column -->
-        <div class="md:col-span-3 space-y-3">
+        <div class="md:col-span-3 space-y-4">
           <!-- Processing Status Banner (shows for blocking or background processing) -->
           <MediaProcessingStatusBanner 
             v-if="processingStatus.isBlockingProcessing || processingStatus.isBackgroundProcessing" 
@@ -1150,11 +1150,10 @@ async function handleDeleteNarration(narrationId: string) {
         <!-- Right column: segments + narrations -->
         <div class="hidden md:block md:col-span-2">
           <div
-            class="-mx-4 px-4 md:mx-0 md:px-4 bg-black md:rounded-xl md:border md:border-white/10 md:bg-white/5 md:p-4 md:sticky md:top-6 md:max-h-[calc(100dvh-var(--main-nav-height)-3rem)] md:overflow-y-auto overscroll-contain"
+            class="-mx-4 px-4 md:mx-0 md:px-0 bg-black md:rounded-xl md:border md:border-slate-700/50 md:bg-slate-800/30 md:p-6 md:sticky md:top-6 md:max-h-[calc(100dvh-var(--main-nav-height)-3rem)] md:overflow-y-auto overscroll-contain space-y-6"
           >
             <div
               v-if="canGenerateMatchSummary"
-              class="mb-3"
             >
               <MatchSummaryBlock
                 :state="matchSummaryState"
@@ -1225,7 +1224,7 @@ async function handleDeleteNarration(narrationId: string) {
         >
           <div
             v-if="canGenerateMatchSummary"
-            class="mt-3 mb-3"
+            class="mb-6"
           >
             <MatchSummaryBlock
               :state="matchSummaryState"
