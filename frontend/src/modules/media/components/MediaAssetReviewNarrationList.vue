@@ -258,6 +258,7 @@ watch(
 );
 
 const segmentElById = ref(new Map<string, HTMLElement>());
+const listScrollEl = ref<HTMLElement | null>(null);
 
 function setSegmentEl(id: string, el: unknown) {
   if (!id) return;
@@ -278,7 +279,19 @@ async function scrollActiveIntoView() {
   if (!id) return;
   await nextTick();
   const el = segmentElById.value.get(id);
-  el?.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' });
+  if (!el) return;
+
+  const container = listScrollEl.value;
+  if (container && container.scrollHeight > container.clientHeight) {
+    const containerRect = container.getBoundingClientRect();
+    const elRect = el.getBoundingClientRect();
+    const offset = elRect.top - containerRect.top;
+    const targetTop = container.scrollTop + offset - container.clientHeight / 2 + elRect.height / 2;
+    container.scrollTo({ top: targetTop, behavior: 'smooth' });
+    return;
+  }
+
+  el.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' });
 }
 
 watch(
@@ -438,7 +451,10 @@ function formatSegmentSourceMeta(seg: MediaAssetSegment): string | null {
 </script>
 
 <template>
-  <div class="space-y-6">
+  <div
+    ref="listScrollEl"
+    class="space-y-6 md:max-h-[calc(100dvh-var(--main-nav-height)-6rem)] md:overflow-y-auto md:overscroll-contain md:pr-2"
+  >
     <!-- Header -->
     <div class="flex items-center justify-between">
       <div class="flex items-center">
