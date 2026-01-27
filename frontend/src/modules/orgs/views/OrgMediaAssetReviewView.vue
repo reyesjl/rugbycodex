@@ -1150,7 +1150,7 @@ async function handleDeleteNarration(narrationId: string) {
         <!-- Right column: segments + narrations -->
         <div class="hidden md:block md:col-span-2">
           <div
-            class=""
+            class="space-y-6"
           >
             <div
               v-if="canGenerateMatchSummary"

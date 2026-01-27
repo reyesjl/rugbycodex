@@ -476,6 +476,10 @@ function formatSegmentSourceMeta(seg: MediaAssetSegment): string | null {
       </button>
     </div>
 
+    <div v-if="showEmptyOnly" class="rounded-lg border border-slate-700/50 bg-slate-900/40 px-4 py-3 text-sm text-slate-300">
+      Empty segments happen when all narrations have been deleted from a moment
+    </div>
+
     <!-- Empty states -->
     <div v-if="(props.segments ?? []).length === 0" class="text-center py-12 text-slate-400">
       No segments yet
@@ -488,7 +492,11 @@ function formatSegmentSourceMeta(seg: MediaAssetSegment): string | null {
 
     <div v-else-if="!hasSearchQuery && orderedSegments.length === 0" 
          class="text-center py-12 text-slate-400">
-      {{ showEmptyOnly ? 'No empty segments' : 'No narrations yet' }}
+      <div v-if="showEmptyOnly" class="space-y-2">
+        <div>No empty segments</div>
+        <div class="text-xs text-slate-500">Empty segments happen when all narrations have been deleted from a moment</div>
+      </div>
+      <div v-else>No narrations yet</div>
     </div>
 
     <!-- Segment List -->
