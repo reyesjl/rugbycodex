@@ -437,7 +437,7 @@ function formatSegmentSourceMeta(seg: MediaAssetSegment): string | null {
     <div class="flex items-center justify-between">
       <h2 class="text-lg font-semibold text-slate-50">Narrations</h2>
       <div class="text-xs text-slate-400">
-        {{ visibleNarrationCount }} narration{{ visibleNarrationCount === 1 ? '' : 's' }} • {{ visibleSegmentCount }} segment{{ visibleSegmentCount === 1 ? '' : 's' }}
+        {{ visibleSegmentCount }} segment{{ visibleSegmentCount === 1 ? '' : 's' }} • {{ visibleNarrationCount }} narration{{ visibleNarrationCount === 1 ? '' : 's' }}
       </div>
     </div>
 
@@ -572,7 +572,7 @@ function formatSegmentSourceMeta(seg: MediaAssetSegment): string | null {
             v-for="n in visibleNarrationsForSegment(String(seg.id))"
             :key="String((n as any).id)"
             :narration="n"
-            :is-active="activeSegmentId && String(seg.id) === activeSegmentId"
+            :is-active="Boolean(activeSegmentId && String(seg.id) === activeSegmentId)"
             :is-editing="isSavedNarration(n) && editingNarrationId === String(n.id)"
             :edit-text="editingText"
             :can-edit="canEditNarration(n)"

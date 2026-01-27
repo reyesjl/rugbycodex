@@ -154,6 +154,7 @@ async function generateQueryEmbedding(queryText: string): Promise<number[]> {
 
   const { data, error } = await invokeEdge('generate-query-embedding', {
     body: { query_text: trimmed },
+    orgScoped: true,
   });
 
   if (error) {

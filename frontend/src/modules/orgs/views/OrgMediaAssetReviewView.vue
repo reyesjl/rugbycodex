@@ -1150,7 +1150,7 @@ async function handleDeleteNarration(narrationId: string) {
         <!-- Right column: segments + narrations -->
         <div class="hidden md:block md:col-span-2">
           <div
-            class="-mx-4 px-4 md:mx-0 md:px-0 bg-black md:rounded-xl md:border md:border-slate-700/50 md:bg-slate-800/30 md:p-6 md:sticky md:top-6 md:max-h-[calc(100dvh-var(--main-nav-height)-3rem)] md:overflow-y-auto overscroll-contain space-y-6"
+            class=""
           >
             <div
               v-if="canGenerateMatchSummary"

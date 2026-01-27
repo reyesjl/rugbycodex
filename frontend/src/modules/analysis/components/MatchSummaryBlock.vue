@@ -54,7 +54,7 @@ const buttonLabel = computed(() => {
       <div class="flex items-center gap-2 min-w-0">
         <Icon
           v-if="state === 'normal'"
-          icon="carbon:document"
+          icon="carbon:ai-generate"
           width="16"
           height="16"
           class="text-slate-400"
