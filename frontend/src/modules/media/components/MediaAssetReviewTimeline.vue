@@ -276,17 +276,17 @@ function jumpNext() {
 
 <template>
   <div class="w-full">
-    <div class="mb-1 flex items-center justify-between text-[11px] text-white/50">
+    <div class="mb-2 flex items-center justify-between text-xs text-slate-400">
       <div>Timeline</div>
       <div v-if="durationSeconds" class="tabular-nums flex items-center gap-2">
-        <span>{{ (Math.round(durationSeconds) / 60).toFixed() }} mins</span>
+        <span>{{ (Math.round(durationSeconds) / 60).toFixed() }} min</span>
       </div>
     </div>
 
     <div class="flex items-center gap-2">
       <button
         type="button"
-        class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/5 ring-1 ring-white/10 text-white/70 hover:bg-white/10 hover:text-white disabled:opacity-40 hover:cursor-pointer"
+        class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-700/50 text-slate-400 hover:bg-slate-700 hover:text-slate-200 disabled:opacity-40 transition"
         :disabled="!canJumpPrev"
         @click="jumpPrev"
         aria-label="Previous segment"
@@ -298,7 +298,7 @@ function jumpNext() {
       <div class="relative flex-1">
         <div
           ref="timelineEl"
-          class="relative h-8 w-full overflow-hidden rounded-lg bg-white/25 ring-1 ring-white/10 cursor-pointer"
+          class="relative h-8 w-full overflow-hidden rounded-lg bg-slate-700/30 border border-slate-700/50 cursor-pointer"
           @click="onTrackClick"
           @mousemove="onMouseMove"
           @mouseleave="onMouseLeave"
@@ -306,7 +306,7 @@ function jumpNext() {
           <!-- Active playhead -->
           <div
             v-if="durationSeconds"
-            class="absolute top-0 bottom-0 w-1 bg-yellow-300 shadow-[0_0_10px_rgba(250,204,21,0.75)] z-20"
+            class="absolute top-0 bottom-0 w-1 bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.6)] z-20"
             :style="{ left: `${pctForSeconds(effectivePlayheadSeconds)}%` }"
             title="Current time"
           />
@@ -314,7 +314,7 @@ function jumpNext() {
           <!-- Hover cursor line (desktop only) -->
           <div
             v-if="showMagnifier && hoverPct !== null"
-            class="absolute top-0 bottom-0 w-px bg-yellow-300/80 z-30"
+            class="absolute top-0 bottom-0 w-px bg-blue-400/60 z-30"
             :style="{ left: `${hoverPct}%` }"
           />
 
@@ -325,11 +325,9 @@ function jumpNext() {
             class="absolute top-0 bottom-0 w-1 rounded-full z-10"
             :style="{ left: `${pctForSeconds(seg.start_seconds)}%` }"
             :class="[
-              // Base color: narrated segments are brighter.
-              isNarratedSegment(seg) ? 'bg-white/85' : 'bg-white/45',
-              // Make selection obvious and keep it in sync with narration list.
-              isFocused(seg) ? 'outline-1 outline-yellow-300/80' : '',
-              isActive(seg) ? 'opacity-100' : 'opacity-80'
+              isNarratedSegment(seg) ? 'bg-slate-300' : 'bg-slate-500',
+              isFocused(seg) ? 'outline-1 outline-blue-400' : '',
+              isActive(seg) ? 'opacity-100' : 'opacity-70'
             ]"
             @click.stop="emit('jumpToSegment', seg)"
             :title="`Segment ${seg.segment_index + 1} @ ${Math.round(seg.start_seconds)}s`"
@@ -343,18 +341,18 @@ function jumpNext() {
           :style="{ left: `${magnifierLeftPx}px`, width: `${MAG_WIDTH_PX}px`, height: `${MAG_HEIGHT_PX}px` }"
           @click.stop
         >
-          <div class="relative h-full w-full rounded-lg bg-black/60 ring-1 ring-white/15 backdrop-blur-sm">
-            <div class="absolute inset-1 rounded-md bg-white/10 ring-1 ring-white/10">
+          <div class="relative h-full w-full rounded-lg bg-slate-900/90 border border-slate-700/50 backdrop-blur-sm">
+            <div class="absolute inset-1 rounded-md bg-slate-800/50 border border-slate-700/50">
               <!-- magnifier playhead -->
               <div
                 v-if="durationSeconds"
-                class="absolute top-0 bottom-0 w-1 bg-yellow-300 shadow-[0_0_10px_rgba(250,204,21,0.75)] z-20"
+                class="absolute top-0 bottom-0 w-1 bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.6)] z-20"
                 :style="{ left: `${magLeftPctForSeconds(effectivePlayheadSeconds)}%` }"
               />
 
               <!-- magnifier cursor line -->
               <div
-                class="absolute top-0 bottom-0 w-px bg-yellow-300/90 z-30"
+                class="absolute top-0 bottom-0 w-px bg-blue-400/80 z-30"
                 :style="{ left: `${magnifierCursorPct}%` }"
               />
 
@@ -365,9 +363,9 @@ function jumpNext() {
                 class="absolute top-0 bottom-0 w-2 rounded-full z-10"
                 :style="{ left: `${magLeftPctForSeconds(seg.start_seconds)}%` }"
                 :class="[
-                  isNarratedSegment(seg) ? 'bg-white/90' : 'bg-white/50',
-                  isFocused(seg) ? 'outline-1 outline-yellow-300/80' : '',
-                  isActive(seg) ? 'opacity-100' : 'opacity-90'
+                  isNarratedSegment(seg) ? 'bg-slate-300' : 'bg-slate-500',
+                  isFocused(seg) ? 'outline-1 outline-blue-400' : '',
+                  isActive(seg) ? 'opacity-100' : 'opacity-80'
                 ]"
                 @click.stop="emit('jumpToSegment', seg)"
               />
@@ -378,7 +376,7 @@ function jumpNext() {
 
       <button
         type="button"
-        class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/5 ring-1 ring-white/10 text-white/70 hover:bg-white/10 hover:text-white disabled:opacity-40 hover:cursor-pointer"
+        class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-700/50 text-slate-400 hover:bg-slate-700 hover:text-slate-200 disabled:opacity-40 transition"
         :disabled="!canJumpNext"
         @click="jumpNext"
         aria-label="Next segment"

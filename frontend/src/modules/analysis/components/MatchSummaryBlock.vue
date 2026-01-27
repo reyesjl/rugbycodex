@@ -31,16 +31,14 @@ const emit = defineEmits<{ (e: 'generate'): void; (e: 'toggle'): void }>();
 const hasBullets = computed(() => Array.isArray(props.bullets) && props.bullets.length > 0);
 
 const containerClass = computed(() => {
-  if (props.state === 'normal') {
-    return 'rounded-lg border border-violet-400/25 bg-violet-500/5 p-3 shadow-[0_0_24px_rgba(139,92,246,0.16)]';
+  const base = 'rounded-lg border bg-slate-800/30 p-4';
+  if (props.state === 'empty') {
+    return `${base} border-slate-700/50`;
   }
-
-  // Locked/quiet states.
-  const base = 'rounded-lg border bg-white/5 p-3';
   if (props.state === 'light') {
-    return `${base} border-dashed border-white/20 opacity-80`;
+    return `${base} border-dashed border-slate-700/30`;
   }
-  return `${base} border-white/10 opacity-80`;
+  return `${base} border-slate-700/50`;
 });
 
 const buttonLabel = computed(() => {
@@ -51,30 +49,31 @@ const buttonLabel = computed(() => {
 
 <template>
   <div :class="containerClass">
-    <div v-if="state === 'normal'" class="flex items-center justify-between gap-3">
+    <!-- Header -->
+    <div class="flex items-center justify-between gap-3">
       <div class="flex items-center gap-2 min-w-0">
         <Icon
           v-if="state === 'normal'"
-          icon="carbon:ai-generate"
+          icon="carbon:document"
           width="16"
           height="16"
-          class="text-violet-200"
+          class="text-slate-400"
         />
         <Icon
           v-else
           icon="carbon:locked"
           width="16"
           height="16"
-          class="text-white/60"
+          class="text-slate-500"
         />
-        <div class="text-sm font-semibold text-white truncate">Match Summary</div>
+        <div class="text-sm font-semibold text-slate-50 truncate">Match Summary</div>
       </div>
 
       <div class="flex items-center gap-2">
         <button
           v-if="state === 'normal' && canGenerate"
           type="button"
-          class="text-xs text-violet-200 hover:text-violet-100 disabled:opacity-50"
+          class="text-xs text-slate-400 hover:text-slate-200 disabled:opacity-50 transition"
           :disabled="loading"
           @click="emit('generate')"
         >
@@ -83,7 +82,7 @@ const buttonLabel = computed(() => {
         <button
           v-if="collapsible"
           type="button"
-          class="text-xs text-white/60 hover:text-white"
+          class="text-xs text-slate-400 hover:text-slate-200 transition"
           @click="emit('toggle')"
         >
           <Icon
@@ -95,43 +94,36 @@ const buttonLabel = computed(() => {
       </div>
     </div>
 
-    <div v-if="collapsible && collapsed && state === 'normal'" class="mt-2 text-xs text-white/50">
-      Summary collapsed.
-    </div>
-
-    <div v-if="error" class="mt-2 text-xs text-rose-200">
+    <!-- Error state -->
+    <div v-if="error" class="mt-3 text-xs text-rose-300">
       {{ error }}
     </div>
 
-    <!-- Empty state -->
-    <div v-else-if="state === 'empty'">
-      <div class="flex items-center gap-2 text-sm text-white/85">
-        <Icon icon="carbon:locked" width="16" height="16" class="text-white/60" />
-        <span>Add more narrations to unlock Match Summary.</span>
+    <!-- Collapsed state -->
+    <div v-else-if="collapsible && collapsed" class="mt-2 text-xs text-slate-400">
+      Summary collapsed
+    </div>
+
+    <!-- Empty/locked states -->
+    <div v-else-if="state === 'empty' || state === 'light'" class="mt-3">
+      <div class="text-sm text-slate-400">
+        Add more narrations to generate summary
       </div>
     </div>
 
-    <!-- Light (locked) state -->
-    <div v-else-if="state === 'light'">
-      <div class="flex items-center gap-2 text-sm text-white/85">
-        <Icon icon="carbon:locked" width="16" height="16" class="text-white/60" />
-        <span>Add more narrations to unlock Match Summary.</span>
-      </div>
-    </div>
-
-    <!-- Normal state -->
-    <div v-else-if="!(collapsible && collapsed)" class="mt-2">
-      <div v-if="hasBullets" class="mt-2">
-        <ul class="space-y-1 text-sm text-white/90">
-          <li v-for="(b, idx) in bullets" :key="idx" class="flex gap-2">
-            <span class="text-violet-200">•</span>
-            <span class="leading-snug">{{ b }}</span>
+    <!-- Normal state with content -->
+    <div v-else-if="state === 'normal'" class="mt-3">
+      <div v-if="hasBullets" class="space-y-2">
+        <ul class="space-y-2 text-sm text-slate-300">
+          <li v-for="(b, idx) in bullets" :key="idx" class="flex gap-3">
+            <span class="text-slate-500 shrink-0">•</span>
+            <span class="leading-relaxed">{{ b }}</span>
           </li>
         </ul>
       </div>
 
-      <div v-else class="text-xs text-white/60">
-        {{ loading ? 'Generating…' : 'Generate a short, neutral summary of team observations.' }}
+      <div v-else class="text-sm text-slate-400">
+        {{ loading ? 'Generating summary…' : 'Generate summary of team observations' }}
       </div>
     </div>
   </div>
