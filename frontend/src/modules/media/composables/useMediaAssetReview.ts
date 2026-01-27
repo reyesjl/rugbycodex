@@ -30,6 +30,14 @@ export function useMediaAssetReview(options: MediaAssetReviewOptions) {
   let requestId = 0;
   let matchSummaryRequestId = 0;
 
+  const MIN_NARRATIONS_FOR_SUMMARY = 5;
+
+  function getMatchSummaryStateFromCount(count: number): MatchSummary['state'] {
+    if (count <= 0) return 'empty';
+    if (count < MIN_NARRATIONS_FOR_SUMMARY) return 'light';
+    return 'normal';
+  }
+
   const segmentIds = computed(() => segments.value.map((seg) => String(seg.id)).filter(Boolean));
   const segmentTags = useSegmentTags({ segmentIds: () => segmentIds.value });
 
@@ -64,6 +72,12 @@ export function useMediaAssetReview(options: MediaAssetReviewOptions) {
   async function generateMatchSummary(params?: { forceRefresh?: boolean }) {
     if (!asset.value?.id) return;
     if (options.canGenerateMatchSummary && !options.canGenerateMatchSummary()) return;
+    const narrationCount = narrations.value.length;
+    const localState = getMatchSummaryStateFromCount(narrationCount);
+    if (localState !== 'normal') {
+      matchSummary.value = { state: localState, bullets: [] };
+      return;
+    }
     if (matchSummary.value?.state !== 'normal') return;
 
     const activeRequestId = requestId;
@@ -126,15 +140,11 @@ export function useMediaAssetReview(options: MediaAssetReviewOptions) {
       segments.value = segList;
       narrations.value = narList;
 
-      if (options.canGenerateMatchSummary && options.canGenerateMatchSummary()) {
-        // First, fetch server-authoritative state without generating.
-        matchSummary.value = await analysisService.getMatchSummary(found.id, { mode: 'state', forceRefresh: false });
-        if (activeRequestId !== requestId) return;
+      const localState = getMatchSummaryStateFromCount(narrations.value.length);
+      matchSummary.value = { state: localState, bullets: [] };
 
-        // Ambient summary: only auto-generate once the server reports normal.
-        if (matchSummary.value?.state === 'normal') {
-          void generateMatchSummary({ forceRefresh: false });
-        }
+      if (localState === 'normal' && options.canGenerateMatchSummary && options.canGenerateMatchSummary()) {
+        void generateMatchSummary({ forceRefresh: false });
       }
     } catch (err) {
       if (activeRequestId !== requestId) return;

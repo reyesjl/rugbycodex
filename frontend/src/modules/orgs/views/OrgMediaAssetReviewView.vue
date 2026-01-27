@@ -9,6 +9,8 @@ import FeedGestureLayer from '@/modules/feed/components/FeedGestureLayer.vue';
 import FeedOverlayControls from '@/modules/feed/components/FeedOverlayControls.vue';
 import NarrationRecorder from '@/modules/narrations/components/NarrationRecorder.vue';
 import MediaProcessingStatusBanner from '@/modules/media/components/MediaProcessingStatusBanner.vue';
+import LoadingDot from '@/components/LoadingDot.vue';
+import ShimmerText from '@/components/ShimmerText.vue';
 
 import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrganizationStore';
 import { useAuthStore } from '@/modules/auth/stores/useAuthStore';
@@ -327,6 +329,7 @@ async function confirmDeleteEmptySegments() {
 const narrationsDrawerOpen = ref(false);
 const narrationsDrawerHeightClass = computed(() => (narrationsDrawerOpen.value ? 'h-[70dvh]' : 'h-14'));
 const narrationCount = computed(() => (narrations.value as any[])?.length ?? 0);
+const summaryNarrationsNeeded = 5;
 
 const matchSummaryState = computed<MatchSummaryState>(() => {
   return matchSummary.value?.state ?? 'empty';
@@ -966,7 +969,10 @@ async function handleDeleteNarration(narrationId: string) {
       </div> -->
 
       <div v-if="loading" class="rounded-lg border border-white/10 bg-white/5 p-6 text-white/70">
-        Loading media…
+        <div class="flex items-center justify-center gap-3">
+          <LoadingDot />
+          <ShimmerText class="text-sm text-white/70" text="Rugbycodex is getting your match..." />
+        </div>
       </div>
 
       <div v-else-if="error" class="rounded-lg border border-white/10 bg-white/5 p-6 text-rose-200">
@@ -1162,6 +1168,8 @@ async function handleDeleteNarration(narrationId: string) {
                 :error="matchSummaryError"
                 :can-generate="canGenerateMatchSummary"
                 :has-generated="Boolean(matchSummaryBullets.length)"
+                :narration-count="narrationCount"
+                :narrations-needed="summaryNarrationsNeeded"
                 :collapsible="true"
                 :collapsed="matchSummaryCollapsed"
                 @toggle="matchSummaryCollapsed = !matchSummaryCollapsed"
@@ -1233,6 +1241,8 @@ async function handleDeleteNarration(narrationId: string) {
               :error="matchSummaryError"
               :can-generate="canGenerateMatchSummary"
               :has-generated="Boolean(matchSummaryBullets.length)"
+              :narration-count="narrationCount"
+              :narrations-needed="summaryNarrationsNeeded"
               :collapsible="true"
               :collapsed="matchSummaryCollapsed"
               @toggle="matchSummaryCollapsed = !matchSummaryCollapsed"

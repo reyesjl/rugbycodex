@@ -12,6 +12,8 @@ import MediaAssetCard from '@/modules/orgs/components/MediaAssetCard.vue';
 import AddMediaAssetModal from '@/modules/orgs/components/AddMediaAssetModal.vue';
 import EditMediaAssetModal from '@/modules/orgs/components/EditMediaAssetModal.vue';
 import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
+import LoadingDot from '@/components/LoadingDot.vue';
+import ShimmerText from '@/components/ShimmerText.vue';
 import { toast } from '@/lib/toast';
 import type { MediaAssetKind } from '@/modules/media/types/MediaAssetKind';
 import type { OrgMediaAsset } from '@/modules/media/types/OrgMediaAsset';
@@ -580,7 +582,10 @@ watch(activeOrgId, (orgId, prevOrgId) => {
       </div>
 
       <div v-else-if="isLoading" class="rounded-lg border border-white/10 bg-white/5 p-6 text-white/70">
-        Loading media…
+        <div class="flex items-center justify-center gap-3">
+          <LoadingDot />
+          <ShimmerText class="text-sm text-white/70" text="Rugbycodex is getting all your footage..." />
+        </div>
       </div>
 
       <div v-else-if="!isReady && error" class="rounded-lg border border-white/10 bg-white/5 p-6 text-white/70">

@@ -11,6 +11,8 @@ import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrgan
 import { useNarrationSearch } from '@/modules/media/composables/useNarrationSearch';
 import NarrationRow from './NarrationRow.vue';
 import NarrationFilterPanel from './NarrationFilterPanel.vue';
+import LoadingDot from '@/components/LoadingDot.vue';
+import ShimmerText from '@/components/ShimmerText.vue';
 
 const props = defineProps<{
   segments: MediaAssetSegment[];
@@ -439,7 +441,12 @@ function formatSegmentSourceMeta(seg: MediaAssetSegment): string | null {
   <div class="space-y-6">
     <!-- Header -->
     <div class="flex items-center justify-between">
-      <h2 class="text-lg font-semibold text-slate-50">Narrations</h2>
+      <div class="flex items-center">
+        <div class="text-lg font-semibold text-slate-50">Narrations</div>
+        <span class="ml-2 text-xs font-medium text-slate-400">
+          {{ visibleNarrationCount }}
+        </span>
+      </div>
       <div class="text-xs text-slate-400">
         {{ visibleSegmentCount }} segment{{ visibleSegmentCount === 1 ? '' : 's' }} • {{ visibleNarrationCount }} narration{{ visibleNarrationCount === 1 ? '' : 's' }}
       </div>
@@ -483,6 +490,11 @@ function formatSegmentSourceMeta(seg: MediaAssetSegment): string | null {
     <!-- Empty states -->
     <div v-if="(props.segments ?? []).length === 0" class="text-center py-12 text-slate-400">
       No segments yet
+    </div>
+
+    <div v-else-if="hasSearchQuery && searchLoading" class="flex items-center justify-center gap-3 py-12 text-slate-300">
+      <LoadingDot />
+      <ShimmerText text="Searching your narrations…" />
     </div>
 
     <div v-else-if="hasSearchQuery && !searchLoading && orderedSegments.length === 0" 

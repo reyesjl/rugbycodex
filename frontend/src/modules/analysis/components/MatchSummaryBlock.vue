@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { Icon } from '@iconify/vue';
+import LoadingDot from '@/components/LoadingDot.vue';
+import ShimmerText from '@/components/ShimmerText.vue';
 
 type MatchSummaryState = 'empty' | 'light' | 'normal';
 
@@ -14,6 +16,8 @@ const props = withDefaults(
     hasGenerated?: boolean;
     collapsible?: boolean;
     collapsed?: boolean;
+    narrationCount?: number | null;
+    narrationsNeeded?: number | null;
   }>(),
   {
     bullets: () => [],
@@ -23,6 +27,8 @@ const props = withDefaults(
     hasGenerated: false,
     collapsible: false,
     collapsed: false,
+    narrationCount: null,
+    narrationsNeeded: null,
   }
 );
 
@@ -94,12 +100,19 @@ const containerClass = computed(() => {
     <div v-else-if="state === 'empty' || state === 'light'" class="mt-3">
       <div class="text-sm text-slate-400">
         Add more narrations to generate summary
+        <span v-if="Number.isFinite(narrationCount) && Number.isFinite(narrationsNeeded)">
+          ({{ narrationCount }} / {{ narrationsNeeded }})
+        </span>
       </div>
     </div>
 
     <!-- Normal state with content -->
     <div v-else-if="state === 'normal'" class="mt-3">
-      <div v-if="hasBullets" class="space-y-2">
+      <div v-if="loading" class="flex items-center gap-3 text-sm text-slate-300">
+          <LoadingDot />
+          <ShimmerText text="Rugbycodex is summarizing all your match moments" />
+      </div>
+      <div v-else-if="hasBullets" class="space-y-2">
         <ul class="space-y-2 text-sm text-slate-300">
           <li v-for="(b, idx) in bullets" :key="idx" class="flex gap-3">
             <span class="text-slate-500 shrink-0">•</span>
@@ -109,7 +122,7 @@ const containerClass = computed(() => {
       </div>
 
       <div v-else class="text-sm text-slate-400">
-        {{ loading ? 'Generating summary…' : 'Generate summary of team observations' }}
+        Generate summary of team observations
       </div>
     </div>
   </div>
