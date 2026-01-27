@@ -1,5 +1,4 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 
 import { handleCors, jsonResponse } from "../_shared/cors.ts";
 import { errorResponse } from "../_shared/errors.ts";
@@ -109,7 +108,7 @@ function ensureArrayOfStrings(value: unknown): string[] {
   return value.map((item) => String(item ?? "").trim()).filter(Boolean);
 }
 
-serve(async (req: Request) => {
+Deno.serve(async (req: Request) => {
   const cors = handleCors(req);
   if (cors) return cors;
 

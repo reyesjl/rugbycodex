@@ -1,5 +1,4 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 
 import { handleCors, jsonResponse } from "../_shared/cors.ts";
 import { errorResponse } from "../_shared/errors.ts";
@@ -222,7 +221,7 @@ async function callOpenAI(
   return { bullets, model };
 }
 
-serve(withObservability("summarize-media-asset", async (req: Request) => {
+Deno.serve(withObservability("summarize-media-asset", async (req: Request) => {
   const cors = handleCors(req);
   if (cors) return cors;
 

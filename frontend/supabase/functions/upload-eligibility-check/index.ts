@@ -1,12 +1,11 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { getClientBoundToRequest } from "../_shared/auth.ts";
 import { handleCors, jsonResponse } from "../_shared/cors.ts";
 import { errorResponse } from "../_shared/errors.ts";
 import { logEvent, withObservability } from "../_shared/observability.ts";
 import { allowAdminBypass, getUserRoleFromRequest, requireAuthenticated, requireOrgRoleSource, requireRole } from "../_shared/roles.ts";
 
-serve(withObservability("upload-eligibility-check", async (req, ctx) => {
+Deno.serve(withObservability("upload-eligibility-check", async (req, ctx) => {
   const corsResponse = handleCors(req);
   if (corsResponse) return corsResponse;
 

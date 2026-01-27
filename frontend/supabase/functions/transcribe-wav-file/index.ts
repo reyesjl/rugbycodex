@@ -1,10 +1,9 @@
-import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { handleCors, jsonResponse } from '../_shared/cors.ts';
 import { errorResponse } from '../_shared/errors.ts';
 import { logEvent, withObservability } from '../_shared/observability.ts';
 import { getUserRoleFromRequest, requireAuthenticated, requireRole } from '../_shared/roles.ts';
 
-serve(withObservability('transcribe-wav-file', async (req, ctx) => {
+Deno.serve(withObservability('transcribe-wav-file', async (req, ctx) => {
   const cors = handleCors(req);
   if (cors) return cors;
 

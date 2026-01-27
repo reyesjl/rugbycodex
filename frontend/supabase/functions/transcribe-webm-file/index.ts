@@ -1,11 +1,10 @@
-import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { handleCors, jsonResponse } from '../_shared/cors.ts';
 import { errorResponse } from '../_shared/errors.ts';
 import { getAuthContext, getClientBoundToRequest } from '../_shared/auth.ts';
 import { getUserRoleFromRequest, requireAuthenticated, requireRole } from '../_shared/roles.ts';
 import { logEvent, withObservability } from '../_shared/observability.ts';
 
-serve(withObservability('transcribe-webm-file', async (req, ctx) => {
+Deno.serve(withObservability('transcribe-webm-file', async (req, ctx) => {
   const cors = handleCors(req);
   if (cors) return cors;
 
