@@ -104,7 +104,7 @@ const buttonLabel = computed(() => {
     </div>
 
     <!-- Empty state -->
-    <div v-else-if="state === 'empty'" class="mt-2">
+    <div v-else-if="state === 'empty'">
       <div class="flex items-center gap-2 text-sm text-white/85">
         <Icon icon="carbon:locked" width="16" height="16" class="text-white/60" />
         <span>Add more narrations to unlock Match Summary.</span>
@@ -112,7 +112,7 @@ const buttonLabel = computed(() => {
     </div>
 
     <!-- Light (locked) state -->
-    <div v-else-if="state === 'light'" class="mt-2">
+    <div v-else-if="state === 'light'">
       <div class="flex items-center gap-2 text-sm text-white/85">
         <Icon icon="carbon:locked" width="16" height="16" class="text-white/60" />
         <span>Add more narrations to unlock Match Summary.</span>
