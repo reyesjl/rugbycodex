@@ -4,7 +4,6 @@ import type {
   EventDetection,
   EventDetectionFilter,
   EventDetectionStats,
-  EventDetectionJob,
 } from "../types/EventDetection";
 
 /**
@@ -123,9 +122,8 @@ export const eventDetectionService = {
     };
 
     for (const detection of detections) {
-      if (detection.event_type in grouped) {
-        grouped[detection.event_type].push(detection);
-      }
+      grouped[detection.event_type] ??= [];
+      grouped[detection.event_type]!.push(detection);
     }
 
     return grouped;

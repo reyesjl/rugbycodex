@@ -39,8 +39,6 @@ const thumbnailUrl = computed(() => {
   return `${STORAGE_BASE_URL}/${props.asset.thumbnail_path}`;
 });
 
-const showThumbnail = computed(() => !!thumbnailUrl.value);
-
 const isReadyToPlay = computed(() => {
   return props.asset.status === 'ready' && props.asset.streaming_ready;
 });
@@ -73,14 +71,6 @@ const overlayIconName = computed(() => {
   if (isAbandoned.value) return 'carbon:warning-alt';
   if (isInteractive.value) return 'carbon:play-filled-alt';
   return null;
-});
-
-const showLoadingDot = computed(() => {
-  return false; // We use overlays and badges instead
-});
-
-const loadingDotColor = computed(() => {
-  return 'text-white/60';
 });
 
 const overlayIconClass = computed(() => {

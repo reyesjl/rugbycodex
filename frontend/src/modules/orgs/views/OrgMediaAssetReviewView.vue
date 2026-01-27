@@ -181,7 +181,7 @@ const {
 
 // Processing status composable
 const mediaAssetRef = computed(() => asset.value);
-const { processingStatus, detectionCount } = useMediaProcessingStatus(mediaAssetRef);
+const { processingStatus } = useMediaProcessingStatus(mediaAssetRef);
 
 const narrationTargetSegmentId = ref<string | null>(null);
 

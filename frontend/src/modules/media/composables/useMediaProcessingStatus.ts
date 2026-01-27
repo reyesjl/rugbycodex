@@ -42,10 +42,6 @@ export function useMediaProcessingStatus(mediaAsset: Ref<MediaAsset | null>) {
     // Determine if video is watchable (transcoding complete)
     const isWatchable = streamingReady === true;
     
-    // Determine processing type
-    const isBlockingProcessing = stage === 'uploaded' || stage === 'transcoding';
-    const isBackgroundProcessing = stage === 'detecting_events'; // Only active detection, not 'transcoded'
-
     switch (stage) {
       case 'uploaded':
         return {
