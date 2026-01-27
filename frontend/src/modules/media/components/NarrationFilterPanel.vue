@@ -33,8 +33,6 @@ const SOURCE_FILTERS: Array<{ value: SourceFilter; label: string }> = [
 ];
 
 const tagFiltersExpanded = ref(false);
-const tagFilterScrollEl = ref<HTMLElement | null>(null);
-
 const hasActiveTagFilters = computed(() => props.activeTagFilters.length > 0);
 
 function formatTagLabel(tagKey: string): string {
@@ -49,12 +47,6 @@ function classForTagType(tagType: SegmentTagType | null | undefined): string {
   return 'bg-slate-700/50 text-slate-300';
 }
 
-function scrollTagFilters(direction: 'left' | 'right') {
-  const el = tagFilterScrollEl.value;
-  if (!el) return;
-  const amount = Math.max(160, Math.floor(el.clientWidth * 0.7));
-  el.scrollBy({ left: direction === 'left' ? -amount : amount, behavior: 'smooth' });
-}
 </script>
 
 <template>
@@ -165,7 +157,6 @@ function scrollTagFilters(direction: 'left' | 'right') {
 
       <div 
         v-if="tagFiltersExpanded" 
-        ref="tagFilterScrollEl"
         class="flex items-center gap-2 flex-wrap"
       >
         <button

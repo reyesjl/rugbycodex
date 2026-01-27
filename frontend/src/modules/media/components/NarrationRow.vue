@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { Icon } from '@iconify/vue';
-import type { Narration, NarrationSourceType } from '@/modules/narrations/types/Narration';
+import type { NarrationSourceType } from '@/modules/narrations/types/Narration';
 import type { NarrationListItem } from '@/modules/narrations/composables/useNarrationRecorder';
 
 const props = defineProps<{
@@ -23,10 +23,6 @@ const emit = defineEmits<{
 }>();
 
 const localEditText = ref('');
-
-function isSavedNarration(n: NarrationListItem): n is Narration {
-  return !(n as any)?.status;
-}
 
 function normalizeNarrationSourceType(value: unknown): NarrationSourceType {
   const raw = String(value ?? '').toLowerCase();

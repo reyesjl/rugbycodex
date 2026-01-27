@@ -87,10 +87,6 @@ function isHiddenTagKey(tagKey: string | null | undefined): boolean {
   return HIDDEN_TAG_KEYS.has(String(tagKey ?? '').trim());
 }
 
-function classForTagType(tagType: SegmentTagType | null | undefined): string {
-  return 'bg-slate-700/50 text-slate-300';
-}
-
 function normalizeNarrationSourceType(value: unknown): NarrationSourceType {
   const raw = String(value ?? '').toLowerCase();
   if (raw === 'coach' || raw === 'staff' || raw === 'member') {
@@ -104,7 +100,8 @@ function narrationSourceTypeFor(item: NarrationListItem): NarrationSourceType {
 }
 
 function classForTag(tag: SegmentTag): string {
-  return classForTagType(tag.tag_type);
+  void tag.tag_type;
+  return 'bg-slate-700/50 text-slate-300';
 }
 
 function segmentHasTag(seg: MediaAssetSegment, tagKey: string, tagType: SegmentTagType): boolean {
@@ -413,7 +410,6 @@ watch(
 );
 
 const visibleSegmentCount = computed(() => orderedSegments.value.length);
-const totalSegmentCount = computed(() => sourceFilteredSegments.value.length);
 
 const visibleNarrationCount = computed(() => {
   let count = 0;
