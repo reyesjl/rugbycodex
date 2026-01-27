@@ -41,10 +41,6 @@ const containerClass = computed(() => {
   return `${base} border-slate-700/50`;
 });
 
-const buttonLabel = computed(() => {
-  if (props.loading) return 'Generating…';
-  return props.hasGenerated ? 'Regenerate' : 'Generate';
-});
 </script>
 
 <template>
@@ -67,18 +63,10 @@ const buttonLabel = computed(() => {
           class="text-slate-500"
         />
         <div class="text-sm font-semibold text-slate-50 truncate">Match Summary</div>
+        <span v-if="collapsible && collapsed" class="text-xs text-slate-500">Summary collapsed</span>
       </div>
 
       <div class="flex items-center gap-2">
-        <button
-          v-if="state === 'normal' && canGenerate"
-          type="button"
-          class="text-xs text-slate-400 hover:text-slate-200 disabled:opacity-50 transition"
-          :disabled="loading"
-          @click="emit('generate')"
-        >
-          {{ buttonLabel }}
-        </button>
         <button
           v-if="collapsible"
           type="button"
@@ -99,10 +87,8 @@ const buttonLabel = computed(() => {
       {{ error }}
     </div>
 
-    <!-- Collapsed state -->
-    <div v-else-if="collapsible && collapsed" class="mt-2 text-xs text-slate-400">
-      Summary collapsed
-    </div>
+    <!-- Collapsed state (content hidden) -->
+    <div v-else-if="collapsible && collapsed" />
 
     <!-- Empty/locked states -->
     <div v-else-if="state === 'empty' || state === 'light'" class="mt-3">
