@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue';
+import { computed } from 'vue';
 
-defineProps<{
+const props = defineProps<{
   isRecording: boolean;
   audioLevel01: number; // 0..1
+  durationMs?: number; // Recording duration in milliseconds
 }>();
 
 const emit = defineEmits<{
@@ -16,6 +18,18 @@ function barHeight(i: number, level: number): string {
   const variance = (i % 2 === 0 ? 10 : 7) * level;
   return `${base + variance}px`;
 }
+
+const formattedDuration = computed(() => {
+  const ms = props.durationMs ?? 0;
+  const seconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  
+  if (minutes > 0) {
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  }
+  return `${remainingSeconds}s`;
+});
 </script>
 
 <template>
@@ -51,6 +65,9 @@ function barHeight(i: number, level: number): string {
                 class="w-0.5 rounded-full bg-red-400/90"
                 :style="{ height: barHeight(i, audioLevel01) }"
               />
+            </div>
+            <div class="text-xs font-medium text-white/90 tabular-nums">
+              {{ formattedDuration }}
             </div>
           </div>
         </div>

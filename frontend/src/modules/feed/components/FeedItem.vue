@@ -535,6 +535,7 @@ onBeforeUnmount(() => {
               <NarrationRecorder
                 :is-recording="recorder.isRecording.value"
                 :audio-level01="recorder.audioLevel.value"
+                :duration-ms="recorder.duration.value"
                 @toggle="toggleRecord"
               >
                 <template #auxControls>

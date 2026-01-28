@@ -42,6 +42,7 @@ export function useNarrationRecorder() {
 
   const isRecording = computed(() => audio.isRecording.value);
   const audioLevel = computed(() => audio.audioLevel.value);
+  const duration = computed(() => audio.duration.value);
 
   async function startRecording(ctx: StartContext): Promise<void> {
     lastError.value = null;
@@ -121,6 +122,7 @@ export function useNarrationRecorder() {
     // state
     isRecording,
     audioLevel,
+    duration,
     isUploading,
     lastError,
     // actions

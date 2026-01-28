@@ -206,6 +206,14 @@ const { processingStatus } = useMediaProcessingStatus(mediaAssetRef);
 
 const narrationTargetSegmentId = ref<string | null>(null);
 
+// Recording (segment created when narration saves)
+const recorder = useAudioRecording();
+const recordError = ref<string | null>(null);
+const recordingUploadError = ref<string | null>(null);
+const recordStartVideoTime = ref<number | null>(null);
+const recordStartWallClockMs = ref<number | null>(null);
+const mutedBeforeRecording = ref<boolean | null>(null);
+
 // Recording context: captured at start, used when stopping to avoid race conditions
 type RecordingContext = {
   targetSegmentId: string | null;
@@ -616,15 +624,6 @@ function findFocusedSegmentId(seconds: number): string | null {
 }
 
 const focusedSegmentId = ref<string | null>(null);
-
-// Recording (segment created when narration saves)
-const recorder = useAudioRecording();
-const recordError = ref<string | null>(null);
-const recordingUploadError = ref<string | null>(null);
-const recordStartVideoTime = ref<number | null>(null);
-const recordStartWallClockMs = ref<number | null>(null);
-
-const mutedBeforeRecording = ref<boolean | null>(null);
 
 async function handleAddNarrationForSegment(seg: MediaAssetSegment) {
   narrationTargetSegmentId.value = String(seg.id);
@@ -1318,6 +1317,7 @@ async function handleDeleteNarration(narrationId: string) {
                         <NarrationRecorder
                           :is-recording="recorder.isRecording.value"
                           :audio-level01="recorder.audioLevel.value"
+                          :duration-ms="recorder.duration.value"
                           @toggle="toggleRecord"
                         >
                           <template #auxControls>
