@@ -325,9 +325,10 @@ async function confirmDeleteEmptySegments() {
   }
 }
 
-// Mobile: narrations as a bottom drawer so video stays visible.
-const narrationsDrawerOpen = ref(false);
-const narrationsDrawerHeightClass = computed(() => (narrationsDrawerOpen.value ? 'h-[70dvh]' : 'h-14'));
+const playerRef = ref<InstanceType<typeof ShakaSurfacePlayer> | null>(null);
+const surfaceEl = ref<HTMLElement | null>(null);
+
+// Mobile: narrations live under the timeline.
 const narrationCount = computed(() => (narrations.value as any[])?.length ?? 0);
 const summaryNarrationsNeeded = 5;
 
@@ -374,9 +375,6 @@ watch(
   },
   { immediate: true }
 );
-
-const playerRef = ref<InstanceType<typeof ShakaSurfacePlayer> | null>(null);
-const surfaceEl = ref<HTMLElement | null>(null);
 
 const videoEl = computed(() => (playerRef.value?.getVideoElement?.() ?? null) as HTMLVideoElement | null);
 
@@ -950,7 +948,7 @@ async function handleDeleteNarration(narrationId: string) {
 <template>
   <div
     class="w-full bg-black
-           h-[calc(100dvh-var(--main-nav-height))] overflow-hidden
+           h-[calc(100dvh-var(--main-nav-height))] overflow-y-auto
            md:h-auto md:overflow-visible md:min-h-[calc(100dvh-var(--main-nav-height))]"
   >
     <div class="container-lg pb-16 md:pb-20 text-white space-y-4 h-full">
@@ -990,156 +988,206 @@ async function handleDeleteNarration(narrationId: string) {
             mode="banner"
           />
           
-          <!-- Mobile: full-bleed video surface (like Feed); md+: rounded container -->
-          <div class="-mx-4 md:mx-0">
-            <div class="overflow-hidden bg-black ring-1 ring-white/10 md:rounded-xl md:bg-white/5">
-              <div
-                ref="surfaceEl"
-                class="relative bg-black"
-                :class="isFullscreen ? 'h-full w-full' : 'aspect-video'"
-                @pointermove="onHoverMove"
-                @pointerleave="onHoverLeave"
-              >
-              <ShakaSurfacePlayer
-                ref="playerRef"
-                :manifest-url="playlistUrl"
-                :autoplay="false"
-                class="h-full w-full"
-                @timeupdate="handleTimeupdate"
-                @loadedmetadata="handleLoadedMetadata"
-                @play="handlePlay"
-                @pause="handlePause"
-                @error="(m) => (error = m)"
-                @buffering="handleBuffering"
-              />
-
-              <FeedGestureLayer @tap="onTap" @swipeDown="() => {}" @swipeUp="() => {}">
-                <Transition
-                  enter-active-class="transition duration-150 ease-out"
-                  enter-from-class="opacity-0 scale-90"
-                  enter-to-class="opacity-100 scale-100"
-                  leave-active-class="transition duration-150 ease-in"
-                  leave-from-class="opacity-100 scale-100"
-                  leave-to-class="opacity-0 scale-95"
-                >
+          <div class="md:space-y-4">
+            <div class="sticky top-0 z-30 -mx-4 space-y-4 bg-black md:static md:mx-0 md:bg-transparent">
+              <!-- Mobile: full-bleed video surface (like Feed); md+: rounded container -->
+              <div class="md:mx-0">
+                <div class="overflow-hidden bg-black ring-1 ring-white/10 md:rounded-xl md:bg-white/5">
                   <div
-                    v-if="flashIcon && !isBuffering"
-                    class="pointer-events-none absolute inset-0 z-40 flex items-center justify-center"
-                    aria-hidden="true"
+                    ref="surfaceEl"
+                    class="relative bg-black"
+                    :class="isFullscreen ? 'h-full w-full' : 'aspect-video'"
+                    @pointermove="onHoverMove"
+                    @pointerleave="onHoverLeave"
                   >
-                    <Icon
-                      :icon="flashIcon === 'play'
-                        ? 'carbon:play-filled-alt'
-                        : flashIcon === 'pause'
-                          ? 'carbon:pause-filled'
-                          : flashIcon === 'rew5'
-                            ? 'carbon:rewind-5'
-                            : flashIcon === 'rew10'
-                              ? 'carbon:rewind-10'
-                              : flashIcon === 'ff5'
-                                ? 'carbon:forward-5'
-                                : 'carbon:forward-10'"
-                      width="52"
-                      height="52"
-                      class="text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.65)]"
+                    <ShakaSurfacePlayer
+                      ref="playerRef"
+                      :manifest-url="playlistUrl"
+                      :autoplay="false"
+                      class="h-full w-full"
+                      @timeupdate="handleTimeupdate"
+                      @loadedmetadata="handleLoadedMetadata"
+                      @play="handlePlay"
+                      @pause="handlePause"
+                      @error="(m) => (error = m)"
+                      @buffering="handleBuffering"
                     />
-                  </div>
-                </Transition>
 
-                <!-- Reuse feed overlay controls as a minimal transport + scrubber -->
-                <FeedOverlayControls
-                  :visible="overlayVisible && !isBuffering"
-                  :is-playing="isPlaying"
-                  :progress01="progress01"
-                  :can-prev="false"
-                  :can-next="false"
-                  :show-prev-next="false"
-                  :show-restart="false"
-                  :can-fullscreen="canFullscreen"
-                  :is-fullscreen="isFullscreen"
-                  :current-seconds="currentTime"
-                  :duration-seconds="duration"
-                  :volume01="volume01"
-                  :muted="muted"
-                  @togglePlay="togglePlay"
-                  @prev="() => {}"
-                  @next="() => {}"
-                  @restart="() => scrubToSeconds(0)"
-                  @cc="() => {}"
-                  @settings="() => {}"
-                  @scrubToSeconds="scrubToSeconds"
-                  @scrubStart="() => showOverlay(null)"
-                  @scrubEnd="() => showOverlay(1500)"
-                  @setVolume01="setVolume"
-                  @toggleMute="toggleMute"
-                  @toggleFullscreen="toggleFullscreen"
-                />
+                    <FeedGestureLayer @tap="onTap" @swipeDown="() => {}" @swipeUp="() => {}">
+                      <Transition
+                        enter-active-class="transition duration-150 ease-out"
+                        enter-from-class="opacity-0 scale-90"
+                        enter-to-class="opacity-100 scale-100"
+                        leave-active-class="transition duration-150 ease-in"
+                        leave-from-class="opacity-100 scale-100"
+                        leave-to-class="opacity-0 scale-95"
+                      >
+                        <div
+                          v-if="flashIcon && !isBuffering"
+                          class="pointer-events-none absolute inset-0 z-40 flex items-center justify-center"
+                          aria-hidden="true"
+                        >
+                          <Icon
+                            :icon="flashIcon === 'play'
+                              ? 'carbon:play-filled-alt'
+                              : flashIcon === 'pause'
+                                ? 'carbon:pause-filled'
+                                : flashIcon === 'rew5'
+                                  ? 'carbon:rewind-5'
+                                  : flashIcon === 'rew10'
+                                    ? 'carbon:rewind-10'
+                                    : flashIcon === 'ff5'
+                                      ? 'carbon:forward-5'
+                                      : 'carbon:forward-10'"
+                            width="52"
+                            height="52"
+                            class="text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.65)]"
+                          />
+                        </div>
+                      </Transition>
 
-                <div
-                  v-show="!isBuffering"
-                  data-gesture-ignore
-                  @pointerenter.stop="onNarrationButtonHoverEnter"
-                  @pointermove.stop
-                  @pointerleave.stop
-                >
-                  <NarrationRecorder
-                    :is-recording="recorder.isRecording.value"
-                    :audio-level01="recorder.audioLevel.value"
-                    @toggle="toggleRecord"
-                  >
-                    <template #auxControls>
-                      <div class="flex items-center gap-2 rounded-full bg-black/40 px-2 py-1 ring-1 ring-white/10 backdrop-blur">
-                        <button
-                          type="button"
-                          class="rounded-full p-1.5 text-white/80 hover:bg-black/45 hover:text-white"
-                          title="Rewind 10s"
-                          aria-label="Rewind 10 seconds"
-                          @click.stop="seekRelativeWithFeedback(-10)"
+                      <!-- Reuse feed overlay controls as a minimal transport + scrubber -->
+                      <FeedOverlayControls
+                        :visible="overlayVisible && !isBuffering"
+                        :is-playing="isPlaying"
+                        :progress01="progress01"
+                        :can-prev="false"
+                        :can-next="false"
+                        :show-prev-next="false"
+                        :show-restart="false"
+                        :can-fullscreen="canFullscreen"
+                        :is-fullscreen="isFullscreen"
+                        :current-seconds="currentTime"
+                        :duration-seconds="duration"
+                        :volume01="volume01"
+                        :muted="muted"
+                        @togglePlay="togglePlay"
+                        @prev="() => {}"
+                        @next="() => {}"
+                        @restart="() => scrubToSeconds(0)"
+                        @cc="() => {}"
+                        @settings="() => {}"
+                        @scrubToSeconds="scrubToSeconds"
+                        @scrubStart="() => showOverlay(null)"
+                        @scrubEnd="() => showOverlay(1500)"
+                        @setVolume01="setVolume"
+                        @toggleMute="toggleMute"
+                        @toggleFullscreen="toggleFullscreen"
+                      />
+
+                      <div
+                        v-show="!isBuffering"
+                        data-gesture-ignore
+                        @pointerenter.stop="onNarrationButtonHoverEnter"
+                        @pointermove.stop
+                        @pointerleave.stop
+                      >
+                        <NarrationRecorder
+                          :is-recording="recorder.isRecording.value"
+                          :audio-level01="recorder.audioLevel.value"
+                          @toggle="toggleRecord"
                         >
-                          <Icon icon="carbon:rewind-10" width="18" height="18" />
-                        </button>
-                        <button
-                          type="button"
-                          class="rounded-full p-1.5 text-white/80 hover:bg-black/45 hover:text-white"
-                          title="Forward 10s"
-                          aria-label="Forward 10 seconds"
-                          @click.stop="seekRelativeWithFeedback(10)"
-                        >
-                          <Icon icon="carbon:forward-10" width="18" height="18" />
-                        </button>
+                          <template #auxControls>
+                            <div class="flex items-center gap-2 rounded-full bg-black/40 px-2 py-1 ring-1 ring-white/10 backdrop-blur">
+                              <button
+                                type="button"
+                                class="rounded-full p-1.5 text-white/80 hover:bg-black/45 hover:text-white"
+                                title="Rewind 10s"
+                                aria-label="Rewind 10 seconds"
+                                @click.stop="seekRelativeWithFeedback(-10)"
+                              >
+                                <Icon icon="carbon:rewind-10" width="18" height="18" />
+                              </button>
+                              <button
+                                type="button"
+                                class="rounded-full p-1.5 text-white/80 hover:bg-black/45 hover:text-white"
+                                title="Forward 10s"
+                                aria-label="Forward 10 seconds"
+                                @click.stop="seekRelativeWithFeedback(10)"
+                              >
+                                <Icon icon="carbon:forward-10" width="18" height="18" />
+                              </button>
+                            </div>
+                          </template>
+                        </NarrationRecorder>
                       </div>
-                    </template>
-                  </NarrationRecorder>
-                </div>
-              </FeedGestureLayer>
+                    </FeedGestureLayer>
 
-              <!-- Buffering overlay: sits above ALL controls -->
-              <div
-                v-show="isBuffering"
-                class="pointer-events-none absolute inset-0 z-50 grid place-items-center bg-black/40"
-                aria-label="Buffering"
-              >
-                <div class="h-12 w-12 rounded-full border-2 border-white/25 border-t-white/95 animate-spin" />
+                    <!-- Buffering overlay: sits above ALL controls -->
+                    <div
+                      v-show="isBuffering"
+                      class="pointer-events-none absolute inset-0 z-50 grid place-items-center bg-black/40"
+                      aria-label="Buffering"
+                    >
+                      <div class="h-12 w-12 rounded-full border-2 border-white/25 border-t-white/95 animate-spin" />
+                    </div>
+                  </div>
+                </div>
               </div>
+
+              <div class="mb-2 md:mb-0">
+                <MediaAssetReviewTimeline
+                  :duration-seconds="duration"
+                  :current-seconds="currentTime"
+                  :segments="segments"
+                  :segments-with-narrations="segmentsWithNarrations"
+                  :visible-segment-ids="narrationVisibleSegmentIds"
+                  :active-segment-id="activeSegmentId"
+                  :focused-segment-id="focusedSegmentId"
+                  :only-narrated-markers="true"
+                  @seek="scrubToSeconds"
+                  @jumpToSegment="jumpToSegment"
+                />
+              </div>
+
+              <div class="md:hidden text-xs text-white/50 tabular-nums pb-4 pl-4">
+                {{ timeLabel }}
               </div>
             </div>
-          </div>
 
-          <MediaAssetReviewTimeline
-            :duration-seconds="duration"
-            :current-seconds="currentTime"
-            :segments="segments"
-            :segments-with-narrations="segmentsWithNarrations"
-            :visible-segment-ids="narrationVisibleSegmentIds"
-            :active-segment-id="activeSegmentId"
-            :focused-segment-id="focusedSegmentId"
-            :only-narrated-markers="true"
-            @seek="scrubToSeconds"
-            @jumpToSegment="jumpToSegment"
-          />
+            <div class="md:hidden space-y-6 pb-6 pt-4">
+              <div v-if="canGenerateMatchSummary">
+                <MatchSummaryBlock
+                  :state="matchSummaryState"
+                  :bullets="displayMatchSummaryBullets"
+                  :loading="matchSummaryLoading"
+                  :error="matchSummaryError"
+                  :can-generate="canGenerateMatchSummary"
+                  :has-generated="Boolean(matchSummaryBullets.length)"
+                  :narration-count="narrationCount"
+                  :narrations-needed="summaryNarrationsNeeded"
+                  :collapsible="true"
+                  :collapsed="matchSummaryCollapsed"
+                  @toggle="matchSummaryCollapsed = !matchSummaryCollapsed"
+                  @generate="generateMatchSummary({ forceRefresh: true })"
+                />
+              </div>
 
-          <div class="md:hidden text-xs text-white/50 tabular-nums">
-            {{ timeLabel }}
+              <MediaAssetReviewNarrationList
+                :segments="segments"
+                :narrations="(narrations as any)"
+                :active-segment-id="activeSegmentId"
+                :focused-segment-id="focusedSegmentId"
+                :default-source="defaultNarrationSource"
+                :source-filter="narrationSourceFilter"
+                :can-moderate-narrations="canModerateNarrations"
+                :can-assign-segments="canAssignSegments"
+                :can-tag-segments="canTagSegments"
+                :can-edit-narrations="canEditNarrations"
+                :can-delete-narrations="canDeleteNarrations"
+                :current-user-id="currentUserId"
+                @jumpToSegment="jumpToSegment"
+                @addNarration="handleAddNarrationForSegment"
+                @assignSegment="openAssignSegment"
+                @editNarration="handleEditNarration"
+                @deleteNarration="handleDeleteNarration"
+                @addTag="handleAddSegmentTag"
+                @removeTag="handleRemoveSegmentTag"
+                @update:sourceFilter="handleNarrationSourceFilterChange"
+                @visibleSegmentsChange="handleVisibleSegmentsChange"
+                @requestDeleteEmptySegments="requestDeleteEmptySegments"
+              />
+            </div>
           </div>
 
           <div v-if="recordError" class="text-xs text-rose-200">
@@ -1202,78 +1250,6 @@ async function handleDeleteNarration(narrationId: string) {
               @requestDeleteEmptySegments="requestDeleteEmptySegments"
             />
           </div>
-        </div>
-      </div>
-
-      <!-- Mobile-only narrations drawer -->
-      <div
-        class="md:hidden fixed left-0 right-0 bottom-0 z-40 bg-black/95 backdrop-blur border-t border-white/10 transition-[height] duration-200 ease-out"
-        :class="narrationsDrawerHeightClass"
-      >
-        <button
-          type="button"
-          class="w-full px-4 h-14 flex items-center justify-between text-left"
-          @click="narrationsDrawerOpen = !narrationsDrawerOpen"
-          :aria-expanded="narrationsDrawerOpen ? 'true' : 'false'"
-        >
-          <div class="flex items-center gap-3 min-w-0">
-            <div class="h-1 w-8 rounded-full bg-white/20" aria-hidden="true" />
-            <div class="text-sm font-semibold text-white truncate">Narrations</div>
-            <div class="text-xs text-white/50">({{ narrationCount }})</div>
-          </div>
-          <div class="text-xs text-white/60">
-            {{ narrationsDrawerOpen ? 'Close' : 'Open' }}
-          </div>
-        </button>
-
-        <div
-          v-show="narrationsDrawerOpen"
-          class="h-[calc(70dvh-3.5rem)] overflow-y-auto overscroll-contain px-4 pb-6"
-        >
-          <div
-            v-if="canGenerateMatchSummary"
-            class="mb-6"
-          >
-            <MatchSummaryBlock
-              :state="matchSummaryState"
-              :bullets="displayMatchSummaryBullets"
-              :loading="matchSummaryLoading"
-              :error="matchSummaryError"
-              :can-generate="canGenerateMatchSummary"
-              :has-generated="Boolean(matchSummaryBullets.length)"
-              :narration-count="narrationCount"
-              :narrations-needed="summaryNarrationsNeeded"
-              :collapsible="true"
-              :collapsed="matchSummaryCollapsed"
-              @toggle="matchSummaryCollapsed = !matchSummaryCollapsed"
-              @generate="generateMatchSummary({ forceRefresh: true })"
-            />
-          </div>
-
-          <MediaAssetReviewNarrationList
-            :segments="segments"
-            :narrations="(narrations as any)"
-            :active-segment-id="activeSegmentId"
-            :focused-segment-id="focusedSegmentId"
-            :default-source="defaultNarrationSource"
-            :source-filter="narrationSourceFilter"
-            :can-moderate-narrations="canModerateNarrations"
-            :can-assign-segments="canAssignSegments"
-            :can-tag-segments="canTagSegments"
-            :can-edit-narrations="canEditNarrations"
-            :can-delete-narrations="canDeleteNarrations"
-            :current-user-id="currentUserId"
-            @jumpToSegment="(seg) => { jumpToSegment(seg); narrationsDrawerOpen = false; }"
-            @addNarration="handleAddNarrationForSegment"
-            @assignSegment="openAssignSegment"
-            @editNarration="handleEditNarration"
-            @deleteNarration="handleDeleteNarration"
-            @addTag="handleAddSegmentTag"
-            @removeTag="handleRemoveSegmentTag"
-            @update:sourceFilter="handleNarrationSourceFilterChange"
-            @visibleSegmentsChange="handleVisibleSegmentsChange"
-            @requestDeleteEmptySegments="requestDeleteEmptySegments"
-          />
         </div>
       </div>
 

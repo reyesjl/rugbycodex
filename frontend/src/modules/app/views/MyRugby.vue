@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+// import { computed, ref } from 'vue';
+import { computed } from 'vue';
 import { useProfileDisplay } from '@/modules/profiles/composables/useProfileDisplay';
 import { useMyRugbyOrchestrator } from '@/modules/app/composables/useMyRugbyOrchestrator';
-import PersonalWorkOnsCard from '@/modules/app/components/PersonalWorkOnsCard.vue';
-import CoachFocusCard from '../components/CoachFocusCard.vue';
-import DemoMyRugbyCard from '@/modules/app/components/DemoMyRugbyCard.vue';
+// import PersonalWorkOnsCard from '@/modules/app/components/PersonalWorkOnsCard.vue';
+// import CoachFocusCard from '../components/CoachFocusCard.vue';
+// import DemoMyRugbyCard from '@/modules/app/components/DemoMyRugbyCard.vue';
 
-const { mode, isEmptyState } = useMyRugbyOrchestrator();
-const workOnsCollapsed = ref(false)
+// const { mode, isEmptyState } = useMyRugbyOrchestrator();
+const { isEmptyState } = useMyRugbyOrchestrator();
+// const workOnsCollapsed = ref(false)
 
 const { username } = useProfileDisplay();
 

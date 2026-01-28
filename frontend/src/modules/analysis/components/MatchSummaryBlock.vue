@@ -146,9 +146,9 @@ const shouldShowAnalyzeButton = computed(() => {
 
   <ConfirmNoticeModal
     :show="showInfoModal"
-    popup-title="Learn more"
-    message="Match summaries are generated from the narrations added to this match. As more narrations are added, the summary becomes more accurate and reflective of what happened."
-    button-label="Okay"
+    popup-title="Match summaries"
+    message="Each narration captures a perspective on what happened. Together, they form a shared picture of the match. As more narrations are added, the summary becomes richer, clearer, and more representative of what actually unfolded."
+    button-label="Got it"
     @close="closeInfoModal"
   />
 </template>
