@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { isMp4File, sanitizeFileName } from '@/modules/media/utils/assetUtilities';
+import { isSupportedVideoFile, sanitizeFileName } from '@/modules/media/utils/assetUtilities';
 import type { MediaAssetKind } from '@/modules/media/types/MediaAssetKind';
 
 type AddMediaUploadPayload = {
@@ -48,9 +48,9 @@ function handleFileChange(event: globalThis.Event) {
     return;
   }
 
-  if (!isMp4File(selected)) {
+  if (!isSupportedVideoFile(selected)) {
     file.value = null;
-    error.value = 'Only MP4 files are supported right now.';
+    error.value = 'Unsupported file format. Please upload MP4, MOV, AVI, MKV, WebM, or FLV.';
     if (target) target.value = '';
     return;
   }
@@ -156,12 +156,12 @@ async function submit() {
               <input
                 id="media-file"
                 type="file"
-                accept="video/mp4,.mp4"
+                accept="video/mp4,.mp4,.m4v,.mov,.avi,.mkv,.webm,.flv"
                 class="text-sm w-full rounded bg-white/10 border border-white/20 px-2 py-1 focus:border-white outline-none"
                 :disabled="loading"
                 @change="handleFileChange"
               />
-              <p class="text-xs text-gray-400 mt-1">MP4 only for now.</p>
+              <p class="text-xs text-gray-400 mt-1">Supported: MP4, MOV, AVI, MKV, WebM, FLV</p>
             </div>
           </div>
 

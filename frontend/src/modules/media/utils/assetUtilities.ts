@@ -31,14 +31,41 @@ export const getMediaDurationSeconds = async (file: globalThis.File) => {
   }
 };
 
-export const MP4_MIME_TYPES = new Set(['video/mp4', 'application/mp4']);
-export const isMp4File = (file: globalThis.File) => {
-  const nameOk = file.name.toLowerCase().endsWith('.mp4');
-  if (!nameOk) return false;
-  // Some browsers/OSes provide an empty type; allow it if extension is .mp4.
+export const SUPPORTED_VIDEO_MIME_TYPES = new Set([
+  'video/mp4',
+  'application/mp4',
+  'video/quicktime',      // MOV
+  'video/x-msvideo',      // AVI
+  'video/x-matroska',     // MKV
+  'video/webm',           // WebM
+  'video/x-flv',          // FLV
+]);
+
+export const SUPPORTED_VIDEO_EXTENSIONS = new Set([
+  '.mp4',
+  '.m4v',
+  '.mov',
+  '.avi',
+  '.mkv',
+  '.webm',
+  '.flv',
+]);
+
+export const isSupportedVideoFile = (file: globalThis.File) => {
+  const lowerName = file.name.toLowerCase();
+  const hasValidExtension = Array.from(SUPPORTED_VIDEO_EXTENSIONS).some(ext => lowerName.endsWith(ext));
+  
+  if (!hasValidExtension) return false;
+  
+  // Some browsers/OSes provide an empty type; allow it if extension is valid.
   if (!file.type) return true;
-  return MP4_MIME_TYPES.has(file.type);
+  
+  return SUPPORTED_VIDEO_MIME_TYPES.has(file.type);
 };
+
+// Legacy function - kept for backward compatibility
+export const MP4_MIME_TYPES = new Set(['video/mp4', 'application/mp4']);
+export const isMp4File = isSupportedVideoFile;
 
 export async function calculateFileChecksum(file: File): Promise<string> {
   const arrayBuffer = await file.arrayBuffer();

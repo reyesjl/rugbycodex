@@ -741,7 +741,7 @@ watch(activeOrgId, (orgId, prevOrgId) => {
               <span>Choose file</span>
               <input
                 type="file"
-                accept="video/mp4,.mp4"
+                accept="video/mp4,.mp4,.m4v,.mov,.avi,.mkv,.webm,.flv"
                 class="hidden"
                 @change="handleReattachFile"
               />
