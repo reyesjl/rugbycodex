@@ -182,6 +182,9 @@ void mobileSheetRef.value;
             </RouterLink>
           </li>
         </ul>
+        <div class="text-xs text-gray-400 px-4 py-3 mt-auto">
+          v0.8.0-beta
+        </div>
       </nav>
     </div>
   </div>
@@ -329,6 +332,9 @@ void mobileSheetRef.value;
             </li>
           </ul>
         </nav>
+      </div>
+      <div class="text-xs text-gray-400 px-4 py-3">
+        v0.8.0-beta
       </div>
     </div>
   </div>

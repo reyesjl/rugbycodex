@@ -3,6 +3,8 @@ import { computed, ref } from 'vue';
 import { Icon } from '@iconify/vue';
 import type { NarrationSourceType } from '@/modules/narrations/types/Narration';
 import type { NarrationListItem } from '@/modules/narrations/composables/useNarrationRecorder';
+import LoadingDot from '@/components/LoadingDot.vue';
+import ShimmerText from '@/components/ShimmerText.vue';
 
 const props = defineProps<{
   narration: NarrationListItem;
@@ -60,6 +62,8 @@ const transcriptWithBoldTerms = computed(() => {
   const rugbyTerms = /\b(tackle|carry|pass|kick|ruck|scrum|lineout|turnover|maul|breakdown|penalty|try|conversion)\b/gi;
   return text.replace(rugbyTerms, '<strong class="font-semibold">$1</strong>');
 });
+
+const isUploading = computed(() => (props.narration as any)?.status === 'uploading');
 
 function handleSaveEdit() {
   const text = props.editText?.trim() || localEditText.value.trim();
@@ -147,6 +151,10 @@ function handleSaveEdit() {
       </div>
 
       <!-- Narration Text -->
+      <div v-else-if="isUploading" class="flex items-center gap-3 text-sm text-slate-300">
+        <LoadingDot />
+        <ShimmerText text="rugbycodex is transcribing your voice..." />
+      </div>
       <div v-else class="text-base text-slate-50 leading-relaxed" v-html="transcriptWithBoldTerms" />
     </div>
   </div>
