@@ -143,9 +143,7 @@ export function useMediaAssetReview(options: MediaAssetReviewOptions) {
       const localState = getMatchSummaryStateFromCount(narrations.value.length);
       matchSummary.value = { state: localState, bullets: [] };
 
-      if (localState === 'normal' && options.canGenerateMatchSummary && options.canGenerateMatchSummary()) {
-        void generateMatchSummary({ forceRefresh: false });
-      }
+      // Match summary generation is user-triggered to avoid automatic compute on load.
     } catch (err) {
       if (activeRequestId !== requestId) return;
       error.value = err instanceof Error ? err.message : 'Unable to load review.';

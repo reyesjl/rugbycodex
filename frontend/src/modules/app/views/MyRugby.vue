@@ -36,7 +36,8 @@ const greeting = computed(() => {
         </div>
     </section>
 
-    <section class="container-lg text-white space-y-4">
+    <!-- Not needed right now -->
+    <!-- <section class="container-lg text-white space-y-4">
         <PersonalWorkOnsCard
             v-if="mode === 'player' && !isEmptyState"
             :collapsible="true"
@@ -52,7 +53,7 @@ const greeting = computed(() => {
         <DemoMyRugbyCard
             v-if="isEmptyState"
         />
-    </section>
+    </section> -->
 
     <section class="container-lg text-white pt-20">
         <div class="text-2xl font-semibold">Recent activity</div>

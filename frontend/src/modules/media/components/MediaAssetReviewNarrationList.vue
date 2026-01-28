@@ -45,8 +45,9 @@ const emit = defineEmits<{
 const editingNarrationId = ref<string | null>(null);
 const editingText = ref('');
 
-const ACTION_TAGS = ['tackle', 'carry', 'pass', 'kick', 'ruck_entry', 'cleanout'] as const;
-const CONTEXT_TAGS = ['set_piece', 'lineout', 'scrum', 'counter_attack', 'transition', 'exit', 'wide_channel'] as const;
+const SET_PIECE_TAGS = ['scrum', 'lineout', 'kickoff', 'restart'] as const;
+const ACTION_TAGS = ['carry', 'pass', 'kick', 'tackle', 'breakdown', 'maul'] as const;
+const CONTEXT_TAGS = ['exit', 'counter_attack', 'transition', 'broken_play'] as const;
 const HIDDEN_TAG_KEYS = new Set(['self']);
 
 const tagPanelOpenIds = ref(new Set<string>());
@@ -661,6 +662,25 @@ function formatSegmentSourceMeta(seg: MediaAssetSegment): string | null {
           </div>
 
           <div v-if="isTagPanelOpen(String(seg.id)) && canAddQuickTags" class="space-y-3">
+            <div>
+              <div class="text-xs uppercase tracking-wide text-slate-400 mb-2">Set Piece / Restarts</div>
+              <div class="flex flex-wrap gap-2">
+                <button
+                  v-for="tagKey in SET_PIECE_TAGS"
+                  :key="tagKey"
+                  type="button"
+                  class="rounded px-2.5 py-1 text-xs uppercase tracking-wide transition"
+                  :class="segmentHasTag(seg, tagKey, 'context')
+                    ? 'bg-slate-700 text-slate-400 cursor-not-allowed'
+                    : 'bg-slate-700/50 text-slate-300 hover:bg-slate-700'"
+                  :disabled="segmentHasTag(seg, tagKey, 'context')"
+                  @click.stop="addQuickTag(seg, tagKey, 'context')"
+                >
+                  {{ formatTagLabel(tagKey) }}
+                </button>
+              </div>
+            </div>
+
             <div>
               <div class="text-xs uppercase tracking-wide text-slate-400 mb-2">Action</div>
               <div class="flex flex-wrap gap-2">
