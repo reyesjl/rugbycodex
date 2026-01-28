@@ -39,12 +39,23 @@ export const useOrgMediaStore = defineStore("orgMedia", () => {
   const activeOrgId = computed(() => activeOrganizationStore.orgContext?.organization?.id ?? null);
 
   const processingAssets = computed(() =>
-    data.assets.filter(a => 
-      // Transcoding: status ready but not streaming_ready yet
-      (a.status === 'ready' && !a.streaming_ready) ||
-      // Event detection: actively detecting events
-      (a.processing_stage === 'detecting_events')
-    )
+    data.assets.filter(a => {
+      const stage = a.processing_stage ?? null;
+      const needsTranscode =
+        !a.streaming_ready &&
+        (
+          stage === 'uploaded' ||
+          stage === 'transcoding' ||
+          stage === 'transcoded' ||
+          a.status === 'processing' ||
+          a.status === 'ready' ||
+          a.status === 'uploaded'
+        );
+
+      const needsEventDetection = stage === 'detecting_events';
+
+      return needsTranscode || needsEventDetection;
+    })
   );
 
   function narrationCountByAssetId(assetId: string): number {
@@ -99,7 +110,7 @@ export const useOrgMediaStore = defineStore("orgMedia", () => {
     try {
       const { data: updated, error } = await supabase
         .from('media_assets')
-        .select('id, status, streaming_ready')
+        .select('id, status, streaming_ready, processing_stage')
         .eq('org_id', orgId)
         .in('id', processingIds);
 
@@ -118,6 +129,7 @@ export const useOrgMediaStore = defineStore("orgMedia", () => {
 
             existingAsset.streaming_ready = updatedAsset.streaming_ready;
             existingAsset.status = updatedAsset.status;
+            existingAsset.processing_stage = updatedAsset.processing_stage ?? existingAsset.processing_stage ?? null;
             
             if (wasProcessing && updatedAsset.streaming_ready) {
               completedCount++;
