@@ -68,6 +68,16 @@ const uploadMetricsByAssetId = computed(() => {
 const searchQuery = ref('');
 const selectedKind = ref<'all' | 'match' | 'training'>('all');
 
+function normalizeSearchText(value: string | null | undefined) {
+  if (!value) return '';
+  return value
+    .replace(/\.[^/.]+$/, '')
+    .replace(/[\-_]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
 const filteredAssets = computed(() => {
   let filtered = assets.value;
   
@@ -78,10 +88,10 @@ const filteredAssets = computed(() => {
   
   // Filter by search query
   if (searchQuery.value.trim()) {
-    const query = searchQuery.value.toLowerCase();
+    const query = normalizeSearchText(searchQuery.value);
     filtered = filtered.filter(asset => 
-      asset.file_name.toLowerCase().includes(query) ||
-      asset.kind?.toLowerCase().includes(query)
+      normalizeSearchText(asset.file_name).includes(query) ||
+      normalizeSearchText(asset.kind).includes(query)
     );
   }
   

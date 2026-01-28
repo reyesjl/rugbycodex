@@ -1,4 +1,4 @@
-import { serve } from "https://deno.land/std/http/server.ts";
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { getAuthContext, getClientBoundToRequest } from "../_shared/auth.ts";
 import { handleCors, jsonResponse } from "../_shared/cors.ts";
 import { errorResponse } from "../_shared/errors.ts";
@@ -10,7 +10,7 @@ import {
   requireOrgRoleSource,
   requireRole,
 } from "../_shared/roles.ts";
-import { withObservability } from "../_shared/observability.ts";
+import { logEvent, withObservability } from "../_shared/observability.ts";
 
 /**
  * Role hierarchy definition: member < staff < manager < owner
@@ -27,21 +27,26 @@ type OrgRole = keyof typeof ROLE_RANK;
 
 const VALID_ROLES = ["member", "staff", "manager", "owner"] as const;
 
-serve(withObservability("change-member-role", async (req) => {
+type DenoServeHandler = (request: Request, info?: unknown) => Response | Promise<Response>;
+declare const Deno: { serve: (handler: DenoServeHandler) => void };
+
+function asTrimmedString(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const t = value.trim();
+  return t ? t : null;
+}
+
+Deno.serve(withObservability("change-member-role", async (req, ctx) => {
   try {
     // Handle CORS preflight
     const cors = handleCors(req);
     if (cors) return cors;
 
     if (req.method !== "POST") {
-      return new Response(
-        JSON.stringify({
-          error: {
-            code: "METHOD_NOT_ALLOWED",
-            message: "Only POST requests are allowed.",
-          },
-        }),
-        { status: 405, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      return errorResponse(
+        "METHOD_NOT_ALLOWED",
+        "Only POST is allowed for this endpoint.",
+        405,
       );
     }
 
@@ -49,46 +54,59 @@ serve(withObservability("change-member-role", async (req) => {
       hasAuthorizationHeader: !!req.headers.get("Authorization"),
     });
 
+    const orgIdHeader = asTrimmedString(req.headers.get("x-org-id"));
+    if (!orgIdHeader) {
+      return errorResponse(
+        "ORG_ID_REQUIRED",
+        "x-org-id header is required.",
+        400,
+      );
+    }
+
     // Extract caller identity from JWT
     const { userId: callerId, isAdmin } = await getAuthContext(req);
     try {
       requireAuthenticated(callerId);
     } catch {
-      return new Response(
-        JSON.stringify({
-          error: {
-            code: "AUTH_REQUIRED",
-            message: "Authentication required.",
-          },
-        }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return errorResponse("AUTH_REQUIRED", "Authentication required.", 401);
     }
 
     // Parse and validate request payload
-    const { orgId, userId: targetUserId, role } = await req.json();
-    if (!orgId || !targetUserId || !role) {
-      return new Response(
-        JSON.stringify({
-          error: {
-            code: "INVALID_REQUEST",
-            message: "Missing required fields: orgId, userId, and role are required.",
-          },
-        }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    const body = (await req.json().catch(() => null)) as {
+      orgId?: string;
+      userId?: string;
+      role?: string;
+    } | null;
+    if (!body) {
+      return errorResponse("INVALID_REQUEST_BODY", "Invalid JSON body.", 400);
+    }
+
+    const orgId = asTrimmedString(body.orgId);
+    const targetUserId = asTrimmedString(body.userId);
+    const requestedRole = asTrimmedString(body.role);
+
+    if (!orgId || !targetUserId || !requestedRole) {
+      return errorResponse(
+        "MISSING_REQUIRED_FIELDS",
+        "orgId, userId, and role are required.",
+        400,
+      );
+    }
+
+    if (orgId !== orgIdHeader) {
+      return errorResponse(
+        "INVALID_REQUEST",
+        "x-org-id header must match orgId in request body.",
+        400,
       );
     }
 
     // Validate role is a known value
-    if (!VALID_ROLES.includes(role)) {
-      return new Response(
-        JSON.stringify({
-          error: {
-            code: "INVALID_ROLE",
-            message: `Invalid role. Must be one of: ${VALID_ROLES.join(", ")}.`,
-          },
-        }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    if (!VALID_ROLES.includes(requestedRole as (typeof VALID_ROLES)[number])) {
+      return errorResponse(
+        "INVALID_REQUEST",
+        `Invalid role. Must be one of: ${VALID_ROLES.join(", ")}.`,
+        400,
       );
     }
 
@@ -109,35 +127,13 @@ serve(withObservability("change-member-role", async (req) => {
         const { role, source } = await getUserRoleFromRequest(req, { supabase, orgId });
         requireOrgRoleSource(source);
         callerRole = normalizeRole(role) as OrgRole;
-        requireRole(callerRole as OrgRole, "manager");
+        requireRole(callerRole as OrgRole, "staff");
       } catch (err) {
-        const code = (err as any)?.code;
-        if (code === "ORG_ROLE_REQUIRED") {
-          return new Response(
-            JSON.stringify({
-              error: {
-                code: "NOT_ORG_MEMBER",
-                message: "You are not a member of this organization.",
-              },
-            }),
-            {
-              status: 403,
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-            }
-          );
+        const status = (err as any)?.status ?? 403;
+        if (status === 401) {
+          return errorResponse("AUTH_REQUIRED", "Authentication required.", 401);
         }
-        return new Response(
-          JSON.stringify({
-            error: {
-              code: "INSUFFICIENT_PERMISSIONS",
-              message: "You do not have permission to change member roles.",
-            },
-          }),
-          {
-            status: 403,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
-        );
+        return errorResponse("FORBIDDEN", "Forbidden", 403);
       }
     }
 
@@ -152,17 +148,10 @@ serve(withObservability("change-member-role", async (req) => {
       .single();
 
     if (targetError || !targetMembership) {
-      return new Response(
-        JSON.stringify({
-          error: {
-            code: "TARGET_NOT_FOUND",
-            message: "Target user is not a member of this organization.",
-          },
-        }),
-        {
-          status: 404,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+      return errorResponse(
+        "NOT_FOUND",
+        "Target user is not a member of this organization.",
+        404,
       );
     }
 
@@ -171,18 +160,11 @@ serve(withObservability("change-member-role", async (req) => {
     // =========================================================================
     // No-op check: reject if target already has the requested role
     // =========================================================================
-    if (targetRole === role) {
-      return new Response(
-        JSON.stringify({
-          error: {
-            code: "NO_CHANGE_NEEDED",
-            message: `User already has the role: ${role}.`,
-          },
-        }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+    if (targetRole === requestedRole) {
+      return errorResponse(
+        "INVALID_REQUEST",
+        `User already has the role: ${requestedRole}.`,
+        400,
       );
     }
 
@@ -192,54 +174,33 @@ serve(withObservability("change-member-role", async (req) => {
     if (!isAdmin && callerRole) {
       const callerRank = ROLE_RANK[callerRole];
       const targetRank = ROLE_RANK[targetRole];
-      const newRoleRank = ROLE_RANK[role as OrgRole];
+      const newRoleRank = ROLE_RANK[requestedRole as OrgRole];
 
       // Rule 1: Caller cannot modify a target with a HIGHER role than themselves
       // Use > (not >=) to allow equal-rank modifications (e.g., manager can demote manager)
       if (targetRank > callerRank) {
-        return new Response(
-          JSON.stringify({
-            error: {
-              code: "TARGET_RANK_TOO_HIGH",
-              message: "You cannot modify a user with a higher role than your own.",
-            },
-          }),
-          {
-            status: 403,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
+        return errorResponse(
+          "FORBIDDEN",
+          "You cannot modify a user with a higher role than your own.",
+          403,
         );
       }
 
       // Rule 2: Caller cannot assign a role higher than their own
       if (newRoleRank > callerRank) {
-        return new Response(
-          JSON.stringify({
-            error: {
-              code: "ASSIGNMENT_RANK_TOO_HIGH",
-              message: "You cannot assign a role higher than your own.",
-            },
-          }),
-          {
-            status: 403,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
+        return errorResponse(
+          "FORBIDDEN",
+          "You cannot assign a role higher than your own.",
+          403,
         );
       }
 
       // Rule 3: Only owner may assign the owner role
-      if (role === "owner" && callerRole !== "owner") {
-        return new Response(
-          JSON.stringify({
-            error: {
-              code: "OWNER_ASSIGNMENT_RESTRICTED",
-              message: "Only organization owners can assign the owner role.",
-            },
-          }),
-          {
-            status: 403,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
+      if (requestedRole === "owner" && callerRole !== "owner") {
+        return errorResponse(
+          "FORBIDDEN",
+          "Only organization owners can assign the owner role.",
+          403,
         );
       }
     }
@@ -247,7 +208,7 @@ serve(withObservability("change-member-role", async (req) => {
     // =========================================================================
     // Last-owner invariant: prevent leaving org without an owner
     // =========================================================================
-    const isDemotingOwner = targetRole === "owner" && role !== "owner";
+    const isDemotingOwner = targetRole === "owner" && requestedRole !== "owner";
 
     if (isDemotingOwner) {
       // Count current owners in the organization
@@ -259,33 +220,19 @@ serve(withObservability("change-member-role", async (req) => {
 
       if (countError) {
         console.error("Failed to count owners:", countError);
-        return new Response(
-          JSON.stringify({
-            error: {
-              code: "OWNER_COUNT_FAILED",
-              message: "Failed to verify owner count.",
-            },
-          }),
-          {
-            status: 500,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
+        return errorResponse(
+          "DB_QUERY_FAILED",
+          "Failed to verify owner count.",
+          500,
         );
       }
 
       // Block if this is the last owner (applies to self-demotion too)
       if (count === 1) {
-        return new Response(
-          JSON.stringify({
-            error: {
-              code: "LAST_OWNER_PROTECTION",
-              message: "Cannot change role: organization must have at least one owner.",
-            },
-          }),
-          {
-            status: 409,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
+        return errorResponse(
+          "INVALID_REQUEST",
+          "Cannot change role: organization must have at least one owner.",
+          409,
         );
       }
     }
@@ -295,7 +242,7 @@ serve(withObservability("change-member-role", async (req) => {
     // =========================================================================
     const { data: updatedMembership, error: updateError } = await supabase
       .from("org_members")
-      .update({ role })
+      .update({ role: requestedRole })
       .eq("org_id", orgId)
       .eq("user_id", targetUserId)
       .select()
@@ -303,18 +250,7 @@ serve(withObservability("change-member-role", async (req) => {
 
     if (updateError) {
       console.error("Failed to update member role:", updateError);
-      return new Response(
-        JSON.stringify({
-          error: {
-            code: "ROLE_UPDATE_FAILED",
-            message: "Failed to update member role.",
-          },
-        }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
+      return errorResponse("DB_QUERY_FAILED", "Failed to update member role.", 500);
     }
 
     // =========================================================================
@@ -329,48 +265,30 @@ serve(withObservability("change-member-role", async (req) => {
     if (profileError) {
       console.error("Failed to fetch public profile:", profileError);
       // Non-fatal: return membership without profile
-      return new Response(
-        JSON.stringify({
-          membership: updatedMembership,
-          profile: null,
-        }),
-        {
-          headers: {
-            ...corsHeaders,
-            "Content-Type": "application/json",
-          },
-        }
-      );
+      return jsonResponse({
+        membership: updatedMembership,
+        profile: null,
+      });
     }
 
     // =========================================================================
     // Success response
     // =========================================================================
-    return new Response(
-      JSON.stringify({
-        membership: updatedMembership,
-        profile: publicProfile,
-      }),
-      {
-        headers: {
-          ...corsHeaders,
-          "Content-Type": "application/json",
-        },
-      }
-    );
+    return jsonResponse({
+      membership: updatedMembership,
+      profile: publicProfile,
+    });
   } catch (err) {
-    console.error("Unexpected error in change-member-role:", err);
-    return new Response(
-      JSON.stringify({
-        error: {
-          code: "UNEXPECTED_SERVER_ERROR",
-          message: "An unexpected error occurred.",
-        },
-      }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
+    const message = err instanceof Error ? err.message : String(err);
+    logEvent({
+      severity: "error",
+      event_type: "request_error",
+      request_id: ctx.requestId,
+      function: "change-member-role",
+      error_code: "UNEXPECTED_SERVER_ERROR",
+      error_message: message,
+      stack: err instanceof Error ? err.stack : undefined,
+    });
+    return errorResponse("UNEXPECTED_SERVER_ERROR", "Unexpected server error.", 500);
   }
 }));
