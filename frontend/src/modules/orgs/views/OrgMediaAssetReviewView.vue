@@ -44,7 +44,10 @@ import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
 const PRE_BUFFER_SECONDS = 5;
 const POST_BUFFER_SECONDS = 10;
 const MERGE_BUFFER_SECONDS = 5;
-const MIN_OVERLAP_SECONDS = 5;
+const MIN_OVERLAP_PERCENTAGE = 0.5; // 50% of recording duration
+const MIN_OVERLAP_ABSOLUTE_SECONDS = 2; // Absolute minimum to prevent noise
+const MIN_RECORDING_DURATION_SECONDS = 0.5;
+const FRAGMENTATION_OVERLAP_THRESHOLD = 0.8; // 80% overlap = potential fragmentation
 
 const DEBUG = import.meta.env.DEV;
 
@@ -65,6 +68,22 @@ function computeOverlapSeconds(
 function clampEndSeconds(endSeconds: number, mediaDuration: number): number {
   if (!Number.isFinite(mediaDuration) || mediaDuration <= 0) return endSeconds;
   return Math.min(mediaDuration, endSeconds);
+}
+
+/**
+ * Computes the minimum overlap required for a recording to attach to an existing segment.
+ * Rule: At least 50% of EITHER the recording OR the segment must overlap, with a minimum of 2 seconds.
+ * This dual threshold handles both long recordings on short segments and short recordings on long segments.
+ */
+function computeMinimumOverlap(recordingDurationSeconds: number, segmentDurationSeconds: number): number {
+  const overlapFromRecording = recordingDurationSeconds * MIN_OVERLAP_PERCENTAGE;
+  const overlapFromSegment = segmentDurationSeconds * MIN_OVERLAP_PERCENTAGE;
+  
+  // Take the SMALLER of the two percentages to ensure it's achievable
+  // (e.g., 20s recording on 10s segment: need 5s not 10s)
+  const percentageBased = Math.min(overlapFromRecording, overlapFromSegment);
+  
+  return Math.max(MIN_OVERLAP_ABSOLUTE_SECONDS, percentageBased);
 }
 
 function findSegmentContainingTime(list: MediaAssetSegment[], seconds: number): MediaAssetSegment | null {
@@ -187,6 +206,19 @@ const { processingStatus } = useMediaProcessingStatus(mediaAssetRef);
 
 const narrationTargetSegmentId = ref<string | null>(null);
 
+// Recording context: captured at start, used when stopping to avoid race conditions
+type RecordingContext = {
+  targetSegmentId: string | null;
+  orgId: string;
+  mediaAssetId: string;
+  membershipRole: string;
+  focusAtStart: string | null;
+};
+const recordingContext = ref<RecordingContext | null>(null);
+
+// Track active optimistic narrations to avoid duplicates and enable cleanup
+const activeOptimisticIds = ref<Set<string>>(new Set());
+
 const activeOrgIdOrEmpty = computed(() => activeOrgId.value ?? '');
 const assigningSegment = ref<MediaAssetSegment | null>(null);
 const pendingEmptySegmentIds = ref<string[]>([]);
@@ -197,7 +229,14 @@ const deleteEmptySegmentsProcessing = ref(false);
 watch(
   [activeOrgId, mediaAssetId],
   () => {
+    // Stop any active recording when navigating to different asset
+    if (recorder.isRecording.value) {
+      debugLog('route change detected, stopping active recording');
+      recorder.stopRecordingAndGetBlob().catch(() => {});
+    }
     narrationTargetSegmentId.value = null;
+    recordingContext.value = null;
+    activeOptimisticIds.value.clear();
     narrationVisibleSegmentIds.value = [];
   },
   { immediate: true }
@@ -297,6 +336,7 @@ async function confirmDeleteEmptySegments() {
   deleteEmptySegmentsError.value = null;
 
   try {
+    // Fix #11: Include optimistic narrations when checking for empty segments
     const narrationsSet = new Set(
       (narrations.value as any[])
         .map((n) => String(n?.media_asset_segment_id ?? ''))
@@ -479,7 +519,10 @@ function handleTimeupdate(p: { currentTime: number; duration: number }) {
   }
 
   // Keep focused segment aligned with playback, but don't force it if unset and no segments.
-  focusedSegmentId.value = findFocusedSegmentId(currentTime.value);
+  // Fix #12: Don't update focus during recording to avoid segment target confusion
+  if (!recorder.isRecording.value) {
+    focusedSegmentId.value = findFocusedSegmentId(currentTime.value);
+  }
 }
 
 function handleLoadedMetadata(p: { duration: number }) {
@@ -520,6 +563,12 @@ function scrubToSeconds(seconds: number) {
 }
 
 onBeforeUnmount(() => {
+  // Stop active recording and clean up state
+  if (recorder.isRecording.value) {
+    debugLog('component unmounting, stopping active recording');
+    recorder.stopRecordingAndGetBlob().catch(() => {});
+    recordingContext.value = null;
+  }
   restoreVideoMuteAfterRecording();
 });
 
@@ -581,7 +630,11 @@ async function handleAddNarrationForSegment(seg: MediaAssetSegment) {
   narrationTargetSegmentId.value = String(seg.id);
   focusedSegmentId.value = String(seg.id);
 
-  if (recorder.isRecording.value) return;
+  // Prevent starting new recording if already recording
+  if (recorder.isRecording.value) {
+    toast({ message: 'Please stop current recording first.', variant: 'info', durationMs: 2000 });
+    return;
+  }
 
   try {
     await beginRecording();
@@ -628,9 +681,26 @@ async function beginRecording() {
     return;
   }
 
+  // Clean up any previous optimistic narrations that failed or are still uploading
+  // This prevents duplicate "Uploading..." entries on rapid re-recording
+  if (activeOptimisticIds.value.size > 0) {
+    debugLog('cleaning up previous optimistic narrations', Array.from(activeOptimisticIds.value));
+    narrations.value = (narrations.value as any[]).filter((n) => !activeOptimisticIds.value.has(String(n.id)));
+    activeOptimisticIds.value.clear();
+  }
+
   if (!recorder.isRecording.value && recorder.hasRecording.value) {
     recorder.resetRecording();
   }
+
+  // Capture recording context NOW to avoid race conditions with segment changes
+  recordingContext.value = {
+    targetSegmentId: narrationTargetSegmentId.value,
+    orgId: activeOrgId.value,
+    mediaAssetId: asset.value.id,
+    membershipRole: String(membershipRole.value),
+    focusAtStart: focusedSegmentId.value,
+  };
 
   // Start recording.
   // Mute the video before recording to avoid bleeding audio into the mic capture.
@@ -647,23 +717,79 @@ async function beginRecording() {
     debugLog('recording started', {
       recordStartVideoTime: recordStartSeconds,
       wallClockStartMs: recordStartWallClockMs.value,
+      context: recordingContext.value,
     });
   } catch (err) {
     recordStartVideoTime.value = null;
     recordStartWallClockMs.value = null;
+    recordingContext.value = null;
     restoreVideoMuteAfterRecording();
     throw err;
+  }
+}
+
+function checkSegmentFragmentation(newSegment: MediaAssetSegment): void {
+  // Check if newly created segment significantly overlaps with existing segments
+  // This helps detect rapid recordings creating fragmented segments
+  
+  const newStart = newSegment.start_seconds ?? 0;
+  const newEnd = newSegment.end_seconds ?? 0;
+  const newDuration = newEnd - newStart;
+  
+  if (newDuration === 0) return;
+  
+  for (const existing of segments.value) {
+    if (String(existing.id) === String(newSegment.id)) continue;
+    
+    // Only check segments of same source type
+    if (existing.source_type !== newSegment.source_type) continue;
+    
+    const overlap = computeOverlapSeconds(
+      newStart,
+      newEnd,
+      existing.start_seconds ?? 0,
+      existing.end_seconds ?? 0
+    );
+    
+    const overlapPercentage = overlap / newDuration;
+    
+    if (overlapPercentage >= FRAGMENTATION_OVERLAP_THRESHOLD) {
+      debugLog('fragmentation detected', {
+        newSegmentId: newSegment.id,
+        existingSegmentId: existing.id,
+        overlapPercentage,
+        overlap,
+      });
+      
+      // Suggest using existing segment instead
+      toast({
+        message: `This moment overlaps ${Math.round(overlapPercentage * 100)}% with an existing segment. Consider adding narrations to existing moments instead.`,
+        variant: 'info',
+        durationMs: 4000,
+      });
+      
+      // Only show one warning
+      break;
+    }
   }
 }
 
 async function endRecordingNonBlocking() {
   if (!recorder.isRecording.value) return;
 
+  // Capture recording context before clearing (Fix #2: segment target race)
+  const ctx = recordingContext.value;
+  if (!ctx) {
+    recordError.value = 'Missing recording context.';
+    return;
+  }
+
   recordingUploadError.value = null;
   const startVideoTime = recordStartVideoTime.value;
   const startWallClockMs = recordStartWallClockMs.value;
   recordStartVideoTime.value = null;
   recordStartWallClockMs.value = null;
+  recordingContext.value = null;
 
   const wallClockEndMs = Date.now();
   const recordingDurationSeconds =
@@ -680,19 +806,15 @@ async function endRecordingNonBlocking() {
   // Stop recording first, then restore the user's prior mute state.
   restoreVideoMuteAfterRecording();
 
-  if (!activeOrgId.value || !asset.value) {
-    recordingUploadError.value = 'Missing organization or media asset.';
-    void blobPromise.catch(() => {});
-    return;
-  }
+  // Use captured context instead of current state (Fix #2)
+  const orgId = ctx.orgId;
+  const mediaAssetId = ctx.mediaAssetId;
 
-  const orgId = activeOrgId.value;
   if (!orgId) {
     recordingUploadError.value = 'Missing organization.';
     void blobPromise.catch(() => {});
     return;
   }
-  const mediaAssetId = asset.value.id;
 
   if (startVideoTime === null || startWallClockMs === null) {
     recordingUploadError.value = 'Missing recording start time.';
@@ -700,9 +822,22 @@ async function endRecordingNonBlocking() {
     return;
   }
 
+  // Check minimum recording duration to prevent empty narrations
+  if (recordingDurationSeconds < MIN_RECORDING_DURATION_SECONDS) {
+    recordingUploadError.value = 'Recording too short. Please speak for at least half a second.';
+    void blobPromise.catch(() => {});
+    toast({ 
+      message: 'Recording too short. Please try again.', 
+      variant: 'info', 
+      durationMs: 2500 
+    });
+    return;
+  }
+
   debugLog('recording stopped', {
     wallClockEndMs,
     recordingDurationSeconds,
+    context: ctx,
   });
 
   const mediaDuration = duration.value ?? 0;
@@ -722,7 +857,8 @@ async function endRecordingNonBlocking() {
     ...bounds,
   });
 
-  const explicitSegmentId = narrationTargetSegmentId.value ? String(narrationTargetSegmentId.value) : null;
+  // Use captured target from context (Fix #2)
+  const explicitSegmentId = ctx.targetSegmentId ? String(ctx.targetSegmentId) : null;
   if (explicitSegmentId) narrationTargetSegmentId.value = null;
 
   let targetSegment: MediaAssetSegment | null = null;
@@ -768,7 +904,41 @@ async function endRecordingNonBlocking() {
           resolvedOverlap.start_seconds ?? 0,
           resolvedOverlap.end_seconds ?? 0
         );
-        if (overlapSeconds < MIN_OVERLAP_SECONDS) {
+        
+        // Calculate minimum overlap: 50% of EITHER recording OR segment, minimum 2 seconds
+        const recordingDuration = overlapEndSeconds - overlapStartSeconds;
+        const segmentDuration = (resolvedOverlap.end_seconds ?? 0) - (resolvedOverlap.start_seconds ?? 0);
+        const minOverlap = computeMinimumOverlap(recordingDuration, segmentDuration);
+        
+        const overlapPercentageOfRecording = recordingDuration > 0 ? (overlapSeconds / recordingDuration) * 100 : 0;
+        const overlapPercentageOfSegment = segmentDuration > 0 ? (overlapSeconds / segmentDuration) * 100 : 0;
+        
+        debugLog('overlap detected', {
+          overlapSeconds,
+          minRequired: minOverlap,
+          recordingDuration,
+          segmentDuration,
+          overlapPctOfRecording: overlapPercentageOfRecording.toFixed(1) + '%',
+          overlapPctOfSegment: overlapPercentageOfSegment.toFixed(1) + '%',
+          segmentId: resolvedOverlap.id,
+          recordingRange: [overlapStartSeconds, overlapEndSeconds],
+          segmentRange: [resolvedOverlap.start_seconds, resolvedOverlap.end_seconds],
+        });
+        
+        if (overlapSeconds < minOverlap) {
+          const overlapFromRecording = recordingDuration * MIN_OVERLAP_PERCENTAGE;
+          const overlapFromSegment = segmentDuration * MIN_OVERLAP_PERCENTAGE;
+          const reason = overlapSeconds < MIN_OVERLAP_ABSOLUTE_SECONDS 
+            ? 'below 2s absolute minimum'
+            : `below 50% threshold (need ${minOverlap.toFixed(1)}s = min of ${overlapFromRecording.toFixed(1)}s recording / ${overlapFromSegment.toFixed(1)}s segment)`;
+          
+          debugLog('overlap insufficient, will create new segment', { 
+            overlapSeconds, 
+            minOverlap,
+            overlapPctOfRecording: overlapPercentageOfRecording.toFixed(1) + '%',
+            overlapPctOfSegment: overlapPercentageOfSegment.toFixed(1) + '%',
+            reason
+          });
           resolvedOverlap = null;
         }
       }
@@ -801,6 +971,9 @@ async function endRecordingNonBlocking() {
         targetSegment = createdSegment;
         upsertSegment(createdSegment);
         debugLog('segment inserted', { segmentId: createdSegment.id });
+        
+        // Check for potential fragmentation
+        checkSegmentFragmentation(createdSegment);
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to create segment.';
@@ -824,6 +997,14 @@ async function endRecordingNonBlocking() {
     segment_id: String(targetSegment.id),
   }));
 
+  // Determine source_type for optimistic narration (Fix #8: filter visibility)
+  const sourceType = (() => {
+    const role = String(ctx.membershipRole ?? '').toLowerCase();
+    if (role === 'owner') return 'coach';
+    if (role === 'manager' || role === 'staff') return 'staff';
+    return 'member';
+  })();
+
   const optimisticId = `optimistic-${Date.now()}-${Math.random().toString(16).slice(2)}`;
   const optimistic: OptimisticNarration = {
     id: optimisticId,
@@ -831,19 +1012,46 @@ async function endRecordingNonBlocking() {
     media_asset_id: mediaAssetId,
     media_asset_segment_id: String(targetSegment.id),
     author_id: null,
+    source_type: sourceType,
     audio_storage_path: null,
     created_at: new Date(),
     transcript_raw: 'Uploading…',
     status: 'uploading',
   };
 
+  // Track optimistic ID for cleanup (Fix #1: multiple quick recordings)
+  activeOptimisticIds.value.add(optimisticId);
+
   // optimistic insert into the overall narrations list
   narrations.value = [...narrations.value, optimistic];
+
+  // Helper to add timeout to promises (Fix #10)
+  const withTimeout = <T>(promise: Promise<T>, timeoutMs: number, errorMsg: string): Promise<T> => {
+    return Promise.race([
+      promise,
+      new Promise<T>((_, reject) => 
+        setTimeout(() => reject(new Error(errorMsg)), timeoutMs)
+      ),
+    ]);
+  };
 
   Promise.resolve()
     .then(async () => {
       const audioBlob = await blobPromise;
-      const { text } = await transcriptionService.transcribeAudio(audioBlob);
+      
+      // Add 60s timeout for transcription (Fix #10: transcription timeout)
+      const { text } = await withTimeout(
+        transcriptionService.transcribeAudio(audioBlob),
+        60000,
+        'Transcription timed out. Please try recording a shorter clip.'
+      );
+      
+      // Validate segment still exists before creating narration (Fix #3)
+      const segmentStillExists = segments.value.some((s) => String(s.id) === String(targetSegment.id));
+      if (!segmentStillExists) {
+        throw new Error('Target segment no longer exists.');
+      }
+      
       return narrationService.createNarration({
         orgId,
         mediaAssetId,
@@ -852,12 +1060,19 @@ async function endRecordingNonBlocking() {
       });
     })
     .then((saved) => {
-      narrations.value = (narrations.value as any[]).map((n) => (n.id === optimisticId ? saved : n));
+      // Remove from optimistic tracking (Fix #1)
+      activeOptimisticIds.value.delete(optimisticId);
+      // Use filter + add instead of map to prevent duplicates (Fix #4)
+      narrations.value = [
+        ...(narrations.value as any[]).filter((n) => n.id !== optimisticId),
+        saved,
+      ];
       toast({ message: 'Narration added.', variant: 'success', durationMs: 2000 });
     })
     .catch((err) => {
       const message = err instanceof Error ? err.message : 'Failed to process narration.';
       recordingUploadError.value = message;
+      // Update optimistic to error state
       narrations.value = (narrations.value as any[]).map((n) => {
         if (n.id !== optimisticId) return n;
         return {
@@ -867,6 +1082,8 @@ async function endRecordingNonBlocking() {
           errorMessage: message,
         };
       });
+      // Don't forget to remove from optimistic tracking on error too
+      activeOptimisticIds.value.delete(optimisticId);
       if (createdSegment) {
         void segmentService
           .deleteSegment(String(createdSegment.id))
@@ -912,8 +1129,24 @@ async function handleEditNarration(narrationId: string, transcriptRaw: string) {
     toast({ message: 'You do not have permission to edit narrations.', variant: 'info', durationMs: 2500 });
     return;
   }
+  
+  // Fix #6: Basic optimistic locking - capture current updated_at
+  const currentNarration = (narrations.value as any[]).find((n) => String(n.id) === narrationId);
+  const originalUpdatedAt = currentNarration?.updated_at;
+  
   try {
     const updated = await narrationService.updateNarrationText(narrationId, transcriptRaw);
+    
+    // Check if narration was modified by someone else during our edit
+    const freshNarration = (narrations.value as any[]).find((n) => String(n.id) === narrationId);
+    if (freshNarration && originalUpdatedAt && freshNarration.updated_at !== originalUpdatedAt) {
+      toast({ 
+        message: 'Warning: This narration may have been modified by another user.', 
+        variant: 'info', 
+        durationMs: 3000 
+      });
+    }
+    
     narrations.value = (narrations.value as any[]).map((n) => (String(n.id) === narrationId ? updated : n));
     toast({ message: 'Narration updated.', variant: 'success', durationMs: 1500 });
   } catch (err) {
