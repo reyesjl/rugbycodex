@@ -213,6 +213,11 @@ export const useUploadStore = defineStore("upload", () => {
 
       const jobs = [...completed];
 
+      // Wait for S3 eventual consistency before calling complete-upload
+      // This prevents race condition where file isn't immediately visible after multipart upload
+      console.log(`[Upload] Waiting 3s for S3 consistency before completing ${jobs.length} upload(s)...`);
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+
       // Complete upload: verify, create job, and dispatch to SQS
       await Promise.all(
         jobs.map(async (job) => {

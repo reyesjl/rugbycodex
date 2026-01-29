@@ -1232,7 +1232,9 @@ async function handleDeleteNarration(narrationId: string) {
                     @pointermove="onHoverMove"
                     @pointerleave="onHoverLeave"
                   >
+                    <!-- Show player only when video is watchable -->
                     <ShakaSurfacePlayer
+                      v-if="processingStatus.isWatchable"
                       ref="playerRef"
                       :manifest-url="playlistUrl"
                       :autoplay="false"
@@ -1244,8 +1246,27 @@ async function handleDeleteNarration(narrationId: string) {
                       @error="(m) => (error = m)"
                       @buffering="handleBuffering"
                     />
+                    
+                    <!-- Placeholder when video is not ready -->
+                    <div 
+                      v-else
+                      class="absolute inset-0 flex items-center justify-center bg-black"
+                    >
+                      <div class="flex flex-col items-center gap-4 text-center px-6">
+                        <LoadingDot size="lg" color="#3B82F6" />
+                        <div>
+                          <p class="text-lg font-semibold text-white">{{ processingStatus.statusMessage }}</p>
+                          <p class="text-sm text-white/60 mt-1">This may take a few minutes...</p>
+                        </div>
+                      </div>
+                    </div>
 
-                    <FeedGestureLayer @tap="onTap" @swipeDown="() => {}" @swipeUp="() => {}">
+                    <FeedGestureLayer 
+                      v-if="processingStatus.isWatchable"
+                      @tap="onTap" 
+                      @swipeDown="() => {}" 
+                      @swipeUp="() => {}"
+                    >
                       <Transition
                         enter-active-class="transition duration-150 ease-out"
                         enter-from-class="opacity-0 scale-90"

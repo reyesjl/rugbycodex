@@ -3,8 +3,11 @@ import { computed, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import HlsPlayer from '@/components/HlsPlayer.vue';
+import LoadingDot from '@/components/LoadingDot.vue';
+import MediaProcessingStatusBanner from '@/modules/media/components/MediaProcessingStatusBanner.vue';
 import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrganizationStore';
 import { mediaService } from '@/modules/media/services/mediaService';
+import { useMediaProcessingStatus } from '@/modules/media/composables/useMediaProcessingStatus';
 import type { OrgMediaAsset } from '@/modules/media/types/OrgMediaAsset';
 
 const DEBUG = import.meta.env.DEV;
@@ -26,6 +29,10 @@ const error = ref<string | null>(null);
 const asset = ref<OrgMediaAsset | null>(null);
 
 const playlistObjectUrl = ref<string | null>(null);
+
+// Processing status composable
+const mediaAssetRef = computed(() => asset.value);
+const { processingStatus } = useMediaProcessingStatus(mediaAssetRef);
 
 const title = computed(() => {
   if (asset.value?.title?.trim()) return asset.value.title;
@@ -69,19 +76,25 @@ async function loadAsset() {
       storage_path: found.storage_path,
       base_org_storage_path: found.base_org_storage_path,
       status: found.status,
+      streaming_ready: found.streaming_ready,
     });
 
-    try {
-      playlistObjectUrl.value = await mediaService.getPresignedHlsPlaylistUrl(
-        activeOrgId.value,
-        found.id,
-        found.bucket
-      );
-    } catch (err) {
-      if (err instanceof Error && 'cause' in err && err.cause) {
-        debugLog('fetchPlaybackPlaylistObjectUrl(): function error', err.cause);
+    // Only fetch playlist if video is ready for streaming
+    if (found.streaming_ready) {
+      try {
+        playlistObjectUrl.value = await mediaService.getPresignedHlsPlaylistUrl(
+          activeOrgId.value,
+          found.id,
+          found.bucket
+        );
+      } catch (err) {
+        if (err instanceof Error && 'cause' in err && err.cause) {
+          debugLog('fetchPlaybackPlaylistObjectUrl(): function error', err.cause);
+        }
+        throw err;
       }
-      throw err;
+    } else {
+      debugLog('loadAsset(): video not ready for streaming yet');
     }
 
     // Ensure the template swaps from loading state before playback init runs in the player.
@@ -113,15 +126,41 @@ watch([mediaId, activeOrgId], () => {
     </div>
 
     <div v-else-if="asset" class="space-y-4">
+      <!-- Processing Status Banner -->
+      <MediaProcessingStatusBanner 
+        v-if="processingStatus.isBlockingProcessing || processingStatus.isBackgroundProcessing" 
+        :status="processingStatus" 
+        :show-watch-message="true"
+        mode="banner"
+      />
+      
       <div class="overflow-hidden rounded-lg bg-white/5 ring-1 ring-white/10">
-        <HlsPlayer
-          :src="playlistObjectUrl ?? ''"
-          class="w-full h-auto"
-          controls
-          playsinline
-          @error="handlePlayerError"
-        />
+        <!-- Show player only when video is watchable -->
+        <div v-if="processingStatus.isWatchable" class="relative">
+          <HlsPlayer
+            :src="playlistObjectUrl ?? ''"
+            class="w-full h-auto"
+            controls
+            playsinline
+            @error="handlePlayerError"
+          />
+        </div>
+        
+        <!-- Placeholder when video is not ready -->
+        <div 
+          v-else
+          class="relative aspect-video bg-black flex items-center justify-center"
+        >
+          <div class="flex flex-col items-center gap-4 text-center px-6">
+            <LoadingDot size="lg" color="#3B82F6" />
+            <div>
+              <p class="text-lg font-semibold text-white">{{ processingStatus.statusMessage }}</p>
+              <p class="text-sm text-white/60 mt-1">This may take a few minutes...</p>
+            </div>
+          </div>
+        </div>
       </div>
+      
       <div class="space-y-1">
         <h1 class="text-white text-xl font-semibold">{{ title }}</h1>
         <div class="text-xs font-medium capitalize tracking-wide text-white/50">

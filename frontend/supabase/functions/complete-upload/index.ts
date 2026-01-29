@@ -114,60 +114,107 @@ async function createWasabiSignature(
 async function verifyFileExistsInWasabi(
   bucket: string,
   key: string,
-  requestId: string
+  requestId: string,
+  maxRetries: number = 3
 ): Promise<{ exists: boolean; error?: string }> {
-  try {
-    const accessKeyId = Deno.env.get("WASABI_UPLOADER_KEY");
-    const secretAccessKey = Deno.env.get("WASABI_UPLOADER_SECRET");
-    
-    if (!accessKeyId || !secretAccessKey) {
-      return { exists: false, error: "Wasabi credentials not configured" };
-    }
-    
-    logEvent({
-      severity: "info",
-      event_type: "wasabi_verification_start",
-      request_id: requestId,
-      bucket,
-      key,
-    });
-    
-    const headers = await createWasabiSignature("HEAD", bucket, key, accessKeyId, secretAccessKey);
-    const url = `https://s3.wasabisys.com/${bucket}/${key}`;
-    
-    const response = await fetch(url, {
-      method: "HEAD",
-      headers,
-    });
-    
-    logEvent({
-      severity: "info",
-      event_type: "wasabi_verification_complete",
-      request_id: requestId,
-      bucket,
-      key,
-      status: response.status,
-      exists: response.ok,
-    });
-    
-    if (!response.ok) {
-      return { exists: false, error: `File not found in storage (status: ${response.status})` };
-    }
-    
-    return { exists: true };
-    
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    logEvent({
-      severity: "error",
-      event_type: "wasabi_verification_failed",
-      request_id: requestId,
-      bucket,
-      key,
-      error_message: message,
-    });
-    return { exists: false, error: message };
+  const accessKeyId = Deno.env.get("WASABI_UPLOADER_KEY");
+  const secretAccessKey = Deno.env.get("WASABI_UPLOADER_SECRET");
+  
+  if (!accessKeyId || !secretAccessKey) {
+    return { exists: false, error: "Wasabi credentials not configured" };
   }
+  
+  // Retry logic to handle S3 eventual consistency
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      logEvent({
+        severity: "info",
+        event_type: "wasabi_verification_start",
+        request_id: requestId,
+        bucket,
+        key,
+        attempt,
+        max_retries: maxRetries,
+      });
+      
+      const headers = await createWasabiSignature("HEAD", bucket, key, accessKeyId, secretAccessKey);
+      const url = `https://s3.wasabisys.com/${bucket}/${key}`;
+      
+      const response = await fetch(url, {
+        method: "HEAD",
+        headers,
+      });
+      
+      logEvent({
+        severity: "info",
+        event_type: "wasabi_verification_complete",
+        request_id: requestId,
+        bucket,
+        key,
+        status: response.status,
+        exists: response.ok,
+        attempt,
+      });
+      
+      if (response.ok) {
+        return { exists: true };
+      }
+      
+      // If not the last attempt and got 404, retry with exponential backoff
+      if (attempt < maxRetries && response.status === 404) {
+        const delayMs = 1000 * Math.pow(2, attempt); // 2s, 4s, 8s
+        logEvent({
+          severity: "info",
+          event_type: "wasabi_verification_retry",
+          request_id: requestId,
+          bucket,
+          key,
+          attempt,
+          delay_ms: delayMs,
+          reason: "eventual_consistency",
+        });
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+        continue;
+      }
+      
+      // Non-404 error or last attempt failed
+      return { exists: false, error: `File not found in storage (status: ${response.status})` };
+      
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      
+      // If not the last attempt, retry
+      if (attempt < maxRetries) {
+        const delayMs = 1000 * Math.pow(2, attempt);
+        logEvent({
+          severity: "warn",
+          event_type: "wasabi_verification_error_retry",
+          request_id: requestId,
+          bucket,
+          key,
+          attempt,
+          delay_ms: delayMs,
+          error_message: message,
+        });
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+        continue;
+      }
+      
+      // Last attempt failed
+      logEvent({
+        severity: "error",
+        event_type: "wasabi_verification_failed",
+        request_id: requestId,
+        bucket,
+        key,
+        error_message: message,
+        attempts: maxRetries,
+      });
+      return { exists: false, error: message };
+    }
+  }
+  
+  return { exists: false, error: "File not found after all retries" };
 }
 
 async function createSQSSignature(
