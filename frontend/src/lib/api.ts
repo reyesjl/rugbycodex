@@ -5,6 +5,7 @@ import {
   FunctionsRelayError,
   FunctionsFetchError,
 } from "@supabase/supabase-js";
+import { logEdgeCall } from "@/lib/logger";
 
 type InvokeOptions = Parameters<typeof supabase.functions.invoke>[1] & { orgScoped?: boolean };
 
@@ -109,6 +110,20 @@ export async function invokeEdge(functionName: string, options?: InvokeOptions) 
       error_code: errorCode,
       error_message: response.error.message,
     });
+
+    // Log to Axiom
+    logEdgeCall(
+      functionName,
+      requestId,
+      durationMs,
+      'error',
+      {
+        error_type: errorType,
+        error_status: errorStatus,
+        error_code: errorCode,
+        error_message: response.error.message,
+      }
+    );
   } else {
     logEvent({
       severity: "info",
@@ -117,6 +132,14 @@ export async function invokeEdge(functionName: string, options?: InvokeOptions) 
       function: functionName,
       duration_ms: durationMs,
     });
+
+    // Log to Axiom
+    logEdgeCall(
+      functionName,
+      requestId,
+      durationMs,
+      'success'
+    );
   }
 
   logEvent({

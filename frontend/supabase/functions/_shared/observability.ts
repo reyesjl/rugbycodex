@@ -1,6 +1,8 @@
+import { sendToAxiom, createLogEvent, type LogEvent } from './axiom.ts';
+
 export type LogSeverity = "debug" | "info" | "warn" | "error";
 
-type LogEvent = {
+type LogEventLocal = {
   severity: LogSeverity;
   event_type: string;
   request_id?: string;
@@ -26,12 +28,28 @@ export function getRequestId(req: Request): string {
   return req.headers.get("x-request-id") ?? crypto.randomUUID();
 }
 
-export function logEvent(event: LogEvent): void {
+const axiomBatch: LogEvent[] = [];
+
+export function logEvent(event: LogEventLocal): void {
   const payload = {
     timestamp: new Date().toISOString(),
     ...event,
   };
+  
+  // Always log to console
   console.log(JSON.stringify(payload));
+
+  // Add to Axiom batch
+  axiomBatch.push(payload as LogEvent);
+}
+
+async function flushAxiomBatch(): Promise<void> {
+  if (axiomBatch.length === 0) return;
+  
+  const batch = [...axiomBatch];
+  axiomBatch.length = 0; // Clear batch
+  
+  await sendToAxiom(batch);
 }
 
 export function withObservability(
@@ -101,6 +119,9 @@ export function withObservability(
         });
       }
 
+      // Flush Axiom batch before returning
+      await flushAxiomBatch();
+
       return response;
     } catch (err) {
       const durationMs = Math.round(performance.now() - startTimeMs);
@@ -133,6 +154,9 @@ export function withObservability(
         status: 500,
         duration_ms: durationMs,
       });
+
+      // Flush Axiom batch on error
+      await flushAxiomBatch();
 
       throw err;
     }

@@ -4,6 +4,7 @@ import type { UserOrganizationSummary } from '@/modules/orgs/types'
 import { orgService } from '@/modules/orgs/services/orgServiceV2'
 import { useAuthStore } from '@/modules/auth/stores/useAuthStore'
 import { setActiveOrgId } from './activeOrgContext'
+import { setAxiomContext } from '@/lib/axiom'
 
 export const useActiveOrganizationStore = defineStore('activeOrganization', () => {
   const authStore = useAuthStore()
@@ -64,6 +65,15 @@ export const useActiveOrganizationStore = defineStore('activeOrganization', () =
       orgContext.value = nextOrg
       setActiveOrgId(nextOrg.organization.id ?? null)
 
+      // Update Axiom context with org info
+      setAxiomContext({
+        org_id: nextOrg.organization.id,
+        org_name: nextOrg.organization.name,
+        org_slug: nextOrg.organization.slug,
+        org_type: nextOrg.organization.type,
+        org_role: (nextOrg as any)?.membership?.role || 'unknown',
+      })
+
       const nextMemberCount = await orgService.getMemberCount(nextOrg.organization.id)
       if (token !== resolveToken.value) return
 
@@ -75,6 +85,15 @@ export const useActiveOrganizationStore = defineStore('activeOrganization', () =
       orgContext.value = null
       signals.memberCount.value = null
       setActiveOrgId(null)
+
+      // Clear org context from Axiom on error
+      setAxiomContext({
+        org_id: null,
+        org_name: null,
+        org_slug: null,
+        org_type: null,
+        org_role: null,
+      })
     } finally {
       if (token === resolveToken.value) {
         status.resolving.value = false
@@ -90,6 +109,15 @@ export const useActiveOrganizationStore = defineStore('activeOrganization', () =
     status.error.value = null
     status.resolving.value = false
     setActiveOrgId(null)
+
+    // Clear org context from Axiom
+    setAxiomContext({
+      org_id: null,
+      org_name: null,
+      org_slug: null,
+      org_type: null,
+      org_role: null,
+    })
   }
 
   function updateOrgBio(nextBio: string) {

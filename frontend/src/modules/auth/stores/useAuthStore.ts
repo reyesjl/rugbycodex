@@ -4,6 +4,8 @@ import type { AuthError, Session, Subscription, User } from '@supabase/supabase-
 import { supabase } from '@/lib/supabaseClient';
 import { decodeSupabaseAccessToken } from '@/lib/jwt';
 import { useMyOrganizationsStore } from '@/modules/orgs/stores/useMyOrganizationsStore';
+import { setAxiomContext, clearAxiomContext } from '@/lib/axiom';
+import { logInfo, logError } from '@/lib/logger';
 
 export const DISPLAY_NAME_MIN_LENGTH = 2;
 export const DISPLAY_NAME_MAX_LENGTH = 60;
@@ -46,6 +48,19 @@ export const useAuthStore = defineStore('auth', () => {
         if (import.meta.env.DEV) {
           console.info('[auth] Supabase JWT claims', claims);
         }
+
+        // Update Axiom context with user info
+        setAxiomContext({
+          user_id: nextSession.user.id,
+          user_email: nextSession.user.email,
+          user_role: claims?.user_role || 'user',
+          is_admin: claims?.user_role === 'admin',
+        });
+
+        logInfo('User authenticated', {
+          user_id: nextSession.user.id,
+          auth_provider: nextSession.user.app_metadata?.provider,
+        });
       }
     } else {
       isAdmin.value = false;
@@ -54,6 +69,9 @@ export const useAuthStore = defineStore('auth', () => {
 
   const clearAuthState = () => {
     setAuthState(null);
+    // Clear user context from Axiom
+    clearAxiomContext();
+    logInfo('User logged out');
   };
 
   const looksLikeSessionExpiry = (error: AuthError | null) => {
