@@ -3,7 +3,7 @@
  * Provides convenient methods for logging errors, warnings, and events.
  */
 
-import { axiom, createLogEvent, type LogSeverity, type LogEvent } from './axiom';
+import { axiom, createLogEvent, type LogSeverity } from './axiom';
 
 /**
  * Log an error with full context

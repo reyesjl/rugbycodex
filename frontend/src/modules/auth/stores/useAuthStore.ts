@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { decodeSupabaseAccessToken } from '@/lib/jwt';
 import { useMyOrganizationsStore } from '@/modules/orgs/stores/useMyOrganizationsStore';
 import { setAxiomContext, clearAxiomContext } from '@/lib/axiom';
-import { logInfo, logError } from '@/lib/logger';
+import { logInfo } from '@/lib/logger';
 
 export const DISPLAY_NAME_MIN_LENGTH = 2;
 export const DISPLAY_NAME_MAX_LENGTH = 60;
