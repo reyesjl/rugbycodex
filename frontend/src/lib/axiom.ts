@@ -30,15 +30,17 @@ class AxiomClient {
 
   constructor() {
     if (typeof window !== 'undefined') {
-      // Flush on page unload
+      // Flush on page unload using the async flush (which uses fetch with keepalive)
+      // This is better than sendBeacon because it properly sends the Authorization header
       window.addEventListener('beforeunload', () => {
-        this.flushSync();
+        // Use the async flush - it has keepalive: true which works during unload
+        void this.flush();
       });
 
       // Flush on visibility change (tab hidden)
       document.addEventListener('visibilitychange', () => {
         if (document.hidden) {
-          this.flushSync();
+          void this.flush();
         }
       });
     }
@@ -102,7 +104,7 @@ class AxiomClient {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(events),
-        keepalive: true, // Important for page unload
+        keepalive: true, // Important: allows request to complete even if page is closing
       });
 
       if (!response.ok) {
@@ -112,23 +114,6 @@ class AxiomClient {
       console.error('[Axiom] Error sending logs:', error);
     } finally {
       this.isFlushing = false;
-    }
-  }
-
-  /**
-   * Synchronous flush (for page unload)
-   */
-  private flushSync(): void {
-    if (this.batch.length === 0) return;
-
-    const events = [...this.batch];
-    this.batch = [];
-
-    // Use sendBeacon for synchronous send during unload
-    if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
-      const blob = new Blob([JSON.stringify(events)], { type: 'application/json' });
-      const url = `${AXIOM_INGEST_URL}?authorization=Bearer ${AXIOM_API_TOKEN}`;
-      navigator.sendBeacon(url, blob);
     }
   }
 }
