@@ -40,7 +40,11 @@ const formattedDuration = computed(() => {
         <button
           type="button"
           class="flex h-12 w-12 items-center justify-center rounded-full bg-black/40 ring-1 ring-white/15 backdrop-blur hover:bg-black/50 cursor-pointer"
-          @click.stop="emit('toggle')"
+          @click.stop.prevent="emit('toggle')"
+          @pointerdown.stop.prevent
+          @pointerup.stop.prevent
+          @pointermove.stop
+          @pointercancel.stop.prevent
           :title="isRecording ? 'Stop narration' : 'Record narration'"
         >
           <span

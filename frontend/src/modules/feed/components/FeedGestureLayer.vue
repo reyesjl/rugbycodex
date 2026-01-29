@@ -23,6 +23,7 @@ let startX = 0;
 let startY = 0;
 let startAt = 0;
 let startPointerType: PointerEvent['pointerType'] = 'touch';
+let startTarget: EventTarget | null = null;
 
 function shouldIgnoreGestureTarget(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return false;
@@ -34,6 +35,7 @@ function onPointerDown(e: PointerEvent) {
   // don't treat it as a tap/swipe on the video surface.
   if (shouldIgnoreGestureTarget(e.target)) return;
   pointerDown.value = true;
+  startTarget = e.target;
   startX = e.clientX;
   startY = e.clientY;
   startAt = Date.now();
@@ -48,6 +50,13 @@ function finishPointer(e: PointerEvent) {
   if (!pointerDown.value) return;
   pointerDown.value = false;
 
+  // Ignore if either the start or end target should be ignored
+  // This handles cases where the pointer moved between down and up
+  if (shouldIgnoreGestureTarget(startTarget) || shouldIgnoreGestureTarget(e.target)) {
+    startTarget = null;
+    return;
+  }
+
   const el = e.currentTarget as HTMLElement | null;
   const rect = el?.getBoundingClientRect?.() ?? null;
   const xPct = rect && rect.width ? Math.max(0, Math.min(1, (startX - rect.left) / rect.width)) : 0.5;
@@ -58,6 +67,8 @@ function finishPointer(e: PointerEvent) {
   const absX = Math.abs(dx);
   const absY = Math.abs(dy);
   const elapsed = Date.now() - startAt;
+
+  startTarget = null;
 
   // Swipe vertical navigation.
   if (absY >= SWIPE_PX && absY > absX * 1.2) {

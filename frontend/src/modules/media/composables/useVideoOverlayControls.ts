@@ -59,6 +59,11 @@ export function useVideoOverlayControls(options: Options) {
   function showOverlay(durationMs: number | null = 2500) {
     overlayVisible.value = true;
     if (overlayTimer !== null) window.clearTimeout(overlayTimer);
+    // Cancel any pending mouse single tap when overlay is explicitly shown
+    if (pendingMouseSingleTapTimer !== null) {
+      window.clearTimeout(pendingMouseSingleTapTimer);
+      pendingMouseSingleTapTimer = null;
+    }
     if (durationMs === null) return;
     overlayTimer = window.setTimeout(() => {
       overlayVisible.value = false;
@@ -71,6 +76,11 @@ export function useVideoOverlayControls(options: Options) {
     if (overlayTimer !== null) {
       window.clearTimeout(overlayTimer);
       overlayTimer = null;
+    }
+    // Cancel any pending mouse single tap when overlay is explicitly hidden
+    if (pendingMouseSingleTapTimer !== null) {
+      window.clearTimeout(pendingMouseSingleTapTimer);
+      pendingMouseSingleTapTimer = null;
     }
   }
 
