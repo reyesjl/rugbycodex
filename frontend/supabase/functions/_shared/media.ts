@@ -35,8 +35,10 @@ export async function insertMediaAsset(
       checksum: fields.checksum ?? 'TODO',
       source: fields.source ?? 'upload',
       file_name: fields.file_name,
-      status: fields.status ?? 'ready',
+      status: fields.status ?? 'uploading',
       base_org_storage_path: fields.base_org_storage_path,
+      processing_stage: 'uploaded',
+      streaming_ready: false,
     })
     .select()
     .single();

@@ -49,6 +49,7 @@ export const useOrgMediaStore = defineStore("orgMedia", () => {
           stage === 'uploaded' ||
           stage === 'transcoding' ||
           stage === 'transcoded' ||
+          a.status === 'uploading' ||
           a.status === 'processing' ||
           a.status === 'uploaded'
         );

@@ -9,6 +9,7 @@ import { useOrgMediaStore } from '@/modules/media/stores/useOrgMediaStore';
 import { useUploadStore } from '@/modules/media/stores/useUploadStore';
 import { mediaService } from '@/modules/media/services/mediaService';
 import MediaAssetCard from '@/modules/orgs/components/MediaAssetCard.vue';
+import ProcessingVideosList from '@/modules/orgs/components/ProcessingVideosList.vue';
 import AddMediaAssetModal from '@/modules/orgs/components/AddMediaAssetModal.vue';
 import EditMediaAssetModal from '@/modules/orgs/components/EditMediaAssetModal.vue';
 import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
@@ -78,8 +79,24 @@ function normalizeSearchText(value: string | null | undefined) {
     .toLowerCase();
 }
 
+// Processing assets (not ready yet, shown in processing list)
+const processingAssets = computed(() => {
+  return assets.value.filter(asset => {
+    // Show in processing list if not streaming ready OR not complete
+    return !asset.streaming_ready || asset.processing_stage !== 'complete';
+  });
+});
+
+// Ready assets (fully processed, shown in media cards)
+const readyAssets = computed(() => {
+  return assets.value.filter(asset => {
+    // Only show in media card grid if streaming ready AND complete
+    return asset.streaming_ready && asset.processing_stage === 'complete';
+  });
+});
+
 const filteredAssets = computed(() => {
-  let filtered = assets.value;
+  let filtered = readyAssets.value;
   
   // Filter by kind
   if (selectedKind.value !== 'all') {
@@ -621,6 +638,16 @@ watch(activeOrgId, (orgId, prevOrgId) => {
 
     <!-- Horizontal scrolling strips - full bleed -->
     <div v-if="!isLoading && isReady && assets.length > 0" class="space-y-8 mt-6">
+      <!-- Processing Videos List (at top) -->
+      <div class="container-lg">
+        <ProcessingVideosList
+          :processing-assets="processingAssets"
+          :upload-metrics-by-asset-id="uploadMetricsByAssetId"
+          :can-manage="canManage"
+          @delete="openConfirmDelete"
+        />
+      </div>
+
       <!-- No results -->
       <div v-if="filteredAssets.length === 0" class="container-lg">
         <div class="text-center py-12 text-white/50">

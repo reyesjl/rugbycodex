@@ -537,27 +537,28 @@ Deno.serve(withObservability("complete-upload", async (req, ctx) => {
       sqs_message_id: sqsResult.messageId,
     });
     
-    // Step 5: Update media_assets to "ready" status
+    // Step 5: Set processing_stage to 'uploaded' to indicate queued for transcoding
+    // NOTE: Do NOT set status to "ready" here - worker will do that after transcoding
     logEvent({
       severity: "info",
-      event_type: "updating_media_status_ready",
+      event_type: "setting_processing_stage_uploaded",
       request_id: ctx.requestId,
       media_id,
     });
     
-    const { error: readyError } = await serviceClient
+    const { error: stageError } = await serviceClient
       .from("media_assets")
-      .update({ status: "ready" })
+      .update({ processing_stage: "uploaded" })
       .eq("id", media_id)
       .eq("org_id", org_id);
     
-    if (readyError) {
+    if (stageError) {
       logEvent({
         severity: "warn",
-        event_type: "media_ready_update_failed",
+        event_type: "processing_stage_update_failed",
         request_id: ctx.requestId,
         media_id,
-        error_message: readyError.message,
+        error_message: stageError.message,
       });
       // Don't fail the request - job is already dispatched
     }

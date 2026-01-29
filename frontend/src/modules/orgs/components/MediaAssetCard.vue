@@ -7,7 +7,6 @@ import { useMediaProcessingStatus } from '@/modules/media/composables/useMediaPr
 import type { OrgMediaAsset } from '@/modules/media/types/OrgMediaAsset';
 import type { UploadState } from '@/modules/media/types/UploadStatus';
 import { formatDaysAgo } from '@/lib/date';
-import { getMediaAssetStatusDisplay } from '@/lib/status';
 import { formatHoursMinutes } from '@/lib/duration';
 
 const props = defineProps<{
@@ -21,8 +20,6 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits(['open', 'review', 'delete', 'reattach', 'edit']);
-
-const statusDisplay = computed(() => getMediaAssetStatusDisplay(props.asset.status));
 
 // Use processing status composable
 const { processingStatus } = useMediaProcessingStatus(computed(() => props.asset));
@@ -57,14 +54,6 @@ const thumbnailUrl = computed(() => {
   if (!props.asset.thumbnail_path) return null;
   return `${STORAGE_BASE_URL}/${props.asset.thumbnail_path}`;
 });
-
-const isReadyToPlay = computed(() => {
-  return props.asset.status === 'ready' && props.asset.streaming_ready;
-});
-
-const isStreamingProcessing = computed(
-  () => props.asset.status === 'ready' && !props.asset.streaming_ready
-);
 
 const isAbandoned = computed(() => {
   // If actively uploading, not abandoned
@@ -236,29 +225,8 @@ function clipTitle(fileName: string) {
           {{ formatDaysAgo(asset.created_at) ?? 'Unknown date' }}
         </div>
 
-        <!-- Actions and Status Row -->
-        <div class="flex items-center justify-between gap-2">
-          <!-- Status - only show if not ready and not actively uploading/processing -->
-          <div v-if="(!isReadyToPlay || isAbandoned) && !isActivelyUploading" class="inline-flex items-center gap-1 text-xs min-w-0">
-            <Icon
-              v-if="statusDisplay.icon"
-              :icon="statusDisplay.icon!"
-              class="h-3.5 w-3.5"
-              :class="statusDisplay.iconClass"
-            />
-            <span class="truncate" :class="statusDisplay.textClass || 'text-white/40'">
-              <template v-if="isAbandoned">
-                <span class="text-yellow-500/80">Upload interrupted. Click to retry.</span>
-              </template>
-              <template v-else>
-                {{ isStreamingProcessing ? 'Processing' : statusDisplay.label }}
-              </template>
-            </span>
-          </div>
-
-          <!-- Spacer to push actions to the right when no status -->
-          <div v-else class="flex-1"></div>
-
+        <!-- Actions Row -->
+        <div class="flex items-center justify-end gap-2">
           <!-- Actions menu -->
           <div class="relative z-20">
             <button

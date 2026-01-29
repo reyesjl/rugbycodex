@@ -2,16 +2,20 @@
 
 ## Current Configuration Summary
 
-**Status:** ✅ Production-ready (tested January 2026)
+**Status:** ✅ Production-ready Hybrid System (January 2026)
 
 ### Infrastructure Overview
 
-- **Auto-scaling:** 0-3 GPU workers (scales to zero when idle)
+- **Architecture:** Hybrid (Jetson Orin Nano + AWS ECS)
+- **Primary Worker:** Jetson Orin Nano (always-on, on-premise)
+- **Burst Workers:** 0-3 AWS GPU workers (scales to zero when idle)
 - **Instance Type:** g4dn.xlarge (NVIDIA T4 GPU, 4 vCPUs, 16GB RAM)
-- **Strategy:** Hybrid (1 On-Demand + 2 Spot instances)
+- **Strategy:** Jetson handles most work, AWS provides overflow capacity
 - **Region:** us-east-1
-- **Queue:** SQS-based job distribution
-- **Video Processing:** GPU-accelerated transcoding to HLS
+- **Queue:** SQS-based job distribution (shared queue)
+- **Video Processing:** HLS transcoding with hardware acceleration
+
+> 📖 **See [HYBRID_ARCHITECTURE.md](./HYBRID_ARCHITECTURE.md) for complete system architecture**
 
 ---
 
@@ -54,14 +58,27 @@ OnDemandPercentageAboveBaseCapacity: 0
   - Metric: SQS `ApproximateNumberOfMessagesVisible`
   - Target Value: 1.0 (1 task per message)
   - Scale-out Cooldown: 60 seconds
-  - Scale-in Cooldown: 300 seconds
+  - **Scale-in Cooldown: 1500 seconds (25 minutes)** ⚠️ CRITICAL
+    - **Why 25 minutes:** With 20-minute visibility timeout, messages become invisible when workers receive them. Without a long scale-in cooldown, AWS would scale down while jobs are still processing. 25 minutes ensures jobs complete before scale-down.
+    - **Trade-off:** Workers may idle for up to 25 minutes after completing jobs (~$0.35 per scale-up event), but prevents mid-job terminations.
+    - See [SCALING_SCENARIOS.md](./SCALING_SCENARIOS.md) for detailed analysis.
 
 ### 5. SQS Queue
 - **Name:** `rugbycodex-transcode-jobs`
 - **Region:** us-east-1
-- **Visibility Timeout:** 600 seconds (10 minutes)
+- **Visibility Timeout:** 1200 seconds (20 minutes)
+  - **Rationale:** For 2-4GB video files:
+    - Download: 1-2 min
+    - Transcode: 15-30 min (depending on length)
+    - Upload: 1-2 min
+    - **Total:** 20-35 minutes typical
+  - 20 minutes covers most short clips without duplicates
+  - Long matches may exceed timeout (handled by retry logic)
+  - See [HYBRID_ARCHITECTURE.md](./HYBRID_ARCHITECTURE.md#sqs-visibility-timeout-explained) for details
 - **Message Retention:** 4 days
 - **Long Polling:** 20 seconds
+- **Max Receives:** 3 (dead letter queue after 3 failures)
+- **Receive Message Wait Time:** 20 seconds (long polling)
 
 ### 6. CloudWatch Alarms
 
@@ -72,9 +89,10 @@ OnDemandPercentageAboveBaseCapacity: 0
 
 **Scale-Down Alarm:**
 - **Name:** `rugbycodex-scale-down-to-zero`
-- **Trigger:** Queue empty for 10 consecutive minutes
-- **Periods:** 10 periods × 60 seconds each
+- **Trigger:** Queue empty for 25 consecutive minutes
+- **Periods:** 25 periods × 60 seconds each (1500 seconds total)
 - **Action:** Scales ASG to 0 instances
+- **Note:** Must be longer than scale-in cooldown to prevent conflicts
 
 ---
 
@@ -93,13 +111,30 @@ OnDemandPercentageAboveBaseCapacity: 0
 
 ## Scaling Behavior
 
+### Hybrid Job Distribution
+
+**Primary Worker (Jetson Orin Nano):**
+1. Always running and polling SQS
+2. Grabs jobs immediately (no cold start)
+3. Processes most videos (80-90% of workload)
+4. Located on-premise for low latency
+
+**Burst Workers (AWS ECS):**
+1. Start when CloudWatch detects queue depth > 0
+2. Take ~2-3 minutes to spin up
+3. Process overflow jobs when Jetson is busy
+4. Scale down to $0 when queue empty
+
 ### Scale-Up Process (Cold Start)
 1. Video uploaded → SQS message created
-2. CloudWatch detects queue depth > 0
-3. ASG launches EC2 instances (~90 seconds)
-4. ECS Service scales tasks (~30 seconds)
-5. Worker polls SQS and starts processing
-6. **Total cold start time:** ~2-3 minutes
+2. **Jetson receives message first** (already polling)
+3. CloudWatch detects queue depth > 0
+4. ASG launches EC2 instances (~90 seconds)
+5. ECS Service scales tasks (~30 seconds)
+6. AWS workers poll SQS for remaining jobs
+7. **Total AWS cold start time:** ~2-3 minutes
+
+**Note:** Jetson starts immediately, AWS provides additional capacity.
 
 ### Warm Processing (Within 10-min Window)
 - If videos uploaded within 10 minutes of last job

@@ -1,0 +1,17 @@
+[Unit]
+Description=RugbyCodex Jetson Transcoding Worker (SQS)
+After=network.target
+
+[Service]
+Type=simple
+User=scribe
+WorkingDirectory=/home/scribe/rugbycodex/jetson_scripts/streaming
+Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+ExecStart=/usr/bin/python3 stream_worker_sqs.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
