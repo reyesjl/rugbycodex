@@ -1,6 +1,7 @@
 .env.development
 .env.production
 .env
+.env.complete
 venv/
 
 deploy.sh
