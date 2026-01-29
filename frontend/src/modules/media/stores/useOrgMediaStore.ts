@@ -41,6 +41,8 @@ export const useOrgMediaStore = defineStore("orgMedia", () => {
   const processingAssets = computed(() =>
     data.assets.filter(a => {
       const stage = a.processing_stage ?? null;
+      
+      // Asset needs transcoding if streaming isn't ready yet
       const needsTranscode =
         !a.streaming_ready &&
         (
@@ -48,10 +50,10 @@ export const useOrgMediaStore = defineStore("orgMedia", () => {
           stage === 'transcoding' ||
           stage === 'transcoded' ||
           a.status === 'processing' ||
-          a.status === 'ready' ||
           a.status === 'uploaded'
         );
 
+      // Asset is doing background event detection (video is watchable but detection running)
       const needsEventDetection = stage === 'detecting_events';
 
       return needsTranscode || needsEventDetection;
