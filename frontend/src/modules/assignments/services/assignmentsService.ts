@@ -700,4 +700,105 @@ export const assignmentsService = {
 
     if (error) throw error;
   },
+
+  /**
+   * Find assignments that the user is assigned to which contain the given segment.
+   * Returns assignment IDs in order of creation (newest first).
+   */
+  async getAssignmentsForSegment(
+    segmentId: string,
+    userId: string,
+    orgId: string
+  ): Promise<string[]> {
+    if (!segmentId || !userId || !orgId) return [];
+
+    // First, find all assignments that include this segment
+    const { data: assignmentSegments, error: segError } = await supabase
+      .from('assignment_segments')
+      .select('assignment_id')
+      .eq('media_segment_id', segmentId);
+
+    if (segError) throw segError;
+    if (!assignmentSegments || assignmentSegments.length === 0) return [];
+
+    const assignmentIds = Array.from(
+      new Set(assignmentSegments.map((s: any) => String(s.assignment_id)).filter(Boolean))
+    );
+
+    // Get the assignments themselves to verify they're in the right org
+    const { data: assignments, error: assignError } = await supabase
+      .from('assignments')
+      .select('id, created_at')
+      .eq('org_id', orgId)
+      .in('id', assignmentIds)
+      .order('created_at', { ascending: false });
+
+    if (assignError) throw assignError;
+    if (!assignments || assignments.length === 0) return [];
+
+    const validAssignmentIds = assignments.map((a: any) => String(a.id));
+
+    // Now check which of these assignments are assigned to the user
+    const { data: targets, error: targetError } = await supabase
+      .from('assignment_targets')
+      .select('assignment_id, target_type, target_id')
+      .in('assignment_id', validAssignmentIds);
+
+    if (targetError) throw targetError;
+
+    const toUserIds = new Set<string>();
+    const toTeamIds = new Set<string>();
+    const toGroupIds = new Set<string>();
+
+    for (const t of (targets ?? []) as Array<{ assignment_id: string; target_type: string; target_id: string | null }>) {
+      if (t.target_type === 'player' && t.target_id === userId) {
+        toUserIds.add(t.assignment_id);
+      } else if (t.target_type === 'team') {
+        toTeamIds.add(t.assignment_id);
+      } else if (t.target_type === 'group' && t.target_id) {
+        toGroupIds.add(t.target_id);
+      }
+    }
+
+    // Check which groups the user belongs to
+    const groupIdsToCheck = Array.from(toGroupIds);
+    const userGroupIds = new Set<string>();
+    if (groupIdsToCheck.length > 0) {
+      const { data: groupMembers, error: gmError } = await supabase
+        .from('group_members')
+        .select('group_id')
+        .eq('profile_id', userId)
+        .in('group_id', groupIdsToCheck);
+
+      if (gmError) throw gmError;
+      for (const gm of (groupMembers ?? []) as Array<{ group_id: string }>) {
+        userGroupIds.add(String(gm.group_id));
+      }
+    }
+
+    // Collect assignment IDs where user is assigned (directly, via team, or via group)
+    const userAssignmentIds = new Set<string>();
+    
+    // Add direct assignments
+    for (const id of toUserIds) {
+      userAssignmentIds.add(id);
+    }
+    
+    // Add team assignments
+    for (const id of toTeamIds) {
+      userAssignmentIds.add(id);
+    }
+    
+    // Add group assignments where user is a member
+    for (const t of (targets ?? []) as Array<{ assignment_id: string; target_type: string; target_id: string | null }>) {
+      if (t.target_type === 'group' && t.target_id && userGroupIds.has(t.target_id)) {
+        userAssignmentIds.add(t.assignment_id);
+      }
+    }
+
+    // Return in order (newest first)
+    return assignments
+      .filter((a: any) => userAssignmentIds.has(String(a.id)))
+      .map((a: any) => String(a.id));
+  },
 };

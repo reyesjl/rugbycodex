@@ -5,6 +5,7 @@ import { segmentService } from '@/modules/media/services/segmentService';
 import type { SegmentTag } from '@/modules/media/types/SegmentTag';
 import { useSegmentTags } from '@/modules/media/composables/useSegmentTags';
 import { supabase } from '@/lib/supabaseClient';
+import { toast } from '@/lib/toast';
 
 type FeedDataOptions = {
   orgId: () => string | null;
@@ -128,19 +129,85 @@ export function useFeedData(options: FeedDataOptions) {
 
   async function markAssignmentComplete(assignmentId: string): Promise<void> {
     const userId = options.userId();
-    if (!userId || markedAssignments.has(assignmentId)) return;
+    if (!userId) {
+      console.log(JSON.stringify({
+        event: 'assignment_completion_skipped',
+        reason: 'no_user_id',
+        assignmentId,
+      }));
+      return;
+    }
+    
+    if (markedAssignments.has(assignmentId)) {
+      console.log(JSON.stringify({
+        event: 'assignment_completion_skipped',
+        reason: 'already_marked',
+        assignmentId,
+        userId,
+      }));
+      return;
+    }
+    
     markedAssignments.add(assignmentId);
+    
+    console.log(JSON.stringify({
+      event: 'assignment_completion_attempt',
+      assignmentId,
+      userId,
+      source: options.source(),
+    }));
+    
     try {
       await assignmentsService.markAssignmentComplete(assignmentId, userId);
-    } catch {
-      // Silent tracking; playback should continue even if this fails.
+      console.log(JSON.stringify({
+        event: 'assignment_completion_success',
+        assignmentId,
+        userId,
+      }));
+      toast({ 
+        message: 'Assignment marked complete!', 
+        variant: 'success', 
+        durationMs: 2500 
+      });
+    } catch (err) {
+      console.log(JSON.stringify({
+        event: 'assignment_completion_error',
+        assignmentId,
+        userId,
+        error: err instanceof Error ? err.message : String(err),
+      }));
+      
+      // Remove from marked set so user can retry
+      markedAssignments.delete(assignmentId);
+      
+      const message = err instanceof Error ? err.message : 'Failed to mark assignment complete';
+      toast({ 
+        message, 
+        variant: 'error', 
+        durationMs: 3500 
+      });
     }
   }
 
   function handleWatchedHalf(payload: { index: number }): void {
-    if (options.source() !== 'assignments') return;
+    // Check if we have an assignment ID for this index
     const assignmentId = assignmentIdsByIndex.value[payload.index];
-    if (!assignmentId) return;
+    if (!assignmentId) {
+      console.log(JSON.stringify({
+        event: 'watched_half_no_assignment',
+        index: payload.index,
+        source: options.source(),
+      }));
+      return;
+    }
+    
+    console.log(JSON.stringify({
+      event: 'watched_half',
+      index: payload.index,
+      assignmentId,
+      source: options.source(),
+    }));
+    
     void markAssignmentComplete(assignmentId);
   }
 
@@ -202,6 +269,43 @@ export function useFeedData(options: FeedDataOptions) {
             segment: { ...feedItem.segment, tags: feedItem.segment.tags ?? [] },
           } satisfies FeedItem,
         ];
+
+        // Check if this segment is part of any assignments for the current user
+        const userId = options.userId();
+        if (userId) {
+          try {
+            const userAssignmentIds = await assignmentsService.getAssignmentsForSegment(
+              segmentId,
+              userId,
+              orgId
+            );
+            if (activeRequestId !== requestId) return;
+            
+            // If the segment is part of assignments, use the first one (newest)
+            if (userAssignmentIds.length > 0) {
+              assignmentIdsByIndex.value = [userAssignmentIds[0]];
+              console.log(JSON.stringify({
+                event: 'segment_assignment_context_loaded',
+                segmentId,
+                assignmentId: userAssignmentIds[0],
+                totalAssignments: userAssignmentIds.length,
+              }));
+            } else {
+              console.log(JSON.stringify({
+                event: 'segment_no_assignment_context',
+                segmentId,
+              }));
+            }
+          } catch (err) {
+            console.log(JSON.stringify({
+              event: 'segment_assignment_context_error',
+              segmentId,
+              error: err instanceof Error ? err.message : String(err),
+            }));
+            // Non-fatal: continue without assignment context
+          }
+        }
+        
         return;
       }
 
@@ -276,6 +380,90 @@ export function useFeedData(options: FeedDataOptions) {
           segment: { ...segment, tags: segment.tags ?? [] },
         } satisfies FeedItem;
       });
+
+      // Check if any of these segments are part of assignments for the current user
+      const userId = options.userId();
+      if (userId && feedRows.length > 0) {
+        try {
+          const segmentIds = feedRows.map(({ segment }) => segment.id);
+          
+          // Bulk query: find assignments for all segments
+          const { data: assignmentSegments, error: asError } = await supabase
+            .from('assignment_segments')
+            .select('media_segment_id, assignment_id')
+            .in('media_segment_id', segmentIds);
+
+          if (asError) throw asError;
+
+          if (assignmentSegments && assignmentSegments.length > 0) {
+            const assignmentIds = Array.from(
+              new Set(assignmentSegments.map((s: any) => String(s.assignment_id)).filter(Boolean))
+            );
+
+            // Check which assignments are relevant to this user
+            const { data: targets, error: tError } = await supabase
+              .from('assignment_targets')
+              .select('assignment_id, target_type, target_id')
+              .in('assignment_id', assignmentIds);
+
+            if (tError) throw tError;
+
+            // Get user's groups
+            const { data: groupMembers, error: gmError } = await supabase
+              .from('group_members')
+              .select('group_id')
+              .eq('profile_id', userId);
+
+            if (gmError) throw gmError;
+
+            const userGroupIds = new Set(
+              (groupMembers ?? []).map((gm: any) => String(gm.group_id)).filter(Boolean)
+            );
+
+            // Build map of assignment IDs that are relevant to the user
+            const userRelevantAssignments = new Set<string>();
+            for (const t of (targets ?? []) as Array<{ assignment_id: string; target_type: string; target_id: string | null }>) {
+              if (t.target_type === 'player' && t.target_id === userId) {
+                userRelevantAssignments.add(t.assignment_id);
+              } else if (t.target_type === 'team') {
+                userRelevantAssignments.add(t.assignment_id);
+              } else if (t.target_type === 'group' && t.target_id && userGroupIds.has(t.target_id)) {
+                userRelevantAssignments.add(t.assignment_id);
+              }
+            }
+
+            // Build map: segmentId -> assignmentId
+            const segmentToAssignment = new Map<string, string>();
+            for (const as of assignmentSegments as Array<{ media_segment_id: string; assignment_id: string }>) {
+              const segId = String(as.media_segment_id);
+              const assId = String(as.assignment_id);
+              if (userRelevantAssignments.has(assId) && !segmentToAssignment.has(segId)) {
+                segmentToAssignment.set(segId, assId);
+              }
+            }
+
+            // Populate assignmentIdsByIndex for each feed item
+            assignmentIdsByIndex.value = feedRows.map(({ segment }) => 
+              segmentToAssignment.get(segment.id) ?? ''
+            );
+
+            const assignmentCount = assignmentIdsByIndex.value.filter(Boolean).length;
+            if (assignmentCount > 0) {
+              console.log(JSON.stringify({
+                event: 'random_feed_assignment_context_loaded',
+                totalSegments: feedRows.length,
+                segmentsWithAssignments: assignmentCount,
+              }));
+            }
+          }
+        } catch (err) {
+          console.log(JSON.stringify({
+            event: 'random_feed_assignment_context_error',
+            error: err instanceof Error ? err.message : String(err),
+          }));
+          // Non-fatal: continue without assignment context
+        }
+      }
     } catch (err) {
       if (activeRequestId !== requestId) return;
       error.value = err instanceof Error ? err.message : 'Failed to load feed.';
