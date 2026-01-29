@@ -32,6 +32,25 @@ const isInteractive = computed(() => processingStatus.value.isWatchable);
 
 const isActivelyUploading = computed(() => props.uploadMetrics?.state === 'uploading');
 
+// Show overlay during upload OR blocking processing (transcoding)
+const showProcessingOverlay = computed(() => {
+  return isActivelyUploading.value || processingStatus.value.isBlockingProcessing;
+});
+
+// Upload progress data for overlay
+const uploadProgress = computed(() => {
+  if (!isActivelyUploading.value || !props.uploadMetrics) return null;
+  return props.uploadMetrics.progress;
+});
+
+const uploadSpeedLabel = computed(() => {
+  if (!isActivelyUploading.value) return null;
+  const bps = props.uploadMetrics?.uploadSpeedBps;
+  if (!bps || !Number.isFinite(bps) || bps <= 0) return null;
+  const mbps = (bps * 8) / (1024 * 1024);
+  return `${mbps.toFixed(1)} Mbps`;
+});
+
 const STORAGE_BASE_URL = 'https://cdn.rugbycodex.com';
 
 const thumbnailUrl = computed(() => {
@@ -54,19 +73,14 @@ const isAbandoned = computed(() => {
   return props.asset.status === 'interrupted' || props.uploadMetrics?.state === 'abandoned';
 });
 
-// Show overlay only during blocking processing (transcoding)
-const showBlockingOverlay = computed(() => {
-  return processingStatus.value.isBlockingProcessing;
-});
-
 // Show small badge for background processing (event detection)
 const showBackgroundBadge = computed(() => {
   return processingStatus.value.isBackgroundProcessing;
 });
 
 const overlayIconName = computed(() => {
-  // Don't show icon if we're showing processing overlays/badges
-  if (showBlockingOverlay.value || showBackgroundBadge.value) return null;
+  // Don't show icon if we're showing processing overlay/badges
+  if (showProcessingOverlay.value || showBackgroundBadge.value) return null;
   
   if (isAbandoned.value) return 'carbon:warning-alt';
   if (isInteractive.value) return 'carbon:play-filled-alt';
@@ -77,22 +91,6 @@ const overlayIconClass = computed(() => {
   if (isAbandoned.value) return 'text-yellow-500/70';
   if (isInteractive.value) return 'text-white/30';
   return 'text-white/40';
-});
-
-const showUploadProgress = computed(
-  () => props.asset.status === 'uploading' && props.uploadMetrics?.state === 'uploading'
-);
-
-const uploadProgressStyle = computed(() => {
-  const progress = props.uploadMetrics?.progress ?? 0;
-  return { width: `${Math.min(100, Math.max(0, progress))}%` };
-});
-
-const uploadSpeedLabel = computed(() => {
-  const bps = props.uploadMetrics?.uploadSpeedBps;
-  if (!bps || !Number.isFinite(bps) || bps <= 0) return '';
-  const mbps = (bps * 8) / (1024 * 1024);
-  return `${mbps.toFixed(1)} Mbps`;
 });
 
 const menuOpen = ref(false);
@@ -188,10 +186,12 @@ function clipTitle(fileName: string) {
             loading="lazy"
           />
 
-          <!-- Blocking Processing Overlay (transcoding) -->
+          <!-- Processing Overlay (upload + transcoding) -->
           <MediaProcessingStatusBanner 
-            v-if="showBlockingOverlay"
+            v-if="showProcessingOverlay"
             :status="processingStatus" 
+            :upload-progress="uploadProgress"
+            :upload-speed-label="uploadSpeedLabel"
             mode="overlay"
           />
 
@@ -206,7 +206,7 @@ function clipTitle(fileName: string) {
 
           <!-- Play icon or abandoned warning (when not processing) -->
           <div
-            v-if="!showBlockingOverlay && !showBackgroundBadge && overlayIconName"
+            v-if="!showProcessingOverlay && !showBackgroundBadge && overlayIconName"
             class="absolute inset-0 flex items-center justify-center"
           >
             <Icon
@@ -224,11 +224,6 @@ function clipTitle(fileName: string) {
         </div>
       </div>
 
-      <!-- Upload progress -->
-      <div v-if="showUploadProgress" class="mt-2 h-1 w-full rounded bg-white/10">
-        <div class="h-full rounded bg-blue-500/70" :style="uploadProgressStyle" />
-      </div>
-
       <!-- Metadata -->
       <div class="mt-3 space-y-1">
         <div class="truncate text-sm font-semibold text-white">
@@ -243,8 +238,8 @@ function clipTitle(fileName: string) {
 
         <!-- Actions and Status Row -->
         <div class="flex items-center justify-between gap-2">
-          <!-- Status - only show if not ready -->
-          <div v-if="!isReadyToPlay || isAbandoned || showUploadProgress" class="inline-flex items-center gap-1 text-xs min-w-0">
+          <!-- Status - only show if not ready and not actively uploading/processing -->
+          <div v-if="(!isReadyToPlay || isAbandoned) && !isActivelyUploading" class="inline-flex items-center gap-1 text-xs min-w-0">
             <Icon
               v-if="statusDisplay.icon"
               :icon="statusDisplay.icon!"
@@ -257,8 +252,6 @@ function clipTitle(fileName: string) {
               </template>
               <template v-else>
                 {{ isStreamingProcessing ? 'Processing' : statusDisplay.label }}
-                <span v-if="showUploadProgress"> • {{ uploadMetrics!.progress }}%</span>
-                <span v-if="showUploadProgress && uploadSpeedLabel"> • {{ uploadSpeedLabel }}</span>
               </template>
             </span>
           </div>

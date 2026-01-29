@@ -2,17 +2,22 @@
 import { computed } from 'vue';
 import { Icon } from '@iconify/vue';
 import LoadingDot from '@/components/LoadingDot.vue';
+import ShimmerText from '@/components/ShimmerText.vue';
 import type { ProcessingStatus } from '@/modules/media/composables/useMediaProcessingStatus';
 
 interface Props {
   status: ProcessingStatus;
   showWatchMessage?: boolean;
   mode?: 'overlay' | 'banner';
+  uploadProgress?: number | null;
+  uploadSpeedLabel?: string | null;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   showWatchMessage: false,
   mode: 'overlay',
+  uploadProgress: null,
+  uploadSpeedLabel: null,
 });
 
 // Color mapping for each stage
@@ -35,8 +40,26 @@ const stageLabels: Record<string, string> = {
   failed: 'Failed',
 };
 
-const currentColor = computed(() => stageColors[props.status.stage] || '#3B82F6');
-const currentLabel = computed(() => stageLabels[props.status.stage] || 'Processing');
+// Add uploading state
+const isUploading = computed(() => props.uploadProgress !== null && props.uploadProgress < 100);
+
+const currentColor = computed(() => {
+  if (isUploading.value) return '#3B82F6'; // blue for uploading
+  return stageColors[props.status.stage] || '#3B82F6';
+});
+
+const currentLabel = computed(() => {
+  if (isUploading.value) return 'Uploading';
+  return stageLabels[props.status.stage] || 'Processing';
+});
+
+const progressMessage = computed(() => {
+  if (isUploading.value && props.uploadProgress !== null) {
+    const speedPart = props.uploadSpeedLabel ? ` • ${props.uploadSpeedLabel}` : '';
+    return `${props.uploadProgress}%${speedPart}`;
+  }
+  return null;
+});
 
 const bannerMessage = computed(() => {
   const stage = props.status.stage;
@@ -71,12 +94,17 @@ const bannerIcon = computed(() => {
 <template>
   <!-- Overlay mode (for video thumbnails/cards) -->
   <div 
-    v-if="mode === 'overlay' && status.isBlockingProcessing" 
-    class="absolute inset-0 z-10 flex items-center justify-center bg-black/40 backdrop-blur-sm pointer-events-none"
+    v-if="mode === 'overlay' && (isUploading || status.isBlockingProcessing)" 
+    class="absolute inset-0 z-10 flex items-center justify-center bg-black/50 backdrop-blur-sm pointer-events-none"
   >
     <div class="flex flex-col items-center gap-3">
-      <span class="text-lg font-semibold text-white drop-shadow-lg">
-        {{ currentLabel }}
+      <ShimmerText 
+        :text="currentLabel" 
+        class="text-lg font-bold"
+        :color="currentColor"
+      />
+      <span v-if="progressMessage" class="text-sm font-medium text-white/80">
+        {{ progressMessage }}
       </span>
       <LoadingDot :color="currentColor" />
     </div>
