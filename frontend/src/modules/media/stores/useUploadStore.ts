@@ -9,6 +9,7 @@ import { getMediaDurationSeconds, sanitizeFileName } from "@/modules/media/utils
 import { mediaService } from "@/modules/media/services/mediaService";
 import { useActiveOrganizationStore } from "@/modules/orgs/stores/useActiveOrganizationStore";
 import { useOrgMediaStore } from "@/modules/media/stores/useOrgMediaStore";
+import { logInfo, logError, logEvent } from "@/lib/logger";
 
 const MAX_CONCURRENT_UPLOADS = 3;
 const MAX_QUEUED_UPLOADS = 5;
@@ -74,6 +75,15 @@ export const useUploadStore = defineStore("upload", () => {
   async function startUpload(file: File, bucket: string): Promise<UploadJob> {
     const job = await buildUploadJob(file, bucket);
     enqueue(job);
+    
+    // Log upload initiated
+    logInfo('Upload initiated', {
+      media_id: job.mediaId,
+      file_name: job.fileName,
+      file_size: job.fileSize,
+      bucket: job.bucket,
+    });
+    
     return job;
   }
 
@@ -357,6 +367,14 @@ export const useUploadStore = defineStore("upload", () => {
       file_size_bytes: job.fileSize,
     }));
 
+    // Log to Axiom
+    logEvent('info', 'upload_start', {
+      media_id: job.mediaId,
+      file_name: job.fileName,
+      file_size_bytes: job.fileSize,
+      bucket: job.bucket,
+    });
+
     console.log(JSON.stringify({
       severity: "info",
       event_type: "metric",
@@ -437,12 +455,25 @@ export const useUploadStore = defineStore("upload", () => {
       job.progress = 100;
       persistQueue();
 
+      const uploadDurationMs = Date.now() - uploadStartTime;
+      const throughputMbps = (job.fileSize / 1024 / 1024) / (uploadDurationMs / 1000);
+
       console.log(JSON.stringify({
         severity: "info",
         event_type: "upload_success",
         media_id: job.mediaId,
         org_id: job.orgId,
       }));
+
+      // Log to Axiom
+      logInfo('Upload completed successfully', {
+        media_id: job.mediaId,
+        file_name: job.fileName,
+        file_size_bytes: job.fileSize,
+        duration_ms: uploadDurationMs,
+        throughput_mbps: throughputMbps.toFixed(2),
+      });
+
     } catch (err) {
       console.error("Upload failed for job", job.id, err);
       console.log(JSON.stringify({
@@ -453,6 +484,14 @@ export const useUploadStore = defineStore("upload", () => {
         error_code: "WASABI_UPLOAD_FAILED",
         error_message: err instanceof Error ? err.message : String(err),
       }));
+
+      // Log to Axiom
+      logError('Upload failed', err, {
+        media_id: job.mediaId,
+        file_name: job.fileName,
+        file_size_bytes: job.fileSize,
+        error_code: 'WASABI_UPLOAD_FAILED',
+      });
       console.log(JSON.stringify({
         severity: "error",
         event_type: "metric",
