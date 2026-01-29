@@ -283,7 +283,7 @@ export function useFeedData(options: FeedDataOptions) {
             
             // If the segment is part of assignments, use the first one (newest)
             if (userAssignmentIds.length > 0) {
-              assignmentIdsByIndex.value = [userAssignmentIds[0]];
+              assignmentIdsByIndex.value = [userAssignmentIds[0]!];
               console.log(JSON.stringify({
                 event: 'segment_assignment_context_loaded',
                 segmentId,
