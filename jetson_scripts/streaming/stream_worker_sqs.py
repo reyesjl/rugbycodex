@@ -16,47 +16,14 @@ from supabase import create_client, Client
 import time
 import json
 from datetime import datetime
-from typing import Any
+from typing import Any, Optional
+
+# Add utils to path
+sys.path.insert(0, str(Path(__file__).parent.parent / "utils"))
+from visibility_heartbeat import VisibilityHeartbeat, estimate_processing_time
+from observability import log_event
 
 load_dotenv()
-
-# Axiom integration
-AXIOM_ENABLED = False
-axiom_client = None
-axiom_dataset = None
-
-try:
-    from axiom_py import Client as AxiomClient
-    axiom_token = os.getenv("AXIOM_API_TOKEN")
-    axiom_dataset = os.getenv("AXIOM_DATASET", "rugbycodex-logs")
-    axiom_env = os.getenv("AXIOM_ENVIRONMENT", "production")
-    
-    if axiom_token:
-        axiom_client = AxiomClient(token=axiom_token)
-        AXIOM_ENABLED = True
-        print(f"✅ Axiom logging enabled: dataset={axiom_dataset}, env={axiom_env}", flush=True)
-    else:
-        print("⚠️  Axiom token not found, logging to stdout only", flush=True)
-except ImportError:
-    print("⚠️  axiom-py not installed, logging to stdout only (pip3 install axiom-py)", flush=True)
-
-# Enhanced observability helper with Axiom integration
-def log_event(**fields: Any) -> None:
-    payload = {
-        "timestamp": datetime.utcnow().isoformat() + "Z",
-        "environment": os.getenv("AXIOM_ENVIRONMENT", "production"),
-        **fields,
-    }
-    
-    # Always print to stdout
-    print(json.dumps(payload, default=str), flush=True)
-    
-    # Send to Axiom if enabled
-    if AXIOM_ENABLED and axiom_client and axiom_dataset:
-        try:
-            axiom_client.ingest_events(axiom_dataset, [payload])
-        except Exception as e:
-            print(f"Axiom ingest failed: {e}", file=sys.stderr, flush=True)
 
 # AWS/Wasabi Configuration
 AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
@@ -455,8 +422,23 @@ def upload_to_wasabi(local_dir: Path, bucket: str, base_key: str, job_id: str) -
         return False
 
 
-def process_job(job_id: str, media_id: str, org_id: str):
-    """Process a transcode job"""
+def process_job(
+    job_id: str, 
+    media_id: str, 
+    org_id: str,
+    sqs_client=None,
+    receipt_handle: Optional[str] = None
+):
+    """
+    Process a transcode job.
+    
+    Args:
+        job_id: Job UUID
+        media_id: Media asset UUID
+        org_id: Organization UUID
+        sqs_client: SQS client for heartbeat visibility extension
+        receipt_handle: Message receipt handle for heartbeat
+    """
     start_time = time.perf_counter()
     
     log_event(
@@ -524,6 +506,9 @@ def process_job(job_id: str, media_id: str, org_id: str):
     output_dir.mkdir(exist_ok=True)
     thumbnail_file = output_dir / "thumbnail.jpg"
     
+    # Initialize heartbeat (will start after we estimate processing time)
+    heartbeat: Optional[VisibilityHeartbeat] = None
+    
     try:
         # Download
         if not download_from_wasabi(bucket, storage_path, input_file, job_id):
@@ -532,6 +517,10 @@ def process_job(job_id: str, media_id: str, org_id: str):
         # Log file size for performance tracking
         file_size_bytes = input_file.stat().st_size
         file_size_mb = round(file_size_bytes / 1024 / 1024, 2)
+        
+        # Estimate processing time and start heartbeat
+        estimated_time_seconds = estimate_processing_time(file_size_bytes)
+        
         log_event(
             severity="info",
             event_type="file_size_detected",
@@ -539,7 +528,21 @@ def process_job(job_id: str, media_id: str, org_id: str):
             media_id=media_id,
             file_size_bytes=file_size_bytes,
             file_size_mb=file_size_mb,
+            estimated_processing_seconds=estimated_time_seconds,
         )
+        
+        # Start heartbeat if we have SQS client and receipt handle
+        if sqs_client and receipt_handle:
+            # Extend by 5 minutes every 4 minutes
+            heartbeat = VisibilityHeartbeat(
+                sqs_client=sqs_client,
+                queue_url=SQS_QUEUE_URL,
+                receipt_handle=receipt_handle,
+                extension_seconds=300,  # Extend by 5 minutes
+                heartbeat_interval=240,  # Beat every 4 minutes
+                job_id=job_id,
+            )
+            heartbeat.start()
         
         # Transcode
         if not transcode_video(input_file, output_dir, job_id):
@@ -650,6 +653,17 @@ def process_job(job_id: str, media_id: str, org_id: str):
         return False
     
     finally:
+        # Stop heartbeat
+        if heartbeat:
+            heartbeat.stop()
+            stats = heartbeat.get_stats()
+            log_event(
+                severity="info",
+                event_type="heartbeat_stats",
+                job_id=job_id,
+                **stats
+            )
+        
         # Cleanup
         if input_file.exists():
             input_file.unlink()
@@ -755,8 +769,14 @@ def main():
                     media_id=media_id,
                 )
                 
-                # Process the job
-                success = process_job(job_id, media_id, org_id)
+                # Process the job (pass sqs and receipt_handle for heartbeat)
+                success = process_job(
+                    job_id, 
+                    media_id, 
+                    org_id,
+                    sqs_client=sqs,
+                    receipt_handle=receipt_handle
+                )
                 
                 # Delete message from queue if successful
                 if success:

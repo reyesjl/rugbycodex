@@ -1,15 +1,14 @@
 [Unit]
-Description=RugbyCodex Jetson Transcoding Worker (SQS)
+Description=RugbyCodex Media Cleanup Worker
 After=network.target
 
 [Service]
 Type=simple
 User=scribe
-WorkingDirectory=/home/scribe/rugbycodex/jetson_scripts/streaming
+WorkingDirectory=/home/scribe/rugbycodex/jetson_scripts/cleanup
 EnvironmentFile=/home/scribe/rugbycodex/jetson_scripts/.env
-Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 Environment="PYTHONUNBUFFERED=1"
-ExecStart=/usr/bin/python3 stream_worker_sqs.py
+ExecStart=/usr/bin/python3 cleanup_worker.py
 Restart=always
 RestartSec=10
 StandardOutput=journal
