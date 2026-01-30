@@ -66,7 +66,7 @@ const bgImg = `${CDN_BASE}/static/assets/modules/marketing/mission1.jpg`;
         <h1 class="max-w-3xl text-4xl md:text-6xl">
           Turn Rugby Footage into Searchable Moments Using Your Voice.
         </h1>
-        <div class="mt-5 text-lg max-w-3xl">Better coaching. Faster player improvement. More wins.</div>
+        <div class="mt-5 text-lg max-w-3xl">Better coaching. Player improvement. More wins.</div>
         <div class="button-set flex gap-5 mt-6 items-center">
           <Button size="md" variant="base" color="primary" to="/auth/signup">GET STARTED</Button>
           <RouterLink
