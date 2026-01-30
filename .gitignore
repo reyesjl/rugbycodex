@@ -32,3 +32,4 @@ frontend/src/assets/
 
 /aws_workers
 test_edge_functions.sh
+jetson_scripts/.env
