@@ -1,17 +1,15 @@
 <script setup lang="ts">
-// import { computed, ref } from 'vue';
 import { computed } from 'vue';
 import { useProfileDisplay } from '@/modules/profiles/composables/useProfileDisplay';
 import { useMyRugbyOrchestrator } from '@/modules/app/composables/useMyRugbyOrchestrator';
-// import PersonalWorkOnsCard from '@/modules/app/components/PersonalWorkOnsCard.vue';
-// import CoachFocusCard from '../components/CoachFocusCard.vue';
-// import DemoMyRugbyCard from '@/modules/app/components/DemoMyRugbyCard.vue';
+import { useMyOrganizationsStore } from '@/modules/orgs/stores/useMyOrganizationsStore';
+import MyOrganizationsList from '@/modules/app/components/MyOrganizationsList.vue';
 
-// const { mode, isEmptyState } = useMyRugbyOrchestrator();
 const { isEmptyState } = useMyRugbyOrchestrator();
-// const workOnsCollapsed = ref(false)
 
 const { username } = useProfileDisplay();
+
+const myOrgsStore = useMyOrganizationsStore();
 
 // Personalized greeting based on time of day
 const greeting = computed(() => {
@@ -31,31 +29,17 @@ const greeting = computed(() => {
 </script>
 
 <template>
-    <section class="container-lg space-y-8 pt-6 pb-10 text-white">
-        <div class="text-4xl flex flex-col">
+    <div class="bg-linear-to-t from-black to-gray-800">
+    <section class="container-lg space-y-8 py-10 text-white">
+        <div class="text-4xl flex flex-col md:flex-row md:gap-1">
             <div>{{ greeting }},</div>
-            <div class="text-white/60 tracking-wider">{{ username ? `@${username}` : 'new user' }}</div>
+            <!-- <div>{{ name }}</div> -->
+            <div class="text-white/70 tracking-wider">{{ username ? `@${username}` : 'new user' }}</div>
         </div>
     </section>
 
-    <!-- Not needed right now -->
-    <!-- <section class="container-lg text-white space-y-4">
-        <PersonalWorkOnsCard
-            v-if="mode === 'player' && !isEmptyState"
-            :collapsible="true"
-            :collapsed="workOnsCollapsed"
-            @toggle="workOnsCollapsed = !workOnsCollapsed"
-        />
-        <CoachFocusCard
-            v-if="mode === 'coach' && !isEmptyState"
-            :collapsible="true"
-            :collapsed="workOnsCollapsed"
-            @toggle="workOnsCollapsed = !workOnsCollapsed"
-        />
-        <DemoMyRugbyCard
-            v-if="isEmptyState"
-        />
-    </section> -->
+    <!-- Organization quicklook -->
+    <MyOrganizationsList :organizations="myOrgsStore.items" />
 
     <section class="container-lg text-white pt-20">
         <div class="text-2xl font-semibold">Recent activity</div>
@@ -92,4 +76,5 @@ const greeting = computed(() => {
             </div>
         </div>
     </section>
+    </div>
 </template>

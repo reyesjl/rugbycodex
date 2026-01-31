@@ -67,7 +67,7 @@ const uploadMetricsByAssetId = computed(() => {
 });
 
 const searchQuery = ref('');
-const selectedKind = ref<'all' | 'match' | 'training'>('all');
+const selectedKind = ref<'all' | 'match' | 'training' | 'clinic'>('all');
 
 function normalizeSearchText(value: string | null | undefined) {
   if (!value) return '';
@@ -582,6 +582,15 @@ watch(activeOrgId, (orgId, prevOrgId) => {
             :class="selectedKind === 'training' ? 'text-white font-semibold' : 'text-white/40 hover:text-white/60'"
           >
             Training
+          </button>
+          <div class="h-4 w-px bg-white/20"></div>
+          <button
+            type="button"
+            @click="selectedKind = 'clinic'"
+            class="transition"
+            :class="selectedKind === 'clinic' ? 'text-white font-semibold' : 'text-white/40 hover:text-white/60'"
+          >
+            Clinic
           </button>
         </div>
       </div>

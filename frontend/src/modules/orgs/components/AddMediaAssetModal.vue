@@ -144,6 +144,7 @@ async function submit() {
               >
                 <option value="match" class="bg-black text-white">Match</option>
                 <option value="training" class="bg-black text-white">Training</option>
+                <option value="clinic" class="bg-black text-white">Clinic</option>
               </select>
             </div>
           </div>

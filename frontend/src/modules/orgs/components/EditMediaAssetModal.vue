@@ -140,6 +140,7 @@ function handleCancel() {
             >
               <option value="match">Match</option>
               <option value="training">Training</option>
+              <option value="clinic">Clinic</option>
             </select>
           </div>
 
