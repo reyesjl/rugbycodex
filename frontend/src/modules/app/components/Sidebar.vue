@@ -118,7 +118,7 @@ void mobileSheetRef.value;
               <RouterLink :to="`/organizations/${orgContext?.organization.slug}/feed`"
                 :class="[
                   'flex items-center px-4 py-2 rounded',
-                  isFeedRouteActive ? 'bg-white text-black hover:!bg-white' : 'hover:bg-white/10',
+                  isFeedRouteActive ? 'bg-white text-black hover:bg-white!' : 'hover:bg-white/10',
                 ]">
                 <Icon icon="carbon:connection-signal" width="20" height="20" class="mr-5" />
                 Feed
@@ -263,7 +263,7 @@ void mobileSheetRef.value;
                 <RouterLink :to="`/organizations/${orgContext?.organization.slug}/feed`"
                   :class="[
                     'flex items-center px-4 py-2 rounded',
-                    isFeedRouteActive ? 'bg-white text-black hover:!bg-white' : 'hover:bg-white/10',
+                    isFeedRouteActive ? 'bg-white text-black hover:bg-white!' : 'hover:bg-white/10',
                   ]">
                   <Icon icon="carbon:connection-signal" width="20" height="20" class="mr-5" />
                   Feed
