@@ -4,6 +4,7 @@ import { useProfileDisplay } from '@/modules/profiles/composables/useProfileDisp
 import { useMyRugbyOrchestrator } from '@/modules/app/composables/useMyRugbyOrchestrator';
 import { useMyOrganizationsStore } from '@/modules/orgs/stores/useMyOrganizationsStore';
 import MyOrganizationsList from '@/modules/app/components/MyOrganizationsList.vue';
+import MyAssignmentsList from '@/modules/app/components/MyAssignmentsList.vue';
 
 const { isEmptyState } = useMyRugbyOrchestrator();
 
@@ -65,16 +66,7 @@ const greeting = computed(() => {
         </div>
     </section>
 
-    <section class="container-lg text-white py-20">
-        <div class="text-2xl font-semibold">Your tasks</div>
-        <div class="pt-4">
-            <div v-if="isEmptyState" class="text-xs text-white/40">
-                This section will fill in once your team starts uploading matches and adding feedback.
-            </div>
-            <div v-else>
-                <div class="text-xs text-white/30">You've watched all the clips assigned to you! Nice work!</div>
-            </div>
-        </div>
-    </section>
+    <!-- Your tasks - Assignments -->
+    <MyAssignmentsList />
     </div>
 </template>
