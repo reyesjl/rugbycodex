@@ -33,8 +33,8 @@ export const useMyRugbyViewContext = () => {
     if (viewContext.value === 'manager') {
       return items.value.filter((item) => MANAGER_ROLES.includes(item.membership.role));
     }
-    // Default to showing all orgs for player view
-    return items.value;
+    // Player view: only show orgs where user has player roles (member, viewer)
+    return items.value.filter((item) => PLAYER_ROLES.includes(item.membership.role));
   });
 
   // Initialize view context based on user's roles

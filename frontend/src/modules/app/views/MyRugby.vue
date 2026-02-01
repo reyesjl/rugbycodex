@@ -37,8 +37,8 @@ const greeting = computed(() => {
 // Dynamic background gradient based on view context
 const backgroundClass = computed(() => {
     return viewContext.value === 'manager' 
-        ? 'bg-gradient-to-t from-black to-red-900/40'
-        : 'bg-gradient-to-t from-black to-gray-800';
+        ? 'bg-gradient-to-t from-black to-gray-800'
+        : 'bg-gradient-to-t from-black to-red-900/40';
 });
 
 </script>
