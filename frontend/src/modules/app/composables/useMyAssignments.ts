@@ -40,13 +40,13 @@ export const useMyAssignments = () => {
   });
 
   // Top 6 assignments
-  const topAssignments = computed(() => sortedAssignments.value.slice(0, 6));
+  const topAssignments = computed(() => sortedAssignments.value.slice(0, 10));
   
   // Total count
   const totalCount = computed(() => assignments.value.length);
   
-  // Has more than 6
-  const hasMore = computed(() => totalCount.value > 6);
+  // Has more than 10
+  const hasMore = computed(() => totalCount.value > 10);
 
   const load = async () => {
     if (!user.value?.id) {
