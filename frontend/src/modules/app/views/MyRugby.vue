@@ -65,13 +65,10 @@ const backgroundClass = computed(() => {
     <!-- Player View -->
     <template v-if="viewContext === 'player'">
         <section class="container-lg text-white pt-20">
-            <div class="text-2xl font-semibold">Your moments</div>
-            <div class="pt-4">
-                <div v-if="isEmptyState" class="text-xs text-white/40">
-                    This section will fill in once your team starts uploading matches and adding feedback.
-                </div>
-                <MyMomentsList v-else />
+            <div v-if="isEmptyState" class="text-xs text-white/40">
+                This section will fill in once your team starts uploading matches and adding feedback.
             </div>
+            <MyMomentsList v-else />
         </section>
 
         <!-- Your tasks - Assignments -->

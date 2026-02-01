@@ -45,6 +45,11 @@ export const useManagerMatches = () => {
   const selectedLimit = ref<5 | 10 | 20>(5);
 
   const isEmpty = computed(() => !loading.value && matches.value.length === 0);
+  
+  // Check if filtered results are empty (when filters applied)
+  const isFilteredEmpty = computed(() => 
+    !loading.value && matches.value.length > 0 && filteredMatches.value.length === 0
+  );
 
   // Filter matches by selected kind
   const filteredMatches = computed(() => {
@@ -153,6 +158,7 @@ export const useManagerMatches = () => {
     loading,
     error,
     isEmpty,
+    isFilteredEmpty,
     selectedKind,
     selectedLimit,
     loadMatches,

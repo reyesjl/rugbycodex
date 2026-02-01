@@ -72,7 +72,7 @@ function formatTagKey(key: string): string {
   <div>
     <!-- Header with limit selector -->
     <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
-      <div></div>
+      <div class="text-2xl font-semibold">Your moments</div>
       
       <!-- Limit selector -->
       <div class="flex items-center gap-2 text-sm">

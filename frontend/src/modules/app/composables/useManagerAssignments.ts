@@ -19,6 +19,11 @@ export const useManagerAssignments = () => {
   const selectedLimit = ref<5 | 10 | 20>(5);
 
   const isEmpty = computed(() => !loading.value && assignments.value.length === 0);
+  
+  // Check if filtered results are empty (when status filter applied)
+  const isFilteredEmpty = computed(() => 
+    !loading.value && assignments.value.length > 0 && filteredAssignments.value.length === 0
+  );
 
   // Filter assignments by selected status
   const filteredAssignments = computed(() => {
@@ -238,6 +243,7 @@ export const useManagerAssignments = () => {
     loading: computed(() => loading.value),
     error: computed(() => error.value),
     isEmpty,
+    isFilteredEmpty,
     selectedStatus,
     selectedLimit,
     loadAssignments,

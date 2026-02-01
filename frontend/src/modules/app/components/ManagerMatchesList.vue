@@ -14,6 +14,7 @@ const {
   loading,
   error,
   isEmpty,
+  isFilteredEmpty,
   selectedKind,
   selectedLimit,
   loadMatches,
@@ -148,6 +149,12 @@ const navigateToMatch = (orgId: string, matchId: string) => {
     <div v-else-if="isEmpty" class="text-xs text-white/40">
       <p>No matches found in your organizations yet.</p>
       <p class="mt-2">Matches will appear here once your teams start uploading footage.</p>
+    </div>
+
+    <!-- Filtered empty state -->
+    <div v-else-if="isFilteredEmpty" class="text-xs text-white/40">
+      <p>No {{ selectedKind }} matches found.</p>
+      <p class="mt-2">Try selecting a different filter or uploading more footage.</p>
     </div>
 
     <!-- Matches list -->

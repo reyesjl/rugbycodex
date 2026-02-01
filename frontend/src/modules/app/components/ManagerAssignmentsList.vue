@@ -12,6 +12,7 @@ const {
   loading,
   error,
   isEmpty,
+  isFilteredEmpty,
   selectedStatus,
   selectedLimit,
   loadAssignments,
@@ -44,6 +45,19 @@ const emptyStateMessage = computed(() => {
     case 'all':
     default:
       return 'No assignments created yet. Create assignments to start tracking team learning.';
+  }
+});
+
+const filteredEmptyMessage = computed(() => {
+  switch (selectedStatus.value) {
+    case 'active':
+      return 'No active assignments found.';
+    case 'in_progress':
+      return 'No assignments in progress found.';
+    case 'recently_done':
+      return 'No assignments completed in the last 7 days.';
+    default:
+      return 'No assignments found for this filter.';
   }
 });
 
@@ -159,9 +173,15 @@ const setStatus = (status: AssignmentStatus) => {
       {{ error }}
     </div>
 
-    <!-- Empty state -->
+    <!-- Empty state (no assignments at all) -->
     <div v-else-if="isEmpty" class="text-xs text-white/40">
       {{ emptyStateMessage }}
+    </div>
+
+    <!-- Filtered empty state (assignments exist but filter returns none) -->
+    <div v-else-if="isFilteredEmpty" class="text-xs text-white/40">
+      <p>{{ filteredEmptyMessage }}</p>
+      <p class="mt-2">Try selecting a different filter to see your assignments.</p>
     </div>
 
     <!-- Assignments list -->
