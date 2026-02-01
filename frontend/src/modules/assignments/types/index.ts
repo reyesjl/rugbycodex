@@ -5,4 +5,6 @@ export type {
   OrgAssignmentListItem,
   FeedAssignment,
   UserAssignmentFeed,
+  AssignmentTargetInfo,
+  ManagerAssignment,
 } from './Assignment';

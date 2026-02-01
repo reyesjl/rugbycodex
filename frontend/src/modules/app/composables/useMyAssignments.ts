@@ -22,6 +22,7 @@ export const useMyAssignments = () => {
   const assignments = ref<AggregatedAssignment[]>([]);
   const loading = ref(false);
   const error = ref<string | null>(null);
+  const selectedLimit = ref<5 | 10 | 20>(10);
 
   // Sort assignments by due date (soonest first, nulls last)
   const sortedAssignments = computed(() => {
@@ -39,14 +40,14 @@ export const useMyAssignments = () => {
     });
   });
 
-  // Top 6 assignments
-  const topAssignments = computed(() => sortedAssignments.value.slice(0, 10));
+  // Top assignments based on selected limit
+  const topAssignments = computed(() => sortedAssignments.value.slice(0, selectedLimit.value));
   
   // Total count
   const totalCount = computed(() => assignments.value.length);
   
-  // Has more than 10
-  const hasMore = computed(() => totalCount.value > 10);
+  // Has more than selected limit
+  const hasMore = computed(() => totalCount.value > selectedLimit.value);
 
   const load = async () => {
     if (!user.value?.id) {
@@ -136,6 +137,7 @@ export const useMyAssignments = () => {
     topAssignments,
     totalCount,
     hasMore,
+    selectedLimit,
     loading: computed(() => loading.value),
     error: computed(() => error.value),
     load,

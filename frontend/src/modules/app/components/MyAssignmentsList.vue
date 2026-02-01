@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { RouterLink, useRouter } from 'vue-router';
+import { useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
 import { useMyAssignments } from '@/modules/app/composables/useMyAssignments';
 import type { AggregatedAssignment } from '@/modules/app/composables/useMyAssignments';
@@ -7,7 +7,7 @@ import LoadingDot from '@/components/LoadingDot.vue';
 import ShimmerText from '@/components/ShimmerText.vue';
 
 const router = useRouter();
-const { topAssignments, totalCount, hasMore, loading, error } = useMyAssignments();
+const { topAssignments, selectedLimit, loading, error } = useMyAssignments();
 
 // Format due date
 const formatDueDate = (dueAt: string | null): string | null => {
@@ -69,7 +69,40 @@ const openAssignment = (assignment: AggregatedAssignment) => {
 
 <template>
   <section class="container-lg text-white py-20">
-    <div class="text-2xl font-semibold mb-4">Your learnings</div>
+    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
+      <div class="text-2xl font-semibold">Your learnings</div>
+      
+      <!-- Limit selector -->
+      <div class="flex items-center gap-2 text-sm">
+        <span class="text-white/50">Show</span>
+        <button
+          type="button"
+          @click="selectedLimit = 5"
+          class="transition px-2 py-0.5 rounded"
+          :class="selectedLimit === 5 ? 'text-white font-semibold bg-white/10' : 'text-white/40 hover:text-white/60'"
+        >
+          5
+        </button>
+        <div class="h-4 w-px bg-white/20"></div>
+        <button
+          type="button"
+          @click="selectedLimit = 10"
+          class="transition px-2 py-0.5 rounded"
+          :class="selectedLimit === 10 ? 'text-white font-semibold bg-white/10' : 'text-white/40 hover:text-white/60'"
+        >
+          10
+        </button>
+        <div class="h-4 w-px bg-white/20"></div>
+        <button
+          type="button"
+          @click="selectedLimit = 20"
+          class="transition px-2 py-0.5 rounded"
+          :class="selectedLimit === 20 ? 'text-white font-semibold bg-white/10' : 'text-white/40 hover:text-white/60'"
+        >
+          20
+        </button>
+      </div>
+    </div>
     
     <!-- Loading state -->
     <div v-if="loading" class="flex items-center gap-2 text-sm text-white/60">
@@ -157,17 +190,6 @@ const openAssignment = (assignment: AggregatedAssignment) => {
             </span>
           </template>
         </div>
-      </div>
-
-      <!-- View all link -->
-      <div v-if="hasMore" class="pt-2">
-        <RouterLink 
-          :to="`/organizations`" 
-          class="text-xs text-white/60 hover:text-white underline inline-flex items-center gap-1"
-        >
-          View all {{ totalCount }} assignments
-          <Icon icon="carbon:arrow-right" width="12" />
-        </RouterLink>
       </div>
     </div>
   </section>

@@ -7,6 +7,7 @@ import { Icon } from '@iconify/vue';
 
 const {
   momentGroups,
+  selectedLimit,
   loading,
   error,
   isEmpty,
@@ -69,6 +70,42 @@ function formatTagKey(key: string): string {
 
 <template>
   <div>
+    <!-- Header with limit selector -->
+    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
+      <div></div>
+      
+      <!-- Limit selector -->
+      <div class="flex items-center gap-2 text-sm">
+        <span class="text-white/50">Show</span>
+        <button
+          type="button"
+          @click="selectedLimit = 5"
+          class="transition px-2 py-0.5 rounded"
+          :class="selectedLimit === 5 ? 'text-white font-semibold bg-white/10' : 'text-white/40 hover:text-white/60'"
+        >
+          5
+        </button>
+        <div class="h-4 w-px bg-white/20"></div>
+        <button
+          type="button"
+          @click="selectedLimit = 10"
+          class="transition px-2 py-0.5 rounded"
+          :class="selectedLimit === 10 ? 'text-white font-semibold bg-white/10' : 'text-white/40 hover:text-white/60'"
+        >
+          10
+        </button>
+        <div class="h-4 w-px bg-white/20"></div>
+        <button
+          type="button"
+          @click="selectedLimit = 20"
+          class="transition px-2 py-0.5 rounded"
+          :class="selectedLimit === 20 ? 'text-white font-semibold bg-white/10' : 'text-white/40 hover:text-white/60'"
+        >
+          20
+        </button>
+      </div>
+    </div>
+
     <!-- Loading state -->
     <div v-if="loading" class="space-y-4">
       <div class="animate-pulse space-y-4">

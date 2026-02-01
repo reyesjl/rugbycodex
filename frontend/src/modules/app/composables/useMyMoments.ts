@@ -12,9 +12,21 @@ export function useMyMoments() {
   const loading = ref(false);
   const error = ref<string | null>(null);
   const loaded = ref(false);
+  const selectedLimit = ref<5 | 10 | 20>(10);
 
   const isEmpty = computed(() => loaded.value && momentGroups.value.length === 0);
   const hasData = computed(() => momentGroups.value.length > 0);
+  
+  // Limited moment groups based on selected limit
+  const limitedMomentGroups = computed(() => momentGroups.value.slice(0, selectedLimit.value));
+  
+  // Total count of all moments across all groups
+  const totalMoments = computed(() => 
+    momentGroups.value.reduce((sum, group) => sum + group.segments.length, 0)
+  );
+  
+  // Has more than selected limit
+  const hasMore = computed(() => momentGroups.value.length > selectedLimit.value);
 
   /**
    * Load all user moments and group them by match
@@ -101,7 +113,11 @@ export function useMyMoments() {
   }
 
   return {
-    momentGroups,
+    momentGroups: limitedMomentGroups,
+    allMomentGroups: momentGroups,
+    totalMoments,
+    hasMore,
+    selectedLimit,
     loading,
     error,
     loaded,

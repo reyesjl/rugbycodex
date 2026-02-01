@@ -7,6 +7,8 @@ import type {
   OrgAssignmentListItem,
   OrgAssignmentTarget,
   UserAssignmentFeed,
+  ManagerAssignment,
+  AssignmentTargetInfo,
 } from '@/modules/assignments/types';
 import type { OrgMediaAsset } from '@/modules/media/types/OrgMediaAsset';
 import type { MediaAssetSegment } from '@/modules/narrations/types/MediaAssetSegment';
@@ -699,6 +701,192 @@ export const assignmentsService = {
     });
 
     if (error) throw error;
+  },
+
+  /**
+   * Get all assignments for manager organizations with completion tracking
+   */
+  async getManagerAssignments(
+    orgId: string,
+    limit: number = 10
+  ): Promise<ManagerAssignment[]> {
+    // Get all assignments for the org
+    const { data: assignments, error: assignmentsError } = await supabase
+      .from('assignments')
+      .select('id, org_id, created_by, title, description, due_at, created_at')
+      .eq('org_id', orgId)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (assignmentsError) throw assignmentsError;
+    if (!assignments || assignments.length === 0) return [];
+
+    const assignmentIds = assignments.map((a: any) => a.id as string);
+
+    // Get targets for all assignments
+    const { data: targets, error: targetsError } = await supabase
+      .from('assignment_targets')
+      .select('assignment_id, target_type, target_id')
+      .in('assignment_id', assignmentIds);
+
+    if (targetsError) throw targetsError;
+
+    // Get segment counts
+    const { data: segments, error: segmentsError } = await supabase
+      .from('assignment_segments')
+      .select('assignment_id')
+      .in('assignment_id', assignmentIds);
+
+    if (segmentsError) throw segmentsError;
+
+    const segmentCountByAssignment = new Map<string, number>();
+    for (const s of (segments ?? []) as Array<{ assignment_id: string }>) {
+      segmentCountByAssignment.set(s.assignment_id, (segmentCountByAssignment.get(s.assignment_id) ?? 0) + 1);
+    }
+
+    // Get completion progress for all assignments
+    const { data: progressRows, error: progressError } = await supabase
+      .from('assignment_progress')
+      .select('assignment_id, profile_id, completed, completed_at')
+      .in('assignment_id', assignmentIds);
+
+    if (progressError) throw progressError;
+
+    const completionByAssignment = new Map<string, { count: number; lastCompletedAt: string | null }>();
+    for (const row of (progressRows ?? []) as Array<{ assignment_id: string; completed: boolean; completed_at?: string | null }>) {
+      if (!row.completed) continue;
+      const current = completionByAssignment.get(row.assignment_id) ?? { count: 0, lastCompletedAt: null };
+      current.count++;
+      if (row.completed_at && (!current.lastCompletedAt || row.completed_at > current.lastCompletedAt)) {
+        current.lastCompletedAt = row.completed_at;
+      }
+      completionByAssignment.set(row.assignment_id, current);
+    }
+
+    // Group targets by assignment and resolve names
+    const targetsByAssignment = new Map<string, OrgAssignmentTarget[]>();
+    for (const t of (targets ?? []) as OrgAssignmentTarget[]) {
+      const existing = targetsByAssignment.get(t.assignment_id) ?? [];
+      existing.push(t);
+      targetsByAssignment.set(t.assignment_id, existing);
+    }
+
+    // Collect all group IDs and player IDs to fetch names
+    const groupIds = new Set<string>();
+    const playerIds = new Set<string>();
+    
+    for (const targets of targetsByAssignment.values()) {
+      for (const t of targets) {
+        if (t.target_type === 'group' && t.target_id) {
+          groupIds.add(t.target_id);
+        }
+        if (t.target_type === 'player' && t.target_id) {
+          playerIds.add(t.target_id);
+        }
+      }
+    }
+
+    // Fetch group names
+    const groupNameById = new Map<string, string>();
+    if (groupIds.size > 0) {
+      const { data: groups, error: groupsError } = await supabase
+        .from('groups')
+        .select('id, name')
+        .in('id', Array.from(groupIds));
+
+      if (groupsError) throw groupsError;
+      for (const g of (groups ?? []) as Array<{ id: string; name: string }>) {
+        groupNameById.set(g.id, g.name);
+      }
+    }
+
+    // Fetch player usernames
+    const playerNameById = new Map<string, string>();
+    if (playerIds.size > 0) {
+      const { data: players, error: playersError } = await supabase
+        .from('profiles')
+        .select('id, username')
+        .in('id', Array.from(playerIds));
+
+      if (playersError) throw playersError;
+      for (const p of (players ?? []) as Array<{ id: string; username: string }>) {
+        playerNameById.set(p.id, p.username);
+      }
+    }
+
+    // Get org member counts for team-targeted assignments
+    const { data: orgMembers, error: membersError } = await supabase
+      .from('org_members')
+      .select('org_id, user_id')
+      .eq('org_id', orgId);
+
+    if (membersError) throw membersError;
+    const orgMemberCount = (orgMembers ?? []).length;
+
+    // Get group member counts
+    const groupMemberCounts = new Map<string, number>();
+    if (groupIds.size > 0) {
+      const { data: groupMembers, error: gmError } = await supabase
+        .from('group_members')
+        .select('group_id, profile_id')
+        .in('group_id', Array.from(groupIds));
+
+      if (gmError) throw gmError;
+      for (const gm of (groupMembers ?? []) as Array<{ group_id: string; profile_id: string }>) {
+        groupMemberCounts.set(gm.group_id, (groupMemberCounts.get(gm.group_id) ?? 0) + 1);
+      }
+    }
+
+    // Calculate totalAssigned for each assignment
+    const calculateTotalAssigned = (targets: OrgAssignmentTarget[]): number => {
+      let total = 0;
+      for (const t of targets) {
+        if (t.target_type === 'team') {
+          total += orgMemberCount;
+        } else if (t.target_type === 'group' && t.target_id) {
+          total += groupMemberCounts.get(t.target_id) ?? 0;
+        } else if (t.target_type === 'player') {
+          total += 1;
+        }
+      }
+      return total;
+    };
+
+    // Build target info with names
+    const buildTargetInfo = (targets: OrgAssignmentTarget[]): AssignmentTargetInfo[] => {
+      return targets.map(t => ({
+        type: t.target_type,
+        targetId: t.target_id,
+        targetName: 
+          t.target_type === 'team' ? 'Team' :
+          t.target_type === 'group' && t.target_id ? groupNameById.get(t.target_id) ?? 'Unknown Group' :
+          t.target_type === 'player' && t.target_id ? playerNameById.get(t.target_id) ?? 'Unknown Player' :
+          null
+      }));
+    };
+
+    // This function will be called with org context later
+    return assignments.map((a: any) => {
+      const assignmentTargets = targetsByAssignment.get(a.id) ?? [];
+      const completion = completionByAssignment.get(a.id) ?? { count: 0, lastCompletedAt: null };
+      
+      return {
+        id: a.id,
+        orgId: a.org_id,
+        orgName: '', // Will be set by caller
+        orgSlug: '', // Will be set by caller
+        title: normalizeAssignmentTitle(a.title),
+        description: a.description,
+        due_at: a.due_at,
+        created_at: a.created_at,
+        created_by: a.created_by,
+        clipCount: segmentCountByAssignment.get(a.id) ?? 0,
+        completionCount: completion.count,
+        totalAssigned: calculateTotalAssigned(assignmentTargets),
+        targets: buildTargetInfo(assignmentTargets),
+        lastCompletedAt: completion.lastCompletedAt,
+      } as ManagerAssignment;
+    });
   },
 
   /**

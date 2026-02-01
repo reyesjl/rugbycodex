@@ -46,3 +46,26 @@ export type UserAssignmentFeed = {
     assignments: FeedAssignment[];
   }>;
 };
+
+export type AssignmentTargetInfo = {
+  type: AssignmentTargetType;
+  targetId: string | null;
+  targetName: string | null;
+};
+
+export type ManagerAssignment = {
+  id: string;
+  orgId: string;
+  orgName: string;
+  orgSlug: string;
+  title: string;
+  description: string | null;
+  due_at: string | null;
+  created_at: string;
+  created_by: string;
+  clipCount: number;
+  completionCount: number;
+  totalAssigned: number;
+  targets: AssignmentTargetInfo[];
+  lastCompletedAt: string | null;
+};
