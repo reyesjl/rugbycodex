@@ -76,10 +76,10 @@ const setStatus = (status: AssignmentStatus) => {
 
 <template>
   <section class="container-lg text-white py-20">
-    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
+    <div class="flex flex-col gap-4 mb-4">
       <div class="text-2xl font-semibold">Your assignments</div>
       
-      <div class="flex items-center gap-6">
+      <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6">
         <!-- Limit selector -->
         <div class="flex items-center gap-2 text-sm">
           <span class="text-white/50">Show</span>
@@ -112,7 +112,7 @@ const setStatus = (status: AssignmentStatus) => {
         </div>
 
         <!-- Status filter toggle -->
-        <div class="flex items-center gap-3 text-sm">
+        <div class="flex items-center gap-3 text-sm flex-wrap">
           <button
             type="button"
             @click="setStatus('all')"
