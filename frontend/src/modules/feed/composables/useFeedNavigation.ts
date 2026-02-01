@@ -1,7 +1,10 @@
 import { computed, ref } from 'vue';
 
-export function useFeedNavigation(options: { length: () => number }) {
-  const activeIndex = ref(0);
+export function useFeedNavigation(options: { 
+  length: () => number;
+  initialIndex?: number;
+}) {
+  const activeIndex = ref(options.initialIndex ?? 0);
 
   const hasPrev = computed(() => activeIndex.value > 0);
   const hasNext = computed(() => activeIndex.value < Math.max(0, options.length() - 1));

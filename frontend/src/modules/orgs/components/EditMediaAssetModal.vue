@@ -2,6 +2,7 @@
 import { ref, watch } from 'vue';
 import type { MediaAssetKind } from '@/modules/media/types/MediaAssetKind';
 import type { OrgMediaAsset } from '@/modules/media/types/OrgMediaAsset';
+import { sanitizeFileName } from '@/modules/media/utils/assetUtilities';
 
 const props = defineProps<{
   asset: OrgMediaAsset;
@@ -24,6 +25,11 @@ const getFileNameParts = (fileName: string) => {
   };
 };
 
+// Convert dashes/underscores to spaces for display in input
+const denormalizeForDisplay = (normalizedName: string): string => {
+  return normalizedName.replace(/[-_]+/g, ' ').trim();
+};
+
 const extension = ref('');
 const fileName = ref('');
 const kind = ref<MediaAssetKind>('match');
@@ -32,7 +38,8 @@ const validationError = ref<string | null>(null);
 // Initialize form when asset changes
 watch(() => props.asset, (newAsset) => {
   const { baseName, extension: ext } = getFileNameParts(newAsset.file_name);
-  fileName.value = baseName;
+  // Display with spaces for easier editing
+  fileName.value = denormalizeForDisplay(baseName);
   extension.value = ext;
   kind.value = newAsset.kind as MediaAssetKind;
   validationError.value = null;
@@ -56,28 +63,12 @@ function validateFileName(name: string): string | null {
   return null;
 }
 
-function normalizeFileName(name: string): string {
-  // Trim whitespace
-  let normalized = name.trim();
-  
-  // Replace multiple spaces with single space
-  normalized = normalized.replace(/\s+/g, ' ');
-  
-  // Replace spaces with dashes (matching upload behavior)
-  normalized = normalized.replace(/\s/g, '-');
-  
-  // Replace multiple dashes with single dash
-  normalized = normalized.replace(/-+/g, '-');
-  
-  return normalized;
-}
-
 function handleSubmit() {
   validationError.value = validateFileName(fileName.value);
   if (validationError.value) return;
 
-  // Normalize the base name and append original extension
-  const normalizedBaseName = normalizeFileName(fileName.value);
+  // Use shared sanitizeFileName (includes lowercase normalization)
+  const normalizedBaseName = sanitizeFileName(fileName.value);
   const fullFileName = normalizedBaseName + extension.value;
 
   emit('submit', {
@@ -138,9 +129,9 @@ function handleCancel() {
               v-model="kind"
               class="w-full px-3 py-2 text-sm rounded-lg border border-white/20 bg-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="match">Match</option>
-              <option value="training">Training</option>
-              <option value="clinic">Clinic</option>
+              <option value="match" class="bg-black text-white">Match</option>
+              <option value="training" class="bg-black text-white">Training</option>
+              <option value="clinic" class="bg-black text-white">Clinic</option>
             </select>
           </div>
 

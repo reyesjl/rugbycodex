@@ -63,11 +63,15 @@ function buildUploadFile(original: globalThis.File, rawTitle: string) {
   const trimmedTitle = rawTitle.trim();
   const sanitizedTitle = sanitizeFileName(trimmedTitle);
 
+  // Extract extension from original file (sanitizeFileName already lowercases)
   const originalName = original.name;
   const extMatch = originalName.match(/\.[a-z0-9]+$/i);
-  const ext = extMatch?.[0]?.toLowerCase() ?? '.mp4';
+  const ext = extMatch?.[0]?.toLowerCase() ?? '';
 
-  const desiredName = sanitizedTitle.toLowerCase().endsWith(ext) ? sanitizedTitle : `${sanitizedTitle}${ext}`;
+  // Avoid double extension if user included it in title
+  const desiredName = ext && sanitizedTitle.endsWith(ext) 
+    ? sanitizedTitle 
+    : `${sanitizedTitle}${ext}`;
 
   return new File([original], desiredName, {
     type: original.type,

@@ -38,6 +38,12 @@ export const orgRoutes: RouteRecordRaw = {
           props: true,
         },
         {
+          path: 'feed/moments/:mediaAssetId',
+          name: 'OrgFeedMomentsView',
+          component: () => import('@/modules/feed/views/FeedView.vue'),
+          props: true,
+        },
+        {
           path: 'vaults',
           name: 'OrgVaults',
           component: () => import('@/modules/orgs/views/OrgVaultsStub.vue'),

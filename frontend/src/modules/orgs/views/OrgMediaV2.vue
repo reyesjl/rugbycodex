@@ -8,6 +8,7 @@ import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrgan
 import { useOrgMediaStore } from '@/modules/media/stores/useOrgMediaStore';
 import { useUploadStore } from '@/modules/media/stores/useUploadStore';
 import { mediaService } from '@/modules/media/services/mediaService';
+import { formatMediaAssetNameForDisplay } from '@/modules/media/utils/assetUtilities';
 import MediaAssetCard from '@/modules/orgs/components/MediaAssetCard.vue';
 import ProcessingVideosList from '@/modules/orgs/components/ProcessingVideosList.vue';
 import AddMediaAssetModal from '@/modules/orgs/components/AddMediaAssetModal.vue';
@@ -71,12 +72,7 @@ const selectedKind = ref<'all' | 'match' | 'training' | 'clinic'>('all');
 
 function normalizeSearchText(value: string | null | undefined) {
   if (!value) return '';
-  return value
-    .replace(/\.[^/.]+$/, '')
-    .replace(/[\-_]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toLowerCase();
+  return formatMediaAssetNameForDisplay(value).toLowerCase();
 }
 
 // Processing assets (not ready yet, shown in processing list)

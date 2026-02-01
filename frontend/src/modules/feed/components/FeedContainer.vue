@@ -19,6 +19,7 @@ import FeedDoneScreen from '@/modules/feed/components/FeedDoneScreen.vue';
 const props = defineProps<{
   items: FeedItemType[];
   profileNameById?: Record<string, string>;
+  initialSegmentId?: string;
 }>();
 
 const emit = defineEmits<{
@@ -28,11 +29,24 @@ const emit = defineEmits<{
 
 const items = computed(() => props.items ?? []);
 
+// Calculate initial index based on initialSegmentId if provided
+const initialIndex = computed(() => {
+  if (!props.initialSegmentId) return 0;
+  
+  const index = items.value.findIndex(
+    (item) => String(item.mediaAssetSegmentId) === String(props.initialSegmentId)
+  );
+  
+  // If segment found, use its index; otherwise default to 0
+  return index >= 0 ? index : 0;
+});
+
 // Add one extra "done" page after the last clip.
 const pageCount = computed(() => items.value.length + 1);
 
 const nav = useFeedNavigation({
   length: () => pageCount.value,
+  initialIndex: initialIndex.value,
 });
 
 const preload = useFeedPreload({

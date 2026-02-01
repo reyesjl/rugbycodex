@@ -8,6 +8,7 @@ import MediaProcessingStatusBanner from '@/modules/media/components/MediaProcess
 import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrganizationStore';
 import { mediaService } from '@/modules/media/services/mediaService';
 import { useMediaProcessingStatus } from '@/modules/media/composables/useMediaProcessingStatus';
+import { formatMediaAssetNameForDisplay } from '@/modules/media/utils/assetUtilities';
 import type { OrgMediaAsset } from '@/modules/media/types/OrgMediaAsset';
 
 const DEBUG = import.meta.env.DEV;
@@ -35,11 +36,9 @@ const mediaAssetRef = computed(() => asset.value);
 const { processingStatus } = useMediaProcessingStatus(mediaAssetRef);
 
 const title = computed(() => {
-  if (asset.value?.title?.trim()) return asset.value.title;
-  const fileName = asset.value?.file_name ?? '';
-  const lastSegment = fileName.split('/').pop() ?? fileName;
-  const withoutExtension = lastSegment.replace(/\.[^/.]+$/, '');
-  return withoutExtension.replace(/[-_]+/g, ' ').trim() || 'Untitled clip';
+  return asset.value?.file_name 
+    ? formatMediaAssetNameForDisplay(asset.value.file_name)
+    : 'Untitled clip';
 });
 
 

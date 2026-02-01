@@ -33,8 +33,14 @@ const userId = computed(() => userReadonly.value?.id ?? null);
 const membershipRole = computed(() => (orgContextReadonly.value?.membership?.role ?? null) as any);
 const canAddIdentityTag = computed(() => hasOrgAccess(membershipRole.value, 'member'));
 
-const segmentId = computed(() => String(route.query.segmentId ?? ''));
+// Support both route params (moments view) and query (segment/assignment views)
+const mediaAssetId = computed(() => String(route.params.mediaAssetId ?? ''));
+const segmentId = computed(() => String(route.query.segmentId ?? route.query.segment ?? ''));
+
 const source = computed(() => {
+  // If mediaAssetId is present, we're in moments view
+  if (mediaAssetId.value) return 'moments';
+  
   const querySource = String(route.query.source ?? '');
   if (querySource) return querySource;
   if (segmentId.value) return 'segment';
@@ -61,6 +67,7 @@ const feedData = useFeedData({
   assignmentMode: () => assignmentMode.value,
   groupId: () => groupId.value,
   startAssignmentId: () => startAssignmentId.value,
+  mediaAssetId: () => mediaAssetId.value,
 });
 
 const {
@@ -131,6 +138,7 @@ async function handleAddIdentityTag(payload: { segmentId: string }) {
     <FeedContainer
       v-else
       :items="items"
+      :initial-segment-id="segmentId"
       :profile-name-by-id="profileNameById"
       @watchedHalf="handleWatchedHalf"
       @addIdentityTag="handleAddIdentityTag"

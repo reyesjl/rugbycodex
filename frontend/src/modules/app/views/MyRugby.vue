@@ -5,6 +5,7 @@ import { useMyRugbyOrchestrator } from '@/modules/app/composables/useMyRugbyOrch
 import { useMyOrganizationsStore } from '@/modules/orgs/stores/useMyOrganizationsStore';
 import MyOrganizationsList from '@/modules/app/components/MyOrganizationsList.vue';
 import MyAssignmentsList from '@/modules/app/components/MyAssignmentsList.vue';
+import MyMomentsList from '@/modules/app/components/MyMomentsList.vue';
 
 const { isEmptyState } = useMyRugbyOrchestrator();
 
@@ -60,9 +61,7 @@ const greeting = computed(() => {
             <div v-if="isEmptyState" class="text-xs text-white/40">
                 This section will fill in once your team starts uploading matches and adding feedback.
             </div>
-            <div v-else>
-                <div class="text-xs text-white/30">No moments were found. Start capturing your highlights with the "That's me" button!</div>
-            </div>
+            <MyMomentsList v-else />
         </div>
     </section>
 

@@ -3,10 +3,26 @@ export const sanitizeFileName = (name: string) => {
   const trimmed = name.trim();
   const withoutPath = trimmed.split(/[/\\]/).pop() ?? trimmed;
   return withoutPath
+    .toLowerCase()
     .replace(/\s+/g, '-')
-    .replace(/[^a-zA-Z0-9._-]/g, '-')
+    .replace(/[^a-z0-9._-]/g, '-')
     .replace(/-+/g, '-')
     .slice(0, 120);
+};
+
+/**
+ * Formats a file name for display:
+ * - Removes file extension
+ * - Replaces dashes and underscores with spaces
+ * - Trims whitespace
+ * 
+ * Returns the formatted string (to be used with Tailwind's capitalize class)
+ */
+export const formatMediaAssetNameForDisplay = (fileName: string): string => {
+  const lastSegment = fileName.split('/').pop() ?? fileName;
+  const withoutExtension = lastSegment.replace(/\.[^/.]+$/, '');
+  const withSpaces = withoutExtension.replace(/[-_]+/g, ' ');
+  return withSpaces.trim() || 'Untitled';
 };
 
 export const getMediaDurationSeconds = async (file: globalThis.File) => {

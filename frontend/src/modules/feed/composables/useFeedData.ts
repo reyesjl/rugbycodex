@@ -2,6 +2,7 @@ import { computed, ref, watch } from 'vue';
 import { assignmentsService, type AssignmentFeedEntry, type AssignmentFeedMode } from '@/modules/assignments/services/assignmentsService';
 import type { FeedItem } from '@/modules/feed/types/FeedItem';
 import { segmentService } from '@/modules/media/services/segmentService';
+import { momentsService } from '@/modules/feed/services/momentsService';
 import type { SegmentTag } from '@/modules/media/types/SegmentTag';
 import { useSegmentTags } from '@/modules/media/composables/useSegmentTags';
 import { supabase } from '@/lib/supabaseClient';
@@ -17,6 +18,7 @@ type FeedDataOptions = {
   assignmentMode: () => AssignmentFeedMode | null;
   groupId: () => string;
   startAssignmentId: () => string;
+  mediaAssetId?: () => string;
 };
 
 export function useFeedData(options: FeedDataOptions) {
@@ -355,6 +357,36 @@ export function useFeedData(options: FeedDataOptions) {
         return;
       }
 
+      if (options.source() === 'moments') {
+        const mediaAssetId = options.mediaAssetId?.() ?? '';
+        if (!mediaAssetId) {
+          if (activeRequestId === requestId) {
+            error.value = 'Missing media asset for moments view.';
+          }
+          return;
+        }
+
+        const userId = options.userId();
+        if (!userId) {
+          if (activeRequestId === requestId) {
+            error.value = 'Sign in to view your moments.';
+          }
+          return;
+        }
+
+        const momentsFeed = await momentsService.getMomentsFeed(mediaAssetId);
+
+        if (activeRequestId !== requestId) return;
+        
+        if (momentsFeed.length === 0) {
+          error.value = 'No moments found in this match. Tag yourself with "That\'s me" to create moments!';
+          return;
+        }
+
+        items.value = momentsFeed;
+        return;
+      }
+
       // const feedRows = await segmentService.listFeedItemsForOrg(orgId, { maxRows: 50 });
       const feedRows = await segmentService.getRandomFeedItemsForOrg(orgId);
 
@@ -483,6 +515,7 @@ export function useFeedData(options: FeedDataOptions) {
       () => options.startAssignmentId(),
       () => options.assignmentId(),
       () => options.userId(),
+      () => options.mediaAssetId?.() ?? null,
     ],
     () => {
       void loadFeed();

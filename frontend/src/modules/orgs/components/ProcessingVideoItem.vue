@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import { Icon } from '@iconify/vue';
 import LoadingDot from '@/components/LoadingDot.vue';
 import ShimmerText from '@/components/ShimmerText.vue';
+import { formatMediaAssetNameForDisplay } from '@/modules/media/utils/assetUtilities';
 import type { OrgMediaAsset } from '@/modules/media/types/OrgMediaAsset';
 import type { UploadState } from '@/modules/media/types/UploadStatus';
 import { formatDaysAgo } from '@/lib/date';
@@ -62,7 +63,7 @@ const timeAgoText = computed(() => {
 });
 
 const videoTitle = computed(() => {
-  return props.asset.file_name || 'Untitled Video';
+  return formatMediaAssetNameForDisplay(props.asset.file_name);
 });
 
 function handleDelete() {

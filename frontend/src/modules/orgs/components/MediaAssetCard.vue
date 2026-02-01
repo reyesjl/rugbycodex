@@ -4,6 +4,7 @@ import { Icon } from '@iconify/vue';
 import LoadingDot from '@/components/LoadingDot.vue';
 import MediaProcessingStatusBanner from '@/modules/media/components/MediaProcessingStatusBanner.vue';
 import { useMediaProcessingStatus } from '@/modules/media/composables/useMediaProcessingStatus';
+import { formatMediaAssetNameForDisplay } from '@/modules/media/utils/assetUtilities';
 import type { OrgMediaAsset } from '@/modules/media/types/OrgMediaAsset';
 import type { UploadState } from '@/modules/media/types/UploadStatus';
 import { formatDaysAgo } from '@/lib/date';
@@ -145,12 +146,6 @@ function handleCardClick() {
     emit('open', props.asset.id);
   }
 }
-
-function clipTitle(fileName: string) {
-  const lastSegment = fileName.split('/').pop() ?? fileName;
-  const withoutExtension = lastSegment.replace(/\.[^/.]+$/, '');
-  return withoutExtension.replace(/[\-_]+/g, ' ').trim() || 'Untitled clip';
-}
 </script>
 
 <template>
@@ -171,7 +166,7 @@ function clipTitle(fileName: string) {
             v-if="thumbnailUrl"
             class="absolute inset-0 h-full w-full object-cover"
             :src="thumbnailUrl"
-            :alt="clipTitle(asset.file_name)"
+            :alt="formatMediaAssetNameForDisplay(asset.file_name)"
             loading="lazy"
           />
 
@@ -215,8 +210,8 @@ function clipTitle(fileName: string) {
 
       <!-- Metadata -->
       <div class="mt-3 space-y-1">
-        <div class="truncate text-sm font-semibold text-white">
-          {{ clipTitle(asset.file_name) }}
+        <div class="truncate text-sm font-semibold text-white capitalize">
+          {{ formatMediaAssetNameForDisplay(asset.file_name) }}
         </div>
         <div class="text-xs font-medium capitalize tracking-wide text-white/50">
           {{ asset.kind }}

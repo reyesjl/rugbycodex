@@ -115,7 +115,7 @@ const openAssignment = (assignment: AggregatedAssignment) => {
           <!-- Assignment title (clickable) -->
           <span 
             @click="openAssignment(assignment)"
-            class="font-semibold capitalize cursor-pointer underline decoration-1 underline-offset-2"
+            class="capitalize cursor-pointer underline decoration-1 underline-offset-2"
             :class="[
               assignment.completed ? 'text-white/50 hover:text-white' : 'text-white hover:text-white'
             ]"
