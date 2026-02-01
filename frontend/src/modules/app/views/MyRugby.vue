@@ -3,15 +3,21 @@ import { computed } from 'vue';
 import { useProfileDisplay } from '@/modules/profiles/composables/useProfileDisplay';
 import { useMyRugbyOrchestrator } from '@/modules/app/composables/useMyRugbyOrchestrator';
 import { useMyOrganizationsStore } from '@/modules/orgs/stores/useMyOrganizationsStore';
+import { useMyRugbyViewContext } from '@/modules/app/composables/useMyRugbyViewContext';
+import ViewContextSwitcher from '@/modules/app/components/ViewContextSwitcher.vue';
 import MyOrganizationsList from '@/modules/app/components/MyOrganizationsList.vue';
 import MyAssignmentsList from '@/modules/app/components/MyAssignmentsList.vue';
 import MyMomentsList from '@/modules/app/components/MyMomentsList.vue';
+import ManagerMatchesList from '@/modules/app/components/ManagerMatchesList.vue';
+import ManagerAssignmentsList from '@/modules/app/components/ManagerAssignmentsList.vue';
 
 const { isEmptyState } = useMyRugbyOrchestrator();
 
 const { username } = useProfileDisplay();
 
 const myOrgsStore = useMyOrganizationsStore();
+
+const { viewContext, canSwitchContext, contextFilteredOrgs, setViewContext } = useMyRugbyViewContext();
 
 // Personalized greeting based on time of day
 const greeting = computed(() => {
@@ -28,32 +34,54 @@ const greeting = computed(() => {
     return 'Good evening';
 });
 
+// Dynamic background gradient based on view context
+const backgroundClass = computed(() => {
+    return viewContext.value === 'manager' 
+        ? 'bg-gradient-to-t from-black to-red-900/40'
+        : 'bg-gradient-to-t from-black to-gray-800';
+});
+
 </script>
 
 <template>
-    <div class="bg-linear-to-t from-black to-gray-800">
+    <div :class="backgroundClass">
     <section class="container-lg space-y-8 py-10 text-white">
         <div class="text-4xl flex flex-col md:flex-row md:gap-1">
             <div>{{ greeting }},</div>
-            <!-- <div>{{ name }}</div> -->
             <div class="text-white/70 tracking-wider">{{ username ? `@${username}` : 'new user' }}</div>
         </div>
+
+        <!-- View Context Switcher -->
+        <ViewContextSwitcher 
+            :current-context="viewContext" 
+            :can-switch="canSwitchContext"
+            @switch="setViewContext"
+        />
     </section>
 
     <!-- Organization quicklook -->
-    <MyOrganizationsList :organizations="myOrgsStore.items" />
+    <MyOrganizationsList :organizations="contextFilteredOrgs" />
 
-    <section class="container-lg text-white pt-20">
-        <div class="text-2xl font-semibold">Your moments</div>
-        <div class="pt-4">
-            <div v-if="isEmptyState" class="text-xs text-white/40">
-                This section will fill in once your team starts uploading matches and adding feedback.
+    <!-- Player View -->
+    <template v-if="viewContext === 'player'">
+        <section class="container-lg text-white pt-20">
+            <div class="text-2xl font-semibold">Your moments</div>
+            <div class="pt-4">
+                <div v-if="isEmptyState" class="text-xs text-white/40">
+                    This section will fill in once your team starts uploading matches and adding feedback.
+                </div>
+                <MyMomentsList v-else />
             </div>
-            <MyMomentsList v-else />
-        </div>
-    </section>
+        </section>
 
-    <!-- Your tasks - Assignments -->
-    <MyAssignmentsList />
+        <!-- Your tasks - Assignments -->
+        <MyAssignmentsList />
+    </template>
+
+    <!-- Manager View -->
+    <template v-else-if="viewContext === 'manager'">
+        <ManagerMatchesList />
+        <ManagerAssignmentsList />
+    </template>
     </div>
 </template>

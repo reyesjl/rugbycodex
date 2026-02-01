@@ -66,7 +66,7 @@ const shouldShowAnalyzeButton = computed(() => {
 
 <template>
   <div v-if="state === 'empty' || state === 'light'" class="text-sm text-slate-400">
-    Add more narrations to generate summary
+    Add 25+ narrations to generate summary
     <span v-if="Number.isFinite(narrationCount) && Number.isFinite(narrationsNeeded)">
       ({{ narrationCount }} / {{ narrationsNeeded }})
     </span>

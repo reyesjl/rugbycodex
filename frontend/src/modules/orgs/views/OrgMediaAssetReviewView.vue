@@ -378,7 +378,7 @@ const surfaceEl = ref<HTMLElement | null>(null);
 
 // Mobile: narrations live under the timeline.
 const narrationCount = computed(() => (narrations.value as any[])?.length ?? 0);
-const summaryNarrationsNeeded = 5;
+const summaryNarrationsNeeded = 25;
 
 const matchSummaryState = computed<MatchSummaryState>(() => {
   return matchSummary.value?.state ?? 'empty';
