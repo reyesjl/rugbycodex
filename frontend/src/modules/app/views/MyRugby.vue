@@ -44,18 +44,6 @@ const greeting = computed(() => {
     <MyOrganizationsList :organizations="myOrgsStore.items" />
 
     <section class="container-lg text-white pt-20">
-        <div class="text-2xl font-semibold">Recent activity</div>
-        <div class="pt-4">
-            <div v-if="isEmptyState" class="text-xs text-white/40">
-                This section will fill in once your team starts uploading matches and adding feedback.
-            </div>
-            <div v-else>
-                <div class="text-xs text-white/30">Nothing for you to review here. You're all caught up!</div>
-            </div>
-        </div>
-    </section>
-
-    <section class="container-lg text-white pt-20">
         <div class="text-2xl font-semibold">Your moments</div>
         <div class="pt-4">
             <div v-if="isEmptyState" class="text-xs text-white/40">
