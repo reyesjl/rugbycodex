@@ -42,81 +42,93 @@ const closeModal = () => {
     <!-- Stats grid -->
     <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
       <!-- Matches (last 30 days) -->
-      <button
-        @click="openModal('matches')"
-        class="group rounded-lg border border-white/10 bg-white/5 p-4 text-left transition-all hover:border-white/30 hover:bg-white/10 hover:shadow-lg active:scale-95"
-      >
+      <div class="relative rounded-lg border border-white/10 bg-white/5 p-4">
         <div class="flex items-start justify-between gap-2">
           <div class="flex-1 min-w-0">
-            <div class="text-[10px] uppercase tracking-[0.2em] text-white/40 group-hover:text-white/60 transition">Matches</div>
-            <div class="mt-1 text-xs text-white/60 group-hover:text-white/80 transition">Last 30 days</div>
+            <div class="text-[10px] uppercase tracking-[0.2em] text-white/40">Matches</div>
+            <div class="mt-1 text-xs text-white/60">Last 30 days</div>
           </div>
-          <Icon icon="carbon:video" class="h-4 w-4 text-white/30 flex-shrink-0 group-hover:text-white/50 transition" />
+          <Icon icon="carbon:video" class="h-4 w-4 text-white/30 flex-shrink-0" />
         </div>
         <div class="mt-3">
           <div v-if="loading" class="h-8 w-16 animate-pulse rounded bg-white/10"></div>
-          <div v-else class="text-2xl font-semibold text-white group-hover:text-white transition">
+          <div v-else class="text-2xl font-semibold text-white">
             {{ matchesLast30Days }}
           </div>
         </div>
-      </button>
+        <!-- Info icon -->
+        <button
+          @click.stop="openModal('matches')"
+          class="absolute bottom-2 right-2 rounded-full p-1.5 text-white/30 hover:bg-white/10 hover:text-white/70 transition-all active:scale-95"
+          title="Learn more about this metric"
+        >
+          <Icon icon="carbon:information" class="h-3.5 w-3.5" />
+        </button>
+      </div>
 
       <!-- Coverage -->
-      <button
-        @click="openModal('coverage')"
-        class="group rounded-lg border border-white/10 bg-white/5 p-4 text-left transition-all hover:border-white/30 hover:bg-white/10 hover:shadow-lg active:scale-95"
-      >
+      <div class="relative rounded-lg border border-white/10 bg-white/5 p-4">
         <div class="flex items-start justify-between gap-2">
           <div class="flex-1 min-w-0">
-            <div class="text-[10px] uppercase tracking-[0.2em] text-white/40 group-hover:text-white/60 transition">Coverage</div>
-            <div class="mt-1 text-xs text-white/60 group-hover:text-white/80 transition">Reviewed</div>
+            <div class="text-[10px] uppercase tracking-[0.2em] text-white/40">Coverage</div>
+            <div class="mt-1 text-xs text-white/60">Reviewed</div>
           </div>
-          <Icon icon="carbon:analytics" class="h-4 w-4 text-white/30 flex-shrink-0 group-hover:text-white/50 transition" />
+          <Icon icon="carbon:analytics" class="h-4 w-4 text-white/30 flex-shrink-0" />
         </div>
         <div class="mt-3">
           <div v-if="loading" class="h-8 w-20 animate-pulse rounded bg-white/10"></div>
-          <div v-else class="text-base font-semibold text-white leading-tight group-hover:text-white transition">
+          <div v-else class="text-base font-semibold text-white leading-tight">
             {{ coverage.display }}
           </div>
         </div>
-      </button>
+        <!-- Info icon -->
+        <button
+          @click.stop="openModal('coverage')"
+          class="absolute bottom-2 right-2 rounded-full p-1.5 text-white/30 hover:bg-white/10 hover:text-white/70 transition-all active:scale-95"
+          title="Learn more about this metric"
+        >
+          <Icon icon="carbon:information" class="h-3.5 w-3.5" />
+        </button>
+      </div>
 
       <!-- Learning Activity -->
-      <button
-        @click="openModal('learning')"
-        class="group rounded-lg border border-white/10 bg-white/5 p-4 text-left transition-all hover:border-white/30 hover:bg-white/10 hover:shadow-lg active:scale-95"
-      >
+      <div class="relative rounded-lg border border-white/10 bg-white/5 p-4">
         <div class="flex items-start justify-between gap-2">
           <div class="flex-1 min-w-0">
-            <div class="text-[10px] uppercase tracking-[0.2em] text-white/40 group-hover:text-white/60 transition">Learning</div>
-            <div class="mt-1 text-xs text-white/60 group-hover:text-white/80 transition">Activity flow</div>
+            <div class="text-[10px] uppercase tracking-[0.2em] text-white/40">Learning</div>
+            <div class="mt-1 text-xs text-white/60">Activity flow</div>
           </div>
-          <Icon icon="carbon:task" class="h-4 w-4 text-white/30 flex-shrink-0 group-hover:text-white/50 transition" />
+          <Icon icon="carbon:task" class="h-4 w-4 text-white/30 flex-shrink-0" />
         </div>
         <div class="mt-3">
           <div v-if="loading" class="h-8 w-16 animate-pulse rounded bg-white/10"></div>
-          <div v-else class="text-2xl font-semibold text-white group-hover:text-white transition">
+          <div v-else class="text-2xl font-semibold text-white">
             {{ learningActivity.count }}
           </div>
         </div>
-      </button>
+        <!-- Info icon -->
+        <button
+          @click.stop="openModal('learning')"
+          class="absolute bottom-2 right-2 rounded-full p-1.5 text-white/30 hover:bg-white/10 hover:text-white/70 transition-all active:scale-95"
+          title="Learn more about this metric"
+        >
+          <Icon icon="carbon:information" class="h-3.5 w-3.5" />
+        </button>
+      </div>
 
       <!-- Attention Density -->
-      <button
-        @click="openModal('attention')"
-        class="group rounded-lg border border-white/10 bg-white/5 p-4 text-left transition-all hover:border-white/30 hover:bg-white/10 hover:shadow-lg active:scale-95"
-      >
+      <div class="relative rounded-lg border border-white/10 bg-white/5 p-4">
         <div class="flex items-start justify-between gap-2">
           <div class="flex-1 min-w-0">
-            <div class="text-[10px] uppercase tracking-[0.2em] text-white/40 group-hover:text-white/60 transition">Attention</div>
-            <div class="mt-1 text-xs text-white/60 group-hover:text-white/80 transition">Density</div>
+            <div class="text-[10px] uppercase tracking-[0.2em] text-white/40">Attention</div>
+            <div class="mt-1 text-xs text-white/60">Density</div>
           </div>
-          <Icon icon="carbon:microphone" class="h-4 w-4 text-white/30 flex-shrink-0 group-hover:text-white/50 transition" />
+          <Icon icon="carbon:microphone" class="h-4 w-4 text-white/30 flex-shrink-0" />
         </div>
         <div class="mt-3 flex items-baseline gap-2">
           <div v-if="loading" class="h-8 w-16 animate-pulse rounded bg-white/10"></div>
           <template v-else>
-            <div class="text-2xl font-semibold text-white group-hover:text-white transition">
+            <div class="text-2xl font-semibold text-white">
               {{ attentionDensity.average }}
             </div>
             <!-- Tier indicator -->
@@ -136,27 +148,40 @@ const closeModal = () => {
             </div>
           </template>
         </div>
-      </button>
+        <!-- Info icon -->
+        <button
+          @click.stop="openModal('attention')"
+          class="absolute bottom-2 right-2 rounded-full p-1.5 text-white/30 hover:bg-white/10 hover:text-white/70 transition-all active:scale-95"
+          title="Learn more about this metric"
+        >
+          <Icon icon="carbon:information" class="h-3.5 w-3.5" />
+        </button>
+      </div>
 
       <!-- Identity Coverage -->
-      <button
-        @click="openModal('identity')"
-        class="group rounded-lg border border-white/10 bg-white/5 p-4 text-left transition-all hover:border-white/30 hover:bg-white/10 hover:shadow-lg active:scale-95"
-      >
+      <div class="relative rounded-lg border border-white/10 bg-white/5 p-4">
         <div class="flex items-start justify-between gap-2">
           <div class="flex-1 min-w-0">
-            <div class="text-[10px] uppercase tracking-[0.2em] text-white/40 group-hover:text-white/60 transition">Identity</div>
-            <div class="mt-1 text-xs text-white/60 group-hover:text-white/80 transition">Tagged clips</div>
+            <div class="text-[10px] uppercase tracking-[0.2em] text-white/40">Identity</div>
+            <div class="mt-1 text-xs text-white/60">Tagged clips</div>
           </div>
-          <Icon icon="carbon:user-avatar" class="h-4 w-4 text-white/30 flex-shrink-0 group-hover:text-white/50 transition" />
+          <Icon icon="carbon:user-avatar" class="h-4 w-4 text-white/30 flex-shrink-0" />
         </div>
         <div class="mt-3">
           <div v-if="loading" class="h-8 w-16 animate-pulse rounded bg-white/10"></div>
-          <div v-else class="text-2xl font-semibold text-white group-hover:text-white transition">
+          <div v-else class="text-2xl font-semibold text-white">
             {{ identityCoverage.count }}
           </div>
         </div>
-      </button>
+        <!-- Info icon -->
+        <button
+          @click.stop="openModal('identity')"
+          class="absolute bottom-2 right-2 rounded-full p-1.5 text-white/30 hover:bg-white/10 hover:text-white/70 transition-all active:scale-95"
+          title="Learn more about this metric"
+        >
+          <Icon icon="carbon:information" class="h-3.5 w-3.5" />
+        </button>
+      </div>
     </div>
 
     <!-- Modal -->

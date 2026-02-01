@@ -106,11 +106,11 @@ const handleBackdropClick = (e: MouseEvent) => {
     >
       <div
         v-if="isOpen"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+        class="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-black/80 p-4 overflow-y-auto pt-20 sm:pt-4"
         @click="handleBackdropClick"
       >
         <div
-          class="relative w-full max-w-lg rounded-lg border border-white/10 bg-gradient-to-b from-gray-900 to-black p-6 shadow-2xl"
+          class="relative w-full max-w-lg rounded-lg border border-white/10 bg-gradient-to-b from-gray-900 to-black p-6 shadow-2xl my-8"
           @click.stop
         >
           <!-- Close button -->
