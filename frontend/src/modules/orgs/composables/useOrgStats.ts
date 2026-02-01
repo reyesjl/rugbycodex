@@ -34,6 +34,11 @@ export const useOrgStats = () => {
   });
 
   // Stat 2: Coverage (reviewed vs not)
+  // Uses same tier system as managerMatchCoverageService:
+  // - not_covered: < 25 narrations
+  // - partial: 25-34 narrations
+  // - well_covered: 35-44 narrations
+  // - very_well_covered: 45+ narrations
   const coverage = computed(() => {
     if (allMatches.value.length === 0) {
       return {
@@ -44,7 +49,7 @@ export const useOrgStats = () => {
       };
     }
 
-    // A match is "reviewed" if it has at least 5 narrations (similar to OrgOverview logic)
+    // Count narrations per match
     const matchesWithNarrations = new Map<string, number>();
     
     for (const narration of allNarrations.value) {
@@ -52,19 +57,20 @@ export const useOrgStats = () => {
       matchesWithNarrations.set(narration.media_asset_id, count + 1);
     }
 
-    const reviewed = allMatches.value.filter(match => {
+    // A match is "well covered" if it has at least 35 narrations (well_covered or very_well_covered tier)
+    const wellCovered = allMatches.value.filter(match => {
       const narrationCount = matchesWithNarrations.get(match.id) ?? 0;
-      return narrationCount >= 5;
+      return narrationCount >= 35;
     }).length;
 
     const total = allMatches.value.length;
-    const percentage = total > 0 ? Math.round((reviewed / total) * 100) : 0;
+    const percentage = total > 0 ? Math.round((wellCovered / total) * 100) : 0;
 
     return {
-      reviewed,
+      reviewed: wellCovered,
       total,
       percentage,
-      display: `${reviewed} / ${total} (${percentage}%)`
+      display: `${wellCovered} / ${total} (${percentage}%)`
     };
   });
 
@@ -79,18 +85,33 @@ export const useOrgStats = () => {
   });
 
   // Stat 4: Attention density - average narrations per match
+  // Aligns with coverage tiers:
+  // - <25 avg: not_covered tier
+  // - 25-34 avg: partial tier
+  // - 35-44 avg: well_covered tier
+  // - 45+ avg: very_well_covered tier
   const attentionDensity = computed(() => {
     if (allMatches.value.length === 0) {
       return {
         average: 0,
-        display: '0 avg narrations'
+        display: '0 avg narrations',
+        tier: 'none' as const
       };
     }
 
     const avg = Math.round(allNarrations.value.length / allMatches.value.length);
+    
+    // Determine coverage tier based on average
+    let tier: 'not_covered' | 'partial' | 'well_covered' | 'very_well_covered' | 'none';
+    if (avg < 25) tier = 'not_covered';
+    else if (avg < 35) tier = 'partial';
+    else if (avg < 45) tier = 'well_covered';
+    else tier = 'very_well_covered';
+
     return {
       average: avg,
-      display: `${avg} avg narrations`
+      display: `${avg} avg narrations`,
+      tier
     };
   });
 
