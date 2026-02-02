@@ -14,55 +14,87 @@ AS $$
 DECLARE
   v_result jsonb;
   v_cutoff_date timestamp;
+  v_total_matches integer;
+  v_matches_last_30_days integer;
+  v_total_narrations integer;
+  v_total_segments integer;
+  v_identity_tagged_segments integer;
+  v_well_covered_matches integer;
+  v_avg_narrations_per_match integer;
 BEGIN
   -- Calculate cutoff for "last 30 days"
   v_cutoff_date := NOW() - INTERVAL '30 days';
   
-  -- Single query with all aggregations
-  SELECT jsonb_build_object(
-    -- Total matches
-    'total_matches', COUNT(DISTINCT ma.id),
-    
-    -- Matches in last 30 days
-    'matches_last_30_days', COUNT(DISTINCT ma.id) FILTER (
-      WHERE ma.created_at >= v_cutoff_date
-    ),
-    
-    -- Total narrations across all matches
-    'total_narrations', COUNT(DISTINCT n.id),
-    
-    -- Total segments across all matches
-    'total_segments', COUNT(DISTINCT s.id),
-    
-    -- Segments with identity tags (unique segments only)
-    'identity_tagged_segments', COUNT(DISTINCT st.segment_id) FILTER (
-      WHERE st.tag_type = 'identity'
-    ),
-    
-    -- Well-covered matches (>= 35 narrations per match)
-    'well_covered_matches', COUNT(DISTINCT ma.id) FILTER (
-      WHERE (
-        SELECT COUNT(*) 
-        FROM narrations 
-        WHERE media_asset_id = ma.id
-      ) >= 35
-    ),
-    
-    -- Average narrations per match (rounded)
-    'avg_narrations_per_match', COALESCE(
-      ROUND(
-        COUNT(DISTINCT n.id)::numeric / NULLIF(COUNT(DISTINCT ma.id), 0)
-      ),
-      0
-    )
-  )
-  INTO v_result
-  FROM media_assets ma
-  LEFT JOIN narrations n ON n.media_asset_id = ma.id
-  LEFT JOIN media_asset_segments s ON s.media_asset_id = ma.id
-  LEFT JOIN segment_tags st ON st.segment_id = s.id
+  -- Count total matches
+  SELECT COUNT(*)
+  INTO v_total_matches
+  FROM media_assets
+  WHERE org_id = p_org_id
+    AND kind = 'match';
+  
+  -- Count matches in last 30 days
+  SELECT COUNT(*)
+  INTO v_matches_last_30_days
+  FROM media_assets
+  WHERE org_id = p_org_id
+    AND kind = 'match'
+    AND created_at >= v_cutoff_date;
+  
+  -- Count total narrations
+  SELECT COUNT(n.id)
+  INTO v_total_narrations
+  FROM narrations n
+  INNER JOIN media_assets ma ON ma.id = n.media_asset_id
   WHERE ma.org_id = p_org_id
-    AND ma.kind = 'match'; -- Only count matches, not other media types
+    AND ma.kind = 'match';
+  
+  -- Count total segments
+  SELECT COUNT(s.id)
+  INTO v_total_segments
+  FROM media_asset_segments s
+  INNER JOIN media_assets ma ON ma.id = s.media_asset_id
+  WHERE ma.org_id = p_org_id
+    AND ma.kind = 'match';
+  
+  -- Count segments with identity tags
+  SELECT COUNT(DISTINCT st.segment_id)
+  INTO v_identity_tagged_segments
+  FROM segment_tags st
+  INNER JOIN media_asset_segments s ON s.id = st.segment_id
+  INNER JOIN media_assets ma ON ma.id = s.media_asset_id
+  WHERE ma.org_id = p_org_id
+    AND ma.kind = 'match'
+    AND st.tag_type = 'identity';
+  
+  -- Count well-covered matches (>= 35 narrations)
+  SELECT COUNT(*)
+  INTO v_well_covered_matches
+  FROM (
+    SELECT ma.id, COUNT(n.id) as narration_count
+    FROM media_assets ma
+    LEFT JOIN narrations n ON n.media_asset_id = ma.id
+    WHERE ma.org_id = p_org_id
+      AND ma.kind = 'match'
+    GROUP BY ma.id
+    HAVING COUNT(n.id) >= 35
+  ) subquery;
+  
+  -- Calculate average narrations per match
+  v_avg_narrations_per_match := CASE 
+    WHEN v_total_matches > 0 THEN ROUND(v_total_narrations::numeric / v_total_matches)
+    ELSE 0
+  END;
+  
+  -- Build result JSON
+  v_result := jsonb_build_object(
+    'total_matches', v_total_matches,
+    'matches_last_30_days', v_matches_last_30_days,
+    'total_narrations', v_total_narrations,
+    'total_segments', v_total_segments,
+    'identity_tagged_segments', v_identity_tagged_segments,
+    'well_covered_matches', v_well_covered_matches,
+    'avg_narrations_per_match', v_avg_narrations_per_match
+  );
   
   RETURN v_result;
 END;
