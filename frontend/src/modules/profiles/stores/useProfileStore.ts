@@ -1,3 +1,16 @@
+/**
+ * DEPRECATED: Use useUserContextStore instead.
+ * 
+ * This store loads only the user's profile. The new useUserContextStore
+ * loads profile + organizations in a single optimized query.
+ * 
+ * Migration path:
+ * - Replace: useProfileStore() → useUserContextStore()
+ * - Replace: profileStore.profile → userContextStore.profile
+ * - Replace: profileStore.load() → userContextStore.load()
+ * 
+ * @deprecated Will be removed after all components migrate to useUserContextStore
+ */
 import { defineStore } from 'pinia';
 import { ref, computed, watch } from 'vue';
 import { useAuthStore } from '@/modules/auth/stores/useAuthStore';

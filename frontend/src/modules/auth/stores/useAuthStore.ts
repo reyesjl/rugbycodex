@@ -4,6 +4,7 @@ import type { AuthError, Session, Subscription, User } from '@supabase/supabase-
 import { supabase } from '@/lib/supabaseClient';
 import { decodeSupabaseAccessToken } from '@/lib/jwt';
 import { useMyOrganizationsStore } from '@/modules/orgs/stores/useMyOrganizationsStore';
+import { useUserContextStore } from '@/modules/user/stores/useUserContextStore';
 import { setAxiomContext, clearAxiomContext } from '@/lib/axiom';
 import { logInfo } from '@/lib/logger';
 
@@ -13,7 +14,8 @@ const SESSION_EXPIRED_MESSAGE = 'Your session has expired. Please sign in again.
 const FRIENDLY_CAPTCHA_ERROR = 'Verification failed. Please complete the security check and try again.';
 
 export const useAuthStore = defineStore('auth', () => {
-  const myOrgs = useMyOrganizationsStore();
+  const myOrgs = useMyOrganizationsStore(); // DEPRECATED: Use useUserContextStore instead
+  const userContextStore = useUserContextStore();
   const user = ref<User | null>(null);
   const session = ref<Session | null>(null);
   const initializing = ref(false);
@@ -276,7 +278,11 @@ export const useAuthStore = defineStore('auth', () => {
       return { error: null };
     }
     clearAuthState();
-    myOrgs.clear();
+    
+    // Clear all user context stores
+    userContextStore.clear();
+    myOrgs.clear(); // DEPRECATED: Remove after migration complete
+    
     return { error: null };
   };
 
@@ -331,10 +337,26 @@ export const useAuthStore = defineStore('auth', () => {
   const hydratedReadonly = computed(() => hydrated.value);
   const lastErrorReadonly = computed(() => lastError.value);
 
+  /**
+   * Initialize user context after authentication.
+   * This loads the user's profile and organization memberships in a single optimized query.
+   * 
+   * @deprecated The old implementation loading profile and orgs separately.
+   * New implementation uses unified useUserContextStore.
+   */
   const initializePostAuthContext = async () => {
     if (!isAuthenticated.value) return;
-    if (myOrgs.loadedReadonly) return;
-    await myOrgs.load();
+    
+    // New unified approach: load all user context at once
+    if (!userContextStore.isReady) {
+      await userContextStore.load();
+    }
+    
+    // DEPRECATED: Keep old store loading for backwards compatibility during migration
+    // TODO: Remove after all components migrated to useUserContextStore
+    if (!myOrgs.loadedReadonly) {
+      await myOrgs.load();
+    }
   };
 
   const updateDisplayName = async (name: string) => {

@@ -1,3 +1,16 @@
+/**
+ * DEPRECATED: Use useUserContextStore instead.
+ * 
+ * This store loads only the user's organization memberships. The new useUserContextStore
+ * loads profile + organizations in a single optimized query.
+ * 
+ * Migration path:
+ * - Replace: useMyOrganizationsStore() → useUserContextStore()
+ * - Replace: myOrgsStore.items → userContextStore.organizations
+ * - Replace: myOrgsStore.load() → userContextStore.load()
+ * 
+ * @deprecated Will be removed after all components migrate to useUserContextStore
+ */
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import { orgService } from '@/modules/orgs/services/orgServiceV2';
