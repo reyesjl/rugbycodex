@@ -1,8 +1,8 @@
 import { defineStore } from "pinia";
-import { computed, onUnmounted, reactive, toRef, watch } from "vue";
+import { computed, reactive, toRef, watch } from "vue";
 import { useActiveOrganizationStore } from "@/modules/orgs/stores/useActiveOrganizationStore";
 import { mediaService } from "@/modules/media/services/mediaService";
-import { supabase } from "@/lib/supabaseClient";
+import { useMediaRealtime } from "@/modules/media/composables/useMediaRealtime";
 import type { OrgMediaAsset } from "@/modules/media/types/OrgMediaAsset";
 
 export type OrgMediaStatus = "idle" | "loading" | "ready" | "error";
@@ -10,12 +10,10 @@ export type OrgMediaStatus = "idle" | "loading" | "ready" | "error";
 export type MediaContextState = "no_context" | "in_progress" | "contextualized";
 
 let loadToken = 0;
-let pollingInterval: number | null = null;
-let pollCount = 0;
-let lastFullReload = 0;
 
 export const useOrgMediaStore = defineStore("orgMedia", () => {
   const activeOrganizationStore = useActiveOrganizationStore();
+  const { subscribe, unsubscribe, isSubscribed } = useMediaRealtime();
 
   const data = reactive({
     assets: [] as OrgMediaAsset[],
@@ -38,29 +36,6 @@ export const useOrgMediaStore = defineStore("orgMedia", () => {
 
   const activeOrgId = computed(() => activeOrganizationStore.orgContext?.organization?.id ?? null);
 
-  const processingAssets = computed(() =>
-    data.assets.filter(a => {
-      const stage = a.processing_stage ?? null;
-      
-      // Asset needs transcoding if streaming isn't ready yet
-      const needsTranscode =
-        !a.streaming_ready &&
-        (
-          stage === 'uploaded' ||
-          stage === 'transcoding' ||
-          stage === 'transcoded' ||
-          a.status === 'uploading' ||
-          a.status === 'processing' ||
-          a.status === 'uploaded'
-        );
-
-      // Asset is doing background event detection (video is watchable but detection running)
-      const needsEventDetection = stage === 'detecting_events';
-
-      return needsTranscode || needsEventDetection;
-    })
-  );
-
   function narrationCountByAssetId(assetId: string): number {
     return data.narrationCounts[assetId] ?? 0;
   }
@@ -82,94 +57,76 @@ export const useOrgMediaStore = defineStore("orgMedia", () => {
     return "contextualized";
   }
 
-  function getPollingDelay(): number {
-    if (pollCount < 6) return 5000;
-    if (pollCount < 12) return 10000;
-    if (pollCount < 18) return 30000;
-    return 60000;
-  }
+  /**
+   * Handle realtime updates from Supabase.
+   * Updates assets in place when processing status changes.
+   */
+  function handleRealtimeUpdate(payload: any) {
+    const updatedAsset = payload.new;
+    if (!updatedAsset) return;
 
-  async function pollProcessingAssets() {
-    const orgId = activeOrgId.value;
-    if (!orgId) {
-      stopPolling();
-      return;
-    }
+    const index = data.assets.findIndex(a => a.id === updatedAsset.id);
 
-    const processingIds = processingAssets.value.map(a => a.id);
-    if (processingIds.length === 0) {
-      stopPolling();
-      return;
-    }
+    if (payload.eventType === 'INSERT') {
+      // New asset uploaded (might be from another tab or user)
+      if (index === -1) {
+        console.log('[OrgMedia] 📥 Adding new asset from realtime:', updatedAsset.id);
+        data.assets.unshift(updatedAsset);
+      }
+    } else if (payload.eventType === 'UPDATE') {
+      if (index !== -1) {
+        const existingAsset = data.assets[index];
+        if (!existingAsset) return;
 
-    const timeSinceReload = Date.now() - lastFullReload;
-    if (timeSinceReload < 3000) {
-      pollingInterval = window.setTimeout(pollProcessingAssets, getPollingDelay());
-      return;
-    }
+        const wasProcessing = !existingAsset.streaming_ready;
 
-    pollCount++;
-
-    try {
-      const { data: updated, error } = await supabase
-        .from('media_assets')
-        .select('id, status, streaming_ready, processing_stage')
-        .eq('org_id', orgId)
-        .in('id', processingIds);
-
-      if (error) throw error;
-
-      if (updated && updated.length > 0) {
-        let completedCount = 0;
+        // Replace entire asset object to get full reactivity for all fields
+        // This makes title, file_name, thumbnail_path, etc. all reactive
+        Object.assign(existingAsset, updatedAsset);
         
-        updated.forEach((updatedAsset: any) => {
-          const index = data.assets.findIndex(a => a.id === updatedAsset.id);
-          if (index !== -1) {
-            const existingAsset = data.assets[index];
-            if (!existingAsset) return;
+        // Log when video finishes processing  
+        if (wasProcessing && updatedAsset.streaming_ready) {
+          console.log(`[OrgMedia] ✅ Video ready to watch:`, existingAsset.id);
+        }
 
-            const wasProcessing = !existingAsset.streaming_ready;
+        // Log processing stage changes
+        if (updatedAsset.processing_stage && updatedAsset.processing_stage !== existingAsset.processing_stage) {
+          console.log(`[OrgMedia] 🔄 Processing stage: ${updatedAsset.processing_stage}`);
+        }
 
-            existingAsset.streaming_ready = updatedAsset.streaming_ready;
-            existingAsset.status = updatedAsset.status;
-            existingAsset.processing_stage = updatedAsset.processing_stage ?? existingAsset.processing_stage ?? null;
-            
-            if (wasProcessing && updatedAsset.streaming_ready) {
-              completedCount++;
-            }
-          }
-        });
-
-        if (completedCount > 0) {
-          console.log(`[OrgMedia] ✅ ${completedCount} video(s) finished processing and ready to watch!`);
+        // Log transcode progress updates
+        if (updatedAsset.transcode_progress !== undefined && updatedAsset.transcode_progress !== existingAsset.transcode_progress) {
+          console.log(`[OrgMedia] 📊 Transcode progress: ${updatedAsset.transcode_progress}%`);
         }
       }
-
-      if (processingAssets.value.length > 0) {
-        pollingInterval = window.setTimeout(pollProcessingAssets, getPollingDelay());
-      } else {
-        console.log('[OrgMedia] All videos processed, stopping poll');
-        stopPolling();
-      }
-    } catch (err) {
-      console.error('[OrgMedia] Polling error:', err);
-      pollingInterval = window.setTimeout(pollProcessingAssets, getPollingDelay());
     }
   }
 
-  function startPolling() {
-    if (pollingInterval) return;
-    
-    console.log('[OrgMedia] 🔄 Starting polling for processing videos');
-    pollCount = 0;
-    pollingInterval = window.setTimeout(pollProcessingAssets, getPollingDelay());
+  /**
+   * Subscribe to realtime updates for the active organization.
+   */
+  function subscribeToChanges() {
+    const orgId = activeOrgId.value;
+    if (!orgId) {
+      console.warn('[OrgMedia] Cannot subscribe: no active org');
+      return;
+    }
+
+    // Don't subscribe if already subscribed
+    if (isSubscribed.value) {
+      console.log('[OrgMedia] Already subscribed to realtime');
+      return;
+    }
+
+    subscribe(orgId, handleRealtimeUpdate);
   }
 
-  function stopPolling() {
-    if (pollingInterval) {
-      clearTimeout(pollingInterval);
-      pollingInterval = null;
-      pollCount = 0;
+  /**
+   * Unsubscribe from realtime updates.
+   */
+  function unsubscribeFromChanges() {
+    if (isSubscribed.value) {
+      unsubscribe();
     }
   }
 
@@ -188,7 +145,6 @@ export const useOrgMediaStore = defineStore("orgMedia", () => {
 
     loadToken += 1;
     const token = loadToken;
-    lastFullReload = Date.now();
 
     status.state = "loading";
     status.error = null;
@@ -211,11 +167,8 @@ export const useOrgMediaStore = defineStore("orgMedia", () => {
       data.loadedOrgId = orgId;
       status.state = "ready";
       
-      // Check if polling should start after reload
-      if (processingAssets.value.length > 0 && !pollingInterval) {
-        console.log('[OrgMedia] 🔄 Auto-starting polling after reload');
-        startPolling();
-      }
+      // Subscribe to realtime updates after initial load
+      subscribeToChanges();
     } catch (err) {
       if (token !== loadToken) return;
 
@@ -229,7 +182,7 @@ export const useOrgMediaStore = defineStore("orgMedia", () => {
 
   function reset() {
     loadToken += 1;
-    stopPolling();
+    unsubscribeFromChanges();
     data.assets = [];
     data.narrationCounts = {};
     data.loadedOrgId = null;
@@ -237,20 +190,10 @@ export const useOrgMediaStore = defineStore("orgMedia", () => {
     status.error = null;
   }
 
-  watch(processingAssets, (assets) => {
-    if (assets.length > 0 && !pollingInterval) {
-      startPolling();
-    }
-  }, { immediate: true });
-
   watch(activeOrgId, (nextId, prevId) => {
     if (nextId !== prevId) {
       reset();
     }
-  });
-
-  onUnmounted(() => {
-    stopPolling();
   });
 
   return {
@@ -268,5 +211,8 @@ export const useOrgMediaStore = defineStore("orgMedia", () => {
     narrationCountByAssetId,
     hasNarrations,
     getContextState,
+    subscribeToChanges,
+    unsubscribeFromChanges,
+    isSubscribed,
   };
 });

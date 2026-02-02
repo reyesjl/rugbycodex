@@ -22,6 +22,23 @@ const props = defineProps<{
 
 const emit = defineEmits(['open', 'review', 'delete', 'reattach', 'edit']);
 
+// Reactive timestamp - updates every 30 seconds
+const now = ref(new Date());
+let timestampInterval: number | null = null;
+
+onMounted(() => {
+  // Update timestamp every 30 seconds for reactive "x minutes ago"
+  timestampInterval = window.setInterval(() => {
+    now.value = new Date();
+  }, 30_000); // 30 seconds
+});
+
+onUnmounted(() => {
+  if (timestampInterval !== null) {
+    clearInterval(timestampInterval);
+  }
+});
+
 // Use processing status composable
 const { processingStatus } = useMediaProcessingStatus(computed(() => props.asset));
 
@@ -217,7 +234,7 @@ function handleCardClick() {
           {{ asset.kind }}
         </div>
         <div class="text-xs text-white/50">
-          {{ formatDaysAgo(asset.created_at) ?? 'Unknown date' }}
+          {{ formatDaysAgo(asset.created_at, now) ?? 'Unknown date' }}
         </div>
 
         <!-- Actions Row -->

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, onMounted, onUnmounted } from 'vue';
 import { Icon } from '@iconify/vue';
 import LoadingDot from '@/components/LoadingDot.vue';
 import ShimmerText from '@/components/ShimmerText.vue';
@@ -22,10 +22,32 @@ const emit = defineEmits(['delete']);
 
 const isActivelyUploading = computed(() => props.uploadMetrics?.state === 'uploading');
 
+// Reactive timestamp - updates every 30 seconds
+const now = ref(new Date());
+let timestampInterval: number | null = null;
+
+onMounted(() => {
+  // Update timestamp every 30 seconds for reactive "x minutes ago"
+  timestampInterval = window.setInterval(() => {
+    now.value = new Date();
+  }, 30_000); // 30 seconds
+});
+
+onUnmounted(() => {
+  if (timestampInterval !== null) {
+    clearInterval(timestampInterval);
+  }
+});
+
 const statusText = computed(() => {
   // Uploading to Wasabi
   if (isActivelyUploading.value && props.uploadMetrics) {
-    const progress = Math.round(props.uploadMetrics.progress * 100);
+    // Handle both decimal (0-1) and percentage (0-100) formats
+    const progress = Math.round(
+      props.uploadMetrics.progress > 1 
+        ? props.uploadMetrics.progress  // Already a percentage (0-100)
+        : props.uploadMetrics.progress * 100  // Convert decimal (0-1) to percentage
+    );
     const bps = props.uploadMetrics.uploadSpeedBps;
     if (bps && Number.isFinite(bps) && bps > 0) {
       const mbps = (bps * 8) / (1024 * 1024);
@@ -36,10 +58,16 @@ const statusText = computed(() => {
 
   // Processing stages
   const stage = props.asset.processing_stage;
+  const transcodeProgress = props.asset.transcode_progress || 0;
+  
   switch (stage) {
     case 'uploaded':
       return 'Queued for processing';
     case 'transcoding':
+      // Show real-time progress if available
+      if (transcodeProgress > 0 && transcodeProgress < 100) {
+        return `Transcoding ${transcodeProgress}%`;
+      }
       return 'Transcoding';
     case 'transcoded':
       return 'Finalizing';
@@ -59,7 +87,8 @@ const statusText = computed(() => {
 
 const timeAgoText = computed(() => {
   if (!props.asset.created_at) return '';
-  return formatDaysAgo(props.asset.created_at);
+  // Pass reactive 'now.value' so this recomputes every 30 seconds
+  return formatDaysAgo(props.asset.created_at, now.value);
 });
 
 const videoTitle = computed(() => {
