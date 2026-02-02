@@ -25,4 +25,7 @@ export type OrgMediaAsset = {
   processing_stage?: string | null;
   created_at: Date;
   base_org_storage_path: string;
+  
+  // Transcode progress: 0-100 percentage (for real-time progress tracking)
+  transcode_progress?: number | null;
 };

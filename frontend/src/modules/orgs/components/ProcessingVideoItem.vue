@@ -25,7 +25,12 @@ const isActivelyUploading = computed(() => props.uploadMetrics?.state === 'uploa
 const statusText = computed(() => {
   // Uploading to Wasabi
   if (isActivelyUploading.value && props.uploadMetrics) {
-    const progress = Math.round(props.uploadMetrics.progress * 100);
+    // Handle both decimal (0-1) and percentage (0-100) formats
+    const progress = Math.round(
+      props.uploadMetrics.progress > 1 
+        ? props.uploadMetrics.progress  // Already a percentage (0-100)
+        : props.uploadMetrics.progress * 100  // Convert decimal (0-1) to percentage
+    );
     const bps = props.uploadMetrics.uploadSpeedBps;
     if (bps && Number.isFinite(bps) && bps > 0) {
       const mbps = (bps * 8) / (1024 * 1024);
@@ -36,10 +41,16 @@ const statusText = computed(() => {
 
   // Processing stages
   const stage = props.asset.processing_stage;
+  const transcodeProgress = props.asset.transcode_progress || 0;
+  
   switch (stage) {
     case 'uploaded':
       return 'Queued for processing';
     case 'transcoding':
+      // Show real-time progress if available
+      if (transcodeProgress > 0 && transcodeProgress < 100) {
+        return `Transcoding ${transcodeProgress}%`;
+      }
       return 'Transcoding';
     case 'transcoded':
       return 'Finalizing';
