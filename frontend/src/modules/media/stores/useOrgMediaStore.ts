@@ -84,6 +84,7 @@ export const useOrgMediaStore = defineStore("orgMedia", () => {
         existingAsset.streaming_ready = updatedAsset.streaming_ready ?? existingAsset.streaming_ready;
         existingAsset.status = updatedAsset.status ?? existingAsset.status;
         existingAsset.processing_stage = updatedAsset.processing_stage ?? existingAsset.processing_stage;
+        existingAsset.transcode_progress = updatedAsset.transcode_progress ?? existingAsset.transcode_progress;
         
         // Log when video finishes processing  
         if (wasProcessing && updatedAsset.streaming_ready) {
@@ -93,6 +94,11 @@ export const useOrgMediaStore = defineStore("orgMedia", () => {
         // Log processing stage changes
         if (updatedAsset.processing_stage && updatedAsset.processing_stage !== existingAsset.processing_stage) {
           console.log(`[OrgMedia] 🔄 Processing stage: ${updatedAsset.processing_stage}`);
+        }
+
+        // Log transcode progress updates
+        if (updatedAsset.transcode_progress !== undefined && updatedAsset.transcode_progress !== existingAsset.transcode_progress) {
+          console.log(`[OrgMedia] 📊 Transcode progress: ${updatedAsset.transcode_progress}%`);
         }
       }
     }
