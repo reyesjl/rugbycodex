@@ -140,14 +140,8 @@ CREATE TABLE public.media_assets (
   kind USER-DEFINED NOT NULL DEFAULT 'match'::media_asset_kind,
   streaming_ready boolean NOT NULL DEFAULT false,
   thumbnail_path text,
-  processing_stage text DEFAULT 'uploaded',
-    -- Current processing stage:
-    -- 'uploaded': File uploaded, transcode queued
-    -- 'transcoding': Transcode in progress
-    -- 'transcoded': Transcode complete, streaming ready
-    -- 'detecting_events': Event detection in progress
-    -- 'complete': All processing complete
-    -- 'failed': Processing failed
+  processing_stage USER-DEFINED NOT NULL DEFAULT 'uploaded'::processing_stage,
+  transcode_progress integer DEFAULT 0,
   CONSTRAINT media_assets_pkey PRIMARY KEY (id),
   CONSTRAINT media_assets_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id),
   CONSTRAINT media_assets_uploader_id_fkey FOREIGN KEY (uploader_id) REFERENCES public.profiles(id)
@@ -247,25 +241,4 @@ CREATE TABLE public.segment_tags (
   CONSTRAINT segment_tags_pkey PRIMARY KEY (id),
   CONSTRAINT segment_tags_segment_id_fkey FOREIGN KEY (segment_id) REFERENCES public.media_asset_segments(id),
   CONSTRAINT segment_tags_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.profiles(id)
-);
-CREATE TABLE public.event_detections (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  org_id uuid NOT NULL,
-  media_asset_id uuid NOT NULL,
-  event_type USER-DEFINED NOT NULL,
-  start_seconds double precision NOT NULL CHECK (start_seconds >= 0),
-  end_seconds double precision NOT NULL CHECK (end_seconds >= start_seconds),
-  confidence_score numeric NOT NULL CHECK (confidence_score >= 0 AND confidence_score <= 1),
-  model_version text NOT NULL,
-  metadata jsonb,
-  verified boolean DEFAULT false,
-  verified_by uuid,
-  verified_at timestamp with time zone,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  segment_id uuid,
-  CONSTRAINT event_detections_pkey PRIMARY KEY (id),
-  CONSTRAINT event_detections_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE,
-  CONSTRAINT event_detections_media_asset_id_fkey FOREIGN KEY (media_asset_id) REFERENCES public.media_assets(id) ON DELETE CASCADE,
-  CONSTRAINT event_detections_verified_by_fkey FOREIGN KEY (verified_by) REFERENCES public.profiles(id),
-  CONSTRAINT event_detections_segment_id_fkey FOREIGN KEY (segment_id) REFERENCES public.media_asset_segments(id) ON DELETE SET NULL
 );

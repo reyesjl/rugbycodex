@@ -25,48 +25,43 @@ BEGIN
   -- Calculate cutoff for "last 30 days"
   v_cutoff_date := NOW() - INTERVAL '30 days';
   
-  -- Count total matches
+  -- Count total matches (all media assets, not filtered by kind)
   SELECT COUNT(*)
   INTO v_total_matches
   FROM media_assets
-  WHERE org_id = p_org_id
-    AND kind = 'match';
+  WHERE org_id = p_org_id;
   
-  -- Count matches in last 30 days
+  -- Count matches in last 30 days (all media assets)
   SELECT COUNT(*)
   INTO v_matches_last_30_days
   FROM media_assets
   WHERE org_id = p_org_id
-    AND kind = 'match'
     AND created_at >= v_cutoff_date;
   
-  -- Count total narrations
+  -- Count total narrations (for all media assets)
   SELECT COUNT(n.id)
   INTO v_total_narrations
   FROM narrations n
   INNER JOIN media_assets ma ON ma.id = n.media_asset_id
-  WHERE ma.org_id = p_org_id
-    AND ma.kind = 'match';
+  WHERE ma.org_id = p_org_id;
   
-  -- Count total segments
+  -- Count total segments (for all media assets)
   SELECT COUNT(s.id)
   INTO v_total_segments
   FROM media_asset_segments s
   INNER JOIN media_assets ma ON ma.id = s.media_asset_id
-  WHERE ma.org_id = p_org_id
-    AND ma.kind = 'match';
+  WHERE ma.org_id = p_org_id;
   
-  -- Count segments with identity tags
+  -- Count segments with identity tags (for all media assets)
   SELECT COUNT(DISTINCT st.segment_id)
   INTO v_identity_tagged_segments
   FROM segment_tags st
   INNER JOIN media_asset_segments s ON s.id = st.segment_id
   INNER JOIN media_assets ma ON ma.id = s.media_asset_id
   WHERE ma.org_id = p_org_id
-    AND ma.kind = 'match'
     AND st.tag_type = 'identity';
   
-  -- Count well-covered matches (>= 35 narrations)
+  -- Count well-covered matches (>= 35 narrations, all media assets)
   SELECT COUNT(*)
   INTO v_well_covered_matches
   FROM (
@@ -74,7 +69,6 @@ BEGIN
     FROM media_assets ma
     LEFT JOIN narrations n ON n.media_asset_id = ma.id
     WHERE ma.org_id = p_org_id
-      AND ma.kind = 'match'
     GROUP BY ma.id
     HAVING COUNT(n.id) >= 35
   ) subquery;
