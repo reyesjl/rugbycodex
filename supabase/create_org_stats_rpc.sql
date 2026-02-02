@@ -81,16 +81,28 @@ BEGIN
   END;
   
   -- Count incomplete assignments (org-wide)
+  -- An assignment is incomplete if:
+  -- 1. It has no progress records (not started), OR
+  -- 2. At least one person has incomplete progress
   SELECT COUNT(DISTINCT a.id)
   INTO v_incomplete_assignments
   FROM assignments a
   WHERE a.org_id = p_org_id
-    -- Assignment is incomplete if no one has marked it completed
-    AND NOT EXISTS (
-      SELECT 1
-      FROM assignment_progress ap
-      WHERE ap.assignment_id = a.id
-        AND ap.completed = true
+    AND (
+      -- No progress at all (not started)
+      NOT EXISTS (
+        SELECT 1
+        FROM assignment_progress ap
+        WHERE ap.assignment_id = a.id
+      )
+      OR
+      -- Has at least one incomplete progress record
+      EXISTS (
+        SELECT 1
+        FROM assignment_progress ap
+        WHERE ap.assignment_id = a.id
+          AND ap.completed = false
+      )
     );
   
   -- Build result JSON
