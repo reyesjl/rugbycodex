@@ -21,6 +21,7 @@ import type {
   OrgRequestAdminView,
   OrgRole,
   OrgStats,
+  OrgStatsRpc,
   OrgStorageLimit,
   OrgStorageRemaining,
   OrgStorageUsage,
@@ -1530,6 +1531,40 @@ export const orgService = {
     }
 
     return data;
+  },
+
+  /**
+   * Returns aggregated dashboard statistics for an organization via RPC function.
+   *
+   * Problem it solves:
+   * - Eliminates N+1 query pattern (104+ queries → 1 query).
+   * - Powers OrgOverview dashboard with match stats, coverage, and activity metrics.
+   *
+   * Conceptual tables:
+   * - `media_assets` (matches)
+   * - `narrations` (learning activity)
+   * - `segments` (attention density)
+   * - `segment_tags` (identity coverage)
+   *
+   * Allowed caller:
+   * - Org members; enforced via RLS on underlying tables.
+   *
+   * Implementation:
+   * - Direct RPC call to `get_org_stats()` function with SECURITY DEFINER.
+   *
+   * @param orgId - Organization ID.
+   * @returns Aggregated stats for dashboard.
+   */
+  async getOrgStatsRpc(orgId: string): Promise<OrgStatsRpc> {
+    const { data, error } = await supabase
+      .rpc('get_org_stats', { p_org_id: orgId })
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    return data as OrgStatsRpc;
   },
 
   /**

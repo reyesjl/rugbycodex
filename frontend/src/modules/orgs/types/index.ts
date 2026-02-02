@@ -32,6 +32,7 @@ export type { OrgRequestAdminView } from "./OrgRequestAdminView";
 export type { OrgRequestId } from "./OrgRequestId";
 export type { OrgRole } from "./OrgRole";
 export type { OrgStats } from "./OrgStats";
+export type { OrgStatsRpc } from "./OrgStatsRpc";
 export type { OrgStorageLimit } from "./OrgStorageLimit";
 export type { OrgStorageRemaining } from "./OrgStorageRemaining";
 export type { OrgStorageUsage } from "./OrgStorageUsage";

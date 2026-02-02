@@ -2,13 +2,9 @@ import { ref, computed, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useActiveOrganizationStore } from '../stores/useActiveOrganizationStore';
 import { useAuthStore } from '@/modules/auth/stores/useAuthStore';
-import { mediaService } from '@/modules/media/services/mediaService';
-import { segmentService } from '@/modules/media/services/segmentService';
-import { narrationService } from '@/modules/narrations/services/narrationService';
 import { assignmentsService } from '@/modules/assignments/services/assignmentsService';
-import { supabase } from '@/lib/supabaseClient';
-import type { Narration } from '@/modules/narrations/types/Narration';
-import type { OrgMediaAsset } from '@/modules/media/types/OrgMediaAsset';
+import { orgService } from '../services/orgServiceV2';
+import type { OrgStatsRpc } from '../types';
 
 export const useOrgStats = () => {
   const activeOrgStore = useActiveOrganizationStore();
@@ -19,28 +15,26 @@ export const useOrgStats = () => {
   const loading = ref(false);
   const error = ref<string | null>(null);
 
-  // Raw data
-  const allMatches = ref<OrgMediaAsset[]>([]);
-  const allNarrations = ref<Narration[]>([]);
-  const totalSegments = ref(0);
+  // Raw data from RPC
+  const rpcStats = ref<OrgStatsRpc | null>(null);
   const activeAssignmentsCount = ref(0);
-  const identityTaggedSegmentsCount = ref(0);
 
   // Stat 1: Matches (last 30 days)
   const matchesLast30Days = computed(() => {
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - 30);
-    return allMatches.value.filter(match => match.created_at >= cutoff).length;
+    return rpcStats.value?.matches_last_30_days ?? 0;
   });
 
   // Stat 2: Coverage (reviewed vs not)
   // Uses same tier system as managerMatchCoverageService:
   // - not_covered: < 25 narrations
   // - partial: 25-34 narrations
-  // - well_covered: 35-44 narrations
+  // - well_covered: 35-44 narrations (this is what we count as "reviewed")
   // - very_well_covered: 45+ narrations
   const coverage = computed(() => {
-    if (allMatches.value.length === 0) {
+    const total = rpcStats.value?.total_matches ?? 0;
+    const reviewed = rpcStats.value?.well_covered_matches ?? 0;
+
+    if (total === 0) {
       return {
         reviewed: 0,
         total: 0,
@@ -49,28 +43,13 @@ export const useOrgStats = () => {
       };
     }
 
-    // Count narrations per match
-    const matchesWithNarrations = new Map<string, number>();
-    
-    for (const narration of allNarrations.value) {
-      const count = matchesWithNarrations.get(narration.media_asset_id) ?? 0;
-      matchesWithNarrations.set(narration.media_asset_id, count + 1);
-    }
-
-    // A match is "well covered" if it has at least 35 narrations (well_covered or very_well_covered tier)
-    const wellCovered = allMatches.value.filter(match => {
-      const narrationCount = matchesWithNarrations.get(match.id) ?? 0;
-      return narrationCount >= 35;
-    }).length;
-
-    const total = allMatches.value.length;
-    const percentage = total > 0 ? Math.round((wellCovered / total) * 100) : 0;
+    const percentage = Math.round((reviewed / total) * 100);
 
     return {
-      reviewed: wellCovered,
+      reviewed,
       total,
       percentage,
-      display: `${wellCovered} / ${total} (${percentage}%)`
+      display: `${reviewed} / ${total} (${percentage}%)`
     };
   });
 
@@ -91,15 +70,15 @@ export const useOrgStats = () => {
   // - 35-44 avg: well_covered tier
   // - 45+ avg: very_well_covered tier
   const attentionDensity = computed(() => {
-    if (allMatches.value.length === 0) {
+    const avg = rpcStats.value?.avg_narrations_per_match ?? 0;
+
+    if (avg === 0) {
       return {
         average: 0,
         display: '0 avg narrations',
         tier: 'none' as const
       };
     }
-
-    const avg = Math.round(allNarrations.value.length / allMatches.value.length);
     
     // Determine coverage tier based on average
     let tier: 'not_covered' | 'partial' | 'well_covered' | 'very_well_covered' | 'none';
@@ -117,11 +96,12 @@ export const useOrgStats = () => {
 
   // Stat 5: Identity coverage - segments with identity tags by players
   const identityCoverage = computed(() => {
+    const count = rpcStats.value?.identity_tagged_segments ?? 0;
     return {
-      count: identityTaggedSegmentsCount.value,
-      display: identityTaggedSegmentsCount.value === 1
+      count,
+      display: count === 1
         ? '1 clip tagged'
-        : `${identityTaggedSegmentsCount.value} clips tagged`
+        : `${count} clips tagged`
     };
   });
 
@@ -135,52 +115,17 @@ export const useOrgStats = () => {
     error.value = null;
 
     try {
-      // Load all matches for the org
-      const matches = await mediaService.listByOrganization(orgId, { limit: 100 });
-      allMatches.value = matches;
+      // Single RPC call for all match/narration/segment stats (replaces 104+ queries!)
+      const stats = await orgService.getOrgStatsRpc(orgId);
+      rpcStats.value = stats;
 
-      // Load all narrations for these matches
-      const narrationLists = await Promise.all(
-        matches.map(asset => narrationService.listNarrationsForMediaAsset(asset.id))
-      );
-      allNarrations.value = narrationLists.flat();
-
-      // Count total segments and get segment IDs for identity tag query
-      let allSegmentIds: string[] = [];
-      if (matches.length > 0) {
-        const segmentCounts = await Promise.all(
-          matches.map(asset => segmentService.listSegmentsForMediaAsset(asset.id))
-        );
-        totalSegments.value = segmentCounts.reduce((sum, segments) => sum + segments.length, 0);
-        allSegmentIds = segmentCounts.flat().map(seg => seg.id).filter(Boolean);
-      } else {
-        totalSegments.value = 0;
-      }
-
-      // Load active assignments count
+      // Load active assignments count (user-specific, not in RPC)
       if (currentUserId) {
         const userAssignments = await assignmentsService.getAssignmentsForUser(orgId, currentUserId);
         const assignedToYou = userAssignments.assignedToYou ?? [];
         activeAssignmentsCount.value = assignedToYou.filter(a => !a.completed).length;
       } else {
         activeAssignmentsCount.value = 0;
-      }
-
-      // Count identity-tagged segments (only if we have segments)
-      if (allSegmentIds.length > 0) {
-        const { data: identityTags, error: tagsError } = await supabase
-          .from('segment_tags')
-          .select('segment_id')
-          .eq('tag_type', 'identity')
-          .in('segment_id', allSegmentIds);
-
-        if (tagsError) throw tagsError;
-
-        // Get unique segment IDs with identity tags
-        const uniqueSegmentIds = new Set(identityTags?.map((tag: { segment_id: string }) => tag.segment_id) ?? []);
-        identityTaggedSegmentsCount.value = uniqueSegmentIds.size;
-      } else {
-        identityTaggedSegmentsCount.value = 0;
       }
 
     } catch (err) {
