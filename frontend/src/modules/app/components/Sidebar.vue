@@ -183,7 +183,7 @@ void mobileSheetRef.value;
           </li>
         </ul>
         <div class="text-xs text-gray-400 px-4 py-3 mt-auto">
-          v0.9.5
+          v0.9.6
         </div>
       </nav>
     </div>
@@ -334,7 +334,7 @@ void mobileSheetRef.value;
         </nav>
       </div>
       <div class="text-xs text-gray-400 px-4 py-3">
-        v0.9.5
+        v0.9.6
       </div>
     </div>
   </div>
