@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, onMounted, onUnmounted } from 'vue';
 import { Icon } from '@iconify/vue';
 import LoadingDot from '@/components/LoadingDot.vue';
 import ShimmerText from '@/components/ShimmerText.vue';
@@ -21,6 +21,23 @@ const props = defineProps<{
 const emit = defineEmits(['delete']);
 
 const isActivelyUploading = computed(() => props.uploadMetrics?.state === 'uploading');
+
+// Reactive timestamp - updates every 30 seconds
+const now = ref(new Date());
+let timestampInterval: number | null = null;
+
+onMounted(() => {
+  // Update timestamp every 30 seconds for reactive "x minutes ago"
+  timestampInterval = window.setInterval(() => {
+    now.value = new Date();
+  }, 30_000); // 30 seconds
+});
+
+onUnmounted(() => {
+  if (timestampInterval !== null) {
+    clearInterval(timestampInterval);
+  }
+});
 
 const statusText = computed(() => {
   // Uploading to Wasabi
@@ -70,7 +87,8 @@ const statusText = computed(() => {
 
 const timeAgoText = computed(() => {
   if (!props.asset.created_at) return '';
-  return formatDaysAgo(props.asset.created_at);
+  // Pass reactive 'now.value' so this recomputes every 30 seconds
+  return formatDaysAgo(props.asset.created_at, now.value);
 });
 
 const videoTitle = computed(() => {
