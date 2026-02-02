@@ -2,7 +2,6 @@
 import { computed } from 'vue';
 import { useProfileDisplay } from '@/modules/profiles/composables/useProfileDisplay';
 import { useMyRugbyOrchestrator } from '@/modules/app/composables/useMyRugbyOrchestrator';
-// import { useMyOrganizationsStore } from '@/modules/orgs/stores/useMyOrganizationsStore';
 import { useMyRugbyViewContext } from '@/modules/app/composables/useMyRugbyViewContext';
 import ViewContextSwitcher from '@/modules/app/components/ViewContextSwitcher.vue';
 import MyOrganizationsList from '@/modules/app/components/MyOrganizationsList.vue';
@@ -14,8 +13,6 @@ import ManagerAssignmentsList from '@/modules/app/components/ManagerAssignmentsL
 const { isEmptyState } = useMyRugbyOrchestrator();
 
 const { username } = useProfileDisplay();
-
-// const myOrgsStore = useMyOrganizationsStore();
 
 const { viewContext, canSwitchContext, contextFilteredOrgs, setViewContext } = useMyRugbyViewContext();
 
