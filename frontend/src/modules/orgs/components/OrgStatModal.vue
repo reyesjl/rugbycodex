@@ -45,14 +45,15 @@ const statContent = {
   learning: {
     title: 'Learning Activity',
     icon: 'carbon:task',
-    description: 'Your personal development tasks',
-    explanation: `Displays the number of incomplete assignments currently assigned to you. These are personalized learning tasks from your coaches.`,
+    description: 'Organizational learning engagement',
+    explanation: `Shows the total number of incomplete assignments across your organization. This includes assignments to individual players, groups, and the entire team that haven't been completed yet.`,
     whatItMeans: [
-      'Active assignments need your attention',
-      'Each task is an opportunity for improvement',
-      'Zero means you\'re caught up or need more direction'
+      'Active learning tasks distributed across the team',
+      'Higher numbers indicate strong coaching engagement',
+      'Zero means everyone is caught up or you need to create assignments',
+      'Tracks organizational learning momentum'
     ],
-    actionable: 'Complete assignments in order of due date to stay on track with your development.'
+    actionable: 'Keep assignments flowing to maintain consistent player development. Incomplete assignments represent active learning opportunities for your team.'
   },
   attention: {
     title: 'Attention Density',

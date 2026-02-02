@@ -21,6 +21,7 @@ DECLARE
   v_identity_tagged_segments integer;
   v_well_covered_matches integer;
   v_avg_narrations_per_match integer;
+  v_incomplete_assignments integer;
 BEGIN
   -- Calculate cutoff for "last 30 days"
   v_cutoff_date := NOW() - INTERVAL '30 days';
@@ -79,6 +80,19 @@ BEGIN
     ELSE 0
   END;
   
+  -- Count incomplete assignments (org-wide)
+  SELECT COUNT(DISTINCT a.id)
+  INTO v_incomplete_assignments
+  FROM assignments a
+  WHERE a.org_id = p_org_id
+    -- Assignment is incomplete if no one has marked it completed
+    AND NOT EXISTS (
+      SELECT 1
+      FROM assignment_progress ap
+      WHERE ap.assignment_id = a.id
+        AND ap.completed = true
+    );
+  
   -- Build result JSON
   v_result := jsonb_build_object(
     'total_matches', v_total_matches,
@@ -87,7 +101,8 @@ BEGIN
     'total_segments', v_total_segments,
     'identity_tagged_segments', v_identity_tagged_segments,
     'well_covered_matches', v_well_covered_matches,
-    'avg_narrations_per_match', v_avg_narrations_per_match
+    'avg_narrations_per_match', v_avg_narrations_per_match,
+    'incomplete_assignments', v_incomplete_assignments
   );
   
   RETURN v_result;

@@ -1,23 +1,18 @@
 import { ref, computed, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useActiveOrganizationStore } from '../stores/useActiveOrganizationStore';
-import { useAuthStore } from '@/modules/auth/stores/useAuthStore';
-import { assignmentsService } from '@/modules/assignments/services/assignmentsService';
 import { orgService } from '../services/orgServiceV2';
 import type { OrgStatsRpc } from '../types';
 
 export const useOrgStats = () => {
   const activeOrgStore = useActiveOrganizationStore();
-  const authStore = useAuthStore();
   const { orgContext } = storeToRefs(activeOrgStore);
-  const { user } = storeToRefs(authStore);
 
   const loading = ref(false);
   const error = ref<string | null>(null);
 
   // Raw data from RPC
   const rpcStats = ref<OrgStatsRpc | null>(null);
-  const activeAssignmentsCount = ref(0);
 
   // Stat 1: Matches (last 30 days)
   const matchesLast30Days = computed(() => {
@@ -53,13 +48,14 @@ export const useOrgStats = () => {
     };
   });
 
-  // Stat 3: Learning activity (flow) - active assignments
+  // Stat 3: Learning activity - org-wide incomplete assignments
   const learningActivity = computed(() => {
+    const count = rpcStats.value?.incomplete_assignments ?? 0;
     return {
-      count: activeAssignmentsCount.value,
-      display: activeAssignmentsCount.value === 1 
-        ? '1 active assignment' 
-        : `${activeAssignmentsCount.value} active assignments`
+      count,
+      display: count === 1 
+        ? '1 incomplete assignment' 
+        : `${count} incomplete assignments`
     };
   });
 
@@ -107,7 +103,6 @@ export const useOrgStats = () => {
 
   const loadStats = async () => {
     const orgId = orgContext.value?.organization?.id;
-    const currentUserId = user.value?.id;
     
     if (!orgId) return;
 
@@ -115,18 +110,9 @@ export const useOrgStats = () => {
     error.value = null;
 
     try {
-      // Single RPC call for all match/narration/segment stats (replaces 104+ queries!)
+      // Single RPC call for all stats including incomplete assignments (replaces 104+ queries!)
       const stats = await orgService.getOrgStatsRpc(orgId);
       rpcStats.value = stats;
-
-      // Load active assignments count (user-specific, not in RPC)
-      if (currentUserId) {
-        const userAssignments = await assignmentsService.getAssignmentsForUser(orgId, currentUserId);
-        const assignedToYou = userAssignments.assignedToYou ?? [];
-        activeAssignmentsCount.value = assignedToYou.filter(a => !a.completed).length;
-      } else {
-        activeAssignmentsCount.value = 0;
-      }
 
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to load stats';

@@ -10,4 +10,5 @@ export type OrgStatsRpc = {
   identity_tagged_segments: number;
   well_covered_matches: number;
   avg_narrations_per_match: number;
+  incomplete_assignments: number;
 };
