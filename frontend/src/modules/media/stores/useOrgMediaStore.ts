@@ -80,11 +80,9 @@ export const useOrgMediaStore = defineStore("orgMedia", () => {
 
         const wasProcessing = !existingAsset.streaming_ready;
 
-        // Update the fields we care about
-        existingAsset.streaming_ready = updatedAsset.streaming_ready ?? existingAsset.streaming_ready;
-        existingAsset.status = updatedAsset.status ?? existingAsset.status;
-        existingAsset.processing_stage = updatedAsset.processing_stage ?? existingAsset.processing_stage;
-        existingAsset.transcode_progress = updatedAsset.transcode_progress ?? existingAsset.transcode_progress;
+        // Replace entire asset object to get full reactivity for all fields
+        // This makes title, file_name, thumbnail_path, etc. all reactive
+        Object.assign(existingAsset, updatedAsset);
         
         // Log when video finishes processing  
         if (wasProcessing && updatedAsset.streaming_ready) {
