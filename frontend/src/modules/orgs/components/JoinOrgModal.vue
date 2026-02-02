@@ -25,8 +25,8 @@ const submit = async () => {
     try {
         const result = await orgService.joinWithCode(code.value);
 
-        // Ensure my org store is up to date
-        await myOrgStore.refresh();
+        // Ensure user context is up to date
+        await userContextStore.reload();
 
         toast({
             variant: result.status === "already_member" ? "info" : "success",

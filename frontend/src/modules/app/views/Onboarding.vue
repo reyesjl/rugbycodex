@@ -12,16 +12,16 @@ const authStore = useAuthStore();
 const userContextStore = useUserContextStore();
 
 const { isAdmin } = storeToRefs(authStore);
-const { loaded, hasOrganizations } = storeToRefs(myOrgs);
+const { isReady, hasOrganizations } = storeToRefs(userContextStore);
 
 onMounted(() => {
   void authStore.initializePostAuthContext();
 });
 
 watch(
-  [loaded, hasOrganizations, isAdmin],
-  ([isLoaded, hasOrgs, admin]) => {
-    if (!isLoaded) return;
+  [isReady, hasOrganizations, isAdmin],
+  ([loaded, hasOrgs, admin]) => {
+    if (!loaded) return;
 
     // Behavior change: onboarding is only visible when the user has zero orgs.
     if (admin) {
@@ -39,7 +39,7 @@ watch(
 
 <template>
   <div class="container space-y-8 py-6 pb-50">
-    <DashboardSkeleton v-if="!loaded" />
+    <DashboardSkeleton v-if="!isReady" />
 
     <DashboardGettingStartedPanel v-else-if="!hasOrganizations && !isAdmin" />
   </div>
