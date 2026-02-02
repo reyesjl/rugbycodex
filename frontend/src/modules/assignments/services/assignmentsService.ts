@@ -222,6 +222,21 @@ export const assignmentsService = {
 
       const { error: targetsError } = await supabase.from('assignment_targets').insert(rows);
       if (targetsError) throw targetsError;
+
+      // Initialize progress rows for all recipients
+      const { data: initResult, error: initError } = await supabase.rpc(
+        'initialize_assignment_progress',
+        { p_assignment_id: (assignment as any).id },
+      );
+
+      if (initError) {
+        console.error('Failed to initialize assignment progress:', initError);
+        // Don't throw - assignment was created successfully, progress can be fixed later
+      } else if (initResult && !initResult.success) {
+        console.error('Progress initialization returned error:', initResult.error);
+      } else {
+        console.log(`Initialized progress for ${initResult?.rows_inserted ?? 0} recipients`);
+      }
     }
 
     return assignment as OrgAssignment;
