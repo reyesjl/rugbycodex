@@ -17,6 +17,7 @@ import time
 import json
 from datetime import datetime
 from typing import Any, Optional
+import re
 
 # Add utils to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "utils"))
@@ -60,16 +61,19 @@ def update_media_asset_processing_stage(
     media_id: str,
     org_id: str,
     processing_stage: str,
-    status: str = None
+    status: str = None,
+    transcode_progress: int = None
 ) -> bool:
     """
-    Update media_assets.processing_stage (and optionally status).
+    Update media_assets.processing_stage (and optionally status and transcode_progress).
     Returns True if update succeeded, False otherwise.
     """
     try:
         update_data = {"processing_stage": processing_stage}
         if status:
             update_data["status"] = status
+        if transcode_progress is not None:
+            update_data["transcode_progress"] = transcode_progress
         
         response = (
             supabase
@@ -87,6 +91,7 @@ def update_media_asset_processing_stage(
             event_type="media_asset_processing_stage_updated",
             media_id=media_id,
             stage=processing_stage,
+            transcode_progress=transcode_progress,
             updated_count=updated_count,
         )
         
@@ -239,7 +244,36 @@ def download_from_wasabi(bucket: str, key: str, local_path: Path, job_id: str, m
         return False
 
 
-def transcode_video(input_path: Path, output_dir: Path, job_id: str, media_id: str) -> bool:
+def get_video_duration(input_path: Path) -> Optional[float]:
+    """Get video duration in seconds using ffprobe"""
+    try:
+        cmd = [
+            "ffprobe",
+            "-v", "error",
+            "-show_entries", "format=duration",
+            "-of", "default=noprint_wrappers=1:nokey=1",
+            str(input_path)
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        return float(result.stdout.strip())
+    except Exception:
+        return None
+
+
+def parse_ffmpeg_time(time_str: str) -> Optional[float]:
+    """Parse ffmpeg time string (HH:MM:SS.ms) to seconds"""
+    try:
+        # Match format: time=00:01:22.80
+        match = re.search(r'time=(\d+):(\d+):(\d+\.\d+)', time_str)
+        if match:
+            hours, minutes, seconds = match.groups()
+            return int(hours) * 3600 + int(minutes) * 60 + float(seconds)
+        return None
+    except Exception:
+        return None
+
+
+def transcode_video(input_path: Path, output_dir: Path, job_id: str, media_id: str, org_id: str) -> bool:
     """Transcode video to HLS using FFmpeg with Jetson hardware decode and software encode"""
     try:
         stage_start = time.perf_counter()
@@ -252,6 +286,17 @@ def transcode_video(input_path: Path, output_dir: Path, job_id: str, media_id: s
             job_id=job_id,
             media_id=media_id,
         )
+        
+        # Get video duration for progress calculation
+        total_duration = get_video_duration(input_path)
+        if total_duration:
+            log_event(
+                severity="info",
+                event_type="video_duration_detected",
+                job_id=job_id,
+                media_id=media_id,
+                duration_seconds=round(total_duration, 2),
+            )
         
         # FFmpeg with Jetson nvv4l2dec hardware decode and libx264 software encode
         # Optimized for Orin Nano hardware profile
@@ -301,11 +346,56 @@ def transcode_video(input_path: Path, output_dir: Path, job_id: str, media_id: s
             hardware_profile="orin_nano",
         )
         
-        result = subprocess.run(
+        # Use Popen for real-time progress tracking
+        process = subprocess.Popen(
             ffmpeg_cmd,
-            capture_output=True,
-            text=True,
-            check=True
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            universal_newlines=True
+        )
+        
+        last_progress_update = 0
+        last_progress_percent = 0
+        
+        # Read ffmpeg stderr line by line
+        for line in iter(process.stderr.readline, ''):
+            if not line:
+                break
+            
+            # Parse progress from time= lines
+            if 'time=' in line and total_duration:
+                current_time = parse_ffmpeg_time(line)
+                if current_time:
+                    progress_percent = min(int((current_time / total_duration) * 100), 99)
+                    
+                    # Update database every 5 seconds or 10% progress change
+                    current_time_elapsed = time.time()
+                    if (current_time_elapsed - last_progress_update >= 5.0 or 
+                        progress_percent - last_progress_percent >= 10):
+                        
+                        update_media_asset_processing_stage(
+                            media_id=media_id,
+                            org_id=org_id,
+                            processing_stage="transcoding",
+                            transcode_progress=progress_percent
+                        )
+                        
+                        last_progress_update = current_time_elapsed
+                        last_progress_percent = progress_percent
+        
+        # Wait for process to complete
+        return_code = process.wait()
+        
+        if return_code != 0:
+            stderr_output = process.stderr.read() if process.stderr else ""
+            raise subprocess.CalledProcessError(return_code, ffmpeg_cmd, stderr=stderr_output)
+        
+        # Set to 100% on completion
+        update_media_asset_processing_stage(
+            media_id=media_id,
+            org_id=org_id,
+            processing_stage="transcoding",
+            transcode_progress=100
         )
         
         # Verify output
@@ -567,7 +657,7 @@ def process_job(
             heartbeat.start()
         
         # Transcode
-        if not transcode_video(input_file, output_dir, job_id, media_id):
+        if not transcode_video(input_file, output_dir, job_id, media_id, org_id):
             raise Exception("Transcode failed")
         
         # Generate thumbnail
