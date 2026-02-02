@@ -3,25 +3,25 @@ import { onMounted, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/modules/auth/stores/useAuthStore';
-import { useMyOrganizationsStore } from '@/modules/orgs/stores/useMyOrganizationsStore';
+import { useUserContextStore } from '@/modules/user/stores/useUserContextStore';
 import DashboardGettingStartedPanel from '@/modules/app/components/dashboard/DashboardGettingStartedPanel.vue';
 import DashboardSkeleton from '@/modules/app/components/dashboard/DashboardSkeleton.vue';
 
 const router = useRouter();
 const authStore = useAuthStore();
-const myOrgs = useMyOrganizationsStore();
+const userContextStore = useUserContextStore();
 
 const { isAdmin } = storeToRefs(authStore);
-const { loaded, hasOrganizations } = storeToRefs(myOrgs);
+const { isReady, hasOrganizations } = storeToRefs(userContextStore);
 
 onMounted(() => {
   void authStore.initializePostAuthContext();
 });
 
 watch(
-  [loaded, hasOrganizations, isAdmin],
-  ([isLoaded, hasOrgs, admin]) => {
-    if (!isLoaded) return;
+  [isReady, hasOrganizations, isAdmin],
+  ([loaded, hasOrgs, admin]) => {
+    if (!loaded) return;
 
     // Behavior change: onboarding is only visible when the user has zero orgs.
     if (admin) {
@@ -39,7 +39,7 @@ watch(
 
 <template>
   <div class="container space-y-8 py-6 pb-50">
-    <DashboardSkeleton v-if="!loaded" />
+    <DashboardSkeleton v-if="!isReady" />
 
     <DashboardGettingStartedPanel v-else-if="!hasOrganizations && !isAdmin" />
   </div>

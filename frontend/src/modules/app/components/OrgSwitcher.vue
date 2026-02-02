@@ -4,7 +4,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrganizationStore'
-import { useMyOrganizationsStore } from '@/modules/orgs/stores/useMyOrganizationsStore'
+import { useUserContextStore } from '@/modules/user/stores/useUserContextStore'
 import type { UserOrganizationSummary } from '@/modules/orgs/types'
 import { useAuthStore } from '@/modules/auth/stores/useAuthStore'
 
@@ -12,8 +12,8 @@ const route = useRoute()
 const router = useRouter()
 
 const authStore = useAuthStore()
-const myOrgStore = useMyOrganizationsStore()
-const { items, hasOrganizations } = storeToRefs(myOrgStore)
+const userContextStore = useUserContextStore()
+const { organizations, hasOrganizations } = storeToRefs(userContextStore)
 
 const activeOrgStore = useActiveOrganizationStore()
 const { orgContext } = storeToRefs(activeOrgStore)
@@ -95,7 +95,7 @@ watch(
           <!-- Org list -->
           <template v-if="hasOrganizations">
             <button
-              v-for="org in items"
+              v-for="org in organizations"
               :key="org.organization.id"
               class="flex text-xs cursor-pointer w-full items-center justify-between gap-3 rounded px-3 py-2 border border-transparent transition text-white"
               :class="activeOrgId === org.organization.id ? 'border-green-500/50 bg-green-500/20 hover:bg-green-500/30' : 'hover:bg-white/15'"

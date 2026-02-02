@@ -2,12 +2,14 @@
 import { onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
+import { storeToRefs } from 'pinia';
 import { useManagerMatches } from '@/modules/app/composables/useManagerMatches';
-import { useMyOrganizationsStore } from '@/modules/orgs/stores/useMyOrganizationsStore';
+import { useUserContextStore } from '@/modules/user/stores/useUserContextStore';
 import { formatMediaAssetNameForDisplay } from '@/modules/media/utils/assetUtilities';
 
 const router = useRouter();
-const myOrgsStore = useMyOrganizationsStore();
+const userContextStore = useUserContextStore();
+const { organizations } = storeToRefs(userContextStore);
 
 const {
   filteredMatches,
@@ -35,7 +37,7 @@ watch(selectedLimit, () => {
 
 const navigateToMatch = (orgId: string, matchId: string) => {
   // Find org slug from orgId
-  const org = myOrgsStore.items.find(item => item.organization.id === orgId);
+  const org = organizations.value.find((item) => item.organization.id === orgId);
   if (org) {
     router.push({
       name: 'OrgMediaAssetReview',

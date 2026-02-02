@@ -1,6 +1,6 @@
 import { ref, computed } from 'vue';
 import { storeToRefs } from 'pinia';
-import { useMyOrganizationsStore } from '@/modules/orgs/stores/useMyOrganizationsStore';
+import { useUserContextStore } from '@/modules/user/stores/useUserContextStore';
 import { managerMatchCoverageService } from '../services/managerMatchCoverageService';
 import type { MatchWithCoverage, CoverageTier } from '../types/MatchWithCoverage';
 import type { MediaAssetKind } from '@/modules/media/types/MediaAssetKind';
@@ -35,8 +35,8 @@ const COVERAGE_DISPLAY: Record<CoverageTier, CoverageDisplay> = {
 };
 
 export const useManagerMatches = () => {
-  const myOrgsStore = useMyOrganizationsStore();
-  const { items: organizations } = storeToRefs(myOrgsStore);
+  const userContextStore = useUserContextStore();
+  const { organizations } = storeToRefs(userContextStore);
 
   const matches = ref<MatchWithCoverage[]>([]);
   const loading = ref(false);

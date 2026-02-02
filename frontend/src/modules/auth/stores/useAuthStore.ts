@@ -3,7 +3,7 @@ import { computed, ref } from 'vue';
 import type { AuthError, Session, Subscription, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabaseClient';
 import { decodeSupabaseAccessToken } from '@/lib/jwt';
-import { useMyOrganizationsStore } from '@/modules/orgs/stores/useMyOrganizationsStore';
+import { useUserContextStore } from '@/modules/user/stores/useUserContextStore';
 import { setAxiomContext, clearAxiomContext } from '@/lib/axiom';
 import { logInfo } from '@/lib/logger';
 
@@ -13,7 +13,7 @@ const SESSION_EXPIRED_MESSAGE = 'Your session has expired. Please sign in again.
 const FRIENDLY_CAPTCHA_ERROR = 'Verification failed. Please complete the security check and try again.';
 
 export const useAuthStore = defineStore('auth', () => {
-  const myOrgs = useMyOrganizationsStore();
+  const userContextStore = useUserContextStore();
   const user = ref<User | null>(null);
   const session = ref<Session | null>(null);
   const initializing = ref(false);
@@ -276,7 +276,10 @@ export const useAuthStore = defineStore('auth', () => {
       return { error: null };
     }
     clearAuthState();
-    myOrgs.clear();
+    
+    // Clear user context
+    userContextStore.clear();
+    
     return { error: null };
   };
 
@@ -331,10 +334,17 @@ export const useAuthStore = defineStore('auth', () => {
   const hydratedReadonly = computed(() => hydrated.value);
   const lastErrorReadonly = computed(() => lastError.value);
 
+  /**
+   * Initialize user context after authentication.
+   * This loads the user's profile and organization memberships in a single optimized query.
+   */
   const initializePostAuthContext = async () => {
     if (!isAuthenticated.value) return;
-    if (myOrgs.loadedReadonly) return;
-    await myOrgs.load();
+    
+    // Load unified user context (profile + organizations)
+    if (!userContextStore.isReady) {
+      await userContextStore.load();
+    }
   };
 
   const updateDisplayName = async (name: string) => {
