@@ -660,10 +660,21 @@ def process_job(
         if not transcode_video(input_file, output_dir, job_id, media_id, org_id):
             raise Exception("Transcode failed")
         
+        # Transcode complete - update stage to 'transcoded' before upload
+        log_event(
+            severity="info",
+            event_type="processing_stage_transition",
+            job_id=job_id,
+            media_id=media_id,
+            from_stage="transcoding",
+            to_stage="transcoded",
+        )
+        update_media_asset_processing_stage(media_id, org_id, "transcoded")
+        
         # Generate thumbnail
         generate_thumbnail(input_file, thumbnail_file, job_id)
         
-        # Upload HLS files
+        # Upload HLS files to Wasabi (happens during "transcoded" stage)
         base_key = f"orgs/{org_id}/uploads/{media_id}/streaming/"
         if not upload_to_wasabi(output_dir, bucket, base_key, job_id, media_id):
             raise Exception("Upload failed")
@@ -677,17 +688,6 @@ def process_job(
         )
         thumbnail_path = f"{base_key}thumbnail.jpg" if thumbnail_file.exists() else None
         update_media_asset_derivatives(media_id, streaming_ready=True, thumbnail_path=thumbnail_path)
-        
-        # Update processing_stage to 'transcoded'
-        log_event(
-            severity="info",
-            event_type="processing_stage_transition",
-            job_id=job_id,
-            media_id=media_id,
-            from_stage="transcoding",
-            to_stage="transcoded",
-        )
-        update_media_asset_processing_stage(media_id, org_id, "transcoded")
         
         # Mark job as succeeded
         log_event(
