@@ -59,7 +59,7 @@ BEGIN
   INTO v_result
   FROM media_assets ma
   LEFT JOIN narrations n ON n.media_asset_id = ma.id
-  LEFT JOIN segments s ON s.media_asset_id = ma.id
+  LEFT JOIN media_asset_segments s ON s.media_asset_id = ma.id
   LEFT JOIN segment_tags st ON st.segment_id = s.id
   WHERE ma.org_id = p_org_id
     AND ma.kind = 'match'; -- Only count matches, not other media types
