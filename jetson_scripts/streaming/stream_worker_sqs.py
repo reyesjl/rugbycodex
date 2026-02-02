@@ -200,24 +200,30 @@ def get_job_details(job_id: str) -> dict:
         return None
 
 
-def download_from_wasabi(bucket: str, key: str, local_path: Path, job_id: str) -> bool:
+def download_from_wasabi(bucket: str, key: str, local_path: Path, job_id: str, media_id: str) -> bool:
     """Download file from Wasabi"""
     try:
+        stage_start = time.perf_counter()
+        
         log_event(
             severity="info",
             event_type="stage_start",
             stage="download",
             job_id=job_id,
+            media_id=media_id,
             key=key,
         )
         
         s3.download_file(Bucket=bucket, Key=key, Filename=str(local_path))
         
+        stage_duration = round((time.perf_counter() - stage_start) * 1000)
         log_event(
             severity="info",
             event_type="stage_complete",
             stage="download",
             job_id=job_id,
+            media_id=media_id,
+            duration_ms=stage_duration,
         )
         return True
         
@@ -226,15 +232,17 @@ def download_from_wasabi(bucket: str, key: str, local_path: Path, job_id: str) -
             severity="error",
             event_type="download_failed",
             job_id=job_id,
+            media_id=media_id,
             error_code="WASABI_DOWNLOAD_FAILED",
             error_message=str(e),
         )
         return False
 
 
-def transcode_video(input_path: Path, output_dir: Path, job_id: str) -> bool:
+def transcode_video(input_path: Path, output_dir: Path, job_id: str, media_id: str) -> bool:
     """Transcode video to HLS using FFmpeg with Jetson hardware decode and software encode"""
     try:
+        stage_start = time.perf_counter()
         output_manifest = output_dir / "index.m3u8"
         
         log_event(
@@ -242,6 +250,7 @@ def transcode_video(input_path: Path, output_dir: Path, job_id: str) -> bool:
             event_type="stage_start",
             stage="transcode",
             job_id=job_id,
+            media_id=media_id,
         )
         
         # FFmpeg with Jetson nvv4l2dec hardware decode and libx264 software encode
@@ -282,6 +291,7 @@ def transcode_video(input_path: Path, output_dir: Path, job_id: str) -> bool:
             severity="info",
             event_type="transcode_starting",
             job_id=job_id,
+            media_id=media_id,
             decoder="h264_nvv4l2dec",
             encoder="libx264",
             encoder_preset="ultrafast",
@@ -304,11 +314,14 @@ def transcode_video(input_path: Path, output_dir: Path, job_id: str) -> bool:
         
         segment_count = len(list(output_dir.glob("segment*.ts")))
         
+        stage_duration = round((time.perf_counter() - stage_start) * 1000)
         log_event(
             severity="info",
             event_type="stage_complete",
             stage="transcode",
             job_id=job_id,
+            media_id=media_id,
+            duration_ms=stage_duration,
             segment_count=segment_count,
         )
         return True
@@ -318,6 +331,7 @@ def transcode_video(input_path: Path, output_dir: Path, job_id: str) -> bool:
             severity="error",
             event_type="transcode_failed",
             job_id=job_id,
+            media_id=media_id,
             error_code="FFMPEG_FAILED",
             error_message=e.stderr if e.stderr else str(e),
         )
@@ -327,6 +341,7 @@ def transcode_video(input_path: Path, output_dir: Path, job_id: str) -> bool:
             severity="error",
             event_type="transcode_failed",
             job_id=job_id,
+            media_id=media_id,
             error_code="FFMPEG_FAILED",
             error_message=str(e),
         )
@@ -382,14 +397,17 @@ def generate_thumbnail(input_path: Path, output_path: Path, job_id: str) -> bool
         return False
 
 
-def upload_to_wasabi(local_dir: Path, bucket: str, base_key: str, job_id: str) -> bool:
+def upload_to_wasabi(local_dir: Path, bucket: str, base_key: str, job_id: str, media_id: str) -> bool:
     """Upload HLS files to Wasabi"""
     try:
+        stage_start = time.perf_counter()
+        
         log_event(
             severity="info",
             event_type="stage_start",
             stage="upload",
             job_id=job_id,
+            media_id=media_id,
         )
         
         files = sorted(local_dir.iterdir(), key=lambda x: x.name)
@@ -402,11 +420,14 @@ def upload_to_wasabi(local_dir: Path, bucket: str, base_key: str, job_id: str) -
                     Key=dest_key
                 )
         
+        stage_duration = round((time.perf_counter() - stage_start) * 1000)
         log_event(
             severity="info",
             event_type="stage_complete",
             stage="upload",
             job_id=job_id,
+            media_id=media_id,
+            duration_ms=stage_duration,
             file_count=len(files),
         )
         return True
@@ -416,6 +437,7 @@ def upload_to_wasabi(local_dir: Path, bucket: str, base_key: str, job_id: str) -
             severity="error",
             event_type="upload_failed",
             job_id=job_id,
+            media_id=media_id,
             error_code="WASABI_UPLOAD_FAILED",
             error_message=str(e),
         )
@@ -511,7 +533,7 @@ def process_job(
     
     try:
         # Download
-        if not download_from_wasabi(bucket, storage_path, input_file, job_id):
+        if not download_from_wasabi(bucket, storage_path, input_file, job_id, media_id):
             raise Exception("Download failed")
         
         # Log file size for performance tracking
@@ -545,7 +567,7 @@ def process_job(
             heartbeat.start()
         
         # Transcode
-        if not transcode_video(input_file, output_dir, job_id):
+        if not transcode_video(input_file, output_dir, job_id, media_id):
             raise Exception("Transcode failed")
         
         # Generate thumbnail
@@ -553,7 +575,7 @@ def process_job(
         
         # Upload HLS files
         base_key = f"orgs/{org_id}/uploads/{media_id}/streaming/"
-        if not upload_to_wasabi(output_dir, bucket, base_key, job_id):
+        if not upload_to_wasabi(output_dir, bucket, base_key, job_id, media_id):
             raise Exception("Upload failed")
         
         # Update media_assets with derivatives
@@ -629,6 +651,8 @@ def process_job(
             job_id=job_id,
             media_id=media_id,
             total_duration_ms=total_duration,
+            file_size_bytes=file_size_bytes,
+            file_size_mb=file_size_mb,
             worker_type="jetson",
         )
         
@@ -742,7 +766,7 @@ def main():
             messages = response.get("Messages", [])
             
             if not messages:
-                log_event(severity="debug", event_type="queue_poll_empty")
+                # No messages - continue polling
                 continue
             
             for message in messages:
