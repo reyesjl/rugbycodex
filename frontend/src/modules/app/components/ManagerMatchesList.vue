@@ -3,11 +3,11 @@ import { onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
 import { useManagerMatches } from '@/modules/app/composables/useManagerMatches';
-import { useMyOrganizationsStore } from '@/modules/orgs/stores/useMyOrganizationsStore';
+import { useUserContextStore } from '@/modules/user/stores/useUserContextStore';
 import { formatMediaAssetNameForDisplay } from '@/modules/media/utils/assetUtilities';
 
 const router = useRouter();
-const myOrgsStore = useMyOrganizationsStore();
+const userContextStore = useUserContextStore();
 
 const {
   filteredMatches,

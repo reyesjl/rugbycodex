@@ -1,6 +1,6 @@
 import { ref, computed, watch } from 'vue';
 import { storeToRefs } from 'pinia';
-import { useMyOrganizationsStore } from '@/modules/orgs/stores/useMyOrganizationsStore';
+import { useUserContextStore } from '@/modules/user/stores/useUserContextStore';
 import { useAuthStore } from '@/modules/auth/stores/useAuthStore';
 import { assignmentsService } from '@/modules/assignments/services/assignmentsService';
 import type { FeedAssignment } from '@/modules/assignments/types';
@@ -13,10 +13,10 @@ export type AggregatedAssignment = FeedAssignment & {
 };
 
 export const useMyAssignments = () => {
-  const myOrgs = useMyOrganizationsStore();
+  const userContextStore = useUserContextStore();
   const authStore = useAuthStore();
   
-  const { items: orgItems, loaded: orgsLoaded } = storeToRefs(myOrgs);
+  const { organizations: orgItems, isReady: orgsLoaded } = storeToRefs(userContextStore);
   const { user } = storeToRefs(authStore);
 
   const assignments = ref<AggregatedAssignment[]>([]);

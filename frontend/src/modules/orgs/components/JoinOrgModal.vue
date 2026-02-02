@@ -3,11 +3,11 @@ import { ref } from 'vue';
 import { toast } from "@/lib/toast";
 import { useRouter } from 'vue-router';
 import { orgService } from '@/modules/orgs/services/orgServiceV2';
-import { useMyOrganizationsStore } from '@/modules/orgs/stores/useMyOrganizationsStore';
+import { useUserContextStore } from '@/modules/user/stores/useUserContextStore';
 
 const emit = defineEmits(['close']);
 const router = useRouter();
-const myOrgStore = useMyOrganizationsStore();
+const userContextStore = useUserContextStore();
 
 const code = ref('');
 const loading = ref(false);

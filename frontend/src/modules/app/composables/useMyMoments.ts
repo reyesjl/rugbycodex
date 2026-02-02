@@ -1,12 +1,12 @@
 import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { myMomentsService } from '@/modules/app/services/myMomentsService';
-import { useMyOrganizationsStore } from '@/modules/orgs/stores/useMyOrganizationsStore';
+import { useUserContextStore } from '@/modules/user/stores/useUserContextStore';
 import type { MomentGroup } from '@/modules/app/services/myMomentsService';
 
 export function useMyMoments() {
   const router = useRouter();
-  const myOrgsStore = useMyOrganizationsStore();
+  const userContextStore = useUserContextStore();
 
   const momentGroups = ref<MomentGroup[]>([]);
   const loading = ref(false);
@@ -57,7 +57,7 @@ export function useMyMoments() {
    */
   function buildDeepLink(orgId: string, mediaAssetId: string, segmentId: string): string {
     // Find the org slug from the user's organizations
-    const org = myOrgsStore.items.find((item) => item.organization.id === orgId);
+    const org = userContextStore.organizations.find((item) => item.organization.id === orgId);
     const orgSlug = org?.organization.slug;
 
     if (!orgSlug) {

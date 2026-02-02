@@ -3,19 +3,16 @@ import { storeToRefs } from 'pinia';
 import { computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/modules/auth/stores/useAuthStore';
-import { useProfileStore } from '@/modules/profiles/stores/useProfileStore';
+import { useUserContextStore } from '@/modules/user/stores/useUserContextStore';
 import { useProfileDisplay } from '@/modules/profiles/composables/useProfileDisplay';
-import { useMyOrganizationsStore } from '@/modules/orgs/stores/useMyOrganizationsStore';
 import { formatMonthYear } from '@/lib/date';
 
 const router = useRouter();
 const authStore = useAuthStore();
-const profileStore = useProfileStore();
-const myOrgsStore = useMyOrganizationsStore();
+const userContextStore = useUserContextStore();
 
-const { profile, loading: profileLoading, error: profileError } = storeToRefs(profileStore);
+const { profile, organizations, isLoading } = storeToRefs(userContextStore);
 const { user } = storeToRefs(authStore);
-const { items: organizations, loading: orgsLoading } = storeToRefs(myOrgsStore);
 const { displayName, initials, username } = useProfileDisplay();
 
 const displayUsername = computed(() => {
@@ -41,8 +38,10 @@ const handleSignOut = async () => {
 };
 
 onMounted(() => {
-  if (!profileStore.loaded) {
-    profileStore.load();
+  // User context is loaded during auth initialization
+  // Only load if somehow not loaded yet
+  if (!userContextStore.isReady && !userContextStore.isLoading) {
+    userContextStore.load();
   }
 });
 </script>
@@ -53,13 +52,8 @@ onMounted(() => {
       <h1 class="text-3xl">Profile</h1>
 
       <!-- Loading State -->
-      <div v-if="profileLoading" class="rounded border border-white/15 bg-white/5 p-6">
+      <div v-if="isLoading" class="rounded border border-white/15 bg-white/5 p-6">
         <p class="text-white/60">Loading profile...</p>
-      </div>
-
-      <!-- Error State -->
-      <div v-else-if="profileError" class="rounded border border-red-500/20 bg-red-500/10 p-6">
-        <p class="text-red-200">{{ profileError }}</p>
       </div>
 
       <!-- Profile Content -->
@@ -107,11 +101,7 @@ onMounted(() => {
         <section class="rounded border border-white/15 bg-white/5 p-6 space-y-4">
           <h2 class="text-lg font-semibold">Organizations & Access</h2>
           
-          <div v-if="orgsLoading" class="text-white/60 text-sm">
-            Loading organizations...
-          </div>
-          
-          <div v-else-if="organizations.length === 0" class="text-white/60 text-sm">
+          <div v-if="organizations.length === 0" class="text-white/60 text-sm">
             You are not a member of any organizations.
           </div>
           

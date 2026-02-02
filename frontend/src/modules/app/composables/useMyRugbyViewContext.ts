@@ -1,6 +1,6 @@
 import { computed, ref, watch } from 'vue';
 import { storeToRefs } from 'pinia';
-import { useMyOrganizationsStore } from '@/modules/orgs/stores/useMyOrganizationsStore';
+import { useUserContextStore } from '@/modules/user/stores/useUserContextStore';
 import type { OrgRole } from '@/modules/orgs/types';
 import type { ViewContext } from '../types/ViewContext';
 
@@ -10,8 +10,8 @@ const PLAYER_ROLES: OrgRole[] = ['member', 'viewer'];
 const MANAGER_ROLES: OrgRole[] = ['owner', 'manager', 'staff'];
 
 export const useMyRugbyViewContext = () => {
-  const myOrgs = useMyOrganizationsStore();
-  const { items, loaded } = storeToRefs(myOrgs);
+  const userContextStore = useUserContextStore();
+  const { organizations: items, isReady: loaded } = storeToRefs(userContextStore);
 
   // Current view context
   const viewContext = ref<ViewContext>('player');

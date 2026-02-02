@@ -1,6 +1,6 @@
 import { ref, computed, watch } from 'vue';
 import { storeToRefs } from 'pinia';
-import { useMyOrganizationsStore } from '@/modules/orgs/stores/useMyOrganizationsStore';
+import { useUserContextStore } from '@/modules/user/stores/useUserContextStore';
 import { assignmentsService } from '@/modules/assignments/services/assignmentsService';
 import type { ManagerAssignment } from '@/modules/assignments/types';
 
@@ -9,8 +9,8 @@ export type AssignmentStatus = 'all' | 'active' | 'in_progress' | 'recently_done
 const RECENTLY_DONE_DAYS = 7;
 
 export const useManagerAssignments = () => {
-  const myOrgsStore = useMyOrganizationsStore();
-  const { items: orgItems } = storeToRefs(myOrgsStore);
+  const userContextStore = useUserContextStore();
+  const { organizations: orgItems } = storeToRefs(userContextStore);
 
   const assignments = ref<ManagerAssignment[]>([]);
   const loading = ref(false);

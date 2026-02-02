@@ -1,6 +1,6 @@
 import { computed } from 'vue';
 import { storeToRefs } from 'pinia';
-import { useMyOrganizationsStore } from '@/modules/orgs/stores/useMyOrganizationsStore';
+import { useUserContextStore } from '@/modules/user/stores/useUserContextStore';
 import { useAuthStore } from '@/modules/auth/stores/useAuthStore';
 import type { OrgRole } from '@/modules/orgs/types';
 
@@ -17,13 +17,13 @@ type RankedRole = keyof typeof ROLE_RANK;
 const getRoleRank = (role: OrgRole) => ROLE_RANK[role as RankedRole] ?? -1;
 
 export const useMyRugbyOrchestrator = () => {
-  const myOrgs = useMyOrganizationsStore();
+  const userContextStore = useUserContextStore();
   const authStore = useAuthStore();
-  const { items, loaded, hasOrganizations } = storeToRefs(myOrgs);
+  const { organizations, isReady, hasOrganizations } = storeToRefs(userContextStore);
   const { isAuthenticated } = storeToRefs(authStore);
 
   const memberships = computed(() =>
-    items.value.map((item) => ({
+    organizations.value.map((item) => ({
       orgId: item.membership.org_id,
       role: item.membership.role,
     }))
@@ -58,7 +58,7 @@ export const useMyRugbyOrchestrator = () => {
   );
 
   const isEmptyState = computed(() =>
-    isAuthenticated.value && loaded.value && !hasOrganizations.value
+    isAuthenticated.value && isReady.value && !hasOrganizations.value
   );
 
   return {

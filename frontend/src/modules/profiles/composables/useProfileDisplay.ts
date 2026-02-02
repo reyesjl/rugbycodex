@@ -1,14 +1,14 @@
 import { computed } from 'vue';
-import { useProfileStore } from '../stores/useProfileStore';
+import { useUserContextStore } from '@/modules/user/stores/useUserContextStore';
 
 export function useProfileDisplay() {
-  const profileStore = useProfileStore();
+  const userContextStore = useUserContextStore();
 
-  const name = computed(() => profileStore.profile?.name || '');
-  const username = computed(() => profileStore.profile?.username || '');
+  const name = computed(() => userContextStore.profile?.name || '');
+  const username = computed(() => userContextStore.profile?.username || '');
 
   const displayName = computed(() => {
-    const p = profileStore.profile;
+    const p = userContextStore.profile;
     if (!p) return 'there';
     return p.name || p.username || 'there';
   });

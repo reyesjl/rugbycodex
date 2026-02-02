@@ -2,15 +2,15 @@ import { ref } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/modules/auth/stores/useAuthStore';
-import { useMyOrganizationsStore } from '@/modules/orgs/stores/useMyOrganizationsStore';
+import { useUserContextStore } from '@/modules/user/stores/useUserContextStore';
 
 export function useAuthLandingResolution() {
   const router = useRouter();
   const authStore = useAuthStore();
-  const myOrgs = useMyOrganizationsStore();
+  const userContextStore = useUserContextStore();
 
   const { isAuthenticated, isAdmin } = storeToRefs(authStore);
-  const { loaded, items, membershipCount } = storeToRefs(myOrgs);
+  const { isReady, organizations, organizationCount } = storeToRefs(userContextStore);
 
   const resolving = ref(false);
 
@@ -25,8 +25,8 @@ export function useAuthLandingResolution() {
       return;
     }
 
-    if (!loaded.value) {
-      await myOrgs.load();
+    if (!isReady.value) {
+      await userContextStore.load();
     }
 
     if (isAdmin.value) {
@@ -36,7 +36,7 @@ export function useAuthLandingResolution() {
       return;
     }
 
-    const count = membershipCount.value;
+    const count = organizationCount.value;
 
     if (count === 0) {
       // No orgs means onboarding.
@@ -47,7 +47,7 @@ export function useAuthLandingResolution() {
 
     if (count === 1) {
       // Exactly one org: send directly to its overview.
-      const slug = items.value[0]?.organization?.slug;
+      const slug = organizations.value[0]?.organization?.slug;
       if (slug) {
         await router.replace({ name: 'OrgOverview', params: { slug } });
         resolving.value = false;

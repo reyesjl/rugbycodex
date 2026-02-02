@@ -3,13 +3,13 @@ import { onMounted, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/modules/auth/stores/useAuthStore';
-import { useMyOrganizationsStore } from '@/modules/orgs/stores/useMyOrganizationsStore';
+import { useUserContextStore } from '@/modules/user/stores/useUserContextStore';
 import DashboardGettingStartedPanel from '@/modules/app/components/dashboard/DashboardGettingStartedPanel.vue';
 import DashboardSkeleton from '@/modules/app/components/dashboard/DashboardSkeleton.vue';
 
 const router = useRouter();
 const authStore = useAuthStore();
-const myOrgs = useMyOrganizationsStore();
+const userContextStore = useUserContextStore();
 
 const { isAdmin } = storeToRefs(authStore);
 const { loaded, hasOrganizations } = storeToRefs(myOrgs);
