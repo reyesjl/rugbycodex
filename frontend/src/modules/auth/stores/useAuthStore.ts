@@ -3,7 +3,6 @@ import { computed, ref } from 'vue';
 import type { AuthError, Session, Subscription, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabaseClient';
 import { decodeSupabaseAccessToken } from '@/lib/jwt';
-import { useMyOrganizationsStore } from '@/modules/orgs/stores/useMyOrganizationsStore';
 import { useUserContextStore } from '@/modules/user/stores/useUserContextStore';
 import { setAxiomContext, clearAxiomContext } from '@/lib/axiom';
 import { logInfo } from '@/lib/logger';
@@ -14,7 +13,6 @@ const SESSION_EXPIRED_MESSAGE = 'Your session has expired. Please sign in again.
 const FRIENDLY_CAPTCHA_ERROR = 'Verification failed. Please complete the security check and try again.';
 
 export const useAuthStore = defineStore('auth', () => {
-  const myOrgs = useMyOrganizationsStore(); // DEPRECATED: Use useUserContextStore instead
   const userContextStore = useUserContextStore();
   const user = ref<User | null>(null);
   const session = ref<Session | null>(null);
@@ -279,9 +277,8 @@ export const useAuthStore = defineStore('auth', () => {
     }
     clearAuthState();
     
-    // Clear all user context stores
+    // Clear user context
     userContextStore.clear();
-    myOrgs.clear(); // DEPRECATED: Remove after migration complete
     
     return { error: null };
   };
@@ -340,22 +337,13 @@ export const useAuthStore = defineStore('auth', () => {
   /**
    * Initialize user context after authentication.
    * This loads the user's profile and organization memberships in a single optimized query.
-   * 
-   * @deprecated The old implementation loading profile and orgs separately.
-   * New implementation uses unified useUserContextStore.
    */
   const initializePostAuthContext = async () => {
     if (!isAuthenticated.value) return;
     
-    // New unified approach: load all user context at once
+    // Load unified user context (profile + organizations)
     if (!userContextStore.isReady) {
       await userContextStore.load();
-    }
-    
-    // DEPRECATED: Keep old store loading for backwards compatibility during migration
-    // TODO: Remove after all components migrated to useUserContextStore
-    if (!myOrgs.loadedReadonly) {
-      await myOrgs.load();
     }
   };
 
