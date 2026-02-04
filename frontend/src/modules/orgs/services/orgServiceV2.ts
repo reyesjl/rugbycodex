@@ -859,13 +859,14 @@ export const orgService = {
    * - Protects canonical owner from demotion (must use transfer ownership)
    * - Allows multiple operational owners
    * - Enforces role hierarchy
+   * - Does NOT return member data (caller should reload to avoid RLS issues)
    *
    * @param orgId - Organization ID.
    * @param userId - User/profile ID whose role should change.
    * @param role - New role value.
-   * @returns Updated member projection.
+   * @returns void (caller should reload member list)
    */
-  async changeMemberRole(orgId: string, userId: string, role: OrgRole): Promise<OrgMember> {
+  async changeMemberRole(orgId: string, userId: string, role: OrgRole): Promise<void> {
     // Call RPC function to change role with all business logic enforced
     const { error: rpcError } = await supabase.rpc("change_member_role", {
       p_org_id: orgId,
@@ -877,33 +878,9 @@ export const orgService = {
       throw rpcError;
     }
 
-    // Fetch updated membership data
-    const { data: membership, error: memberError } = await supabase
-      .from("org_members")
-      .select("*")
-      .eq("org_id", orgId)
-      .eq("user_id", userId)
-      .single();
-
-    if (memberError || !membership) {
-      throw memberError || new Error("Failed to fetch updated membership");
-    }
-
-    // Fetch profile data
-    const { data: profile, error: profileError } = await supabase
-      .from("public_profiles")
-      .select("id, username, name, xp")
-      .eq("id", userId)
-      .single();
-
-    if (profileError || !profile) {
-      throw profileError || new Error("Failed to fetch profile");
-    }
-
-    return {
-      membership,
-      profile,
-    };
+    // Success - caller should reload data
+    // Don't try to fetch here due to potential RLS timing issues
+    return;
   },
 
   /**
