@@ -119,7 +119,7 @@ const filteredResults = computed(() => {
 
 <template>
   <TransitionRoot :show="show">
-    <Dialog @close="handleClose" class="relative z-[70]">
+    <Dialog @close="handleClose" class="relative z-70">
       <!-- Backdrop -->
       <TransitionChild
         enter="ease-out duration-300"

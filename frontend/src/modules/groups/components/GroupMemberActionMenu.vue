@@ -76,7 +76,7 @@ function displayName(m: OrgMember) {
 
     <!-- Remove Confirmation Dialog -->
     <TransitionRoot appear :show="showRemoveDialog" as="template">
-      <Dialog as="div" @close="closeRemoveDialog" class="relative z-[70]">
+      <Dialog as="div" @close="closeRemoveDialog" class="relative z-70">
         <!-- Backdrop -->
         <TransitionChild
           as="template"

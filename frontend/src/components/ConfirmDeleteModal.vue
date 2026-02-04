@@ -37,7 +37,7 @@ function handleCancel() {
 
 <template>
   <TransitionRoot appear :show="show" as="template">
-    <Dialog as="div" @close="handleClose" class="relative z-[70]">
+    <Dialog as="div" @close="handleClose" class="relative z-70">
       <!-- Backdrop -->
       <TransitionChild
         as="template"
