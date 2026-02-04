@@ -59,23 +59,72 @@ function isSegmentExpanded(segmentId: string): boolean {
 
 function toggleSegmentExpanded(segmentId: string) {
   const set = expandedSegmentIds.value;
-  if (set.has(segmentId)) set.delete(segmentId);
-  else set.add(segmentId);
+  const tagSet = tagPanelOpenIds.value;
+  
+  if (set.has(segmentId)) {
+    // User is collapsing this segment
+    set.delete(segmentId);
+    
+    // Auto-close its tag panel
+    if (tagSet.has(segmentId)) {
+      tagSet.delete(segmentId);
+    }
+  } else {
+    // User is expanding this segment (accordion: close all others)
+    set.clear();
+    set.add(segmentId);
+    
+    // Close all other tag panels (keep only this one if it's open)
+    const currentlyOpen = tagSet.has(segmentId);
+    tagSet.clear();
+    if (currentlyOpen) {
+      tagSet.add(segmentId);
+    }
+  }
+  
   expandedSegmentIds.value = new Set(set);
+  tagPanelOpenIds.value = new Set(tagSet);
 }
 
 function isTagPanelOpen(segmentId: string): boolean {
   return tagPanelOpenIds.value.has(segmentId);
 }
 
+function collapseAllSegments() {
+  expandedSegmentIds.value = new Set();
+}
+
 function toggleTagPanel(segmentId: string) {
   const set = tagPanelOpenIds.value;
-  if (set.has(segmentId)) set.delete(segmentId);
-  else set.add(segmentId);
+  
+  if (set.has(segmentId)) {
+    // Closing tag panel on this segment
+    set.delete(segmentId);
+  } else {
+    // Opening tag panel on this segment
+    // Accordion: collapse all other segments and close all other tag panels
+    collapseAllSegments();
+    set.clear();
+    set.add(segmentId);
+  }
+  
   tagPanelOpenIds.value = new Set(set);
 }
 
 const canAddQuickTags = computed(() => Boolean(props.canTagSegments));
+
+function handleSegmentClick(segment: MediaAssetSegment) {
+  const segmentId = String(segment.id);
+  
+  // Accordion: collapse all expanded segments when clicking any segment
+  collapseAllSegments();
+  
+  // Close all tag panels except the one being clicked
+  tagPanelOpenIds.value = new Set([segmentId]);
+  
+  // Emit to parent to jump to this segment
+  emit('jumpToSegment', segment);
+}
 
 type SourceFilter = 'all' | NarrationSourceType;
 type TagFilterOption = { key: string; type: SegmentTagType | null };
@@ -296,6 +345,20 @@ watch(
   () => [props.focusedSegmentId, props.activeSegmentId],
   () => {
     void scrollActiveIntoView();
+  }
+);
+
+// Watch activeSegmentId to apply accordion behavior when timeline changes
+watch(
+  () => props.activeSegmentId,
+  (newActiveId) => {
+    if (!newActiveId) return;
+    
+    // Apply same accordion behavior as clicking a segment
+    collapseAllSegments();
+    
+    // Auto-open tags for the active segment
+    tagPanelOpenIds.value = new Set([newActiveId]);
   }
 );
 
@@ -538,7 +601,7 @@ function formatSegmentSourceMeta(seg: MediaAssetSegment): string | null {
           <button
             type="button"
             class="flex items-center gap-3 min-w-0 flex-1 cursor-pointer group"
-            @click="emit('jumpToSegment', seg)"
+            @click="handleSegmentClick(seg)"
           >
             <div
               v-if="activeSegmentId && String(seg.id) === activeSegmentId"
@@ -614,7 +677,7 @@ function formatSegmentSourceMeta(seg: MediaAssetSegment): string | null {
             :edit-text="editingText"
             :can-edit="canEditNarration(n)"
             :can-delete="canDeleteNarration(n)"
-            @click="emit('jumpToSegment', seg)"
+            @click="handleSegmentClick(seg)"
             @edit="startEditing(n as any)"
             @delete="requestDelete(n as any)"
             @cancel-edit="cancelEditing"
@@ -640,7 +703,7 @@ function formatSegmentSourceMeta(seg: MediaAssetSegment): string | null {
         <!-- Tags -->
         <div
           v-if="visibleSegmentTags(seg).length || isTagPanelOpen(String(seg.id))"
-          class="px-4 py-3 border-t border-slate-700/50 space-y-3"
+          class="px-4 py-3 border-t border-slate-700/50 bg-amber-950/20 space-y-3"
         >
           <div v-if="visibleSegmentTags(seg).length" class="flex flex-wrap gap-2">
             <div

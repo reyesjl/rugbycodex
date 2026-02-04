@@ -639,21 +639,35 @@ export const orgService = {
    * - Authenticated user.
    *
    * Implementation:
-   * - Edge Function (privileged multi-table logic + validation).
+   * - RPC function (privileged multi-table logic + validation).
    *
    * @param joinCode - The current valid organization join code.
    * @returns Membership + lightweight org context.
    */
   async joinWithCode(joinCode: string): Promise<JoinOrgWithCodeResult> {
-    const { data, error } = await invokeEdge("join-organization-with-code", {
-      body: { joinCode },
+    const { data, error } = await supabase.rpc("join_org_with_code", {
+      p_join_code: joinCode,
     });
 
     if (error) {
-      throw await handleEdgeFunctionError(error, "Unable to join organization right now.");
+      // Map PostgreSQL errors to user-friendly messages
+      const message = error.message || "Unable to join organization right now.";
+      
+      // Extract error codes from RAISE EXCEPTION messages
+      if (message.includes("AUTH_REQUIRED")) {
+        throw new Error("You must be signed in to join an organization.");
+      } else if (message.includes("JOIN_CODE_REQUIRED")) {
+        throw new Error("A join code must be provided.");
+      } else if (message.includes("JOIN_CODE_INVALID")) {
+        throw new Error("This join code is not valid.");
+      } else if (message.includes("JOIN_CODE_EXPIRED")) {
+        throw new Error("This join code has expired. Ask your coach to generate a new one.");
+      }
+      
+      throw new Error(message);
     }
 
-    return data;
+    return data as JoinOrgWithCodeResult;
   },
 
   /**

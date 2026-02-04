@@ -227,6 +227,9 @@ const recordingContext = ref<RecordingContext | null>(null);
 // Track active optimistic narrations to avoid duplicates and enable cleanup
 const activeOptimisticIds = ref<Set<string>>(new Set());
 
+// Track narrations that are processing embeddings (5-second safety window)
+const processingNarrationIds = ref<Map<string, number>>(new Map());
+
 const activeOrgIdOrEmpty = computed(() => activeOrgId.value ?? '');
 const assigningSegment = ref<MediaAssetSegment | null>(null);
 const pendingEmptySegmentIds = ref<string[]>([]);
@@ -625,6 +628,23 @@ function findFocusedSegmentId(seconds: number): string | null {
 
 const focusedSegmentId = ref<string | null>(null);
 
+// Helper to check if narration is still processing (embedding generation)
+function isNarrationProcessing(narrationId: string): boolean {
+  const startTime = processingNarrationIds.value.get(narrationId);
+  if (!startTime) return false;
+  
+  const elapsed = Date.now() - startTime;
+  const PROCESSING_WINDOW_MS = 5000; // 5 seconds
+  
+  if (elapsed > PROCESSING_WINDOW_MS) {
+    // Auto-cleanup expired entries
+    processingNarrationIds.value.delete(narrationId);
+    return false;
+  }
+  
+  return true;
+}
+
 async function handleAddNarrationForSegment(seg: MediaAssetSegment) {
   narrationTargetSegmentId.value = String(seg.id);
   focusedSegmentId.value = String(seg.id);
@@ -1014,7 +1034,8 @@ async function endRecordingNonBlocking() {
     source_type: sourceType,
     audio_storage_path: null,
     created_at: new Date(),
-    transcript_raw: 'Uploading…',
+    // Use Web Speech transcript if available, otherwise show "Processing..."
+    transcript_raw: recorder.liveTranscript.value || 'Processing...',
     status: 'uploading',
   };
 
@@ -1066,6 +1087,15 @@ async function endRecordingNonBlocking() {
         ...(narrations.value as any[]).filter((n) => n.id !== optimisticId),
         saved,
       ];
+      
+      // Track as processing (embedding being generated in background)
+      processingNarrationIds.value.set(saved.id, Date.now());
+      
+      // Auto-cleanup after 5 seconds
+      setTimeout(() => {
+        processingNarrationIds.value.delete(saved.id);
+      }, 5000);
+      
       toast({ message: 'Narration added.', variant: 'success', durationMs: 2000 });
     })
     .catch((err) => {
@@ -1129,12 +1159,28 @@ async function handleEditNarration(narrationId: string, transcriptRaw: string) {
     return;
   }
   
+  // Check if narration is still processing (embedding generation)
+  if (isNarrationProcessing(narrationId)) {
+    toast({
+      message: 'Please wait for narration processing to complete.',
+      variant: 'info',
+      durationMs: 2500
+    });
+    return;
+  }
+  
   // Fix #6: Basic optimistic locking - capture current updated_at
   const currentNarration = (narrations.value as any[]).find((n) => String(n.id) === narrationId);
   const originalUpdatedAt = currentNarration?.updated_at;
   
   try {
     const updated = await narrationService.updateNarrationText(narrationId, transcriptRaw);
+    
+    // Re-trigger embedding generation with new transcript
+    processingNarrationIds.value.set(narrationId, Date.now());
+    setTimeout(() => {
+      processingNarrationIds.value.delete(narrationId);
+    }, 5000);
     
     // Check if narration was modified by someone else during our edit
     const freshNarration = (narrations.value as any[]).find((n) => String(n.id) === narrationId);
@@ -1159,6 +1205,17 @@ async function handleDeleteNarration(narrationId: string) {
     toast({ message: 'You do not have permission to delete narrations.', variant: 'info', durationMs: 2500 });
     return;
   }
+  
+  // Check if narration is still processing (embedding generation)
+  if (isNarrationProcessing(narrationId)) {
+    toast({
+      message: 'Please wait for narration processing to complete.',
+      variant: 'info',
+      durationMs: 2500
+    });
+    return;
+  }
+  
   try {
     console.log(JSON.stringify({
       severity: 'info',
@@ -1335,6 +1392,18 @@ async function handleDeleteNarration(narrationId: string) {
                         @pointermove.stop
                         @pointerleave.stop
                       >
+                        <!-- Live transcript overlay (Web Speech API) -->
+                        <div 
+                          v-if="recorder.isRecording.value && recorder.liveTranscript.value"
+                          class="absolute bottom-20 left-4 right-4 z-40 rounded-lg bg-black/40 p-3 text-white ring-1 ring-white/10 backdrop-blur"
+                        >
+                          <div class="mb-1 flex items-center gap-2">
+                            <Icon icon="mdi:microphone" class="h-4 w-4 animate-pulse text-red-500" />
+                            <span class="text-xs font-medium text-white/90">Live preview</span>
+                          </div>
+                          <p class="text-sm text-white/95">{{ recorder.liveTranscript.value }}</p>
+                        </div>
+
                         <NarrationRecorder
                           :is-recording="recorder.isRecording.value"
                           :audio-level01="recorder.audioLevel.value"

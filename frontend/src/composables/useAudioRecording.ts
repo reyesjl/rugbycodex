@@ -22,6 +22,11 @@ export function useAudioRecording() {
 
   const selectedMimeType = ref<string | null>(null);
 
+  // Web Speech API for live transcription
+  const liveTranscript = ref<string>('');
+  const hasWebSpeechSupport = ref(false);
+  let speechRecognition: any = null;
+
   let mediaRecorder: MediaRecorder | null = null;
   let mediaStream: MediaStream | null = null;
   let audioChunks: Blob[] = [];
@@ -36,6 +41,12 @@ export function useAudioRecording() {
   let pendingStopResolve: ((blob: Blob) => void) | null = null;
   let pendingStopReject: ((err: unknown) => void) | null = null;
   let pendingStopTimer: number | null = null;
+
+  // Check Web Speech API support on initialization
+  const SpeechRecognition = 
+    (window as any).SpeechRecognition || 
+    (window as any).webkitSpeechRecognition;
+  hasWebSpeechSupport.value = !!SpeechRecognition;
 
   const hasRecording = computed(() => audioBlob.value !== null);
 
@@ -130,6 +141,7 @@ export function useAudioRecording() {
   async function startRecording() {
     try {
       error.value = null;
+      liveTranscript.value = '';
 
       // Starting a new recording invalidates any previous stop waiters.
       pendingStopPromise = null;
@@ -143,6 +155,35 @@ export function useAudioRecording() {
       if (typeof MediaRecorder === 'undefined') {
         error.value = 'Audio recording is not supported in this browser.';
         return;
+      }
+
+      // Start Web Speech API for live transcription if supported
+      if (hasWebSpeechSupport.value && SpeechRecognition) {
+        try {
+          speechRecognition = new SpeechRecognition();
+          speechRecognition.continuous = true;
+          speechRecognition.interimResults = true;
+          speechRecognition.lang = 'en-US';
+          
+          speechRecognition.onresult = (event: any) => {
+            const results = Array.from(event.results);
+            const transcript = results
+              .map((result: any) => result[0].transcript)
+              .join('');
+            liveTranscript.value = transcript;
+          };
+          
+          speechRecognition.onerror = (event: any) => {
+            console.warn('Speech recognition error:', event.error);
+            // Don't fail the recording, just disable live transcript
+            speechRecognition = null;
+          };
+          
+          speechRecognition.start();
+        } catch (err) {
+          console.warn('Failed to start speech recognition:', err);
+          speechRecognition = null;
+        }
       }
 
       // Prefer iOS/Safari-friendly containers when available.
@@ -323,6 +364,16 @@ export function useAudioRecording() {
       recorder.stop();
     }
 
+    // Stop Web Speech API
+    if (speechRecognition) {
+      try {
+        speechRecognition.stop();
+      } catch (err) {
+        console.warn('Failed to stop speech recognition:', err);
+      }
+      speechRecognition = null;
+    }
+
     isRecording.value = false;
     isPaused.value = false;
     stopAudioLevelMonitoring();
@@ -369,6 +420,8 @@ export function useAudioRecording() {
     duration.value = 0;
     audioChunks = [];
     error.value = null;
+    liveTranscript.value = '';
+    speechRecognition = null;
   }
 
   function getAudioBlob(): Blob | null {
@@ -393,6 +446,8 @@ export function useAudioRecording() {
     audioUrl,
     audioLevel,
     error,
+    liveTranscript,
+    hasWebSpeechSupport,
     startRecording,
     pauseRecording,
     resumeRecording,
