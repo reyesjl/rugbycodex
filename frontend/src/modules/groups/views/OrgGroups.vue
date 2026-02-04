@@ -192,7 +192,7 @@ watch(orgId, (next, prev) => {
 
 <template>
   <div>
-    <div class="container py-6">
+    <div class="container pt-6 pb-50">
       <div class="flex flex-col md:flex-row md:items-center justify-between mb-5 gap-3">
         <div>
           <h1 class="text-white text-3xl tracking-tight">

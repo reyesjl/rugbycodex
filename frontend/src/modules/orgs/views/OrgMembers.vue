@@ -50,15 +50,15 @@ function closeAddMember() {
   showAddMember.value = false;
 }
 
-async function handleAddMember(payload: { username: string; role: 'member' | 'staff' | 'manager' | 'owner' }) {
+async function handleAddMember(payload: { userId: string; role: 'member' | 'staff' | 'manager' | 'owner' }) {
   if (!orgId.value) return;
 
   try {
-    await orgService.addMemberByUsername(orgId.value, payload.username, payload.role);
+    await orgService.addMemberById(orgId.value, payload.userId, payload.role);
 
     toast({
       variant: 'success',
-      message: `Member ${payload.username} added as ${payload.role}.`,
+      message: `Member added as ${payload.role}.`,
       durationMs: 2500,
     });
 
@@ -303,7 +303,7 @@ watch(orgId, (next, prev) => {
 
 <template>
   <div>
-    <div class="container py-6">
+    <div class="container pt-6 pb-50">
       <div class="flex flex-col md:flex-row md:items-center justify-between mb-5 gap-3">
         <div>
           <h1 class="text-white text-3xl tracking-tight">
@@ -478,7 +478,12 @@ watch(orgId, (next, prev) => {
       <p v-else class="text-sm text-gray-500">No members found.</p>
     </div>
 
-    <AddMemberModal v-if="showAddMember && canManage" @close="closeAddMember" @submit="handleAddMember" />
+    <AddMemberModal 
+      v-if="showAddMember && canManage && orgId" 
+      :org-id="orgId"
+      @close="closeAddMember" 
+      @submit="handleAddMember" 
+    />
   </div>
 </template>
 

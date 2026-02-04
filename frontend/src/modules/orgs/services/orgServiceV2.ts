@@ -796,6 +796,18 @@ export const orgService = {
   },
 
   /**
+   * Adds a user to an organization by user ID (alias for addMember).
+   * 
+   * @param orgId - Organization ID.
+   * @param userId - User ID to add.
+   * @param role - Role to assign.
+   * @returns The created membership projection.
+   */
+  async addMemberById(orgId: string, userId: string, role: OrgRole): Promise<OrgMember> {
+    return this.addMember(orgId, userId, role);
+  },
+
+  /**
    * Removes a user from an organization.
    *
    * Problem it solves:
@@ -805,18 +817,22 @@ export const orgService = {
    * - `org_members`
    *
    * Allowed caller:
-   * - Org owner/managers or platform admin; enforced server-side.
+   * - Org owner/managers or platform admin; enforced server-side via RPC.
    *
    * Implementation:
-   * - Edge Function (privileged write) preferred to handle safeguards (cannot remove last owner, etc).
-   * - Direct Supabase delete may be possible if policies and constraints are sufficient.
+   * - Uses RPC function `remove_org_member` for proper permission checks
+   * - Prevents removing last owner
+   * - Bypasses RLS with SECURITY DEFINER
    *
    * @param orgId - Organization ID.
    * @param userId - User/profile ID to remove.
    * @returns Resolves when removal is complete.
    */
   async removeMember(orgId: string, userId: string): Promise<void> {
-    const { error } = await supabase.from("org_members").delete().eq("org_id", orgId).eq("user_id", userId);
+    const { error } = await supabase.rpc("remove_org_member", {
+      p_org_id: orgId,
+      p_user_id_to_remove: userId,
+    });
 
     if (error) {
       throw error;
@@ -833,12 +849,16 @@ export const orgService = {
    *
    * Conceptual tables:
    * - `org_members.role`
+   * - `organizations.owner` (protected from accidental changes)
    *
    * Allowed caller:
-   * - Org owner/managers or platform admin; enforced server-side.
+   * - Org owner/managers or platform admin; enforced server-side via RPC.
    *
    * Implementation:
-   * - Edge Function (privileged write) preferred to enforce role hierarchy and invariants.
+   * - Uses RPC function `change_member_role` for proper permission checks
+   * - Protects canonical owner from demotion (must use transfer ownership)
+   * - Allows multiple operational owners
+   * - Enforces role hierarchy
    *
    * @param orgId - Organization ID.
    * @param userId - User/profile ID whose role should change.
@@ -846,26 +866,43 @@ export const orgService = {
    * @returns Updated member projection.
    */
   async changeMemberRole(orgId: string, userId: string, role: OrgRole): Promise<OrgMember> {
-    const { data, error } = await invokeEdge("change-member-role", {
-      body: {
-        orgId,
-        userId,
-        role,
-      },
-      orgScoped: true,
+    // Call RPC function to change role with all business logic enforced
+    const { error: rpcError } = await supabase.rpc("change_member_role", {
+      p_org_id: orgId,
+      p_user_id_to_change: userId,
+      p_new_role: role,
     });
 
-    if (error) {
-      throw await handleEdgeFunctionError(error, "Failed to change member role.");
+    if (rpcError) {
+      throw rpcError;
     }
 
-    if (!data?.membership || !data?.profile) {
-      throw new Error('Invalid response from server.');
+    // Fetch updated membership data
+    const { data: membership, error: memberError } = await supabase
+      .from("org_members")
+      .select("*")
+      .eq("org_id", orgId)
+      .eq("user_id", userId)
+      .single();
+
+    if (memberError || !membership) {
+      throw memberError || new Error("Failed to fetch updated membership");
+    }
+
+    // Fetch profile data
+    const { data: profile, error: profileError } = await supabase
+      .from("public_profiles")
+      .select("id, username, name, xp")
+      .eq("id", userId)
+      .single();
+
+    if (profileError || !profile) {
+      throw profileError || new Error("Failed to fetch profile");
     }
 
     return {
-      membership: data.membership,
-      profile: data.profile,
+      membership,
+      profile,
     };
   },
 
