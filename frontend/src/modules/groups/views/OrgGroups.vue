@@ -12,7 +12,9 @@ import type { OrgGroup } from '@/modules/groups/types';
 
 import CreateGroupModal from '@/modules/groups/components/CreateGroupModal.vue';
 import AddMemberToGroupModal from '@/modules/groups/components/AddMemberToGroupModal.vue';
-import GroupMemberPill from '@/modules/groups/components/GroupMemberPill.vue';
+import MemberPill from '@/modules/orgs/components/MemberPill.vue';
+import GroupMemberActionMenu from '@/modules/groups/components/GroupMemberActionMenu.vue';
+import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
 
 const activeOrgStore = useActiveOrganizationStore();
 const authStore = useAuthStore();
@@ -34,7 +36,23 @@ const groups = ref<Array<{ group: OrgGroup; members: OrgMember[] }>>([]);
 
 const showCreateGroup = ref(false);
 const showAddMemberToGroup = ref(false);
-const activeGroupForAdd = ref<OrgGroup | null>(null);
+const showDeleteConfirm = ref(false);
+const groupToDelete = ref<OrgGroup | null>(null);
+const isDeleting = ref(false);
+
+// Computed stats
+const totalGroups = computed(() => groups.value.length);
+
+const groupBreakdown = computed(() => {
+  if (groups.value.length === 0) return '';
+  
+  const parts = groups.value.map(g => {
+    const count = g.members.length;
+    return `${count} ${g.group.name}`;
+  });
+  
+  return parts.join(' | ');
+});
 
 async function load() {
   if (!orgId.value) return;
@@ -87,22 +105,18 @@ async function handleCreateGroup(payload: { name: string; description: string | 
   }
 }
 
-function openAddMember(group: OrgGroup) {
+function openAddMember() {
   if (!canManage.value) return;
-  activeGroupForAdd.value = group;
   showAddMemberToGroup.value = true;
 }
 
 function closeAddMember() {
   showAddMemberToGroup.value = false;
-  activeGroupForAdd.value = null;
 }
 
-async function handleAddMember(payload: { userId: string }) {
-  if (!activeGroupForAdd.value) return;
-
+async function handleAddMember(payload: { groupId: string; userId: string }) {
   try {
-    await groupsService.addMemberToGroup(activeGroupForAdd.value.id, payload.userId);
+    await groupsService.addMemberToGroup(payload.groupId, payload.userId);
     toast({ variant: 'success', message: 'Member added to group.', durationMs: 2000 });
     closeAddMember();
     void load();
@@ -111,11 +125,11 @@ async function handleAddMember(payload: { userId: string }) {
   }
 }
 
-async function removeMember(groupId: string, userId: string) {
+async function handleRemoveMember(payload: { groupId: string; userId: string }) {
   if (!canManage.value) return;
 
   try {
-    await groupsService.removeMemberFromGroup(groupId, userId);
+    await groupsService.removeMemberFromGroup(payload.groupId, payload.userId);
     toast({ variant: 'success', message: 'Member removed from group.', durationMs: 2000 });
     void load();
   } catch (e) {
@@ -124,11 +138,47 @@ async function removeMember(groupId: string, userId: string) {
 }
 
 function displayName(m: OrgMember) {
-  return m.profile.username || m.profile.name;
+  return m.profile.name || m.profile.username || 'Unknown';
 }
 
 function sortMembers(a: OrgMember, b: OrgMember) {
   return displayName(a).toLowerCase().localeCompare(displayName(b).toLowerCase());
+}
+
+function openDeleteConfirm(group: OrgGroup) {
+  if (!canManage.value) return;
+  groupToDelete.value = group;
+  showDeleteConfirm.value = true;
+}
+
+function closeDeleteConfirm() {
+  showDeleteConfirm.value = false;
+  groupToDelete.value = null;
+}
+
+async function handleDeleteGroup() {
+  if (!groupToDelete.value) return;
+  
+  isDeleting.value = true;
+  
+  try {
+    await groupsService.deleteGroup(groupToDelete.value.id);
+    toast({ 
+      variant: 'success', 
+      message: `Group "${groupToDelete.value.name}" deleted.`, 
+      durationMs: 2500 
+    });
+    closeDeleteConfirm();
+    void load();
+  } catch (e) {
+    toast({ 
+      variant: 'error', 
+      message: e instanceof Error ? e.message : 'Failed to delete group.', 
+      durationMs: 3500 
+    });
+  } finally {
+    isDeleting.value = false;
+  }
 }
 
 onMounted(() => {
@@ -145,10 +195,24 @@ watch(orgId, (next, prev) => {
     <div class="container py-6">
       <div class="flex flex-col md:flex-row md:items-center justify-between mb-5 gap-3">
         <div>
-          <h1 class="text-white text-3xl tracking-tight">Groups</h1>
+          <h1 class="text-white text-3xl tracking-tight">
+            {{ totalGroups }} {{ totalGroups === 1 ? 'Group' : 'Groups' }}
+          </h1>
+          <p v-if="groupBreakdown" class="text-gray-400 text-sm mt-1">
+            {{ groupBreakdown }}
+          </p>
         </div>
 
         <div v-if="canManage" class="flex flex-row flex-wrap gap-3">
+          <button
+            type="button"
+            class="flex gap-2 items-center rounded-lg px-2 py-1 text-white border border-sky-500 bg-sky-500/70 hover:bg-sky-700/70 cursor-pointer text-xs transition disabled:opacity-50 w-fit"
+            :disabled="loading || !orgId || groups.length === 0"
+            @click="openAddMember"
+          >
+            <Icon icon="carbon:user-follow" width="15" height="15" />
+            Add Member to Group
+          </button>
           <button
             type="button"
             class="flex gap-2 items-center rounded-lg px-2 py-1 text-white border border-green-500 bg-green-500/70 hover:bg-green-700/70 cursor-pointer text-xs transition disabled:opacity-50 w-fit"
@@ -167,42 +231,64 @@ watch(orgId, (next, prev) => {
 
       <div v-if="loading" class="text-white/60">Loading groups…</div>
 
-      <div v-else-if="groups.length === 0" class="text-sm text-gray-500">No groups found.</div>
+      <div v-else-if="groups.length === 0" class="text-sm text-gray-500">Create player groups to assign clips and media segments to the right people.
+Perfect for units like forwards, backs, or position groups.</div>
 
-      <div v-else class="space-y-8">
+      <div v-else class="space-y-6 border-t border-white/20 pt-4">
         <section
           v-for="row in groups"
           :key="row.group.id"
-          class="border-t border-white/20 pt-4"
+          class="space-y-3"
         >
-          <div class="flex flex-col md:flex-row md:items-start justify-between gap-3">
-            <div>
-              <h2 class="text-white text-xl tracking-tight">{{ row.group.name }}</h2>
-              <p v-if="row.group.description" class="text-sm text-gray-400 mt-1">{{ row.group.description }}</p>
-            </div>
-
-            <div v-if="canManage">
-              <button
-                type="button"
-                class="flex gap-2 items-center rounded-lg px-2 py-1 text-white border border-sky-500 bg-sky-500/70 hover:bg-sky-700/70 cursor-pointer text-xs transition w-fit"
-                @click="openAddMember(row.group)"
-              >
-                <Icon icon="carbon:user-follow" width="15" height="15" />
-                Add Member to Group
-              </button>
-            </div>
+          <div class="flex items-start justify-between">
+            <h3 class="text-white text-lg font-medium flex items-center gap-2">
+              <Icon icon="carbon:group" class="text-sky-400" width="20" height="20" />
+              {{ row.group.name }}
+              <span class="text-sm text-gray-400 font-normal">
+                ({{ row.members.length }})
+              </span>
+            </h3>
+            
+            <!-- Delete button -->
+            <button
+              v-if="canManage"
+              type="button"
+              class="flex items-center justify-center p-1.5 rounded hover:bg-red-500/20 transition group"
+              title="Delete group"
+              @click="openDeleteConfirm(row.group)"
+            >
+              <Icon 
+                icon="carbon:trash-can" 
+                class="text-gray-400 group-hover:text-red-400 transition" 
+                width="18" 
+                height="18" 
+              />
+            </button>
           </div>
+          
+          <p v-if="row.group.description" class="text-sm text-gray-400 md:pl-7">
+            {{ row.group.description }}
+          </p>
 
-          <div v-if="row.members.length" class="mt-4 flex flex-wrap gap-2">
-            <GroupMemberPill
-              v-for="m in [...row.members].sort(sortMembers)"
-              :key="m.profile.id"
+          <div v-if="row.members.length" class="flex flex-col md:flex-row md:flex-wrap gap-2 md:pl-7">
+            <MemberPill 
+              v-for="m in [...row.members].sort(sortMembers)" 
+              :key="m.profile.id" 
               :member="m"
-              :can-manage="canManage"
-              @remove="removeMember(row.group.id, m.profile.id)"
-            />
+              :show-role="false"
+            >
+              <template #actions>
+                <GroupMemberActionMenu
+                  v-if="canManage"
+                  :member="m"
+                  :group-id="row.group.id"
+                  :group-name="row.group.name"
+                  @remove="handleRemoveMember"
+                />
+              </template>
+            </MemberPill>
           </div>
-          <p v-else class="mt-4 text-sm text-gray-500">No members in this group yet.</p>
+          <p v-else class="text-sm text-gray-500 md:pl-7">No members in this group yet.</p>
         </section>
       </div>
     </div>
@@ -210,11 +296,21 @@ watch(orgId, (next, prev) => {
     <CreateGroupModal v-if="showCreateGroup && canManage" @close="closeCreateGroup" @submit="handleCreateGroup" />
 
     <AddMemberToGroupModal
-      v-if="showAddMemberToGroup && canManage && activeGroupForAdd"
+      v-if="showAddMemberToGroup && canManage"
       :members="allMembers"
-      :group-name="activeGroupForAdd.name"
+      :groups="groups"
       @close="closeAddMember"
       @submit="handleAddMember"
+    />
+
+    <ConfirmDeleteModal
+      v-if="showDeleteConfirm && groupToDelete"
+      :show="showDeleteConfirm"
+      popup-title="Delete Group"
+      :item-name="groupToDelete.name"
+      :is-deleting="isDeleting"
+      @cancel="closeDeleteConfirm"
+      @confirm="handleDeleteGroup"
     />
   </div>
 </template>

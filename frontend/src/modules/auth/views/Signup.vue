@@ -1,9 +1,17 @@
 <script setup lang="ts">
 import { computed, nextTick, reactive, ref, watch } from 'vue';
 import { RouterLink, useRouter } from 'vue-router';
+import { Listbox, ListboxButton, ListboxOptions, ListboxOption } from '@headlessui/vue';
+import { Icon } from '@iconify/vue';
 import { useAuthStore } from '@/modules/auth/stores/useAuthStore';
 import { profileService } from '@/modules/profiles/services/profileServiceV2';
 import TurnstileVerification from '@/components/TurnstileVerification.vue';
+
+type SelectOption = {
+  value: string;
+  label: string;
+  disabled?: boolean;
+};
 
 const authStore = useAuthStore();
 const router = useRouter();
@@ -38,7 +46,7 @@ const form = reactive({
   honeypot: '',
 });
 
-const referralOptions = [
+const referralOptions: SelectOption[] = [
   { value: '', label: 'Select an option', disabled: true },
   { value: 'referral', label: 'Friend or teammate' },
   { value: 'social', label: 'Social media' },
@@ -48,7 +56,7 @@ const referralOptions = [
   { value: 'other', label: 'Other' },
 ];
 
-const roleOptions = [
+const roleOptions: SelectOption[] = [
   { value: '', label: 'Select a role', disabled: true },
   { value: 'player', label: 'Player' },
   { value: 'coach', label: 'Coach' },
@@ -57,6 +65,17 @@ const roleOptions = [
   { value: 'administrator', label: 'Administrator / Union Staff' },
   { value: 'other', label: 'Other' },
 ];
+
+const selectedRoleOption = ref<SelectOption>(roleOptions[0]!);
+const selectedReferralOption = ref<SelectOption>(referralOptions[0]!);
+
+watch(selectedRoleOption, (opt) => {
+  form.role = opt.value;
+});
+
+watch(selectedReferralOption, (opt) => {
+  form.referral = opt.value;
+});
 
 const passwordMismatch = computed(
   () => Boolean(form.password) && Boolean(form.confirmPassword) && form.password !== form.confirmPassword,
@@ -265,7 +284,7 @@ const textareaClass = `${inputClass} min-h-[96px]`;
       </div>
 
       <div class="space-y-4">
-        <div class="text-[10px] font-semibold uppercase tracking-[0.35em] text-orange-400">Identity</div>
+        <div class="text-[10px] font-semibold uppercase tracking-[0.35em] text-blue-400">Identity</div>
         <div class="space-y-4">
           <div class="space-y-1">
             <label for="name" class="text-[10px] font-semibold uppercase tracking-[0.3em] text-neutral-400">
@@ -296,7 +315,7 @@ const textareaClass = `${inputClass} min-h-[96px]`;
       </div>
 
       <div class="space-y-4 pt-6">
-        <div class="text-[10px] font-semibold uppercase tracking-[0.35em] text-orange-400">Access</div>
+        <div class="text-[10px] font-semibold uppercase tracking-[0.35em] text-blue-400">Access</div>
         <div class="space-y-4">
           <div class="space-y-1">
             <label for="email" class="text-[10px] font-semibold uppercase tracking-[0.3em] text-neutral-400">
@@ -349,22 +368,50 @@ const textareaClass = `${inputClass} min-h-[96px]`;
       </div>
 
       <div class="space-y-4 pt-6">
-        <div class="text-[10px] font-semibold uppercase tracking-[0.35em] text-orange-400">Context</div>
+        <div class="text-[10px] font-semibold uppercase tracking-[0.35em] text-blue-400">Context</div>
         <div class="space-y-4">
           <div class="space-y-1">
-            <label for="role" class="text-[10px] font-semibold uppercase tracking-[0.3em] text-neutral-400">
+            <label class="text-[10px] font-semibold uppercase tracking-[0.3em] text-neutral-400">
               Role
             </label>
-            <select
-              id="role"
-              v-model="form.role"
-              required
-              :class="[selectClass, 'dark-select', form.role ? 'text-white' : 'text-neutral-500']"
-            >
-              <option v-for="opt in roleOptions" :key="opt.value" :value="opt.value" :disabled="opt.disabled" :hidden="opt.disabled">
-                {{ opt.label }}
-              </option>
-            </select>
+            <Listbox v-model="selectedRoleOption" required>
+              <div class="relative">
+                <ListboxButton :class="[selectClass, 'relative w-full cursor-pointer text-left pr-10', selectedRoleOption.value ? 'text-white' : 'text-neutral-500']">
+                  <span class="block truncate">{{ selectedRoleOption.label }}</span>
+                  <span class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+                    <Icon icon="carbon:chevron-down" class="h-4 w-4 text-white/40" />
+                  </span>
+                </ListboxButton>
+                
+                <transition
+                  leave-active-class="transition duration-100 ease-in"
+                  leave-from-class="opacity-100"
+                  leave-to-class="opacity-0"
+                >
+                  <ListboxOptions class="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-gray-900 border border-white/20 py-1 text-sm shadow-lg focus:outline-none">
+                    <ListboxOption
+                      v-for="opt in roleOptions.filter(o => !o.disabled)"
+                      :key="opt.value"
+                      :value="opt"
+                      as="template"
+                      v-slot="{ active, selected }"
+                    >
+                      <li
+                        class="relative cursor-pointer select-none py-2 pl-3 pr-9"
+                        :class="active ? 'bg-white/10 text-white' : 'text-white/70'"
+                      >
+                        <span :class="selected ? 'font-semibold' : 'font-normal'" class="block truncate">
+                          {{ opt.label }}
+                        </span>
+                        <span v-if="selected" class="absolute inset-y-0 right-0 flex items-center pr-3 text-green-500">
+                          <Icon icon="carbon:checkmark" class="h-4 w-4" />
+                        </span>
+                      </li>
+                    </ListboxOption>
+                  </ListboxOptions>
+                </transition>
+              </div>
+            </Listbox>
           </div>
 
           <div class="space-y-1">
@@ -375,24 +422,53 @@ const textareaClass = `${inputClass} min-h-[96px]`;
           </div>
 
           <div class="space-y-1">
-            <label for="referral" class="text-[10px] font-semibold uppercase tracking-[0.3em] text-neutral-400">
+            <label class="text-[10px] font-semibold uppercase tracking-[0.3em] text-neutral-400">
               How did you hear about us?
             </label>
-            <select
-              id="referral"
-              v-model="form.referral"
-              :class="[selectClass, 'dark-select', form.referral ? 'text-white' : 'text-neutral-500']"
-            >
-              <option v-for="opt in referralOptions" :key="opt.value" :value="opt.value" :disabled="opt.disabled" :hidden="opt.disabled">
-                {{ opt.label }}
-              </option>
-            </select>
+            <Listbox v-model="selectedReferralOption">
+              <div class="relative">
+                <ListboxButton :class="[selectClass, 'relative w-full cursor-pointer text-left pr-10', selectedReferralOption.value ? 'text-white' : 'text-neutral-500']">
+                  <span class="block truncate">{{ selectedReferralOption.label }}</span>
+                  <span class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+                    <Icon icon="carbon:chevron-down" class="h-4 w-4 text-white/40" />
+                  </span>
+                </ListboxButton>
+                
+                <transition
+                  leave-active-class="transition duration-100 ease-in"
+                  leave-from-class="opacity-100"
+                  leave-to-class="opacity-0"
+                >
+                  <ListboxOptions class="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-gray-900 border border-white/20 py-1 text-sm shadow-lg focus:outline-none">
+                    <ListboxOption
+                      v-for="opt in referralOptions.filter(o => !o.disabled)"
+                      :key="opt.value"
+                      :value="opt"
+                      as="template"
+                      v-slot="{ active, selected }"
+                    >
+                      <li
+                        class="relative cursor-pointer select-none py-2 pl-3 pr-9"
+                        :class="active ? 'bg-white/10 text-white' : 'text-white/70'"
+                      >
+                        <span :class="selected ? 'font-semibold' : 'font-normal'" class="block truncate">
+                          {{ opt.label }}
+                        </span>
+                        <span v-if="selected" class="absolute inset-y-0 right-0 flex items-center pr-3 text-green-500">
+                          <Icon icon="carbon:checkmark" class="h-4 w-4" />
+                        </span>
+                      </li>
+                    </ListboxOption>
+                  </ListboxOptions>
+                </transition>
+              </div>
+            </Listbox>
           </div>
         </div>
       </div>
 
       <div class="space-y-4 pt-6">
-        <div class="text-[10px] font-semibold uppercase tracking-[0.35em] text-orange-400">Optional</div>
+        <div class="text-[10px] font-semibold uppercase tracking-[0.35em] text-blue-400">Optional</div>
         <div class="space-y-4">
           <div class="space-y-1">
             <label for="phone" class="text-[10px] font-semibold uppercase tracking-[0.3em] text-neutral-400">

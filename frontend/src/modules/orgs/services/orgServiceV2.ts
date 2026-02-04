@@ -459,50 +459,33 @@ export const orgService = {
    * @returns Members with profile summaries.
    */
   async listMembers(orgId: string): Promise<OrgMember[]> {
-    const { data, error } = await supabase
-      .from("org_members")
-      .select(
-        `
-        org_id,
-        user_id,
-        role,
-        joined_at,
-        public_profiles!inner (
-          id,
-          username,
-          name,
-          xp
-        )
-      `
-      )
-      .eq("org_id", orgId);
+    // Use RPC to bypass RLS (SECURITY DEFINER checks membership internally)
+    const { data, error } = await supabase.rpc("get_org_members", {
+      p_org_id: orgId,
+    });
 
     if (error) {
       throw error;
     }
 
-    return data.map((item) => {
-      const profile = Array.isArray(item.public_profiles) ? item.public_profiles[0] : item.public_profiles;
+    if (!data || !Array.isArray(data)) {
+      return [];
+    }
 
-      if (!profile) {
-        throw new Error("Invariant violation: org_members row without profile");
-      }
-
-      return {
-        membership: {
-          org_id: item.org_id,
-          user_id: item.user_id,
-          role: item.role,
-          joined_at: item.joined_at,
-        },
-        profile: {
-          id: profile.id,
-          username: profile.username,
-          name: profile.name,
-          xp: profile.xp,
-        },
-      };
-    });
+    return data.map((item: any) => ({
+      membership: {
+        org_id: item.org_id,
+        user_id: item.user_id,
+        role: item.role,
+        joined_at: item.joined_at,
+      },
+      profile: {
+        id: item.profile.id,
+        username: item.profile.username,
+        name: item.profile.name,
+        xp: item.profile.xp,
+      },
+    }));
   },
 
   /**

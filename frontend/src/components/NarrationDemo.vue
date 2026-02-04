@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { Listbox, ListboxButton, ListboxOptions, ListboxOption } from '@headlessui/vue';
+import { Icon } from '@iconify/vue';
 import { CDN_BASE } from '@/lib/cdn';
 
 type NarrationCategory = string;
@@ -66,6 +68,12 @@ const selectedExampleId = ref<NarrationCategory>('commentary');
 const selectedExample = computed(
   () => narrationExamples.find((example) => example.id === selectedExampleId.value) ?? narrationExamples[0]
 );
+
+// For Listbox
+const selectedListboxExample = ref<NarrationExample>(narrationExamples[0]!);
+watch(selectedListboxExample, (example) => {
+  selectedExampleId.value = example.id;
+});
 
 const audioRef = ref<HTMLAudioElement | null>(null);
 const isPlaying = ref(false);
@@ -288,12 +296,44 @@ onBeforeUnmount(() => {
           {{ selectedExample.summary }}
         </p> -->
       </div>
-      <select id="narration-demo-select" v-model="selectedExampleId"
-        class="w-full rounded-full border border-neutral-300/80 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-neutral-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-neutral-800/70 disabled:cursor-not-allowed dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100 dark:focus:ring-neutral-100/40 dark:[color-scheme:dark] md:w-auto">
-        <option v-for="example in narrationExamples" :key="example.id" :value="example.id">
-          {{ example.label }}
-        </option>
-      </select>
+      <Listbox v-model="selectedListboxExample">
+        <div class="relative w-full md:w-auto">
+          <ListboxButton class="relative w-full cursor-pointer rounded-full border border-neutral-300/80 bg-white px-4 py-2 pr-10 text-left text-xs font-semibold uppercase tracking-[0.2em] text-neutral-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-neutral-800/70 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100 dark:focus:ring-neutral-100/40">
+            <span class="block truncate">{{ selectedListboxExample.label }}</span>
+            <span class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+              <Icon icon="carbon:chevron-down" class="h-4 w-4 text-neutral-400 dark:text-neutral-500" />
+            </span>
+          </ListboxButton>
+          
+          <transition
+            leave-active-class="transition duration-100 ease-in"
+            leave-from-class="opacity-100"
+            leave-to-class="opacity-0"
+          >
+            <ListboxOptions class="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-white border border-neutral-300 py-1 text-sm shadow-lg focus:outline-none dark:bg-neutral-900 dark:border-neutral-700">
+              <ListboxOption
+                v-for="example in narrationExamples"
+                :key="example.id"
+                :value="example"
+                as="template"
+                v-slot="{ active, selected }"
+              >
+                <li
+                  class="relative cursor-pointer select-none py-2 pl-3 pr-9"
+                  :class="active ? 'bg-neutral-100 text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100' : 'text-neutral-700 dark:text-neutral-300'"
+                >
+                  <span :class="selected ? 'font-semibold' : 'font-normal'" class="block truncate">
+                    {{ example.label }}
+                  </span>
+                  <span v-if="selected" class="absolute inset-y-0 right-0 flex items-center pr-3 text-green-600 dark:text-green-500">
+                    <Icon icon="carbon:checkmark" class="h-4 w-4" />
+                  </span>
+                </li>
+              </ListboxOption>
+            </ListboxOptions>
+          </transition>
+        </div>
+      </Listbox>
     </header>
 
     <div

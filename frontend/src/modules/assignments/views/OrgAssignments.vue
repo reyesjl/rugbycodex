@@ -2,6 +2,8 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useRoute, useRouter } from 'vue-router';
+import { Listbox, ListboxButton, ListboxOptions, ListboxOption } from '@headlessui/vue';
+import { Icon } from '@iconify/vue';
 import { useAuthStore } from '@/modules/auth/stores/useAuthStore';
 import { getRelativeDaysWeeks } from '@/lib/date';
 import { toast } from '@/lib/toast';
@@ -20,6 +22,33 @@ import {
 import type { AssignmentTargetType, OrgAssignmentListItem, OrgAssignmentTarget } from '@/modules/assignments/types';
 import CreateAssignmentModal from '@/modules/assignments/components/CreateAssignmentModal.vue';
 import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
+
+type ExtendOption = {
+  value: number | null;
+  label: string;
+};
+
+type StatusOption = {
+  value: 'all' | 'overdue' | 'due_soon' | 'completed';
+  label: string;
+};
+
+type TargetOption = {
+  value: 'all' | 'team' | 'group' | 'player';
+  label: string;
+};
+
+type GroupOption = {
+  value: string;
+  label: string;
+  group: OrgGroup;
+};
+
+type PlayerOption = {
+  value: string;
+  label: string;
+  member: OrgMember;
+};
 
 const route = useRoute();
 const router = useRouter();
@@ -52,15 +81,48 @@ const isDeleting = ref(false);
 const isBulkDelete = ref(false);
 const extendByDays = ref<number | null>(null);
 const isExtending = ref(false);
-const extendOptions = [
+
+const extendOptionList: ExtendOption[] = [
+  { value: null, label: 'Select' },
   { value: 1, label: '1 day' },
   { value: 2, label: '2 days' },
   { value: 3, label: '3 days' },
   { value: 7, label: '1 week' },
-] as const;
+];
+const selectedExtendOption = ref<ExtendOption>(extendOptionList[0]!);
 
-const statusFilter = ref<'all' | 'overdue' | 'due_soon' | 'completed'>('all');
-const targetFilter = ref<'all' | 'team' | 'group' | 'player'>('all');
+const statusOptionList: StatusOption[] = [
+  { value: 'all', label: 'All' },
+  { value: 'overdue', label: 'Overdue' },
+  { value: 'due_soon', label: 'Due Soon' },
+  { value: 'completed', label: 'Completed' },
+];
+const selectedStatusOption = ref<StatusOption>(statusOptionList[0]!);
+
+const targetOptionList: TargetOption[] = [
+  { value: 'all', label: 'All' },
+  { value: 'team', label: 'Team' },
+  { value: 'group', label: 'Group' },
+  { value: 'player', label: 'Player' },
+];
+const selectedTargetOption = ref<TargetOption>(targetOptionList[0]!);
+
+const statusFilter = computed({
+  get: () => selectedStatusOption.value.value,
+  set: (val) => {
+    const option = statusOptionList.find(o => o.value === val);
+    if (option) selectedStatusOption.value = option;
+  },
+});
+
+const targetFilter = computed({
+  get: () => selectedTargetOption.value.value,
+  set: (val) => {
+    const option = targetOptionList.find(o => o.value === val);
+    if (option) selectedTargetOption.value = option;
+  },
+});
+
 const groupFilter = ref('all');
 const playerFilter = ref('all');
 const assignmentIdFilter = ref('');
@@ -673,6 +735,56 @@ const playerOptions = computed(() => {
   }));
 });
 
+const groupListboxOptions = computed<GroupOption[]>(() => {
+  const options: GroupOption[] = [
+    { value: 'all', label: 'All', group: null as any },
+  ];
+  for (const g of groups.value) {
+    options.push({
+      value: g.group.id,
+      label: g.group.name,
+      group: g.group,
+    });
+  }
+  return options;
+});
+
+const selectedGroupOption = ref<GroupOption | null>(null);
+watch(groupListboxOptions, (opts) => {
+  selectedGroupOption.value = opts[0] ?? null;
+}, { immediate: true });
+
+watch(selectedGroupOption, (opt) => {
+  if (opt) groupFilter.value = opt.value;
+});
+
+const playerListboxOptions = computed<PlayerOption[]>(() => {
+  const options: PlayerOption[] = [
+    { value: 'all', label: 'All', member: null as any },
+  ];
+  for (const m of members.value) {
+    options.push({
+      value: m.profile.id,
+      label: m.profile.name || m.profile.username || 'Player',
+      member: m,
+    });
+  }
+  return options;
+});
+
+const selectedPlayerOption = ref<PlayerOption | null>(null);
+watch(playerListboxOptions, (opts) => {
+  selectedPlayerOption.value = opts[0] ?? null;
+}, { immediate: true });
+
+watch(selectedPlayerOption, (opt) => {
+  if (opt) playerFilter.value = opt.value;
+});
+
+watch(selectedExtendOption, (opt) => {
+  extendByDays.value = opt.value;
+});
+
 const groupList = computed(() => {
   return groups.value.map((g) => g.group);
 });
@@ -814,16 +926,44 @@ watch(playerOptions, (nextOptions) => {
         <div v-if="selectedCount > 0" class="flex flex-wrap items-center gap-3 text-xs">
           <label class="flex items-center gap-2 text-white/60">
             <span class="text-white/40">Extend by</span>
-            <select
-              v-model="extendByDays"
-              class="rounded bg-black/70 px-2 py-1 text-white ring-1 ring-white/10"
-              :disabled="!canManage"
-            >
-              <option :value="null">Select</option>
-              <option v-for="option in extendOptions" :key="option.value" :value="option.value">
-                {{ option.label }}
-              </option>
-            </select>
+            <Listbox v-model="selectedExtendOption" :disabled="!canManage">
+              <div class="relative">
+                <ListboxButton class="relative w-full cursor-pointer rounded bg-black/70 px-2 py-1 pr-8 text-left text-sm ring-1 ring-white/10 focus:outline-none disabled:opacity-50">
+                  <span class="block truncate">{{ selectedExtendOption.label }}</span>
+                  <span class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
+                    <Icon icon="carbon:chevron-down" class="h-4 w-4 text-white/40" />
+                  </span>
+                </ListboxButton>
+                
+                <transition
+                  leave-active-class="transition duration-100 ease-in"
+                  leave-from-class="opacity-100"
+                  leave-to-class="opacity-0"
+                >
+                  <ListboxOptions class="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-gray-900 border border-white/20 py-1 text-sm shadow-lg focus:outline-none">
+                    <ListboxOption
+                      v-for="option in extendOptionList"
+                      :key="option.value ?? 'null'"
+                      :value="option"
+                      as="template"
+                      v-slot="{ active, selected }"
+                    >
+                      <li
+                        class="relative cursor-pointer select-none py-2 pl-3 pr-9"
+                        :class="active ? 'bg-white/10 text-white' : 'text-white/70'"
+                      >
+                        <span :class="selected ? 'font-semibold' : 'font-normal'" class="block truncate">
+                          {{ option.label }}
+                        </span>
+                        <span v-if="selected" class="absolute inset-y-0 right-0 flex items-center pr-3 text-green-500">
+                          <Icon icon="carbon:checkmark" class="h-4 w-4" />
+                        </span>
+                      </li>
+                    </ListboxOption>
+                  </ListboxOptions>
+                </transition>
+              </div>
+            </Listbox>
           </label>
           <button
             type="button"
@@ -846,54 +986,170 @@ watch(playerOptions, (nextOptions) => {
         <div v-else class="flex flex-wrap items-center gap-3">
           <label class="hidden items-center gap-2 md:flex">
             <span class="text-white/40">Status</span>
-            <select
-              v-model="statusFilter"
-              class="rounded bg-black/70 px-2 py-1 text-white ring-1 ring-white/10"
-            >
-              <option value="all">All</option>
-              <option value="overdue">Overdue</option>
-              <option value="due_soon">Due Soon</option>
-              <option value="completed">Completed</option>
-            </select>
+            <Listbox v-model="selectedStatusOption">
+              <div class="relative">
+                <ListboxButton class="relative w-full cursor-pointer rounded bg-black/70 px-2 py-1 pr-8 text-left text-sm ring-1 ring-white/10 focus:outline-none">
+                  <span class="block truncate">{{ selectedStatusOption.label }}</span>
+                  <span class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
+                    <Icon icon="carbon:chevron-down" class="h-4 w-4 text-white/40" />
+                  </span>
+                </ListboxButton>
+                
+                <transition
+                  leave-active-class="transition duration-100 ease-in"
+                  leave-from-class="opacity-100"
+                  leave-to-class="opacity-0"
+                >
+                  <ListboxOptions class="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-gray-900 border border-white/20 py-1 text-sm shadow-lg focus:outline-none">
+                    <ListboxOption
+                      v-for="option in statusOptionList"
+                      :key="option.value"
+                      :value="option"
+                      as="template"
+                      v-slot="{ active, selected }"
+                    >
+                      <li
+                        class="relative cursor-pointer select-none py-2 pl-3 pr-9"
+                        :class="active ? 'bg-white/10 text-white' : 'text-white/70'"
+                      >
+                        <span :class="selected ? 'font-semibold' : 'font-normal'" class="block truncate">
+                          {{ option.label }}
+                        </span>
+                        <span v-if="selected" class="absolute inset-y-0 right-0 flex items-center pr-3 text-green-500">
+                          <Icon icon="carbon:checkmark" class="h-4 w-4" />
+                        </span>
+                      </li>
+                    </ListboxOption>
+                  </ListboxOptions>
+                </transition>
+              </div>
+            </Listbox>
           </label>
 
           <label class="flex items-center gap-2">
             <span class="text-white/40">Target</span>
-            <select
-              v-model="targetFilter"
-              class="rounded bg-black/70 px-2 py-1 text-white ring-1 ring-white/10"
-            >
-              <option value="all">All</option>
-              <option value="team">Team</option>
-              <option value="group">Group</option>
-              <option value="player">Player</option>
-            </select>
+            <Listbox v-model="selectedTargetOption">
+              <div class="relative">
+                <ListboxButton class="relative w-full cursor-pointer rounded bg-black/70 px-2 py-1 pr-8 text-left text-sm ring-1 ring-white/10 focus:outline-none">
+                  <span class="block truncate">{{ selectedTargetOption.label }}</span>
+                  <span class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
+                    <Icon icon="carbon:chevron-down" class="h-4 w-4 text-white/40" />
+                  </span>
+                </ListboxButton>
+                
+                <transition
+                  leave-active-class="transition duration-100 ease-in"
+                  leave-from-class="opacity-100"
+                  leave-to-class="opacity-0"
+                >
+                  <ListboxOptions class="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-gray-900 border border-white/20 py-1 text-sm shadow-lg focus:outline-none">
+                    <ListboxOption
+                      v-for="option in targetOptionList"
+                      :key="option.value"
+                      :value="option"
+                      as="template"
+                      v-slot="{ active, selected }"
+                    >
+                      <li
+                        class="relative cursor-pointer select-none py-2 pl-3 pr-9"
+                        :class="active ? 'bg-white/10 text-white' : 'text-white/70'"
+                      >
+                        <span :class="selected ? 'font-semibold' : 'font-normal'" class="block truncate">
+                          {{ option.label }}
+                        </span>
+                        <span v-if="selected" class="absolute inset-y-0 right-0 flex items-center pr-3 text-green-500">
+                          <Icon icon="carbon:checkmark" class="h-4 w-4" />
+                        </span>
+                      </li>
+                    </ListboxOption>
+                  </ListboxOptions>
+                </transition>
+              </div>
+            </Listbox>
           </label>
 
-          <label v-if="targetFilter !== 'player' && groupOptions.length > 0" class="hidden items-center gap-2 md:flex">
+          <label v-if="targetFilter !== 'player' && groupListboxOptions.length > 1 && selectedGroupOption" class="hidden items-center gap-2 md:flex">
             <span class="text-white/40">Group</span>
-            <select
-              v-model="groupFilter"
-              class="rounded bg-black/70 px-2 py-1 text-white ring-1 ring-white/10"
-            >
-              <option value="all">All</option>
-              <option v-for="g in groupOptions" :key="g.id" :value="g.id">
-                {{ g.name }}
-              </option>
-            </select>
+            <Listbox v-model="selectedGroupOption">
+              <div class="relative">
+                <ListboxButton class="relative w-full cursor-pointer rounded bg-black/70 px-2 py-1 pr-8 text-left text-sm ring-1 ring-white/10 focus:outline-none">
+                  <span class="block truncate">{{ selectedGroupOption.label }}</span>
+                  <span class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
+                    <Icon icon="carbon:chevron-down" class="h-4 w-4 text-white/40" />
+                  </span>
+                </ListboxButton>
+                
+                <transition
+                  leave-active-class="transition duration-100 ease-in"
+                  leave-from-class="opacity-100"
+                  leave-to-class="opacity-0"
+                >
+                  <ListboxOptions class="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-gray-900 border border-white/20 py-1 text-sm shadow-lg focus:outline-none">
+                    <ListboxOption
+                      v-for="option in groupListboxOptions"
+                      :key="option.value"
+                      :value="option"
+                      as="template"
+                      v-slot="{ active, selected }"
+                    >
+                      <li
+                        class="relative cursor-pointer select-none py-2 pl-3 pr-9"
+                        :class="active ? 'bg-white/10 text-white' : 'text-white/70'"
+                      >
+                        <span :class="selected ? 'font-semibold' : 'font-normal'" class="block truncate">
+                          {{ option.label }}
+                        </span>
+                        <span v-if="selected" class="absolute inset-y-0 right-0 flex items-center pr-3 text-green-500">
+                          <Icon icon="carbon:checkmark" class="h-4 w-4" />
+                        </span>
+                      </li>
+                    </ListboxOption>
+                  </ListboxOptions>
+                </transition>
+              </div>
+            </Listbox>
           </label>
 
-          <label v-else-if="targetFilter === 'player' && playerOptions.length > 0" class="flex items-center gap-2">
+          <label v-else-if="targetFilter === 'player' && playerListboxOptions.length > 1 && selectedPlayerOption" class="flex items-center gap-2">
             <span class="text-white/40">Player</span>
-            <select
-              v-model="playerFilter"
-              class="rounded bg-black/70 px-2 py-1 text-white ring-1 ring-white/10"
-            >
-              <option value="all">All</option>
-              <option v-for="p in playerOptions" :key="p.id" :value="p.id">
-                {{ p.name }}
-              </option>
-            </select>
+            <Listbox v-model="selectedPlayerOption">
+              <div class="relative">
+                <ListboxButton class="relative w-full cursor-pointer rounded bg-black/70 px-2 py-1 pr-8 text-left text-sm ring-1 ring-white/10 focus:outline-none">
+                  <span class="block truncate">{{ selectedPlayerOption.label }}</span>
+                  <span class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
+                    <Icon icon="carbon:chevron-down" class="h-4 w-4 text-white/40" />
+                  </span>
+                </ListboxButton>
+                
+                <transition
+                  leave-active-class="transition duration-100 ease-in"
+                  leave-from-class="opacity-100"
+                  leave-to-class="opacity-0"
+                >
+                  <ListboxOptions class="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-gray-900 border border-white/20 py-1 text-sm shadow-lg focus:outline-none">
+                    <ListboxOption
+                      v-for="option in playerListboxOptions"
+                      :key="option.value"
+                      :value="option"
+                      as="template"
+                      v-slot="{ active, selected }"
+                    >
+                      <li
+                        class="relative cursor-pointer select-none py-2 pl-3 pr-9"
+                        :class="active ? 'bg-white/10 text-white' : 'text-white/70'"
+                      >
+                        <span :class="selected ? 'font-semibold' : 'font-normal'" class="block truncate">
+                          {{ option.label }}
+                        </span>
+                        <span v-if="selected" class="absolute inset-y-0 right-0 flex items-center pr-3 text-green-500">
+                          <Icon icon="carbon:checkmark" class="h-4 w-4" />
+                        </span>
+                      </li>
+                    </ListboxOption>
+                  </ListboxOptions>
+                </transition>
+              </div>
+            </Listbox>
           </label>
         </div>
       </div>

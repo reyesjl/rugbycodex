@@ -1,5 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { getAuthContext, getClientBoundToRequest } from "../_shared/auth.ts";
+import { getAuthContext, getClientBoundToRequest, getServiceRoleClient } from "../_shared/auth.ts";
 import { handleCors, jsonResponse } from "../_shared/cors.ts";
 import { errorResponse } from "../_shared/errors.ts";
 import {
@@ -138,9 +138,10 @@ Deno.serve(withObservability("change-member-role", async (req, ctx) => {
     }
 
     // =========================================================================
-    // Load target membership
+    // Load target membership (use service role to bypass RLS)
     // =========================================================================
-    const { data: targetMembership, error: targetError } = await supabase
+    const supabaseAdmin = getServiceRoleClient();
+    const { data: targetMembership, error: targetError } = await supabaseAdmin
       .from("org_members")
       .select("role")
       .eq("org_id", orgId)
@@ -211,8 +212,8 @@ Deno.serve(withObservability("change-member-role", async (req, ctx) => {
     const isDemotingOwner = targetRole === "owner" && requestedRole !== "owner";
 
     if (isDemotingOwner) {
-      // Count current owners in the organization
-      const { count, error: countError } = await supabase
+      // Count current owners in the organization (use service role)
+      const { count, error: countError } = await supabaseAdmin
         .from("org_members")
         .select("*", { count: "exact", head: true })
         .eq("org_id", orgId)
@@ -238,9 +239,9 @@ Deno.serve(withObservability("change-member-role", async (req, ctx) => {
     }
 
     // =========================================================================
-    // Execute role update
+    // Execute role update (use service role to bypass RLS)
     // =========================================================================
-    const { data: updatedMembership, error: updateError } = await supabase
+    const { data: updatedMembership, error: updateError } = await supabaseAdmin
       .from("org_members")
       .update({ role: requestedRole })
       .eq("org_id", orgId)

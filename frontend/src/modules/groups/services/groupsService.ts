@@ -66,4 +66,14 @@ export const groupsService = {
     const { error } = await supabase.from('group_members').delete().eq('group_id', groupId).eq('profile_id', userId);
     if (error) throw error;
   },
+
+  async deleteGroup(groupId: string): Promise<void> {
+    // First delete all group members (cascade should handle this, but explicit is safer)
+    const { error: membersError } = await supabase.from('group_members').delete().eq('group_id', groupId);
+    if (membersError) throw membersError;
+
+    // Then delete the group itself
+    const { error: groupError } = await supabase.from('groups').delete().eq('id', groupId);
+    if (groupError) throw groupError;
+  },
 };

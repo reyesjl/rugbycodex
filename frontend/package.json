@@ -9,11 +9,11 @@
     "preview": "vite preview",
     "lint": "eslint . --ext .js,.ts,.vue",
     "deploy:functions": "for d in supabase/functions/*; do fn=$(basename \"$d\"); npx supabase functions deploy \"$fn\" --no-verify-jwt; done"
-
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.956.0",
     "@aws-sdk/lib-storage": "^3.956.0",
+    "@headlessui/vue": "^1.7.23",
     "@iconify/vue": "^5.0.0",
     "@noble/hashes": "^2.0.1",
     "@supabase/supabase-js": "^2.58.0",

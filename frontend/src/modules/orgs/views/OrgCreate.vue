@@ -1,9 +1,16 @@
 <script lang="ts" setup>
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
+import { Listbox, ListboxButton, ListboxOptions, ListboxOption } from '@headlessui/vue';
+import { Icon } from '@iconify/vue';
 import { toast } from "@/lib/toast";
 import { useRoute, useRouter } from 'vue-router';
 import { orgService } from '@/modules/orgs/services/orgServiceV2';
 import type { OrganizationType } from '@/modules/orgs/types';
+
+type OrgTypeOption = {
+  value: OrganizationType;
+  label: string;
+};
 
 const router = useRouter();
 const route = useRoute();
@@ -14,11 +21,17 @@ const message = ref('');
 const loading = ref(false);
 const errors = ref<Record<string, string>>({});
 
-const organizationTypes: { value: OrganizationType; label: string }[] = [
+const organizationTypes: OrgTypeOption[] = [
   { value: 'team', label: 'Team' },
   { value: 'academy', label: 'Academy' },
   { value: 'personal', label: 'Personal' },
 ];
+
+const selectedOrgType = ref<OrgTypeOption>(organizationTypes[0]!);
+
+watch(selectedOrgType, (opt) => {
+  type.value = opt.value;
+});
 
 const validateForm = (): boolean => {
   errors.value = {};
@@ -103,16 +116,47 @@ const cancel = () => {
         <!-- Organization Type -->
         <div class="flex flex-col gap-2 md:grid md:grid-cols-12">
           <div class="col-span-4">
-            <label class="text-sm" for="type">Type<span class="text-red-400">*</span></label>
+            <label class="text-sm">Type<span class="text-red-400">*</span></label>
           </div>
           <div class="col-span-8">
-            <select v-model="type" id="type"
-              class="text-sm w-full rounded bg-white/10 border border-white/20 px-2 py-1 focus:border-white outline-none"
-              :disabled="loading">
-              <option v-for="opt in organizationTypes" :key="opt.value" :value="opt.value" class="bg-black text-white">
-                {{ opt.label }}
-              </option>
-            </select>
+            <Listbox v-model="selectedOrgType" :disabled="loading">
+              <div class="relative">
+                <ListboxButton class="relative w-full cursor-pointer rounded bg-white/10 border border-white/20 px-2 py-1 pr-10 text-left text-sm focus:border-white outline-none disabled:opacity-50">
+                  <span class="block truncate">{{ selectedOrgType.label }}</span>
+                  <span class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
+                    <Icon icon="carbon:chevron-down" class="h-4 w-4 text-white/40" />
+                  </span>
+                </ListboxButton>
+                
+                <transition
+                  leave-active-class="transition duration-100 ease-in"
+                  leave-from-class="opacity-100"
+                  leave-to-class="opacity-0"
+                >
+                  <ListboxOptions class="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-gray-900 border border-white/20 py-1 text-sm shadow-lg focus:outline-none">
+                    <ListboxOption
+                      v-for="opt in organizationTypes"
+                      :key="opt.value"
+                      :value="opt"
+                      as="template"
+                      v-slot="{ active, selected }"
+                    >
+                      <li
+                        class="relative cursor-pointer select-none py-2 pl-3 pr-9"
+                        :class="active ? 'bg-white/10 text-white' : 'text-white/70'"
+                      >
+                        <span :class="selected ? 'font-semibold' : 'font-normal'" class="block truncate">
+                          {{ opt.label }}
+                        </span>
+                        <span v-if="selected" class="absolute inset-y-0 right-0 flex items-center pr-3 text-green-500">
+                          <Icon icon="carbon:checkmark" class="h-4 w-4" />
+                        </span>
+                      </li>
+                    </ListboxOption>
+                  </ListboxOptions>
+                </transition>
+              </div>
+            </Listbox>
           </div>
         </div>
 

@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue';
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { useRoute, useRouter, RouterLink } from 'vue-router';
+import { onBeforeUnmount, onMounted, ref } from 'vue';
+import { useRouter, RouterLink } from 'vue-router';
+import { Menu, MenuButton, MenuItems, MenuItem } from '@headlessui/vue';
 import { useAuthStore } from '@/modules/auth/stores/useAuthStore';
 import OrgSwitcher from './OrgSwitcher.vue';
 
@@ -12,15 +13,9 @@ const authStore = useAuthStore();
 const navRef = ref<HTMLElement | null>(null);
 let resizeObserver: globalThis.ResizeObserver | null = null;
 
-// Refs for user menu
-const userMenuRef = ref<HTMLElement | null>(null);
-const avatarButtonRef = ref<HTMLElement | null>(null);
-
-const menuOpen = ref(false);
 const loggingOut = ref(false);
 
 const router = useRouter();
-const route = useRoute();
 
 const emit = defineEmits<{
   (e: 'toggle-sidebar'): void;
@@ -28,23 +23,6 @@ const emit = defineEmits<{
 
 const handleSidebarToggle = () => {
   emit('toggle-sidebar');
-};
-
-const closeMenu = () => {
-  menuOpen.value = false;
-};
-
-const toggleMenu = () => {
-  menuOpen.value = !menuOpen.value;
-};
-
-const handleClickOutside = (event: MouseEvent) => {
-  if (!menuOpen.value) return;
-
-  const target = event.target as Node | null;
-  if (avatarButtonRef.value?.contains(target) || userMenuRef.value?.contains(target)) return;
-
-  closeMenu();
 };
 
 const handleLogout = async () => {
@@ -57,7 +35,6 @@ const handleLogout = async () => {
       loggingOut.value = false;
       return;
     }
-    closeMenu();
     await router.push('/auth/login');
   } finally {
     loggingOut.value = false;
@@ -96,9 +73,6 @@ const initNavResizeObserver = () => {
 onMounted(() => {
   setNavHeightVar();
   initNavResizeObserver();
-  if (typeof window !== 'undefined') {
-    document.addEventListener('click', handleClickOutside);
-  }
 });
 
 onBeforeUnmount(() => {
@@ -106,14 +80,8 @@ onBeforeUnmount(() => {
   resizeObserver = null;
   if (typeof window !== 'undefined') {
     document.documentElement.style.removeProperty('--main-nav-height');
-    document.removeEventListener('click', handleClickOutside);
   }
 });
-
-watch(
-  () => route.fullPath,
-  () => closeMenu()
-);
 </script>
 
 <template>
@@ -153,56 +121,67 @@ watch(
               class="h-full w-full p-2 hover:bg-white/10 rounded-full cursor-pointer"
             />
           </div>
-          <div v-if="authStore.isAuthenticated" class="relative">
-            <button
-              ref="avatarButtonRef"
-              type="button"
-              class="flex items-center rounded-full p-1 hover:bg-white/10 focus:outline-none"
-              @click.stop="toggleMenu"
-              aria-label="User menu"
-            >
-              <Icon icon="carbon:user-avatar" width="23" height="23" class="text-white" />
-              <Icon
-                icon="carbon:chevron-down"
-                width="16"
-                height="16"
-                class="ml-1 text-white/70 transition-transform"
-                :class="menuOpen ? 'rotate-180' : ''"
-              />
-            </button>
-            <transition name="fade">
-              <div
-                v-if="menuOpen"
-                ref="userMenuRef"
-                class="absolute right-0 mt-2 w-56 rounded-md border border-white/10 bg-black/90 p-2 text-sm"
+          <div v-if="authStore.isAuthenticated">
+            <Menu as="div" class="relative" v-slot="{ open }">
+              <MenuButton
+                class="flex items-center rounded-full p-1 hover:bg-white/10 focus:outline-none"
+                aria-label="User menu"
               >
-                <RouterLink
-                  to="/profile"
-                  class="flex items-center rounded px-3 py-2 text-white hover:bg-white/15 transition"
-                  @click="closeMenu"
+                <Icon icon="carbon:user-avatar" width="23" height="23" class="text-white" />
+                <Icon
+                  icon="carbon:chevron-down"
+                  width="16"
+                  height="16"
+                  class="ml-1 text-white/70 transition-transform"
+                  :class="open ? 'rotate-180' : ''"
+                />
+              </MenuButton>
+              <transition
+                enter-active-class="transition duration-100 ease-out"
+                enter-from-class="transform scale-95 opacity-0"
+                enter-to-class="transform scale-100 opacity-100"
+                leave-active-class="transition duration-75 ease-in"
+                leave-from-class="transform scale-100 opacity-100"
+                leave-to-class="transform scale-95 opacity-0"
+              >
+                <MenuItems
+                  class="absolute right-0 mt-2 w-56 rounded-md border border-white/10 bg-black/90 p-2 text-sm focus:outline-none"
                 >
-                  <Icon icon="carbon:user-profile" width="18" height="18" class="mr-2" />
-                  Profile
-                </RouterLink>
-                <RouterLink
-                  to="/settings"
-                  class="flex items-center rounded px-3 py-2 text-white hover:bg-white/15 transition"
-                  @click="closeMenu"
-                >
-                  <Icon icon="carbon:settings" width="18" height="18" class="mr-2" />
-                  Settings
-                </RouterLink>
-                <button
-                  type="button"
-                  class="mt-1 flex w-full items-center rounded px-3 py-2 text-left text-rose-300 hover:bg-rose-500/10 transition"
-                  @click="handleLogout"
-                  :disabled="loggingOut"
-                >
-                  <Icon icon="carbon:logout" width="18" height="18" class="mr-2" />
-                  <span>{{ loggingOut ? 'Signing out…' : 'Sign out' }}</span>
-                </button>
-              </div>
-            </transition>
+                  <MenuItem v-slot="{ active }">
+                    <RouterLink
+                      to="/profile"
+                      class="flex items-center rounded px-3 py-2 text-white transition"
+                      :class="active ? 'bg-white/15' : ''"
+                    >
+                      <Icon icon="carbon:user-profile" width="18" height="18" class="mr-2" />
+                      Profile
+                    </RouterLink>
+                  </MenuItem>
+                  <MenuItem v-slot="{ active }">
+                    <RouterLink
+                      to="/settings"
+                      class="flex items-center rounded px-3 py-2 text-white transition"
+                      :class="active ? 'bg-white/15' : ''"
+                    >
+                      <Icon icon="carbon:settings" width="18" height="18" class="mr-2" />
+                      Settings
+                    </RouterLink>
+                  </MenuItem>
+                  <MenuItem v-slot="{ active }">
+                    <button
+                      type="button"
+                      class="mt-1 flex w-full items-center rounded px-3 py-2 text-left text-rose-300 transition"
+                      :class="active ? 'bg-rose-500/10' : ''"
+                      @click="handleLogout"
+                      :disabled="loggingOut"
+                    >
+                      <Icon icon="carbon:logout" width="18" height="18" class="mr-2" />
+                      <span>{{ loggingOut ? 'Signing out…' : 'Sign out' }}</span>
+                    </button>
+                  </MenuItem>
+                </MenuItems>
+              </transition>
+            </Menu>
           </div>
           <RouterLink
             v-else
@@ -216,15 +195,3 @@ watch(
     </div>
   </nav>
 </template>
-
-<style scoped>
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.15s ease;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
-</style>

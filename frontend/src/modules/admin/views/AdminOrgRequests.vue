@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Icon } from "@iconify/vue";
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { Listbox, ListboxButton, ListboxOptions, ListboxOption } from '@headlessui/vue';
 import { orgService } from "@/modules/orgs/services/orgServiceV2";
 import { toast } from "@/lib/toast";
 import type {
@@ -11,6 +12,11 @@ import type {
 
 type ActionState = "approve" | "reject";
 
+type StatusOption = {
+  value: OrganizationRequestStatus | "all";
+  label: string;
+};
+
 const requests = ref<OrgRequestAdminView[]>([]);
 const loading = ref(false);
 const error = ref<string | null>(null);
@@ -20,13 +26,19 @@ const actionById = ref<Record<string, ActionState>>({});
 const rejectionNotes = ref<Record<string, string>>({});
 const expandedById = ref<Record<string, boolean>>({});
 
-const statusOptions: { value: OrganizationRequestStatus | "all"; label: string }[] = [
+const statusOptions: StatusOption[] = [
   { value: "pending", label: "Pending" },
   { value: "approved", label: "Approved" },
   { value: "rejected", label: "Rejected" },
   { value: "contacted", label: "Contacted" },
   { value: "all", label: "All" },
 ];
+
+const selectedStatusOption = ref<StatusOption>(statusOptions[0]!);
+
+watch(selectedStatusOption, (opt) => {
+  statusFilter.value = opt.value;
+});
 
 const pendingCount = computed(
   () => requests.value.filter((request) => request.status === "pending").length
@@ -231,20 +243,47 @@ onMounted(() => {
           <div class="flex flex-col gap-1">
             <label
               class="text-[11px] uppercase tracking-[0.3em] text-white/50"
-              for="status-filter"
             >
               Status
             </label>
-            <select
-              id="status-filter"
-              v-model="statusFilter"
-              class="rounded border border-white/20 bg-black/40 px-2 py-1 text-xs text-white outline-none"
-              :disabled="loading"
-            >
-              <option v-for="option in statusOptions" :key="option.value" :value="option.value" class="bg-black">
-                {{ option.label }}
-              </option>
-            </select>
+            <Listbox v-model="selectedStatusOption" :disabled="loading">
+              <div class="relative">
+                <ListboxButton class="relative w-full cursor-pointer rounded border border-white/20 bg-black/40 px-2 py-1 pr-8 text-left text-xs text-white outline-none disabled:opacity-50">
+                  <span class="block truncate">{{ selectedStatusOption.label }}</span>
+                  <span class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
+                    <Icon icon="carbon:chevron-down" class="h-4 w-4 text-white/40" />
+                  </span>
+                </ListboxButton>
+                
+                <transition
+                  leave-active-class="transition duration-100 ease-in"
+                  leave-from-class="opacity-100"
+                  leave-to-class="opacity-0"
+                >
+                  <ListboxOptions class="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-gray-900 border border-white/20 py-1 text-sm shadow-lg focus:outline-none">
+                    <ListboxOption
+                      v-for="option in statusOptions"
+                      :key="option.value"
+                      :value="option"
+                      as="template"
+                      v-slot="{ active, selected }"
+                    >
+                      <li
+                        class="relative cursor-pointer select-none py-2 pl-3 pr-9"
+                        :class="active ? 'bg-white/10 text-white' : 'text-white/70'"
+                      >
+                        <span :class="selected ? 'font-semibold' : 'font-normal'" class="block truncate">
+                          {{ option.label }}
+                        </span>
+                        <span v-if="selected" class="absolute inset-y-0 right-0 flex items-center pr-3 text-green-500">
+                          <Icon icon="carbon:checkmark" class="h-4 w-4" />
+                        </span>
+                      </li>
+                    </ListboxOption>
+                  </ListboxOptions>
+                </transition>
+              </div>
+            </Listbox>
           </div>
 
           <div class="flex flex-col gap-1">

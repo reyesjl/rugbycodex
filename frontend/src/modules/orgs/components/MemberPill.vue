@@ -3,16 +3,11 @@ import type { OrgMember } from "@/modules/orgs/types";
 
 defineProps<{
   member: OrgMember;
-  selected: boolean;
-  canManage: boolean;
-}>();
-
-const emit = defineEmits<{
-  toggle: [];
+  showRole?: boolean; // Optional prop to hide role tag
 }>();
 
 function displayName(m: OrgMember) {
-  return m.profile.username || m.profile.name;
+  return m.profile.name || m.profile.username || '';
 }
 
 function rolePillClass(role: string) {
@@ -34,19 +29,25 @@ function rolePillClass(role: string) {
 
 <template>
   <div
-    class="group flex items-center gap-2 rounded-full px-3 py-1.5 transition"
-    :class="[
-      selected ? 'border border-sky-500 bg-sky-500/10 shadow-lg shadow-sky-500/20' : 'border border-white/10 bg-white/0 hover:bg-white/5',
-      canManage ? 'hover:cursor-pointer' : ''
-    ]"
-    @click="emit('toggle')"
+    class="group flex items-center justify-between gap-2 rounded-full px-3 py-1.5 transition border border-white/10 bg-white/0 hover:bg-white/5 w-full"
   >
-    <span class="text-sm text-gray-500 group-hover:text-white transition">
-      {{ displayName(member) }}
-    </span>
-    <span class="text-[11px] px-2 py-0.5 rounded-full leading-none" :class="rolePillClass(member.membership.role)">
-      {{ member.membership.role }}
-    </span>
+    <div class="flex items-center gap-2 min-w-0">
+      <span class="text-sm text-gray-500 group-hover:text-white transition truncate">
+        {{ displayName(member) }}
+      </span>
+      <span 
+        v-if="showRole !== false"
+        class="text-[11px] px-2 py-0.5 rounded-full leading-none shrink-0" 
+        :class="rolePillClass(member.membership.role)"
+      >
+        {{ member.membership.role }}
+      </span>
+    </div>
+    
+    <!-- Actions slot for menu icon - pushed to the right -->
+    <div class="shrink-0">
+      <slot name="actions" />
+    </div>
   </div>
 </template>
 

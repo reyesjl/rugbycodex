@@ -1,6 +1,13 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { Icon } from '@iconify/vue';
+import {
+  Dialog,
+  DialogPanel,
+  DialogTitle,
+  TransitionRoot,
+  TransitionChild,
+} from '@headlessui/vue';
 
 type StatType = 'matches' | 'coverage' | 'learning' | 'attention' | 'identity';
 
@@ -87,106 +94,110 @@ const content = computed(() => statContent[props.statType]);
 const handleClose = () => {
   emit('close');
 };
-
-const handleBackdropClick = (e: MouseEvent) => {
-  if (e.target === e.currentTarget) {
-    handleClose();
-  }
-};
 </script>
 
 <template>
-  <Teleport to="body">
-    <Transition
-      enter-active-class="transition-opacity duration-200"
-      enter-from-class="opacity-0"
-      enter-to-class="opacity-100"
-      leave-active-class="transition-opacity duration-200"
-      leave-from-class="opacity-100"
-      leave-to-class="opacity-0"
-    >
-      <div
-        v-if="isOpen"
-        class="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-black/80 p-4 overflow-y-auto pt-20 sm:pt-4"
-        @click="handleBackdropClick"
+  <TransitionRoot :show="isOpen">
+    <Dialog @close="handleClose" class="relative z-[70]">
+      <!-- Backdrop -->
+      <TransitionChild
+        enter="ease-out duration-300"
+        enter-from="opacity-0"
+        enter-to="opacity-100"
+        leave="ease-in duration-200"
+        leave-from="opacity-100"
+        leave-to="opacity-0"
       >
-        <div
-          class="relative w-full max-w-lg rounded-lg border border-white/10 bg-gradient-to-b from-gray-900 to-black p-6 shadow-2xl my-8"
-          @click.stop
-        >
-          <!-- Close button -->
-          <button
-            @click="handleClose"
-            class="absolute right-4 top-4 rounded-lg p-2 text-white/50 transition hover:bg-white/10 hover:text-white"
+        <div class="fixed inset-0 bg-black/80" />
+      </TransitionChild>
+
+      <!-- Dialog container -->
+      <div class="fixed inset-0 overflow-y-auto">
+        <div class="flex min-h-full items-center justify-center p-4">
+          <TransitionChild
+            enter="ease-out duration-300"
+            enter-from="opacity-0 scale-95"
+            enter-to="opacity-100 scale-100"
+            leave="ease-in duration-200"
+            leave-from="opacity-100 scale-100"
+            leave-to="opacity-0 scale-95"
           >
-            <Icon icon="carbon:close" class="h-5 w-5" />
-          </button>
-
-          <!-- Header -->
-          <div class="mb-6 flex items-start gap-3">
-            <div class="rounded-lg bg-white/10 p-3">
-              <Icon :icon="content.icon" class="h-6 w-6 text-white" />
-            </div>
-            <div>
-              <h2 class="text-2xl font-semibold text-white">{{ content.title }}</h2>
-              <p class="mt-1 text-sm text-white/60">{{ content.description }}</p>
-            </div>
-          </div>
-
-          <!-- Content -->
-          <div class="space-y-4">
-            <!-- Explanation -->
-            <div>
-              <h3 class="mb-2 text-xs font-semibold uppercase tracking-wider text-white/40">
-                What This Measures
-              </h3>
-              <p class="text-sm leading-relaxed text-white/80">
-                {{ content.explanation }}
-              </p>
-            </div>
-
-            <!-- What it means -->
-            <div>
-              <h3 class="mb-2 text-xs font-semibold uppercase tracking-wider text-white/40">
-                What It Means for Your Org
-              </h3>
-              <ul class="space-y-2">
-                <li
-                  v-for="(point, index) in content.whatItMeans"
-                  :key="index"
-                  class="flex items-start gap-2 text-sm text-white/80"
-                >
-                  <Icon icon="carbon:checkmark" class="mt-0.5 h-4 w-4 flex-shrink-0 text-emerald-400" />
-                  <span>{{ point }}</span>
-                </li>
-              </ul>
-            </div>
-
-            <!-- Actionable insight -->
-            <div class="rounded-lg border border-blue-500/30 bg-blue-500/10 p-4">
-              <div class="mb-1 flex items-center gap-2">
-                <Icon icon="carbon:idea" class="h-4 w-4 text-blue-400" />
-                <h3 class="text-xs font-semibold uppercase tracking-wider text-blue-300">
-                  Pro Tip
-                </h3>
-              </div>
-              <p class="text-sm leading-relaxed text-blue-100">
-                {{ content.actionable }}
-              </p>
-            </div>
-          </div>
-
-          <!-- Footer -->
-          <div class="mt-6 flex justify-end">
+            <DialogPanel class="relative w-full max-w-lg rounded-lg border border-white/10 bg-gradient-to-b from-gray-900 to-black p-6 shadow-2xl my-8">
+            <!-- Close button -->
             <button
               @click="handleClose"
-              class="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/10"
+              class="absolute right-4 top-4 rounded-lg p-2 text-white/50 transition hover:bg-white/10 hover:text-white"
             >
-              Got it
+              <Icon icon="carbon:close" class="h-5 w-5" />
             </button>
-          </div>
+
+            <!-- Header -->
+            <div class="mb-6 flex items-start gap-3">
+              <div class="rounded-lg bg-white/10 p-3">
+                <Icon :icon="content.icon" class="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <DialogTitle as="h2" class="text-2xl font-semibold text-white">{{ content.title }}</DialogTitle>
+                <p class="mt-1 text-sm text-white/60">{{ content.description }}</p>
+              </div>
+            </div>
+
+            <!-- Content -->
+            <div class="space-y-4">
+              <!-- Explanation -->
+              <div>
+                <h3 class="mb-2 text-xs font-semibold uppercase tracking-wider text-white/40">
+                  What This Measures
+                </h3>
+                <p class="text-sm leading-relaxed text-white/80">
+                  {{ content.explanation }}
+                </p>
+              </div>
+
+              <!-- What it means -->
+              <div>
+                <h3 class="mb-2 text-xs font-semibold uppercase tracking-wider text-white/40">
+                  What It Means for Your Org
+                </h3>
+                <ul class="space-y-2">
+                  <li
+                    v-for="(point, index) in content.whatItMeans"
+                    :key="index"
+                    class="flex items-start gap-2 text-sm text-white/80"
+                  >
+                    <Icon icon="carbon:checkmark" class="mt-0.5 h-4 w-4 flex-shrink-0 text-emerald-400" />
+                    <span>{{ point }}</span>
+                  </li>
+                </ul>
+              </div>
+
+              <!-- Actionable insight -->
+              <div class="rounded-lg border border-blue-500/30 bg-blue-500/10 p-4">
+                <div class="mb-1 flex items-center gap-2">
+                  <Icon icon="carbon:idea" class="h-4 w-4 text-blue-400" />
+                  <h3 class="text-xs font-semibold uppercase tracking-wider text-blue-300">
+                    Pro Tip
+                  </h3>
+                </div>
+                <p class="text-sm leading-relaxed text-blue-100">
+                  {{ content.actionable }}
+                </p>
+              </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="mt-6 flex justify-end">
+              <button
+                @click="handleClose"
+                class="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/10"
+              >
+                Got it
+              </button>
+            </div>
+          </DialogPanel>
+        </TransitionChild>
         </div>
       </div>
-    </Transition>
-  </Teleport>
+    </Dialog>
+  </TransitionRoot>
 </template>

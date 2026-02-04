@@ -1,4 +1,12 @@
 <script setup lang="ts">
+import {
+  Dialog,
+  DialogPanel,
+  DialogTitle,
+  TransitionRoot,
+  TransitionChild,
+} from '@headlessui/vue';
+
 interface Props {
   show: boolean;
   popupTitle: string;
@@ -20,12 +28,6 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<Emits>();
 
-const handleBackdropClick = () => {
-  if (!props.isWorking) {
-    emit('close');
-  }
-};
-
 const handleClose = () => {
   if (!props.isWorking) {
     emit('close');
@@ -34,39 +36,61 @@ const handleClose = () => {
 </script>
 
 <template>
-  <Teleport to="body">
-    <div
-      v-if="show"
-      class="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 px-4"
-      @click.self="handleBackdropClick"
-    >
-      <div class="bg-black border border-white/20 rounded w-full max-w-xl text-white">
-        <!-- Header -->
-        <header class="p-4 border-b border-b-white/20">
-          <h2>{{ popupTitle }}</h2>
-          <p class="text-sm text-gray-400">
-            {{ message }}
-          </p>
-        </header>
+  <TransitionRoot :show="show">
+    <Dialog @close="handleClose" class="relative z-[70]">
+      <!-- Backdrop -->
+      <TransitionChild
+        enter="ease-out duration-300"
+        enter-from="opacity-0"
+        enter-to="opacity-100"
+        leave="ease-in duration-200"
+        leave-from="opacity-100"
+        leave-to="opacity-0"
+      >
+        <div class="fixed inset-0 bg-black/40 backdrop-blur-sm" />
+      </TransitionChild>
 
-        <!-- Error section -->
-        <div v-if="error" class="p-4">
-          <p class="text-xs text-red-400">{{ error }}</p>
-        </div>
-
-        <!-- Footer -->
-        <div class="flex justify-end p-4 border-t border-t-white/20">
-          <button
-            @click="handleClose"
-            class="px-2 py-1 text-xs rounded-lg border border-white/20 bg-white/10 hover:bg-white/20 transition disabled:opacity-50"
-            :disabled="isWorking"
+      <!-- Dialog container -->
+      <div class="fixed inset-0 overflow-y-auto">
+        <div class="flex min-h-full items-center justify-center p-4">
+          <TransitionChild
+            enter="ease-out duration-300"
+            enter-from="opacity-0 scale-95"
+            enter-to="opacity-100 scale-100"
+            leave="ease-in duration-200"
+            leave-from="opacity-100 scale-100"
+            leave-to="opacity-0 scale-95"
           >
-            {{ buttonLabel }}
-          </button>
+            <DialogPanel class="bg-black border border-white/20 rounded-lg w-full max-w-xl text-white my-8">
+            <!-- Header -->
+            <header class="p-4 border-b border-b-white/20">
+              <DialogTitle as="h2">{{ popupTitle }}</DialogTitle>
+              <p class="text-sm text-gray-400">
+                {{ message }}
+              </p>
+            </header>
+
+            <!-- Error section -->
+            <div v-if="error" class="p-4">
+              <p class="text-xs text-red-400">{{ error }}</p>
+            </div>
+
+            <!-- Footer -->
+            <div class="flex justify-end p-4 border-t border-t-white/20">
+              <button
+                @click="handleClose"
+                class="px-4 py-2 text-sm rounded-lg border border-white/20 bg-white/10 hover:bg-white/20 transition disabled:opacity-50"
+                :disabled="isWorking"
+              >
+                {{ buttonLabel }}
+              </button>
+            </div>
+          </DialogPanel>
+        </TransitionChild>
         </div>
       </div>
-    </div>
-  </Teleport>
+    </Dialog>
+  </TransitionRoot>
 </template>
 
 <style scoped>

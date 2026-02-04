@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted } from 'vue';
 import { Icon } from '@iconify/vue';
+import { Menu, MenuButton, MenuItems, MenuItem } from '@headlessui/vue';
 import LoadingDot from '@/components/LoadingDot.vue';
 import MediaProcessingStatusBanner from '@/modules/media/components/MediaProcessingStatusBanner.vue';
 import { useMediaProcessingStatus } from '@/modules/media/composables/useMediaProcessingStatus';
@@ -100,61 +101,29 @@ const overlayIconClass = computed(() => {
   return 'text-white/40';
 });
 
-const menuOpen = ref(false);
-const menuRef = ref<HTMLElement | null>(null);
-const menuButtonRef = ref<HTMLElement | null>(null);
-
 const canManage = computed(() => Boolean(props.canManage));
-
-function closeMenu() {
-  menuOpen.value = false;
-}
-
-function toggleMenu() {
-  menuOpen.value = !menuOpen.value;
-}
-
-function handleClickOutside(event: MouseEvent) {
-  if (!menuOpen.value) return;
-  const target = event.target as Node | null;
-  if (menuButtonRef.value?.contains(target) || menuRef.value?.contains(target)) return;
-  closeMenu();
-}
-
-onMounted(() => {
-  document.addEventListener('click', handleClickOutside);
-});
-
-onUnmounted(() => {
-  document.removeEventListener('click', handleClickOutside);
-});
 
 function handleEdit() {
   if (!canManage.value) return;
-  closeMenu();
   emit('edit', props.asset.id);
 }
 
 function handleReview() {
   if (!canManage.value) return;
   if (!isInteractive.value) return;
-  closeMenu();
   emit('review', props.asset.id);
 }
 
 function handleDelete() {
   if (!canManage.value) return;
-  closeMenu();
   emit('delete', props.asset.id);
 }
 
 function handleReattach() {
-  closeMenu();
   emit('reattach', props.asset.id);
 }
 
 function handleCardClick() {
-  closeMenu();
   if (isAbandoned.value) {
     handleReattach();
     return;
@@ -240,50 +209,61 @@ function handleCardClick() {
         <!-- Actions Row -->
         <div class="flex items-center justify-end gap-2">
           <!-- Actions menu -->
-          <div class="relative z-20">
-            <button
-              v-if="canManage"
-              ref="menuButtonRef"
-              type="button"
+          <Menu v-if="canManage" as="div" class="relative z-20">
+            <MenuButton
               class="rounded p-1 text-white/50 hover:bg-white/10 hover:text-white/80 transition"
               aria-label="More actions"
-              @click.stop="toggleMenu"
-            >
-              <Icon icon="carbon:overflow-menu-vertical" class="h-4 w-4" />
-            </button>
-
-            <div
-              v-if="menuOpen && canManage"
-              ref="menuRef"
-              class="absolute right-0 bottom-full mb-2 min-w-28 rounded-md border border-white/10 bg-black/60 backdrop-blur-md text-white z-50"
               @click.stop
             >
-              <button
-                type="button"
-                class="w-full px-3 py-2 text-left text-xs hover:bg-white/10 transition disabled:opacity-60 disabled:cursor-not-allowed"
-                :disabled="!isInteractive"
-                @click="handleReview"
-              >
-                Review
-              </button>
-              <button
-                type="button"
-                class="w-full px-3 py-2 text-left text-xs hover:bg-white/10 transition"
-                @click="handleEdit"
-              >
-                Edit
-              </button>
-              <!-- Manual event detection trigger (for testing) -->
+              <Icon icon="carbon:overflow-menu-vertical" class="h-4 w-4" />
+            </MenuButton>
 
-              <button
-                type="button"
-                class="w-full px-3 py-2 text-left text-xs text-red-300 hover:bg-white/10 transition border-t border-white/10"
-                @click="handleDelete"
+            <transition
+              enter-active-class="transition duration-100 ease-out"
+              enter-from-class="transform scale-95 opacity-0"
+              enter-to-class="transform scale-100 opacity-100"
+              leave-active-class="transition duration-75 ease-in"
+              leave-from-class="transform scale-100 opacity-100"
+              leave-to-class="transform scale-95 opacity-0"
+            >
+              <MenuItems
+                class="absolute right-0 bottom-full mb-2 min-w-28 origin-bottom-right rounded-md border border-white/10 bg-black/60 backdrop-blur-md text-white focus:outline-none"
+                @click.stop
               >
-                Delete
-              </button>
-            </div>
-          </div>
+                <MenuItem v-slot="{ active }">
+                  <button
+                    type="button"
+                    class="w-full px-3 py-2 text-left text-xs transition disabled:opacity-60 disabled:cursor-not-allowed"
+                    :class="active ? 'bg-white/10' : ''"
+                    :disabled="!isInteractive"
+                    @click="handleReview"
+                  >
+                    Review
+                  </button>
+                </MenuItem>
+                <MenuItem v-slot="{ active }">
+                  <button
+                    type="button"
+                    class="w-full px-3 py-2 text-left text-xs transition"
+                    :class="active ? 'bg-white/10' : ''"
+                    @click="handleEdit"
+                  >
+                    Edit
+                  </button>
+                </MenuItem>
+                <MenuItem v-slot="{ active }">
+                  <button
+                    type="button"
+                    class="w-full px-3 py-2 text-left text-xs text-red-300 transition border-t border-white/10"
+                    :class="active ? 'bg-white/10' : ''"
+                    @click="handleDelete"
+                  >
+                    Delete
+                  </button>
+                </MenuItem>
+              </MenuItems>
+            </transition>
+          </Menu>
         </div>
       </div>
     </div>

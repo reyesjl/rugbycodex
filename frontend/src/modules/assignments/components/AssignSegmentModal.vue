@@ -2,6 +2,18 @@
 import { computed, onMounted, ref } from 'vue';
 import { Icon } from '@iconify/vue';
 import { toast } from '@/lib/toast';
+import {
+  Dialog,
+  DialogPanel,
+  DialogTitle,
+  TransitionRoot,
+  TransitionChild,
+  Combobox,
+  ComboboxInput,
+  ComboboxOptions,
+  ComboboxOption,
+  ComboboxButton,
+} from '@headlessui/vue';
 
 import { orgService } from '@/modules/orgs/services/orgServiceV2';
 import type { OrgMember } from '@/modules/orgs/types';
@@ -14,8 +26,6 @@ import type { AssignmentTargetType } from '@/modules/assignments/types';
 import { narrationService } from '@/modules/narrations/services/narrationService';
 import type { Narration } from '@/modules/narrations/types/Narration';
 
-import MemberPill from '@/modules/orgs/components/MemberPill.vue';
-
 const props = defineProps<{
   orgId: string;
   segmentId: string;
@@ -24,6 +34,7 @@ const props = defineProps<{
   onAssigned?: () => void;
 }>();
 
+const show = ref(true);
 const loading = ref(false);
 const error = ref<string | null>(null);
 
@@ -37,8 +48,10 @@ const titleTouched = ref(false);
 const autoTitle = ref('Clip review');
 
 const targetType = ref<AssignmentTargetType>('team');
-const selectedPlayerId = ref<string>('');
-const selectedGroupId = ref<string>('');
+const selectedPlayer = ref<OrgMember | null>(null);
+const selectedGroup = ref<OrgGroup | null>(null);
+const playerQuery = ref('');
+const groupQuery = ref('');
 
 const sortedMembers = computed(() => {
   return [...members.value].sort((a, b) => {
@@ -51,6 +64,26 @@ const sortedMembers = computed(() => {
 const sortedGroups = computed(() => {
   return [...groups.value].sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
 });
+
+const filteredMembers = computed(() => {
+  if (!playerQuery.value) return sortedMembers.value;
+  const query = playerQuery.value.toLowerCase();
+  return sortedMembers.value.filter((m) => {
+    const name = (m.profile.name ?? m.profile.username ?? '').toLowerCase();
+    return name.includes(query);
+  });
+});
+
+const filteredGroups = computed(() => {
+  if (!groupQuery.value) return sortedGroups.value;
+  const query = groupQuery.value.toLowerCase();
+  return sortedGroups.value.filter((g) => g.name.toLowerCase().includes(query));
+});
+
+function displayMemberName(m: OrgMember | null): string {
+  if (!m) return '';
+  return m.profile.name || m.profile.username || '';
+}
 
 function cleanTitleCandidate(input: string): string {
   let value = input.trim();
@@ -80,13 +113,11 @@ function extractNarrationTitle(narrations: Narration[]): string | null {
   return null;
 }
 
-function selectPlayer(profileId: string) {
-  selectedPlayerId.value = selectedPlayerId.value === profileId ? '' : profileId;
-}
-
-function selectGroup(groupId: string) {
-  selectedGroupId.value = selectedGroupId.value === groupId ? '' : groupId;
-}
+const handleClose = () => {
+  if (!loading.value) {
+    props.onClose();
+  }
+};
 
 async function load() {
   loading.value = true;
@@ -118,12 +149,12 @@ async function submit() {
   const trimmedTitle = title.value.trim();
   const finalTitle = trimmedTitle || autoTitle.value || 'Clip review';
 
-  if (targetType.value === 'player' && !selectedPlayerId.value) {
+  if (targetType.value === 'player' && !selectedPlayer.value) {
     error.value = 'Please select a player.';
     return;
   }
 
-  if (targetType.value === 'group' && !selectedGroupId.value) {
+  if (targetType.value === 'group' && !selectedGroup.value) {
     error.value = 'Please select a group.';
     return;
   }
@@ -138,8 +169,8 @@ async function submit() {
       targetType.value === 'team'
         ? { type: 'team' as const }
         : targetType.value === 'player'
-          ? { type: 'player' as const, id: selectedPlayerId.value }
-          : { type: 'group' as const, id: selectedGroupId.value };
+          ? { type: 'player' as const, id: selectedPlayer.value!.profile.id }
+          : { type: 'group' as const, id: selectedGroup.value!.id };
 
     const created = await assignmentsService.createAssignment(props.orgId, {
       title: finalTitle,
@@ -176,153 +207,260 @@ onMounted(() => {
 </script>
 
 <template>
-  <Teleport to="body">
-    <div
-      class="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 px-4"
-      @click.self="props.onClose"
-    >
-      <div class="bg-black border border-white/20 rounded w-full max-w-2xl text-white">
-        <header class="p-4 border-b border-b-white/20">
-          <h2>Assign Segment</h2>
-          <p class="text-sm text-gray-400">Assign this moment to the team, a player, or a group.</p>
-        </header>
+  <TransitionRoot :show="show">
+    <Dialog @close="handleClose" class="relative z-[70]">
+      <!-- Backdrop -->
+      <TransitionChild
+        enter="ease-out duration-300"
+        enter-from="opacity-0"
+        enter-to="opacity-100"
+        leave="ease-in duration-200"
+        leave-from="opacity-100"
+        leave-to="opacity-0"
+      >
+        <div class="fixed inset-0 bg-black/40 backdrop-blur-sm" />
+      </TransitionChild>
 
-        <div class="p-4 space-y-4">
-          <div class="flex flex-col gap-2 md:grid md:grid-cols-12">
-            <div class="col-span-4">
-              <label class="text-sm" for="title">Title</label>
-            </div>
-            <div class="col-span-8">
-              <input
-                id="title"
-                v-model="title"
-                class="text-sm w-full rounded bg-white/10 border border-white/20 px-2 py-1 focus:border-white outline-none"
-                placeholder="Assignment title"
-                @input="titleTouched = true"
-              />
-            </div>
-          </div>
+      <!-- Dialog container -->
+      <div class="fixed inset-0 overflow-y-auto">
+        <div class="flex min-h-full items-center justify-center p-4">
+          <TransitionChild
+            enter="ease-out duration-300"
+            enter-from="opacity-0 scale-95"
+            enter-to="opacity-100 scale-100"
+            leave="ease-in duration-200"
+            leave-from="opacity-100 scale-100"
+            leave-to="opacity-0 scale-95"
+          >
+            <DialogPanel class="bg-black border border-white/20 rounded-lg w-full max-w-2xl text-white my-8">
+              <header class="p-4 border-b border-b-white/20">
+                <DialogTitle as="h2">Assign Segment</DialogTitle>
+                <p class="text-sm text-gray-400">Assign this moment to the team, a player, or a group.</p>
+              </header>
 
-          <div class="flex flex-col gap-2 md:grid md:grid-cols-12">
-            <div class="col-span-4">
-              <label class="text-sm" for="target">Target</label>
-            </div>
-            <div class="col-span-8">
-              <div class="inline-flex rounded-lg border border-white/15 overflow-hidden">
-                <button
-                  type="button"
-                  class="px-3 py-2 text-xs transition"
-                  :class="targetType === 'team' ? 'bg-white text-black' : 'bg-white/5 text-white/70 hover:bg-white/10'"
-                  @click="targetType = 'team'"
-                >
-                  Team
-                </button>
-                <button
-                  type="button"
-                  class="px-3 py-2 text-xs transition border-l border-white/10"
-                  :class="targetType === 'player' ? 'bg-white text-black' : 'bg-white/5 text-white/70 hover:bg-white/10'"
-                  @click="targetType = 'player'"
-                >
-                  Players
-                </button>
-                <button
-                  type="button"
-                  class="px-3 py-2 text-xs transition border-l border-white/10"
-                  :class="targetType === 'group' ? 'bg-white text-black' : 'bg-white/5 text-white/70 hover:bg-white/10'"
-                  @click="targetType = 'group'"
-                >
-                  Groups
-                </button>
+            <div class="p-4 space-y-4">
+              <!-- Title -->
+              <div class="flex flex-col gap-2 md:grid md:grid-cols-12">
+                <div class="col-span-4">
+                  <label class="text-sm" for="title">Title</label>
+                </div>
+                <div class="col-span-8">
+                  <input
+                    id="title"
+                    v-model="title"
+                    class="text-sm w-full rounded bg-white/10 border border-white/20 px-2 py-1 focus:border-white outline-none"
+                    placeholder="Assignment title"
+                    @input="titleTouched = true"
+                  />
+                </div>
               </div>
-            </div>
-          </div>
 
-          <div v-if="targetType === 'player'" class="border-t border-white/10 pt-4">
-            <div class="text-sm text-white/80 mb-2">Select a player</div>
-            <div v-if="loading" class="text-white/60 text-sm">Loading…</div>
-            <div v-else class="flex flex-wrap gap-2">
-              <MemberPill
-                v-for="m in sortedMembers"
-                :key="m.profile.id"
-                :member="m"
-                :selected="m.profile.id === selectedPlayerId"
-                :can-manage="true"
-                @toggle="selectPlayer(m.profile.id)"
-              />
-            </div>
-          </div>
+              <!-- Target Type -->
+              <div class="flex flex-col gap-2 md:grid md:grid-cols-12">
+                <div class="col-span-4">
+                  <label class="text-sm">Target</label>
+                </div>
+                <div class="col-span-8">
+                  <div class="inline-flex rounded-lg border border-white/15 overflow-hidden">
+                    <button
+                      type="button"
+                      class="px-3 py-2 text-xs transition"
+                      :class="targetType === 'team' ? 'bg-white text-black' : 'bg-white/5 text-white/70 hover:bg-white/10'"
+                      @click="targetType = 'team'; selectedPlayer = null; selectedGroup = null;"
+                    >
+                      Team
+                    </button>
+                    <button
+                      type="button"
+                      class="px-3 py-2 text-xs transition border-l border-white/10"
+                      :class="targetType === 'player' ? 'bg-white text-black' : 'bg-white/5 text-white/70 hover:bg-white/10'"
+                      @click="targetType = 'player'; selectedGroup = null;"
+                    >
+                      Player
+                    </button>
+                    <button
+                      type="button"
+                      class="px-3 py-2 text-xs transition border-l border-white/10"
+                      :class="targetType === 'group' ? 'bg-white text-black' : 'bg-white/5 text-white/70 hover:bg-white/10'"
+                      @click="targetType = 'group'; selectedPlayer = null;"
+                    >
+                      Group
+                    </button>
+                  </div>
+                </div>
+              </div>
 
-          <div v-if="targetType === 'group'" class="border-t border-white/10 pt-4">
-            <div class="text-sm text-white/80 mb-2">Select a group</div>
-            <div v-if="loading" class="text-white/60 text-sm">Loading…</div>
-            <div v-else class="flex flex-wrap gap-2">
+              <!-- Player Combobox -->
+              <div v-if="targetType === 'player'" class="flex flex-col gap-2 md:grid md:grid-cols-12">
+                <div class="col-span-4">
+                  <label class="text-sm">Select Player</label>
+                </div>
+                <div class="col-span-8">
+                  <Combobox v-model="selectedPlayer" nullable>
+                    <div class="relative">
+                      <div class="relative">
+                        <ComboboxInput
+                          class="text-sm w-full rounded bg-white/10 border border-white/20 px-2 py-1.5 pr-10 focus:border-white outline-none"
+                          :display-value="(member: any) => displayMemberName(member)"
+                          placeholder="Search players..."
+                          @change="playerQuery = $event.target.value"
+                        />
+                        <ComboboxButton class="absolute inset-y-0 right-0 flex items-center pr-2">
+                          <Icon icon="carbon:chevron-down" class="h-4 w-4 text-white/40" />
+                        </ComboboxButton>
+                      </div>
+                      <TransitionRoot
+                        leave="transition ease-in duration-100"
+                        leaveFrom="opacity-100"
+                        leaveTo="opacity-0"
+                        @after-leave="playerQuery = ''"
+                      >
+                        <ComboboxOptions
+                          class="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-gray-900 border border-white/20 py-1 text-sm shadow-lg focus:outline-none"
+                        >
+                          <div v-if="filteredMembers.length === 0 && playerQuery !== ''" class="px-3 py-2 text-white/50">
+                            No players found.
+                          </div>
+                          <ComboboxOption
+                            v-for="member in filteredMembers"
+                            :key="member.profile.id"
+                            :value="member"
+                            as="template"
+                            v-slot="{ active, selected }"
+                          >
+                            <li
+                              class="relative cursor-pointer select-none py-2 pl-3 pr-9"
+                              :class="active ? 'bg-white/10 text-white' : 'text-white/70'"
+                            >
+                              <span :class="selected ? 'font-semibold' : 'font-normal'" class="block truncate">
+                                {{ displayMemberName(member) }}
+                              </span>
+                              <span v-if="selected" class="absolute inset-y-0 right-0 flex items-center pr-3 text-green-500">
+                                <Icon icon="carbon:checkmark" class="h-4 w-4" />
+                              </span>
+                            </li>
+                          </ComboboxOption>
+                        </ComboboxOptions>
+                      </TransitionRoot>
+                    </div>
+                  </Combobox>
+                </div>
+              </div>
+
+              <!-- Group Combobox -->
+              <div v-if="targetType === 'group'" class="flex flex-col gap-2 md:grid md:grid-cols-12">
+                <div class="col-span-4">
+                  <label class="text-sm">Select Group</label>
+                </div>
+                <div class="col-span-8">
+                  <Combobox v-model="selectedGroup" nullable>
+                    <div class="relative">
+                      <div class="relative">
+                        <ComboboxInput
+                          class="text-sm w-full rounded bg-white/10 border border-white/20 px-2 py-1.5 pr-10 focus:border-white outline-none"
+                          :display-value="(group: any) => group?.name ?? ''"
+                          placeholder="Search groups..."
+                          @change="groupQuery = $event.target.value"
+                        />
+                        <ComboboxButton class="absolute inset-y-0 right-0 flex items-center pr-2">
+                          <Icon icon="carbon:chevron-down" class="h-4 w-4 text-white/40" />
+                        </ComboboxButton>
+                      </div>
+                      <TransitionRoot
+                        leave="transition ease-in duration-100"
+                        leaveFrom="opacity-100"
+                        leaveTo="opacity-0"
+                        @after-leave="groupQuery = ''"
+                      >
+                        <ComboboxOptions
+                          class="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-gray-900 border border-white/20 py-1 text-sm shadow-lg focus:outline-none"
+                        >
+                          <div v-if="filteredGroups.length === 0 && groupQuery !== ''" class="px-3 py-2 text-white/50">
+                            No groups found.
+                          </div>
+                          <ComboboxOption
+                            v-for="group in filteredGroups"
+                            :key="group.id"
+                            :value="group"
+                            as="template"
+                            v-slot="{ active, selected }"
+                          >
+                            <li
+                              class="relative cursor-pointer select-none py-2 pl-3 pr-9"
+                              :class="active ? 'bg-white/10 text-white' : 'text-white/70'"
+                            >
+                              <span :class="selected ? 'font-semibold' : 'font-normal'" class="block truncate">
+                                {{ group.name }}
+                              </span>
+                              <span v-if="selected" class="absolute inset-y-0 right-0 flex items-center pr-3 text-green-500">
+                                <Icon icon="carbon:checkmark" class="h-4 w-4" />
+                              </span>
+                            </li>
+                          </ComboboxOption>
+                        </ComboboxOptions>
+                      </TransitionRoot>
+                    </div>
+                  </Combobox>
+                </div>
+              </div>
+
+              <!-- Due Date -->
+              <div class="flex flex-col gap-2 md:grid md:grid-cols-12">
+                <div class="col-span-4">
+                  <label class="text-sm" for="due">Due date</label>
+                </div>
+                <div class="col-span-8">
+                  <input
+                    id="due"
+                    v-model="dueAt"
+                    type="date"
+                    class="text-sm w-full rounded bg-white/10 border border-white/20 px-2 py-1 focus:border-white outline-none [color-scheme:dark]"
+                  />
+                </div>
+              </div>
+
+              <!-- Note -->
+              <div class="flex flex-col gap-2 md:grid md:grid-cols-12">
+                <div class="col-span-4">
+                  <label class="text-sm" for="note">Note</label>
+                </div>
+                <div class="col-span-8">
+                  <textarea
+                    id="note"
+                    v-model="description"
+                    rows="3"
+                    class="text-sm w-full rounded bg-white/10 border border-white/20 px-2 py-1 focus:border-white outline-none"
+                    placeholder="Optional"
+                  />
+                </div>
+              </div>
+
+              <div v-if="error" class="text-xs text-red-400">{{ error }}</div>
+            </div>
+
+            <div class="flex justify-between p-4 border-t border-t-white/20">
               <button
-                v-for="g in sortedGroups"
-                :key="g.id"
                 type="button"
-                class="group flex items-center gap-2 rounded-full px-3 py-1.5 transition"
-                :class="g.id === selectedGroupId
-                  ? 'border border-sky-500 bg-sky-500/10 shadow-lg shadow-sky-500/20'
-                  : 'border border-white/10 bg-white/0 hover:bg-white/5'"
-                @click="selectGroup(g.id)"
+                @click="handleClose"
+                class="px-4 py-2 text-sm rounded-lg border border-white/20 bg-white/10 hover:bg-white/20 transition"
+                :disabled="loading"
               >
-                <span class="text-sm text-gray-500 group-hover:text-white transition">{{ g.name }}</span>
+                Cancel
+              </button>
+              <button
+                type="button"
+                @click="submit"
+                class="flex items-center gap-2 px-4 py-2 text-sm rounded-lg border border-green-500 bg-green-500/70 hover:bg-green-700/70 transition disabled:opacity-50"
+                :disabled="loading"
+              >
+                <Icon icon="carbon:task" width="15" height="15" />
+                Assign
               </button>
             </div>
-          </div>
-
-          <div class="flex flex-col gap-2 md:grid md:grid-cols-12">
-            <div class="col-span-4">
-              <label class="text-sm" for="due">Due date</label>
-            </div>
-            <div class="col-span-8">
-              <input
-                id="due"
-                v-model="dueAt"
-                type="date"
-                class="text-sm w-full rounded bg-black border border-white/20 px-2 py-1 focus:border-white outline-none"
-              />
-            </div>
-          </div>
-
-          <div class="flex flex-col gap-2 md:grid md:grid-cols-12">
-            <div class="col-span-4">
-              <label class="text-sm" for="note">Note</label>
-            </div>
-            <div class="col-span-8">
-              <textarea
-                id="note"
-                v-model="description"
-                rows="3"
-                class="text-sm w-full rounded bg-white/10 border border-white/20 px-2 py-1 focus:border-white outline-none"
-                placeholder="Optional"
-              />
-            </div>
-          </div>
-
-          <div v-if="error" class="text-xs text-red-400">{{ error }}</div>
-        </div>
-
-        <div class="flex justify-between p-4 border-t border-t-white/20">
-          <button
-            type="button"
-            @click="props.onClose"
-            class="px-2 py-1 text-xs rounded-lg border border-white/20 bg-white/10 hover:bg-white/20 transition"
-            :disabled="loading"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            @click="submit"
-            class="flex items-center gap-2 px-2 py-1 text-xs rounded-lg border border-green-500 bg-green-500/70 hover:bg-green-700/70 transition disabled:opacity-50"
-            :disabled="loading"
-          >
-            <Icon icon="carbon:task" width="15" height="15" />
-            Assign
-          </button>
+          </DialogPanel>
+        </TransitionChild>
         </div>
       </div>
-    </div>
-  </Teleport>
+    </Dialog>
+  </TransitionRoot>
 </template>

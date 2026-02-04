@@ -3,22 +3,13 @@ import { computed, onMounted, ref, watch } from "vue";
 import { orgService } from "@/modules/orgs/services/orgServiceV2";
 import { useActiveOrganizationStore } from "@/modules/orgs/stores/useActiveOrganizationStore";
 import { useAuthStore } from '@/modules/auth/stores/useAuthStore';
-import type { OrgMember } from "@/modules/orgs/types";
+import type { OrgMember, OrgRole } from "@/modules/orgs/types";
 import type { OrgJoinCode } from "@/modules/orgs/types";
 import AddMemberModal from '@/modules/orgs/components/AddMemberModal.vue';
 import MemberPill from '@/modules/orgs/components/MemberPill.vue';
-import MembersActionBar from '@/modules/orgs/components/MembersActionBar.vue';
-import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
+import MemberActionMenu from '@/modules/orgs/components/MemberActionMenu.vue';
 import { Icon } from "@iconify/vue";
 import { toast } from '@/lib/toast';
-
-// Role hierarchy for client-side validation
-const ROLE_RANK = {
-  member: 0,
-  staff: 1,
-  manager: 2,
-  owner: 3,
-} as const;
 
 const activeOrgStore = useActiveOrganizationStore();
 const authStore = useAuthStore();
@@ -31,16 +22,12 @@ const canManage = computed(() => {
   return role === 'owner' || role === 'manager' || role === 'staff';
 });
 
-const role = computed(() => activeOrgStore.orgContext?.membership?.role ?? 'member');
+const role = computed(() => (activeOrgStore.orgContext?.membership?.role ?? 'member') as 'owner' | 'manager' | 'staff' | 'member');
 
 const loading = ref(false);
 const error = ref<string | null>(null);
 const members = ref<OrgMember[]>([]);
 const showAddMember = ref(false);
-const selectedMemberIds = ref<Set<string>>(new Set());
-const showConfirmRemove = ref(false);
-const deleteError = ref<string | null>(null);
-const isDeleting = ref(false);
 const joinCodeData = ref<OrgJoinCode | null>(null);
 const loadingJoinCode = ref(false);
 const joinCodeError = ref<string | null>(null);
@@ -86,91 +73,27 @@ async function handleAddMember(payload: { username: string; role: 'member' | 'st
   }
 }
 
-function toggleMemberSelection(memberId: string) {
-  if (!canManage.value) return;
-  if (selectedMemberIds.value.has(memberId)) {
-    selectedMemberIds.value.delete(memberId);
-  } else {
-    selectedMemberIds.value.add(memberId);
-  }
-}
-
-function isSelected(memberId: string) {
-  return selectedMemberIds.value.has(memberId);
-}
-
-const hasSelection = computed(() => selectedMemberIds.value.size > 0);
-
-async function handlePromote() {
+// Individual member action handlers
+async function handlePromoteMember(payload: { memberId: string; newRole: OrgRole }) {
   if (!orgId.value) return;
-
-  const myRole = role.value as 'member' | 'staff' | 'manager' | 'owner';
-  const myRank = ROLE_RANK[myRole];
-
-  // Client-side validation: filter members we can actually promote
-  const promotable = members.value
-    .filter(m => selectedMemberIds.value.has(m.profile.id))
-    .filter(m => {
-      const currentRank = ROLE_RANK[m.membership.role as keyof typeof ROLE_RANK];
-      const nextRank = currentRank + 1;
-
-      // Can't promote if already at max
-      if (m.membership.role === 'owner') return false;
-
-      // Can't promote if result would be higher than our own role
-      if (nextRank > myRank) return false;
-
-      return true;
-    });
-
-  if (promotable.length === 0) {
-    toast({
-      variant: 'error',
-      message: 'Cannot promote selected members: insufficient permissions or already at maximum role.',
-      durationMs: 3000,
-    });
-    return;
-  }
 
   loading.value = true;
   error.value = null;
 
   try {
-    await Promise.all(
-      promotable.map((m) => {
-        let newRole: 'member' | 'staff' | 'manager' | 'owner';
-        switch (m.membership.role) {
-          case 'member':
-            newRole = 'staff';
-            break;
-          case 'staff':
-            newRole = 'manager';
-            break;
-          case 'manager':
-            newRole = 'owner';
-            break;
-          case 'viewer':
-            newRole = 'member';
-            break;
-          default:
-            newRole = 'member';
-        }
-        return orgService.changeMemberRole(orgId.value!, m.profile.id, newRole);
-      })
-    );
+    await orgService.changeMemberRole(orgId.value, payload.memberId, payload.newRole);
 
     toast({
       variant: 'success',
-      message: `${promotable.length} member${promotable.length === 1 ? '' : 's'} promoted.`,
+      message: `Member promoted to ${payload.newRole}.`,
       durationMs: 2500,
     });
 
-    selectedMemberIds.value.clear();
     void load();
   } catch (e) {
     toast({
       variant: 'error',
-      message: e instanceof Error ? e.message : 'Failed to promote members.',
+      message: e instanceof Error ? e.message : 'Failed to promote member.',
       durationMs: 3500,
     });
   } finally {
@@ -178,72 +101,26 @@ async function handlePromote() {
   }
 }
 
-async function handleDemote() {
+async function handleDemoteMember(payload: { memberId: string; newRole: OrgRole }) {
   if (!orgId.value) return;
-
-  const myRole = role.value as 'member' | 'staff' | 'manager' | 'owner';
-  const myRank = ROLE_RANK[myRole];
-
-  // Client-side validation: filter members we can actually demote
-  const demotable = members.value
-    .filter(m => selectedMemberIds.value.has(m.profile.id))
-    .filter(m => {
-      const currentRank = ROLE_RANK[m.membership.role as keyof typeof ROLE_RANK];
-
-      // Can't demote if already at min
-      if (m.membership.role === 'member') return false;
-
-      // Can't demote if their current rank is higher than ours
-      if (currentRank > myRank) return false;
-
-      return true;
-    });
-
-  if (demotable.length === 0) {
-    toast({
-      variant: 'error',
-      message: 'Cannot demote selected members: insufficient permissions or already at minimum role.',
-      durationMs: 3000,
-    });
-    return;
-  }
 
   loading.value = true;
   error.value = null;
 
   try {
-    await Promise.all(
-      demotable.map((m) => {
-        let newRole: 'member' | 'staff' | 'manager' | 'owner';
-        switch (m.membership.role) {
-          case 'owner':
-            newRole = 'manager';
-            break;
-          case 'manager':
-            newRole = 'staff';
-            break;
-          case 'staff':
-            newRole = 'member';
-            break;
-          default:
-            newRole = 'member';
-        }
-        return orgService.changeMemberRole(orgId.value!, m.profile.id, newRole);
-      })
-    );
+    await orgService.changeMemberRole(orgId.value, payload.memberId, payload.newRole);
 
     toast({
       variant: 'success',
-      message: `${demotable.length} member${demotable.length === 1 ? '' : 's'} demoted.`,
+      message: `Member demoted to ${payload.newRole}.`,
       durationMs: 2500,
     });
 
-    selectedMemberIds.value.clear();
     void load();
   } catch (e) {
     toast({
       variant: 'error',
-      message: e instanceof Error ? e.message : 'Failed to demote members.',
+      message: e instanceof Error ? e.message : 'Failed to demote member.',
       durationMs: 3500,
     });
   } finally {
@@ -251,53 +128,30 @@ async function handleDemote() {
   }
 }
 
-function openConfirmRemove() {
-  if (!hasSelection.value) return;
-  deleteError.value = null;
-  showConfirmRemove.value = true;
-}
-
-function closeConfirmRemove() {
-  if (isDeleting.value) return;
-  showConfirmRemove.value = false;
-  deleteError.value = null;
-}
-
-async function confirmRemoveMembers() {
+async function handleRemoveMember(payload: { memberId: string }) {
   if (!orgId.value) return;
 
-  const selected = members.value.filter(m => selectedMemberIds.value.has(m.profile.id));
-
-  if (selected.length === 0) return;
-
-  isDeleting.value = true;
-  deleteError.value = null;
+  loading.value = true;
+  error.value = null;
 
   try {
-    await Promise.all(
-      selected.map((m) =>
-        orgService.removeMember(orgId.value!, m.profile.id)
-      )
-    );
-
-    // Refresh list
-    members.value = members.value.filter(
-      (m) => !selectedMemberIds.value.has(m.profile.id)
-    );
-
-    const removedCount = selected.length;
-    selectedMemberIds.value.clear();
-    showConfirmRemove.value = false;
+    await orgService.removeMember(orgId.value, payload.memberId);
 
     toast({
       variant: 'success',
-      message: `${removedCount} member${removedCount === 1 ? '' : 's'} removed.`,
+      message: 'Member removed from organization.',
       durationMs: 2500,
     });
+
+    void load();
   } catch (e) {
-    deleteError.value = e instanceof Error ? e.message : 'Failed to remove members.';
+    toast({
+      variant: 'error',
+      message: e instanceof Error ? e.message : 'Failed to remove member.',
+      durationMs: 3500,
+    });
   } finally {
-    isDeleting.value = false;
+    loading.value = false;
   }
 }
 
@@ -307,29 +161,54 @@ function sortByName(a: OrgMember, b: OrgMember) {
   return an.localeCompare(bn);
 }
 
-function roleRank(role: string) {
-  // desired order: owners → managers → staff → members
-  switch (role) {
-    case "owner":
-      return 0;
-    case "manager":
-      return 1;
-    case "staff":
-      return 2;
-    case "member":
-      return 3;
-    default:
-      return 4;
-  }
-}
+// Total member count
+const totalMembers = computed(() => members.value.length);
 
-const sortedMembers = computed(() => {
-  return [...members.value].sort((a, b) => {
-    const ar = roleRank(a.membership.role);
-    const br = roleRank(b.membership.role);
-    if (ar !== br) return ar - br;
-    return sortByName(a, b);
-  });
+// Members grouped by role (alphabetically sorted within each)
+const membersByRole = computed(() => {
+  const owners = members.value
+    .filter(m => m.membership.role === 'owner')
+    .sort(sortByName);
+  
+  const managers = members.value
+    .filter(m => m.membership.role === 'manager')
+    .sort(sortByName);
+  
+  const staff = members.value
+    .filter(m => m.membership.role === 'staff')
+    .sort(sortByName);
+  
+  const regularMembers = members.value
+    .filter(m => m.membership.role === 'member')
+    .sort(sortByName);
+  
+  return { 
+    owners, 
+    managers, 
+    staff, 
+    members: regularMembers 
+  };
+});
+
+// Role breakdown text (e.g., "2 owners | 3 managers | 5 staff | 14 members")
+const roleBreakdown = computed(() => {
+  const { owners, managers, staff, members: regularMembers } = membersByRole.value;
+  const parts = [];
+  
+  if (owners.length > 0) {
+    parts.push(`${owners.length} owner${owners.length > 1 ? 's' : ''}`);
+  }
+  if (managers.length > 0) {
+    parts.push(`${managers.length} manager${managers.length > 1 ? 's' : ''}`);
+  }
+  if (staff.length > 0) {
+    parts.push(`${staff.length} staff`);
+  }
+  if (regularMembers.length > 0) {
+    parts.push(`${regularMembers.length} member${regularMembers.length > 1 ? 's' : ''}`);
+  }
+  
+  return parts.join(' | ');
 });
 
 async function load() {
@@ -427,7 +306,12 @@ watch(orgId, (next, prev) => {
     <div class="container py-6">
       <div class="flex flex-col md:flex-row md:items-center justify-between mb-5 gap-3">
         <div>
-          <h1 class="text-white text-3xl tracking-tight">Members</h1>
+          <h1 class="text-white text-3xl tracking-tight">
+            {{ totalMembers }} {{ totalMembers === 1 ? 'Member' : 'Members' }}
+          </h1>
+          <p class="text-gray-400 text-sm mt-1">
+            {{ roleBreakdown }}
+          </p>
         </div>
         <div v-if="canManage" class="flex flex-row flex-wrap gap-3">
           <!-- Refresh button for expired code -->
@@ -461,29 +345,140 @@ watch(orgId, (next, prev) => {
         </div>
       </div>
 
-      <!-- Action bar with Add / Promote / Demote / Remove controls -->
-      <MembersActionBar :can-manage="canManage" :has-selection="hasSelection" :selected-count="selectedMemberIds.size"
-        :loading="loading" :org-id="orgId" @promote="handlePromote" @demote="handleDemote"
-        @remove="openConfirmRemove" />
-
       <div v-if="error" class="mb-6 rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">
         {{ error }}
       </div>
 
-      <div v-if="sortedMembers.length" class="flex flex-wrap gap-2 border-t border-white/20 pt-4">
-        <MemberPill v-for="m in sortedMembers" :key="m.profile.id" :member="m" :selected="isSelected(m.profile.id)"
-          :can-manage="canManage" @toggle="toggleMemberSelection(m.profile.id)" />
+      <div v-if="totalMembers > 0" class="space-y-6 border-t border-white/20 pt-4">
+        <!-- Owners Section -->
+        <div v-if="membersByRole.owners.length > 0" class="space-y-3">
+          <h3 class="text-white text-lg font-medium flex items-center gap-2">
+            <Icon icon="carbon:user-filled" class="text-yellow-400" width="20" height="20" />
+            Owners
+            <span class="text-sm text-gray-400 font-normal">
+              ({{ membersByRole.owners.length }})
+            </span>
+          </h3>
+          <div class="flex flex-col md:flex-row md:flex-wrap gap-2 md:pl-7">
+            <MemberPill 
+              v-for="m in membersByRole.owners" 
+              :key="m.profile.id" 
+              :member="m"
+              :show-role="false"
+            >
+              <template #actions>
+                <MemberActionMenu
+                  :member="m"
+                  :current-user-role="role"
+                  :current-user-id="authStore.user?.id ?? ''"
+                  :is-admin="authStore.isAdmin"
+                  @promote="handlePromoteMember"
+                  @demote="handleDemoteMember"
+                  @remove="handleRemoveMember"
+                />
+              </template>
+            </MemberPill>
+          </div>
+        </div>
+
+        <!-- Managers Section -->
+        <div v-if="membersByRole.managers.length > 0" class="space-y-3">
+          <h3 class="text-white text-lg font-medium flex items-center gap-2">
+            <Icon icon="carbon:user-admin" class="text-blue-400" width="20" height="20" />
+            Managers
+            <span class="text-sm text-gray-400 font-normal">
+              ({{ membersByRole.managers.length }})
+            </span>
+          </h3>
+          <div class="flex flex-col md:flex-row md:flex-wrap gap-2 md:pl-7">
+            <MemberPill 
+              v-for="m in membersByRole.managers" 
+              :key="m.profile.id" 
+              :member="m"
+              :show-role="false"
+            >
+              <template #actions>
+                <MemberActionMenu
+                  :member="m"
+                  :current-user-role="role"
+                  :current-user-id="authStore.user?.id ?? ''"
+                  :is-admin="authStore.isAdmin"
+                  @promote="handlePromoteMember"
+                  @demote="handleDemoteMember"
+                  @remove="handleRemoveMember"
+                />
+              </template>
+            </MemberPill>
+          </div>
+        </div>
+
+        <!-- Staff Section -->
+        <div v-if="membersByRole.staff.length > 0" class="space-y-3">
+          <h3 class="text-white text-lg font-medium flex items-center gap-2">
+            <Icon icon="carbon:user-military" class="text-purple-400" width="20" height="20" />
+            Staff
+            <span class="text-sm text-gray-400 font-normal">
+              ({{ membersByRole.staff.length }})
+            </span>
+          </h3>
+          <div class="flex flex-col md:flex-row md:flex-wrap gap-2 md:pl-7">
+            <MemberPill 
+              v-for="m in membersByRole.staff" 
+              :key="m.profile.id" 
+              :member="m"
+              :show-role="false"
+            >
+              <template #actions>
+                <MemberActionMenu
+                  :member="m"
+                  :current-user-role="role"
+                  :current-user-id="authStore.user?.id ?? ''"
+                  :is-admin="authStore.isAdmin"
+                  @promote="handlePromoteMember"
+                  @demote="handleDemoteMember"
+                  @remove="handleRemoveMember"
+                />
+              </template>
+            </MemberPill>
+          </div>
+        </div>
+
+        <!-- Members Section -->
+        <div v-if="membersByRole.members.length > 0" class="space-y-3">
+          <h3 class="text-white text-lg font-medium flex items-center gap-2">
+            <Icon icon="carbon:user" class="text-green-400" width="20" height="20" />
+            Members
+            <span class="text-sm text-gray-400 font-normal">
+              ({{ membersByRole.members.length }})
+            </span>
+          </h3>
+          <div class="flex flex-col md:flex-row md:flex-wrap gap-2 md:pl-7">
+            <MemberPill 
+              v-for="m in membersByRole.members" 
+              :key="m.profile.id" 
+              :member="m"
+              :show-role="false"
+            >
+              <template #actions>
+                <MemberActionMenu
+                  :member="m"
+                  :current-user-role="role"
+                  :current-user-id="authStore.user?.id ?? ''"
+                  :is-admin="authStore.isAdmin"
+                  @promote="handlePromoteMember"
+                  @demote="handleDemoteMember"
+                  @remove="handleRemoveMember"
+                />
+              </template>
+            </MemberPill>
+          </div>
+        </div>
       </div>
 
       <p v-else class="text-sm text-gray-500">No members found.</p>
     </div>
 
     <AddMemberModal v-if="showAddMember && canManage" @close="closeAddMember" @submit="handleAddMember" />
-
-    <ConfirmDeleteModal :show="showConfirmRemove"
-      :item-name="`${selectedMemberIds.size} member${selectedMemberIds.size === 1 ? '' : 's'}`"
-      popup-title="Remove Members" :is-deleting="isDeleting" :error="deleteError" @confirm="confirmRemoveMembers"
-      @cancel="closeConfirmRemove" @close="closeConfirmRemove" />
   </div>
 </template>
 
