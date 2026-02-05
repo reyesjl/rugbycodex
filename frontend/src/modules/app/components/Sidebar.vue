@@ -334,7 +334,7 @@ void mobileSheetRef.value;
         </nav>
       </div>
       <div class="text-xs text-gray-400 px-4 py-3">
-        v0.10.2-beta
+        v0.10.3-beta
       </div>
     </div>
   </div>
