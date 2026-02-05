@@ -391,7 +391,8 @@ const matchSummaryState = computed<MatchSummaryState>(() => {
 const matchSummaryBullets = computed(() => {
   if (matchSummaryState.value !== 'normal') return [];
   if (matchSummary.value?.state !== 'normal') return [];
-  return (matchSummary.value?.bullets ?? []).filter(Boolean);
+  const structured = matchSummary.value as any;
+  return (structured?.bullets ?? []).filter(Boolean);
 });
 
 const matchSummarySignature = computed(() => {
@@ -442,18 +443,7 @@ const typedMatchSummaryBullets = computed(() => {
 });
 
 // For display, prefer match signature over legacy bullets, and support typewriter effect
-const displayMatchSummaryBullets = computed(() => {
-  // If we have structured format with signature, use that (no typewriter for now)
-  if (matchSummarySignature.value.length > 0) {
-    return matchSummarySignature.value;
-  }
-  
-  // Otherwise use legacy bullets with typewriter effect
-  if (matchSummaryTyping.value && typedMatchSummaryBullets.value.length > 0) {
-    return typedMatchSummaryBullets.value;
-  }
-  return matchSummaryBullets.value;
-});
+// (use `matchSummarySignature`, `typedMatchSummaryBullets`, and `matchSummaryBullets` directly in templates)
 
 watch(
   matchSummaryBullets,
