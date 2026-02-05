@@ -429,18 +429,7 @@ const hasMatchSummaryContent = computed(() => {
 
 const matchSummaryCollapsed = ref(false);
 
-const {
-  value: matchSummaryTypedText,
-  typing: matchSummaryTyping,
-  typeText: typeMatchSummary,
-} = useTypewriter();
-
-const typedMatchSummaryBullets = computed(() => {
-  return matchSummaryTypedText.value
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean);
-});
+const { value: matchSummaryTypedText, typeText: typeMatchSummary } = useTypewriter();
 
 // For display, prefer match signature over legacy bullets, and support typewriter effect
 // (use `matchSummarySignature`, `typedMatchSummaryBullets`, and `matchSummaryBullets` directly in templates)
