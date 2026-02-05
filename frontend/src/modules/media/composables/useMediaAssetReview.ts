@@ -2,10 +2,9 @@ import { computed, ref, watch } from 'vue';
 import { analysisService } from '@/modules/analysis/services/analysisService';
 import type { MatchSummary } from '@/modules/analysis/types/MatchSummary';
 import type { NarrationListItem } from '@/modules/narrations/composables/useNarrationRecorder';
-import { narrationService } from '@/modules/narrations/services/narrationService';
 import type { Narration } from '@/modules/narrations/types/Narration';
 import { mediaService } from '@/modules/media/services/mediaService';
-import { segmentService } from '@/modules/media/services/segmentService';
+
 import type { OrgMediaAsset } from '@/modules/media/types/OrgMediaAsset';
 import type { MediaAssetSegment } from '@/modules/narrations/types/MediaAssetSegment';
 import type { SegmentTag, SegmentTagType } from '@/modules/media/types/SegmentTag';

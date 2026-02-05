@@ -183,7 +183,7 @@ void mobileSheetRef.value;
           </li>
         </ul>
         <div class="text-xs text-gray-400 px-4 py-3 mt-auto">
-          v0.10.2-beta
+          v0.10.3-beta
         </div>
       </nav>
     </div>

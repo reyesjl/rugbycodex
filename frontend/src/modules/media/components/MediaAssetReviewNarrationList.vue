@@ -205,11 +205,7 @@ function isSavedNarration(n: NarrationListItem): n is Narration {
   return !(n as any)?.status;
 }
 
-function isSavedNarration(n: NarrationListItem): n is Narration {
-  return !(n as any).status;
-}
-
-function isStaffRole(role: OrgRole | null): boolean {
+function isStaffRole(role: OrgRole | null | undefined): boolean {
   if (!role) return false;
   return role === 'owner' || role === 'manager' || role === 'staff';
 }
