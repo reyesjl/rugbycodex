@@ -25,6 +25,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'watchedHalf', payload: { index: number }): void;
   (e: 'addIdentityTag', payload: { segmentId: string }): void;
+  (e: 'removeIdentityTag', payload: { segmentId: string }): void;
 }>();
 
 const items = computed(() => props.items ?? []);
@@ -105,6 +106,7 @@ defineExpose({
           @prev="goPrev"
           @watchedHalf="emit('watchedHalf', { index })"
           @addIdentityTag="emit('addIdentityTag', $event)"
+          @removeIdentityTag="emit('removeIdentityTag', $event)"
         />
       </div>
 
@@ -136,6 +138,7 @@ defineExpose({
       @prev="goPrev"
       @watchedHalf="emit('watchedHalf', { index: nav.activeIndex.value })"
       @addIdentityTag="emit('addIdentityTag', $event)"
+      @removeIdentityTag="emit('removeIdentityTag', $event)"
     />
   </div>
 </template>

@@ -2,6 +2,9 @@
 import { computed, nextTick, ref, watch } from 'vue';
 import type { Narration } from '@/modules/narrations/types/Narration';
 import type { NarrationListItem } from '@/modules/narrations/composables/useNarrationRecorder';
+import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
+import ShimmerText from '@/components/ShimmerText.vue';
+import type { OrgRole } from '@/modules/orgs/types/OrgRole';
 
 const props = withDefaults(
   defineProps<{
@@ -9,11 +12,13 @@ const props = withDefaults(
   submitting?: boolean;
   submitError?: string | null;
   currentUserId?: string | null;
+  currentUserRole?: OrgRole | null;
 }>(),
   {
     submitting: false,
     submitError: null,
     currentUserId: null,
+    currentUserRole: null,
   }
 );
 
@@ -39,9 +44,24 @@ const narrationElById = ref(new Map<string, HTMLElement>());
 const previousNarrationIds = ref<string[]>([]);
 const hasInitialized = ref(false);
 
+// Delete confirmation state
+const showDeleteConfirm = ref(false);
+const narrationToDelete = ref<NarrationListItem | null>(null);
+const isDeleting = ref(false);
+
+function isStaffRole(role: OrgRole | null): boolean {
+  if (!role) return false;
+  return role === 'owner' || role === 'manager' || role === 'staff';
+}
+
 function canManage(item: NarrationListItem): boolean {
   if (!props.currentUserId) return false;
   if (isOptimistic(item)) return false;
+  
+  // Staff can manage any narration
+  if (isStaffRole(props.currentUserRole)) return true;
+  
+  // Members can only manage their own
   return item.author_id === props.currentUserId;
 }
 
@@ -72,10 +92,27 @@ async function saveEdit() {
 function requestDelete(item: NarrationListItem) {
   if (!canManage(item)) return;
   if (isOptimistic(item)) return;
-  const ok = window.confirm('Delete this narration?');
-  if (!ok) return;
-  emit('delete', item.id);
-  if (editingId.value === item.id) cancelEdit();
+  narrationToDelete.value = item;
+  showDeleteConfirm.value = true;
+}
+
+function closeDeleteConfirm() {
+  if (isDeleting.value) return;
+  showDeleteConfirm.value = false;
+  narrationToDelete.value = null;
+}
+
+async function confirmDelete() {
+  if (!narrationToDelete.value) return;
+  isDeleting.value = true;
+  try {
+    emit('delete', narrationToDelete.value.id);
+    if (editingId.value === narrationToDelete.value.id) cancelEdit();
+    showDeleteConfirm.value = false;
+    narrationToDelete.value = null;
+  } finally {
+    isDeleting.value = false;
+  }
 }
 
 function submit() {
@@ -228,8 +265,13 @@ watch(
           </div>
         </div>
 
-        <div v-else class="mt-1 whitespace-pre-wrap text-sm text-white">
-          {{ item.transcript_raw }}
+        <div v-else class="mt-1 whitespace-pre-wrap text-sm">
+          <ShimmerText v-if="isOptimistic(item) && item.status === 'uploading'" class="text-white/70">
+            {{ item.transcript_raw }}
+          </ShimmerText>
+          <span v-else class="text-white">
+            {{ item.transcript_raw }}
+          </span>
         </div>
         <div v-if="isOptimistic(item) && item.status === 'error' && item.errorMessage" class="mt-2 text-xs text-red-300">
           {{ item.errorMessage }}
@@ -240,5 +282,16 @@ watch(
         No narrations yet.
       </div>
     </div>
+
+    <!-- Delete Confirmation Modal -->
+    <ConfirmDeleteModal
+      :show="showDeleteConfirm"
+      :item-name="'this narration'"
+      popup-title="Delete Narration"
+      :is-deleting="isDeleting"
+      @confirm="confirmDelete"
+      @cancel="closeDeleteConfirm"
+      @close="closeDeleteConfirm"
+    />
   </div>
 </template>

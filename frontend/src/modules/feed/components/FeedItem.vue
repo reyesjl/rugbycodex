@@ -34,6 +34,7 @@ const emit = defineEmits<{
   (e: 'prev'): void;
   (e: 'watchedHalf'): void;
   (e: 'addIdentityTag', payload: { segmentId: string }): void;
+  (e: 'removeIdentityTag', payload: { segmentId: string }): void;
 }>();
 
 const authStore = useAuthStore();
@@ -54,6 +55,13 @@ function requestIdentityTag() {
   if (!currentUserId.value) return;
   if (hasIdentityTag.value) return;
   emit('addIdentityTag', { segmentId: String(props.feedItem.mediaAssetSegmentId) });
+}
+
+function requestRemoveIdentityTag() {
+  if (!canAddIdentityTag.value) return;
+  if (!currentUserId.value) return;
+  if (!hasIdentityTag.value) return;
+  emit('removeIdentityTag', { segmentId: String(props.feedItem.mediaAssetSegmentId) });
 }
 
 const playerRef = ref<InstanceType<typeof ShakaSurfacePlayer> | null>(null);
@@ -532,6 +540,16 @@ onBeforeUnmount(() => {
               @pointermove.stop
               @pointerleave.stop
             >
+              <!-- Live transcript overlay (Web Speech API) - No background, just amber text -->
+              <div 
+                v-if="recorder.isRecording.value && recorder.liveTranscript.value"
+                class="absolute bottom-20 left-4 right-4 z-40 pointer-events-none"
+              >
+                <p class="text-base font-medium text-amber-400 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
+                  {{ recorder.liveTranscript.value }}
+                </p>
+              </div>
+
               <NarrationRecorder
                 :is-recording="recorder.isRecording.value"
                 :audio-level01="recorder.audioLevel.value"
@@ -591,6 +609,7 @@ onBeforeUnmount(() => {
           :has-identity-tag="hasIdentityTag"
           :profile-name-by-id="props.profileNameById"
           @addIdentityTag="requestIdentityTag"
+          @removeIdentityTag="requestRemoveIdentityTag"
         />
       </div>
 
@@ -602,6 +621,7 @@ onBeforeUnmount(() => {
           :submitting="submittingText"
           :submit-error="submitTextError"
           :current-user-id="currentUserId"
+          :current-user-role="membershipRole"
           @refresh="refreshNarrations"
           @submitText="submitTypedNarration"
           @delete="onDeleteNarration"
@@ -639,6 +659,7 @@ onBeforeUnmount(() => {
           :submitting="submittingText"
           :submit-error="submitTextError"
           :current-user-id="currentUserId"
+          :current-user-role="membershipRole"
           @refresh="refreshNarrations"
           @submitText="submitTypedNarration"
           @delete="onDeleteNarration"

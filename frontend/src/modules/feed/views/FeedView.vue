@@ -9,6 +9,8 @@ import type { AssignmentFeedMode } from '@/modules/assignments/services/assignme
 import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrganizationStore';
 import { hasOrgAccess } from '@/modules/orgs/composables/useOrgCapabilities';
 import { toast } from '@/lib/toast';
+import LoadingDot from '@/components/LoadingDot.vue';
+import ShimmerText from '@/components/ShimmerText.vue';
 
 /**
  * Route-level view.
@@ -87,6 +89,15 @@ function feedItemHasIdentityTag(segmentId: string): boolean {
   return tags.some((tag) => tag.tag_type === 'identity' && String(tag.created_by) === String(user));
 }
 
+function getUserIdentityTagId(segmentId: string): string | null {
+  const user = userId.value;
+  if (!user) return null;
+  const item = items.value.find((entry) => String(entry.mediaAssetSegmentId) === segmentId);
+  const tags = item?.segment?.tags ?? [];
+  const identityTag = tags.find((tag) => tag.tag_type === 'identity' && String(tag.created_by) === String(user));
+  return identityTag?.id ?? null;
+}
+
 async function handleAddIdentityTag(payload: { segmentId: string }) {
   const segmentId = String(payload.segmentId ?? '');
   if (!segmentId) return;
@@ -103,6 +114,25 @@ async function handleAddIdentityTag(payload: { segmentId: string }) {
     if (!tag) return;
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unable to add identity tag.';
+    toast({ message, variant: 'error', durationMs: 2600 });
+  }
+}
+
+async function handleRemoveIdentityTag(payload: { segmentId: string }) {
+  const segmentId = String(payload.segmentId ?? '');
+  if (!segmentId) return;
+  if (!userId.value) return;
+  
+  const tagId = getUserIdentityTagId(segmentId);
+  if (!tagId) return;
+
+  try {
+    const success = await segmentTags.removeTag({ segmentId, tagId });
+    if (!success) {
+      toast({ message: 'Unable to remove identity tag.', variant: 'error', durationMs: 2600 });
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unable to remove identity tag.';
     toast({ message, variant: 'error', durationMs: 2600 });
   }
 }
@@ -123,8 +153,11 @@ async function handleAddIdentityTag(payload: { segmentId: string }) {
       Select an organization to view the feed.
     </div>
 
-    <div v-else-if="loading" class="h-full w-full flex items-center justify-center text-white/60">
-      Loading feed…
+    <div v-else-if="loading" class="h-full w-full flex items-center justify-center">
+      <div class="flex items-center gap-3">
+        <LoadingDot />
+        <ShimmerText class="text-sm text-white/70" text="Loading your feed..." />
+      </div>
     </div>
 
     <div v-else-if="error" class="h-full w-full flex items-center justify-center px-6 text-red-200">
@@ -142,6 +175,7 @@ async function handleAddIdentityTag(payload: { segmentId: string }) {
       :profile-name-by-id="profileNameById"
       @watchedHalf="handleWatchedHalf"
       @addIdentityTag="handleAddIdentityTag"
+      @removeIdentityTag="handleRemoveIdentityTag"
     />
   </div>
 </template>

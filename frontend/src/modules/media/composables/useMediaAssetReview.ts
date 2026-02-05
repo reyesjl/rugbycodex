@@ -10,6 +10,7 @@ import type { OrgMediaAsset } from '@/modules/media/types/OrgMediaAsset';
 import type { MediaAssetSegment } from '@/modules/narrations/types/MediaAssetSegment';
 import type { SegmentTag, SegmentTagType } from '@/modules/media/types/SegmentTag';
 import { useSegmentTags } from '@/modules/media/composables/useSegmentTags';
+import { supabase } from '@/lib/supabaseClient';
 
 type MediaAssetReviewOptions = {
   orgId: () => string | null;
@@ -130,15 +131,83 @@ export function useMediaAssetReview(options: MediaAssetReviewOptions) {
       if (activeRequestId !== requestId) return;
       playlistUrl.value = url;
 
-      // Load existing segments and narrations for this asset.
-      const [segList, narList] = await Promise.all([
-        segmentService.listSegmentsForMediaAsset(found.id),
-        narrationService.listNarrationsForMediaAsset(found.id),
-      ]);
+      // Load segments, narrations, and tags in single RPC call (2x performance improvement)
+      const { data: segmentData, error: segError } = await supabase
+        .rpc('rpc_get_media_asset_segments_with_data', {
+          p_media_asset_id: found.id,
+        });
 
+      if (segError) throw segError;
       if (activeRequestId !== requestId) return;
-      segments.value = segList;
-      narrations.value = narList;
+
+      // Transform RPC results into segments and narrations
+      const segmentsMap = new Map<string, MediaAssetSegment>();
+      const narrationsMap = new Map<string, Narration>();
+      const segmentTagsMap = new Map<string, SegmentTag[]>();
+
+      for (const row of segmentData ?? []) {
+        const segId = String(row.segment_id);
+        
+        // Build segment (only once per segment_id)
+        if (!segmentsMap.has(segId)) {
+          segmentsMap.set(segId, {
+            id: row.segment_id,
+            media_asset_id: found.id,
+            segment_index: row.segment_index,
+            start_seconds: row.start_seconds,
+            end_seconds: row.end_seconds,
+            source_type: row.segment_source_type as any,
+            created_at: row.segment_created_at,
+            tags: [],
+          });
+        }
+        
+        // Add narration if present (row.narration_id is null if no narration)
+        if (row.narration_id) {
+          const narId = String(row.narration_id);
+          if (!narrationsMap.has(narId)) {
+            narrationsMap.set(narId, {
+              id: row.narration_id,
+              org_id: found.org_id,
+              media_asset_id: found.id,
+              media_asset_segment_id: row.segment_id,
+              author_id: row.narration_author_id,
+              source_type: row.narration_source_type as any,
+              transcript_raw: row.narration_transcript_raw,
+              transcript_clean: row.narration_transcript_clean,
+              created_at: row.narration_created_at,
+              updated_at: row.narration_created_at, // Use created_at as fallback
+            } as any);
+          }
+        }
+        
+        // Add tag if present (identity tags already excluded in RPC)
+        if (row.tag_id) {
+          if (!segmentTagsMap.has(segId)) {
+            segmentTagsMap.set(segId, []);
+          }
+          segmentTagsMap.get(segId)!.push({
+            id: row.tag_id,
+            segment_id: row.segment_id,
+            tag_type: row.tag_type as any,
+            tag_key: row.tag_key,
+            created_by: row.tag_created_by,
+            created_at: row.tag_created_at,
+          } as any);
+        }
+      }
+
+      // Attach tags to segments
+      for (const [segId, segment] of segmentsMap) {
+        segment.tags = segmentTagsMap.get(segId) ?? [];
+      }
+
+      segments.value = Array.from(segmentsMap.values()).sort(
+        (a, b) => (a.start_seconds ?? 0) - (b.start_seconds ?? 0)
+      );
+      narrations.value = Array.from(narrationsMap.values()).sort(
+        (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      );
 
       const localState = getMatchSummaryStateFromCount(narrations.value.length);
       matchSummary.value = { state: localState, bullets: [] };

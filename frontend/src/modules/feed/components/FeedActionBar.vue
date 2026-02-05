@@ -20,6 +20,7 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   (e: 'addIdentityTag'): void;
+  (e: 'removeIdentityTag'): void;
 }>();
 
 const tagList = computed(() => props.tags ?? []);
@@ -90,6 +91,11 @@ function confirmIdentityTag() {
   showIdentityConfirm.value = false;
   emit('addIdentityTag');
 }
+
+function removeIdentityTag() {
+  if (!props.hasIdentityTag) return;
+  emit('removeIdentityTag');
+}
 </script>
 
 <template>
@@ -129,6 +135,15 @@ function confirmIdentityTag() {
             @click="requestIdentityConfirm"
           >
             That's me
+          </button>
+          <button
+            v-else-if="props.canAddIdentity && props.hasIdentityTag"
+            type="button"
+            class="rounded-full bg-white/10 px-3 py-1 text-[11px] font-semibold text-white/70 ring-1 ring-white/20 shadow-sm transition hover:bg-red-500/20 hover:text-red-200 hover:ring-red-300/30"
+            title="Remove your tag"
+            @click="removeIdentityTag"
+          >
+            Remove
           </button>
         </div>
       </div>

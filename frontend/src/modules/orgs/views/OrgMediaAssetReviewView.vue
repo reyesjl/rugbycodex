@@ -117,8 +117,9 @@ const currentUserId = computed(() => authStore.user?.id ?? null);
 const canAssignSegments = computed(() => isStaffOrAbove.value);
 const canTagSegments = computed(() => isStaffOrAbove.value);
 const canModerateNarrations = computed(() => isStaffOrAbove.value);
-const canEditNarrations = computed(() => isStaffOrAbove.value);
-const canDeleteNarrations = computed(() => isStaffOrAbove.value);
+// Allow all org members to edit/delete narrations (role-based filtering in component)
+const canEditNarrations = computed(() => !!currentUserId.value && !!membershipRole.value);
+const canDeleteNarrations = computed(() => !!currentUserId.value && !!membershipRole.value);
 const canGenerateMatchSummary = computed(() => {
   const raw = String(membershipRole.value ?? '').toLowerCase();
   return raw === 'owner' || raw === 'manager' || raw === 'staff';
@@ -1411,16 +1412,14 @@ async function handleDeleteNarration(narrationId: string) {
                         @pointermove.stop
                         @pointerleave.stop
                       >
-                        <!-- Live transcript overlay (Web Speech API) -->
+                        <!-- Live transcript overlay (Web Speech API) - No background, just amber text -->
                         <div 
                           v-if="recorder.isRecording.value && recorder.liveTranscript.value"
-                          class="absolute bottom-20 left-4 right-4 z-40 rounded-lg bg-black/40 p-3 text-white ring-1 ring-white/10 backdrop-blur"
+                          class="absolute bottom-20 left-4 right-4 z-40 pointer-events-none"
                         >
-                          <div class="mb-1 flex items-center gap-2">
-                            <Icon icon="mdi:microphone" class="h-4 w-4 animate-pulse text-red-500" />
-                            <span class="text-xs font-medium text-white/90">Live preview</span>
-                          </div>
-                          <p class="text-sm text-white/95">{{ recorder.liveTranscript.value }}</p>
+                          <p class="text-base font-medium text-amber-400 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
+                            {{ recorder.liveTranscript.value }}
+                          </p>
                         </div>
 
                         <NarrationRecorder
@@ -1520,6 +1519,7 @@ async function handleDeleteNarration(narrationId: string) {
                 :can-edit-narrations="canEditNarrations"
                 :can-delete-narrations="canDeleteNarrations"
                 :current-user-id="currentUserId"
+                :current-user-role="membershipRole"
                 @jumpToSegment="jumpToSegment"
                 @addNarration="handleAddNarrationForSegment"
                 @assignSegment="openAssignSegment"
@@ -1584,6 +1584,7 @@ async function handleDeleteNarration(narrationId: string) {
               :can-edit-narrations="canEditNarrations"
               :can-delete-narrations="canDeleteNarrations"
               :current-user-id="currentUserId"
+              :current-user-role="membershipRole"
               @jumpToSegment="jumpToSegment"
               @addNarration="handleAddNarrationForSegment"
               @assignSegment="openAssignSegment"

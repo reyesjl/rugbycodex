@@ -13,6 +13,8 @@ import NarrationRow from './NarrationRow.vue';
 import NarrationFilterPanel from './NarrationFilterPanel.vue';
 import LoadingDot from '@/components/LoadingDot.vue';
 import ShimmerText from '@/components/ShimmerText.vue';
+import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
+import type { OrgRole } from '@/modules/orgs/types/OrgRole';
 
 const props = defineProps<{
   segments: MediaAssetSegment[];
@@ -27,6 +29,7 @@ const props = defineProps<{
   canEditNarrations?: boolean;
   canDeleteNarrations?: boolean;
   currentUserId?: string | null;
+  currentUserRole?: OrgRole | null;
 }>();
 
 const emit = defineEmits<{
@@ -44,6 +47,11 @@ const emit = defineEmits<{
 
 const editingNarrationId = ref<string | null>(null);
 const editingText = ref('');
+
+// Delete confirmation state
+const showDeleteConfirm = ref(false);
+const narrationToDelete = ref<Narration | null>(null);
+const isDeleting = ref(false);
 
 const SET_PIECE_TAGS = ['scrum', 'lineout', 'kickoff', 'restart'] as const;
 const ACTION_TAGS = ['carry', 'pass', 'kick', 'tackle', 'breakdown', 'maul'] as const;
@@ -197,16 +205,37 @@ function isSavedNarration(n: NarrationListItem): n is Narration {
   return !(n as any)?.status;
 }
 
+function isSavedNarration(n: NarrationListItem): n is Narration {
+  return !(n as any).status;
+}
+
+function isStaffRole(role: OrgRole | null): boolean {
+  if (!role) return false;
+  return role === 'owner' || role === 'manager' || role === 'staff';
+}
+
 function canEditNarration(n: NarrationListItem): boolean {
   if (!props.canEditNarrations) return false;
   if (!isSavedNarration(n)) return false;
-  return true;
+  if (!props.currentUserId) return false;
+  
+  // Staff can edit any narration
+  if (isStaffRole(props.currentUserRole)) return true;
+  
+  // Members can only edit their own
+  return n.author_id === props.currentUserId;
 }
 
 function canDeleteNarration(n: NarrationListItem): boolean {
   if (!props.canDeleteNarrations) return false;
   if (!isSavedNarration(n)) return false;
-  return true;
+  if (!props.currentUserId) return false;
+  
+  // Staff can delete any narration
+  if (isStaffRole(props.currentUserRole)) return true;
+  
+  // Members can only delete their own
+  return n.author_id === props.currentUserId;
 }
 
 function startEditing(n: Narration) {
@@ -228,11 +257,28 @@ function saveEditing(n: Narration) {
 }
 
 function requestDelete(n: Narration) {
-  const ok = window.confirm('Delete this narration?');
-  if (!ok) return;
-  emit('deleteNarration', String(n.id));
-  if (editingNarrationId.value === String(n.id)) {
-    cancelEditing();
+  narrationToDelete.value = n;
+  showDeleteConfirm.value = true;
+}
+
+function closeDeleteConfirm() {
+  if (isDeleting.value) return;
+  showDeleteConfirm.value = false;
+  narrationToDelete.value = null;
+}
+
+async function confirmDelete() {
+  if (!narrationToDelete.value) return;
+  isDeleting.value = true;
+  try {
+    emit('deleteNarration', String(narrationToDelete.value.id));
+    if (editingNarrationId.value === String(narrationToDelete.value.id)) {
+      cancelEditing();
+    }
+    showDeleteConfirm.value = false;
+    narrationToDelete.value = null;
+  } finally {
+    isDeleting.value = false;
   }
 }
 
@@ -786,4 +832,15 @@ function formatSegmentSourceMeta(seg: MediaAssetSegment): string | null {
       </div>
     </div>
   </div>
+
+  <!-- Delete Confirmation Modal -->
+  <ConfirmDeleteModal
+    :show="showDeleteConfirm"
+    :item-name="'this narration'"
+    popup-title="Delete Narration"
+    :is-deleting="isDeleting"
+    @confirm="confirmDelete"
+    @cancel="closeDeleteConfirm"
+    @close="closeDeleteConfirm"
+  />
 </template>
