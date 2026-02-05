@@ -95,11 +95,21 @@ export const analysisService = {
     const data = response.data as any;
 
     const state = asMatchSummaryState(data?.state);
+    
+    // Support both legacy bullets and new structured format
     const bullets = asStringArray(data?.bullets);
+    const match_signature = asStringArray(data?.match_signature);
+    const sections = data?.sections && typeof data.sections === 'object' ? data.sections : undefined;
 
     const summary: MatchSummary = {
       state,
+      // Legacy format
       bullets: state === 'normal' ? bullets : [],
+      // New structured format (union type compatibility)
+      ...(match_signature.length > 0 || sections ? {
+        match_signature: state === 'normal' ? match_signature : [],
+        sections: state === 'normal' ? sections : undefined,
+      } : {})
     };
 
     setCachedSummary(id, mode, summary);

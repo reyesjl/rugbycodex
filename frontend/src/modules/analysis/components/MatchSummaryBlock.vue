@@ -1,16 +1,32 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { Icon } from '@iconify/vue';
+import { Disclosure, DisclosureButton, DisclosurePanel } from '@headlessui/vue';
 import LoadingDot from '@/components/LoadingDot.vue';
 import ShimmerText from '@/components/ShimmerText.vue';
 import ConfirmNoticeModal from '@/components/ConfirmNoticeModal.vue';
 
 type MatchSummaryState = 'empty' | 'light' | 'normal';
 
+type MatchAnalysisSection = {
+  key: string;
+  title: string;
+  summary: string;
+};
+
 const props = withDefaults(
   defineProps<{
     state: MatchSummaryState;
     bullets?: string[];
+    matchSignature?: string[];
+    sections?: {
+      set_piece?: string | null;
+      territory?: string | null;
+      possession?: string | null;
+      defence?: string | null;
+      kick_battle?: string | null;
+      scoring?: string | null;
+    };
     loading?: boolean;
     error?: string | null;
     canGenerate?: boolean;
@@ -22,6 +38,8 @@ const props = withDefaults(
   }>(),
   {
     bullets: () => [],
+    matchSignature: () => [],
+    sections: () => ({}),
     loading: false,
     error: null,
     canGenerate: false,
@@ -35,7 +53,43 @@ const props = withDefaults(
 
 const emit = defineEmits<{ (e: 'generate'): void; (e: 'toggle'): void }>();
 
-const hasBullets = computed(() => Array.isArray(props.bullets) && props.bullets.length > 0);
+// Support both legacy bullets and new structured format
+const hasLegacyBullets = computed(() => Array.isArray(props.bullets) && props.bullets.length > 0);
+const hasMatchSignature = computed(() => Array.isArray(props.matchSignature) && props.matchSignature.length > 0);
+const hasBullets = computed(() => hasLegacyBullets.value || hasMatchSignature.value);
+
+// Section metadata
+const sectionMetadata: Record<string, string> = {
+  set_piece: 'Set Piece & Launch',
+  territory: 'Territory & Pressure',
+  possession: 'Possession & Breakdown',
+  defence: 'Defence & Contact',
+  kick_battle: 'Kick Battle & Transition',
+  scoring: 'Scoring & Threat Creation',
+};
+
+// Build array of available sections with data
+const availableSections = computed((): MatchAnalysisSection[] => {
+  if (!props.sections) return [];
+  
+  const sections: MatchAnalysisSection[] = [];
+  const orderedKeys = ['set_piece', 'territory', 'possession', 'defence', 'kick_battle', 'scoring'];
+  
+  for (const key of orderedKeys) {
+    const summary = props.sections[key as keyof typeof props.sections];
+    if (summary && typeof summary === 'string' && summary.trim().length > 0) {
+      sections.push({
+        key,
+        title: sectionMetadata[key] || key,
+        summary: summary.trim(),
+      });
+    }
+  }
+  
+  return sections;
+});
+
+const hasStructuredContent = computed(() => hasMatchSignature.value || availableSections.value.length > 0);
 
 const showInfoModal = ref(false);
 
@@ -52,13 +106,13 @@ const containerClass = computed(() => 'rounded-lg border border-slate-700/50 bg-
 const shouldShowContainer = computed(() => {
   if (props.state !== 'normal') return false;
   if (props.loading) return false;
-  return Boolean(props.error || hasBullets.value || props.hasGenerated);
+  return Boolean(props.error || hasBullets.value || hasStructuredContent.value || props.hasGenerated);
 });
 
 const shouldShowAnalyzeButton = computed(() => {
   if (props.state !== 'normal') return false;
   if (props.loading || props.error) return false;
-  if (hasBullets.value || props.hasGenerated) return false;
+  if (hasBullets.value || hasStructuredContent.value || props.hasGenerated) return false;
   return Boolean(props.canGenerate);
 });
 
@@ -131,15 +185,57 @@ const shouldShowAnalyzeButton = computed(() => {
     <!-- Collapsed state (content hidden) -->
     <div v-else-if="collapsible && collapsed" />
 
-    <!-- Normal state with content -->
-    <div v-else class="mt-3">
-      <div v-if="hasBullets" class="space-y-2">
+    <!-- Content -->
+    <div v-else class="mt-4">
+      <!-- Match Signature (always visible, not expandable) -->
+      <div v-if="hasMatchSignature" class="mb-4">
+        <div class="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
+          Match Signature
+        </div>
+        <ul class="space-y-2 text-sm text-slate-300">
+          <li v-for="(bullet, idx) in matchSignature" :key="idx" class="flex gap-3">
+            <span class="text-slate-500 shrink-0">•</span>
+            <span class="leading-relaxed">{{ bullet }}</span>
+          </li>
+        </ul>
+      </div>
+
+      <!-- Legacy bullets (backward compatibility) -->
+      <div v-else-if="hasLegacyBullets" class="mb-4">
         <ul class="space-y-2 text-sm text-slate-300">
           <li v-for="(b, idx) in bullets" :key="idx" class="flex gap-3">
             <span class="text-slate-500 shrink-0">•</span>
             <span class="leading-relaxed">{{ b }}</span>
           </li>
         </ul>
+      </div>
+
+      <!-- Analysis Sections (expandable with Headless UI) -->
+      <div v-if="availableSections.length > 0" class="space-y-2">
+        <Disclosure
+          v-for="section in availableSections"
+          :key="section.key"
+          v-slot="{ open }"
+          as="div"
+          class="rounded-md border border-slate-700/40 bg-slate-800/20"
+        >
+          <DisclosureButton
+            class="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left transition hover:bg-slate-700/20"
+          >
+            <span class="text-sm font-medium text-slate-200">{{ section.title }}</span>
+            <Icon
+              :icon="open ? 'carbon:chevron-up' : 'carbon:chevron-down'"
+              width="16"
+              height="16"
+              class="text-slate-400 transition-transform shrink-0"
+            />
+          </DisclosureButton>
+          <DisclosurePanel class="px-3 pb-3 pt-1">
+            <p class="text-sm leading-relaxed text-slate-300">
+              {{ section.summary }}
+            </p>
+          </DisclosurePanel>
+        </Disclosure>
       </div>
     </div>
   </div>

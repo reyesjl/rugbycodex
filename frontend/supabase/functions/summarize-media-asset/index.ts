@@ -49,23 +49,60 @@ type SummaryContext = {
 
 const ALLOWED_ROLES = new Set(["owner", "manager", "staff"]);
 
-const DEFAULT_MODEL = "gpt-4o-mini";
+const DEFAULT_MODEL = "gpt-4.1-mini";
+
+// const NORMAL_SYSTEM_PROMPT =
+//   "You are an assistant extracting patterns from team match-review narrations.\n" +
+//   "Your job is to identify recurring themes, patterns, or consistent issues the team has noticed across the match.\n" +
+//   "Write in direct, practical rugby language, as if summarizing coach and player comments in a review session.\n" +
+//   "Avoid academic, report-style phrasing.\n" +
+//   "Prefer structural language (e.g. spacing, shape, alignment, connection, communication) over event language.\n" +
+//   "Rules:\n" +
+//   "- Focus on patterns and repetition, not individual plays or sequences.\n" +
+//   "- Do NOT list play-by-play, timestamps, or chronological events.\n" +
+//   "- Do NOT describe single isolated moments unless they are clearly emphasized multiple times.\n" +
+//   "- Summarize what keeps showing up or being noticed, not what happened once.\n" +
+//   "- Avoid speculation; only reflect what is explicitly present in the narrations.\n" +
+//   "- Avoid tactical recommendations or prescriptions (no 'should', no strategy, no fixes).\n" +
+//   "- Neutral, observational tone.\n" +
+//   "- Reflect team observations, not an 'AI opinion'.\n";
 
 const NORMAL_SYSTEM_PROMPT =
-  "You are an assistant extracting patterns from team match-review narrations.\n" +
-  "Your job is to identify recurring themes, patterns, or consistent issues the team has noticed across the match.\n" +
-  "Write in direct, practical rugby language, as if summarizing coach and player comments in a review session.\n" +
-  "Avoid academic, report-style phrasing.\n" +
-  "Prefer structural language (e.g. spacing, shape, alignment, connection, communication) over event language.\n" +
-  "Rules:\n" +
-  "- Focus on patterns and repetition, not individual plays or sequences.\n" +
-  "- Do NOT list play-by-play, timestamps, or chronological events.\n" +
-  "- Do NOT describe single isolated moments unless they are clearly emphasized multiple times.\n" +
-  "- Summarize what keeps showing up or being noticed, not what happened once.\n" +
-  "- Avoid speculation; only reflect what is explicitly present in the narrations.\n" +
-  "- Avoid tactical recommendations or prescriptions (no 'should', no strategy, no fixes).\n" +
-  "- Neutral, observational tone.\n" +
-  "- Reflect team observations, not an 'AI opinion'.\n";
+  "You are an assistant summarizing a full rugby match from team match-review narrations.\n" +
+  "Your job is to produce a structured analysis with two components:\n\n" +
+  
+  "1) MATCH SIGNATURE (2-3 bullets)\n" +
+  "   - High-level match identity and feel\n" +
+  "   - Include approximate counts of key events if clearly inferable (scrums, lineouts, tries, kicks)\n" +
+  "   - Use 'approx', 'around', or 'multiple' if exact counts unclear\n" +
+  "   - Territory and pressure trends\n" +
+  "   - Overall match character\n\n" +
+  
+  "2) ANALYSIS SECTIONS (coach-style summaries)\n" +
+  "   Generate 2-3 sentence summaries for each section below ONLY if there is sufficient signal in the narrations.\n" +
+  "   If a section lacks clear, repeated patterns, return null for that section instead of speculating.\n\n" +
+  
+  "   SECTIONS:\n" +
+  "   - set_piece: Scrum dominance/issues, lineout success/steals, first phase effectiveness, maul patterns\n" +
+  "   - territory: Field position control, exit success, red zone time, pressure cycles, where game was played\n" +
+  "   - possession: Retention quality, turnovers won/lost, phase building ability, ball security, ruck speed\n" +
+  "   - defence: Tackle completion, line breaks conceded, defensive shape/speed, collision dominance, system pressure\n" +
+  "   - kick_battle: Kick pressure success, kick return threat, territory outcomes, restart quality, aerial contest\n" +
+  "   - scoring: Try source patterns, line break sources, attack shape success, opponent scoring patterns\n\n" +
+  
+  "STYLE GUIDELINES:\n" +
+  "- Write in direct, practical rugby language like a coach speaking after a review session\n" +
+  "- Prefer structural language (spacing, shape, alignment, connection, communication, pressure, territory)\n" +
+  "- Avoid academic or report-style phrasing\n" +
+  "- Focus on repeated patterns, not isolated moments\n" +
+  "- Preserve 'our' vs 'their' perspective if present in narrations\n" +
+  "- Reflect asymmetry if one side clearly dominates\n" +
+  "- NO play-by-play, timestamps, or chronological recap\n" +
+  "- NO tactical recommendations or prescriptions (no 'should', no strategy, no fixes)\n" +
+  "- Neutral observational tone reflecting team observations, not AI opinion\n" +
+  "- Only reflect what is explicitly present in narrations - no speculation\n";
+
+
 
 const LIGHT_SYSTEM_PROMPT =
   "You are an assistant summarizing a small set of match-review narrations.\n" +
@@ -158,12 +195,107 @@ function shapeBullets(input: string[]): string[] {
   return unique.slice(0, 5);
 }
 
-function clampBullet(b: string): string {
-  const maxChars = 240;
-  const t = String(b ?? "").trim();
-  if (t.length <= maxChars) return t;
-  return `${t.slice(0, maxChars - 1).trim()}…`;
+type StructuredSummaryResponse = {
+  match_signature: string[];
+  sections: {
+    set_piece?: string | null;
+    territory?: string | null;
+    possession?: string | null;
+    defence?: string | null;
+    kick_battle?: string | null;
+    scoring?: string | null;
+  };
+};
+
+async function callOpenAIStructured(
+  context: SummaryContext
+): Promise<{ response: StructuredSummaryResponse; model: string }> {
+  const apiKey = Deno.env.get("OPENAI_API_KEY") ?? "";
+  if (!apiKey) {
+    throw new Error("Missing OPENAI_API_KEY.");
+  }
+
+  const model = Deno.env.get("OPENAI_SUMMARY_MODEL") ?? DEFAULT_MODEL;
+
+  const jsonSchemaInstruction = 
+    "\n\nOUTPUT FORMAT (strict JSON):\n" +
+    "{\n" +
+    '  "match_signature": ["bullet1", "bullet2", "bullet3"],  // 2-3 bullets\n' +
+    '  "sections": {\n' +
+    '    "set_piece": "2-3 sentence summary or null if insufficient data",\n' +
+    '    "territory": "2-3 sentence summary or null if insufficient data",\n' +
+    '    "possession": "2-3 sentence summary or null if insufficient data",\n' +
+    '    "defence": "2-3 sentence summary or null if insufficient data",\n' +
+    '    "kick_battle": "2-3 sentence summary or null if insufficient data",\n' +
+    '    "scoring": "2-3 sentence summary or null if insufficient data"\n' +
+    "  }\n" +
+    "}\n" +
+    "Return null for any section that lacks clear, repeated patterns in the narrations.";
+
+  const systemPrompt = NORMAL_SYSTEM_PROMPT + jsonSchemaInstruction;
+
+  const body = {
+    model,
+    temperature: 0.2,
+    response_format: { type: "json_object" },
+    messages: [
+      { role: "system", content: systemPrompt },
+      {
+        role: "user",
+        content:
+          "Analyze the following match-review context and produce a structured summary. Only use the provided narrations.\n\n" +
+          JSON.stringify(context),
+      },
+    ],
+  };
+
+  const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => "");
+    throw new Error(`OpenAI request failed (${resp.status}): ${text || resp.statusText}`);
+  }
+
+  const data = (await resp.json()) as any;
+  const content = data?.choices?.[0]?.message?.content ?? "";
+
+  let parsed: any;
+  try {
+    parsed = JSON.parse(content);
+  } catch {
+    throw new Error("Failed to parse structured response from OpenAI");
+  }
+
+  // Validate and shape the response
+  const match_signature = Array.isArray(parsed?.match_signature)
+    ? parsed.match_signature.map((s: any) => String(s ?? "").trim()).filter(Boolean).slice(0, 3)
+    : [];
+
+  const sections: StructuredSummaryResponse["sections"] = {};
+  const sectionKeys = ["set_piece", "territory", "possession", "defence", "kick_battle", "scoring"] as const;
+  
+  for (const key of sectionKeys) {
+    const val = parsed?.sections?.[key];
+    if (val && typeof val === "string" && val.trim().length > 0) {
+      sections[key] = val.trim();
+    } else {
+      sections[key] = null;
+    }
+  }
+
+  return { 
+    response: { match_signature, sections }, 
+    model 
+  };
 }
+
 
 async function callOpenAI(
   context: SummaryContext,
@@ -217,7 +349,7 @@ async function callOpenAI(
   const data = (await resp.json()) as any;
   const content = data?.choices?.[0]?.message?.content ?? "";
 
-  const bullets = shapeBullets(asBulletsFromText(content)).map(clampBullet);
+  const bullets = shapeBullets(asBulletsFromText(content));
   return { bullets, model };
 }
 
@@ -455,25 +587,14 @@ Deno.serve(withObservability("summarize-media-asset", async (req: Request) => {
       return jsonResponse({ state });
     }
 
-    const systemPrompt = state === "light" ? LIGHT_SYSTEM_PROMPT : NORMAL_SYSTEM_PROMPT;
+    // Generate structured summary for normal state
+    const { response } = await callOpenAIStructured(context);
 
-    // Primary attempt.
-    let { bullets } = await callOpenAI(context, { systemPrompt });
-
-    // If we didn't get enough bullets, do a single stricter retry.
-    // Only do this in normal mode to avoid forcing structure on thin data.
-    if (state === "normal" && bullets.length > 0 && bullets.length < 3) {
-      try {
-        const retry = await callOpenAI(context, { systemPrompt, forceExactly3: true });
-        if (retry.bullets.length >= bullets.length) {
-          bullets = retry.bullets;
-        }
-      } catch {
-        // ignore retry failure
-      }
-    }
-
-    return jsonResponse({ state, bullets });
+    return jsonResponse({ 
+      state, 
+      match_signature: response.match_signature,
+      sections: response.sections
+    });
   } catch (err) {
     console.error("summarize_media_asset unexpected error", err);
     const message = err instanceof Error ? err.message : "Internal Server Error";

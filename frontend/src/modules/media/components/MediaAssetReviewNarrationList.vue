@@ -703,7 +703,7 @@ function formatSegmentSourceMeta(seg: MediaAssetSegment): string | null {
         <!-- Tags -->
         <div
           v-if="visibleSegmentTags(seg).length || isTagPanelOpen(String(seg.id))"
-          class="px-4 py-3 border-t border-slate-700/50 bg-amber-950/20 space-y-3"
+          class="px-4 py-3 border-t border-slate-700/50 bg-yellow-900/40 space-y-3"
         >
           <div v-if="visibleSegmentTags(seg).length" class="flex flex-wrap gap-2">
             <div

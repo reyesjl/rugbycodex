@@ -387,10 +387,43 @@ const matchSummaryState = computed<MatchSummaryState>(() => {
   return matchSummary.value?.state ?? 'empty';
 });
 
+// Support both legacy bullets and new structured format
 const matchSummaryBullets = computed(() => {
   if (matchSummaryState.value !== 'normal') return [];
   if (matchSummary.value?.state !== 'normal') return [];
   return (matchSummary.value?.bullets ?? []).filter(Boolean);
+});
+
+const matchSummarySignature = computed(() => {
+  if (matchSummaryState.value !== 'normal') return [];
+  if (matchSummary.value?.state !== 'normal') return [];
+  const structured = matchSummary.value as any;
+  return (structured?.match_signature ?? []).filter(Boolean);
+});
+
+const matchSummarySections = computed(() => {
+  if (matchSummaryState.value !== 'normal') return {};
+  if (matchSummary.value?.state !== 'normal') return {};
+  const structured = matchSummary.value as any;
+  return structured?.sections ?? {};
+});
+
+const hasMatchSummaryContent = computed(() => {
+  if (matchSummaryState.value !== 'normal') return false;
+  
+  // Check for legacy bullets
+  if (matchSummaryBullets.value.length > 0) return true;
+  
+  // Check for new structured format
+  if (matchSummarySignature.value.length > 0) return true;
+  
+  // Check if any section has content
+  const sections = matchSummarySections.value;
+  if (sections && typeof sections === 'object') {
+    return Object.values(sections).some(val => val && typeof val === 'string' && val.trim().length > 0);
+  }
+  
+  return false;
 });
 
 const matchSummaryCollapsed = ref(false);
@@ -408,7 +441,14 @@ const typedMatchSummaryBullets = computed(() => {
     .filter(Boolean);
 });
 
+// For display, prefer match signature over legacy bullets, and support typewriter effect
 const displayMatchSummaryBullets = computed(() => {
+  // If we have structured format with signature, use that (no typewriter for now)
+  if (matchSummarySignature.value.length > 0) {
+    return matchSummarySignature.value;
+  }
+  
+  // Otherwise use legacy bullets with typewriter effect
   if (matchSummaryTyping.value && typedMatchSummaryBullets.value.length > 0) {
     return typedMatchSummaryBullets.value;
   }
@@ -1472,11 +1512,13 @@ async function handleDeleteNarration(narrationId: string) {
               <div v-if="canGenerateMatchSummary">
                 <MatchSummaryBlock
                   :state="matchSummaryState"
-                  :bullets="displayMatchSummaryBullets"
+                  :bullets="matchSummaryBullets"
+                  :match-signature="matchSummarySignature"
+                  :sections="matchSummarySections"
                   :loading="matchSummaryLoading"
                   :error="matchSummaryError"
                   :can-generate="canGenerateMatchSummary"
-                  :has-generated="Boolean(matchSummaryBullets.length)"
+                  :has-generated="hasMatchSummaryContent"
                   :narration-count="narrationCount"
                   :narrations-needed="summaryNarrationsNeeded"
                   :collapsible="true"
@@ -1534,11 +1576,13 @@ async function handleDeleteNarration(narrationId: string) {
             >
               <MatchSummaryBlock
                 :state="matchSummaryState"
-                :bullets="displayMatchSummaryBullets"
+                :bullets="matchSummaryBullets"
+                :match-signature="matchSummarySignature"
+                :sections="matchSummarySections"
                 :loading="matchSummaryLoading"
                 :error="matchSummaryError"
                 :can-generate="canGenerateMatchSummary"
-                :has-generated="Boolean(matchSummaryBullets.length)"
+                :has-generated="hasMatchSummaryContent"
                 :narration-count="narrationCount"
                 :narrations-needed="summaryNarrationsNeeded"
                 :collapsible="true"
