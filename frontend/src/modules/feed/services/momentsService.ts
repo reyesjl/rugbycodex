@@ -3,33 +3,7 @@ import { requireUserId } from '@/modules/auth/identity';
 import type { PostgrestError } from '@supabase/supabase-js';
 import type { FeedItem } from '@/modules/feed/types/FeedItem';
 import type { SegmentTag } from '@/modules/media/types/SegmentTag';
-
-type MomentsQueryRow = {
-  id: string;
-  media_asset_id: string;
-  segment_index: number;
-  start_seconds: number;
-  end_seconds: number;
-  created_at: string;
-  media_assets: {
-    id: string;
-    bucket: string;
-    file_name: string;
-    created_at: string;
-    org_id: string;
-    organizations: {
-      id: string;
-      name: string;
-    };
-  };
-  segment_tags: Array<{
-    id: string;
-    tag_type: string;
-    tag_key: string;
-    created_by: string;
-    created_at: string;
-  }>;
-};
+import { formatMediaAssetNameForDisplay } from '@/modules/media/utils/assetUtilities';
 
 function formatTimestamp(seconds: number): string {
   const minutes = Math.floor(seconds / 60);
@@ -37,48 +11,29 @@ function formatTimestamp(seconds: number): string {
   return `${minutes}:${String(secs).padStart(2, '0')}`;
 }
 
-function toFeedItem(row: MomentsQueryRow): FeedItem {
-  const asset = row.media_assets;
-  const org = asset.organizations;
-  const matchDate = new Date(asset.created_at);
+function formatTagKey(key: string): string {
+  return key.replace(/_/g, ' ');
+}
+
+function formatSegmentTitle(tags: SegmentTag[]): string {
+  const actionTags = tags.filter((t) => t.tag_type === 'action').map((t) => formatTagKey(t.tag_key));
+  const contextTags = tags.filter((t) => t.tag_type === 'context').map((t) => formatTagKey(t.tag_key));
+
+  if (actionTags.length === 0 && contextTags.length === 0) {
+    return 'You in action';
+  }
+
+  const parts: string[] = [];
   
-  const timestamp = formatTimestamp(row.start_seconds);
-  const title = `Your moment at ${timestamp}`;
-  const dateLabel = Number.isNaN(matchDate.getTime()) ? '' : matchDate.toLocaleDateString();
-  const metaLine = dateLabel ? `${asset.file_name} • ${dateLabel}` : asset.file_name;
+  if (actionTags.length > 0) {
+    parts.push(actionTags.join(', '));
+  }
 
-  const tags: SegmentTag[] = row.segment_tags.map((tag) => ({
-    id: tag.id,
-    segment_id: row.id,
-    tag_key: tag.tag_key,
-    tag_type: tag.tag_type as any,
-    created_by: tag.created_by,
-    created_at: tag.created_at,
-  }));
+  if (contextTags.length > 0) {
+    parts.push(`(${contextTags.join(', ')})`);
+  }
 
-  return {
-    id: row.id,
-    orgId: org.id,
-    orgName: org.name,
-    mediaAssetId: asset.id,
-    bucket: asset.bucket,
-    mediaAssetSegmentId: row.id,
-    segmentIndex: row.segment_index,
-    startSeconds: row.start_seconds,
-    endSeconds: row.end_seconds,
-    title,
-    metaLine,
-    createdAt: new Date(row.created_at),
-    segment: {
-      id: row.id,
-      media_asset_id: row.media_asset_id,
-      segment_index: row.segment_index,
-      start_seconds: row.start_seconds,
-      end_seconds: row.end_seconds,
-      created_at: new Date(row.created_at),
-      tags,
-    },
-  };
+  return `You in ${parts.join(' ')}`;
 }
 
 export const momentsService = {
@@ -98,7 +53,8 @@ export const momentsService = {
       throw new Error('Media asset ID is required.');
     }
 
-    const { data, error } = await supabase
+    // First, get segments where user has identity tags
+    const { data: identityData, error: identityError } = await supabase
       .from('media_asset_segments')
       .select(`
         id,
@@ -134,25 +90,93 @@ export const momentsService = {
         error: PostgrestError | null;
       };
 
-    if (error) {
-      throw new Error(`Failed to fetch moments: ${error.message}`);
+    if (identityError) {
+      throw new Error(`Failed to fetch moments: ${identityError.message}`);
     }
 
-    if (!data || data.length === 0) {
+    if (!identityData || identityData.length === 0) {
       return [];
+    }
+
+    // Get segment IDs
+    const segmentIds = identityData.map((row) => row.id);
+
+    // Fetch ALL tags for these segments (not just identity)
+    const { data: allTags, error: tagsError } = await supabase
+      .from('segment_tags')
+      .select('id, segment_id, tag_type, tag_key, created_by, created_at')
+      .in('segment_id', segmentIds) as {
+        data: any[] | null;
+        error: PostgrestError | null;
+      };
+
+    if (tagsError) {
+      console.warn('Failed to fetch all tags:', tagsError.message);
+    }
+
+    // Group tags by segment
+    const tagsBySegment = new Map<string, SegmentTag[]>();
+    for (const tag of allTags ?? []) {
+      const segmentId = String(tag.segment_id);
+      if (!tagsBySegment.has(segmentId)) {
+        tagsBySegment.set(segmentId, []);
+      }
+      tagsBySegment.get(segmentId)!.push({
+        id: tag.id,
+        segment_id: tag.segment_id,
+        tag_key: tag.tag_key,
+        tag_type: tag.tag_type as any,
+        created_by: tag.created_by,
+        created_at: tag.created_at,
+      });
     }
 
     // Transform rows to FeedItems
     const feedItems: FeedItem[] = [];
     
-    for (const row of data) {
+    for (const row of identityData) {
       // Validate structure (defensive check)
       if (!row.media_assets || !row.media_assets.organizations) {
         console.warn('[momentsService] Skipping row with incomplete data:', row.id);
         continue;
       }
 
-      feedItems.push(toFeedItem(row as MomentsQueryRow));
+      // Use all tags for this segment
+      const allSegmentTags = tagsBySegment.get(String(row.id)) ?? [];
+      
+      // Build FeedItem with all tags
+      const asset = row.media_assets;
+      const org = asset.organizations;
+      const matchDate = new Date(asset.created_at);
+      
+      const title = formatSegmentTitle(allSegmentTags);
+      const normalizedFileName = formatMediaAssetNameForDisplay(asset.file_name);
+      const dateLabel = Number.isNaN(matchDate.getTime()) ? '' : matchDate.toLocaleDateString();
+      const metaLine = dateLabel ? `${normalizedFileName} • ${dateLabel}` : normalizedFileName;
+
+      feedItems.push({
+        id: row.id,
+        orgId: org.id,
+        orgName: org.name,
+        mediaAssetId: asset.id,
+        bucket: asset.bucket,
+        mediaAssetSegmentId: row.id,
+        segmentIndex: row.segment_index,
+        startSeconds: row.start_seconds,
+        endSeconds: row.end_seconds,
+        title,
+        metaLine,
+        createdAt: new Date(row.created_at),
+        segment: {
+          id: row.id,
+          media_asset_id: row.media_asset_id,
+          segment_index: row.segment_index,
+          start_seconds: row.start_seconds,
+          end_seconds: row.end_seconds,
+          created_at: new Date(row.created_at),
+          tags: allSegmentTags,
+        },
+      });
     }
 
     return feedItems;

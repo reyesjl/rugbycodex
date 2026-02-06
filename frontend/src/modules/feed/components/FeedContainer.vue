@@ -186,6 +186,8 @@ defineExpose({
       :can-prev="nav.hasPrev.value"
       :can-next="nav.hasNext.value"
       :profile-name-by-id="props.profileNameById"
+      :active-index="nav.activeIndex.value"
+      :total-count="items.length"
       @next="goNext"
       @prev="goPrev"
       @watchedHalf="emit('watchedHalf', { index: nav.activeIndex.value })"

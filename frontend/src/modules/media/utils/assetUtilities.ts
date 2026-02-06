@@ -14,15 +14,22 @@ export const sanitizeFileName = (name: string) => {
  * Formats a file name for display:
  * - Removes file extension
  * - Replaces dashes and underscores with spaces
+ * - Capitalizes words
  * - Trims whitespace
- * 
- * Returns the formatted string (to be used with Tailwind's capitalize class)
  */
 export const formatMediaAssetNameForDisplay = (fileName: string): string => {
   const lastSegment = fileName.split('/').pop() ?? fileName;
   const withoutExtension = lastSegment.replace(/\.[^/.]+$/, '');
   const withSpaces = withoutExtension.replace(/[-_]+/g, ' ');
-  return withSpaces.trim() || 'Untitled';
+  const trimmed = withSpaces.trim();
+  
+  if (!trimmed) return 'Untitled';
+  
+  // Capitalize each word
+  return trimmed
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
 };
 
 export const getMediaDurationSeconds = async (file: globalThis.File) => {
