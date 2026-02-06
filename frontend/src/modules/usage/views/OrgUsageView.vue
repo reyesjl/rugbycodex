@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { storeToRefs } from 'pinia';
+import { Icon } from '@iconify/vue';
 import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrganizationStore';
 import { useOrgUsage } from '@/modules/usage/composables/useOrgUsage';
 import { formatStorage, formatPercent } from '@/lib/format';
@@ -82,8 +83,9 @@ const progressClass = computed(() => {
         <div class="rounded-lg border border-white/10 bg-white/5 p-6">
           <div class="flex items-center justify-between mb-4">
             <div>
-              <div class="text-2xl font-medium text-white">
-                0 of ∞
+              <div class="text-2xl font-medium text-white flex items-center gap-2">
+                <span>0 of</span>
+                <Icon icon="carbon:infinity" width="24" height="24" />
               </div>
               <div class="text-sm text-white/60 mt-1">
                 AI-generated match summaries this month
