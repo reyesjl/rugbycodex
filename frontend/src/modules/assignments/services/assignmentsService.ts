@@ -8,7 +8,6 @@ import type {
   OrgAssignmentTarget,
   UserAssignmentFeed,
   ManagerAssignment,
-  AssignmentTargetInfo,
   AssignmentWithProgress,
   AssignmentDetail,
 } from '@/modules/assignments/types';

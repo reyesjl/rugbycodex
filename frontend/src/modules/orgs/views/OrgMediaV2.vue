@@ -19,6 +19,8 @@ import LoadingDot from '@/components/LoadingDot.vue';
 import ShimmerText from '@/components/ShimmerText.vue';
 import { toast } from '@/lib/toast';
 import type { OrgMediaAsset } from '@/modules/media/types/OrgMediaAsset';
+import type { MediaAssetKind } from '@/modules/media/types/MediaAssetKind';
+import type { UploadState } from '@/modules/media/types/UploadStatus';
 
 defineProps<{ slug?: string | string[] }>();
 
@@ -29,7 +31,7 @@ const router = useRouter();
 const route = useRoute();
 
 const { orgContext, resolving: orgResolving } = storeToRefs(activeOrgStore);
-const { assets: storeAssets, error: storeError, isLoading: storeLoading } = storeToRefs(mediaStore);
+const { assets: storeAssets } = storeToRefs(mediaStore);
 const { isAdmin } = storeToRefs(authStore);
 
 const activeOrgId = computed(() => orgContext.value?.organization?.id ?? null);
@@ -70,6 +72,19 @@ const assetToReattach = ref<{ assetId: string; fileName: string; hasExistingJob:
 const uploadStore = useUploadStore();
 
 const hasInFlightUploads = computed(() => uploadStore.activeUploads.length > 0);
+
+// Create upload metrics map for ProcessingVideosList
+const uploadMetricsByAssetId = computed(() => {
+  const map = new Map<string, { state: UploadState; progress: number; uploadSpeedBps?: number }>();
+  uploadStore.uploadsReadonly.forEach(upload => {
+    map.set(upload.mediaId, {
+      state: upload.state,
+      progress: upload.progress,
+      uploadSpeedBps: upload.uploadSpeedBps,
+    });
+  });
+  return map;
+});
 
 const searchQuery = ref('');
 
@@ -217,20 +232,6 @@ function closeConfirmDelete() {
   showConfirmDelete.value = false;
   deleteError.value = null;
   assetToDelete.value = null;
-}
-
-function openReattachModal(assetId: string) {
-  const asset = storeAssets.value.find(a => a.id === assetId);
-  if (!asset) return;
-
-  const existingJob = uploadStore.uploadsReadonly.find(u => u.mediaId === assetId);
-
-  assetToReattach.value = {
-    assetId: asset.id,
-    fileName: existingJob?.fileName ?? asset.file_name,
-    hasExistingJob: !!existingJob,
-  };
-  showReattachModal.value = true;
 }
 
 function closeReattachModal() {
@@ -584,6 +585,7 @@ watch(activeOrgId, (orgId, prevOrgId) => {
       <ProcessingVideosList
         v-if="processingAssets.length > 0"
         :processing-assets="processingAssets"
+        :upload-metrics-by-asset-id="uploadMetricsByAssetId"
         :can-manage="canManage"
         @delete="openConfirmDelete"
         class="mb-8"
