@@ -6,6 +6,7 @@ import { useFeedPreload } from '@/modules/feed/composables/useFeedPreload';
 import FeedItem from '@/modules/feed/components/FeedItem.vue';
 import FeedDoneScreen from '@/modules/feed/components/FeedDoneScreen.vue';
 import { Swiper, SwiperSlide } from 'swiper/vue';
+import { Virtual } from 'swiper/modules';
 import type { Swiper as SwiperType } from 'swiper';
 import 'swiper/swiper.css';
 
@@ -16,6 +17,7 @@ import 'swiper/swiper.css';
  * - Active index management (next/prev/setActive)
  * - Preload adjacent clips
  * - Ensure only active FeedItem plays (by passing isActive)
+ * - Uses Swiper Virtual mode to only render slides in viewport (Safari optimization)
  */
 
 const props = defineProps<{
@@ -60,8 +62,24 @@ const preload = useFeedPreload({
 
 const swiperInstance = ref<SwiperType | null>(null);
 
+// Swiper modules
+const swiperModules = [Virtual];
+
+// Virtual slide configuration
+// Only renders slides in viewport + buffer (saves memory on Safari)
+const virtualConfig = {
+  enabled: true,
+  addSlidesBefore: 1,  // Render 1 slide before active
+  addSlidesAfter: 1,   // Render 1 slide after active
+  cache: false,        // Don't cache slides (force cleanup)
+};
+
 function onSwiper(swiper: SwiperType) {
-  console.log('[FeedContainer] onSwiper called', { initialIndex: initialIndex.value });
+  console.log('[FeedContainer] onSwiper called', { 
+    initialIndex: initialIndex.value,
+    virtualEnabled: !!(swiper as any).virtual,
+    totalSlides: items.value.length
+  });
   swiperInstance.value = swiper;
   // Sync swiper to initial index
   if (initialIndex.value > 0) {
@@ -70,9 +88,13 @@ function onSwiper(swiper: SwiperType) {
 }
 
 function onSlideChange(swiper: SwiperType) {
+  const virtualData = (swiper as any).virtual;
   console.log('[FeedContainer] onSlideChange', { 
     activeIndex: swiper.activeIndex,
-    previousIndex: swiper.previousIndex 
+    previousIndex: swiper.previousIndex,
+    virtualFrom: virtualData?.from,
+    virtualTo: virtualData?.to,
+    slidesRendered: virtualData ? virtualData.to - virtualData.from + 1 : 'N/A'
   });
   nav.setActive(swiper.activeIndex);
 }
@@ -144,6 +166,8 @@ defineExpose({
   <!-- Mobile: Swiper for horizontal navigation with vertical scrolling -->
   <div class="md:hidden w-full h-full bg-black">
     <Swiper
+      :modules="swiperModules"
+      :virtual="virtualConfig"
       :direction="'horizontal'"
       :slides-per-view="1"
       :space-between="0"
@@ -162,6 +186,7 @@ defineExpose({
       <SwiperSlide
         v-for="(item, index) in items"
         :key="item.id"
+        :virtual-index="index"
         class="overflow-y-auto overscroll-contain"
       >
         <div class="min-h-full">
