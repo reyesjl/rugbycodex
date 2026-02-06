@@ -81,10 +81,7 @@ async function load() {
 }
 
 function goBack() {
-  router.push({
-    name: 'OrgAssignments',
-    params: { slug: orgSlug.value }
-  });
+  router.back();
 }
 
 function viewInFeed() {
@@ -152,7 +149,7 @@ onMounted(() => {
         @click="goBack"
         class="mt-4 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors"
       >
-        Back to Assignments
+        Back
       </button>
     </div>
 
@@ -164,7 +161,7 @@ onMounted(() => {
         class="flex items-center gap-2 text-white/70 hover:text-white transition-colors"
       >
         <Icon icon="carbon:arrow-left" class="h-5 w-5" />
-        <span>Back to Assignments</span>
+        <span>Back</span>
       </button>
 
       <!-- Header -->
