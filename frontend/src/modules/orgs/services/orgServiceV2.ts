@@ -1671,15 +1671,36 @@ export const orgService = {
    * @returns Admin-oriented org list rows.
    */
   async listOrganizations(filters?: OrganizationAdminFilters): Promise<OrganizationAdminListItem[]> {
-    const { data, error } = await invokeEdge("list-organizations-admin", {
-      body: filters ?? {},
+    const { data, error } = await supabase.rpc('admin_list_organizations', {
+      p_search: filters?.search || null,
+      p_type: filters?.type || null,
+      p_visibility: filters?.visibility || null,
+      p_limit: filters?.limit || 100,
+      p_offset: filters?.offset || 0,
     });
 
     if (error) {
-      throw await handleEdgeFunctionError(error, "Failed to load organizations.");
+      throw error;
     }
 
-    return data;
+    // Map RPC result to OrganizationAdminListItem type
+    return data.map((row: any) => ({
+      organization: {
+        id: row.id,
+        owner: row.owner,
+        slug: row.slug,
+        name: row.name,
+        created_at: new Date(row.created_at),
+        storage_limit_mb: row.storage_limit_mb,
+        bio: row.bio,
+        visibility: row.visibility,
+        type: row.type,
+      },
+      member_count: row.member_count,
+      storage_used_bytes: row.storage_used_bytes,
+      last_activity_at: row.last_activity_at ? new Date(row.last_activity_at) : null,
+      health_status: row.health_status,
+    }));
   },
 
   /**
@@ -1798,5 +1819,87 @@ export const orgService = {
     }
 
     return data;
+  },
+
+  /**
+   * Updates an organization (admin-only).
+   * 
+   * Problem it solves:
+   * - Allows platform admins to modify organization settings including storage limits.
+   * 
+   * Conceptual tables:
+   * - `organizations`
+   * 
+   * Allowed caller:
+   * - Platform admin; enforced in RPC function.
+   * 
+   * Implementation:
+   * - Postgres RPC (admin_update_organization).
+   * 
+   * @param orgId - Organization ID to update.
+   * @param updates - Fields to update (name, bio, type, visibility, storage_limit_mb).
+   * @returns Updated organization data.
+   */
+  async updateOrganizationAdmin(
+    orgId: string, 
+    updates: {
+      name: string;
+      bio: string | null;
+      type: OrganizationType;
+      visibility: OrganizationVisibility;
+      storage_limit_mb: number;
+    }
+  ): Promise<Organization> {
+    const { data, error } = await supabase.rpc('admin_update_organization', {
+      p_org_id: orgId,
+      p_name: updates.name,
+      p_bio: updates.bio || '',
+      p_type: updates.type,
+      p_visibility: updates.visibility,
+      p_storage_limit_mb: updates.storage_limit_mb,
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    return data.organization;
+  },
+
+  /**
+   * Deletes an organization (admin-only).
+   * 
+   * Problem it solves:
+   * - Allows platform admins to remove organizations.
+   * - Includes safety checks to prevent accidental deletion of active orgs.
+   * 
+   * Conceptual tables:
+   * - `organizations`
+   * - Related: `org_members`, `media_assets`, etc. (cascade handled by DB)
+   * 
+   * Allowed caller:
+   * - Platform admin; enforced in RPC function.
+   * 
+   * Implementation:
+   * - Postgres RPC (admin_delete_organization).
+   * 
+   * @param orgId - Organization ID to delete.
+   * @param hardDelete - If true, bypasses safety checks (default: false).
+   * @returns Deletion result with success flag.
+   */
+  async deleteOrganizationAdmin(orgId: string, hardDelete = false): Promise<{ success: boolean; message: string }> {
+    const { data, error } = await supabase.rpc('admin_delete_organization', {
+      p_org_id: orgId,
+      p_hard_delete: hardDelete,
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    return {
+      success: data.success,
+      message: data.message,
+    };
   },
 };
