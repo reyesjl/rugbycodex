@@ -200,7 +200,7 @@ export const useManagerAssignments = () => {
       if (!target) return 'No targets';
       if (target.type === 'team') return 'Team-wide';
       if (target.type === 'group') return `Group: ${target.targetName}`;
-      if (target.type === 'player') return `Player: ${target.targetName}`;
+      if (target.type === 'player') return target.targetName;
     }
     // Multiple targets
     return `${assignment.targets.length} targets`;
