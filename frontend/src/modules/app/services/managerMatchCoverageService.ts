@@ -77,7 +77,7 @@ export const managerMatchCoverageService = {
           id: row.media_asset_id,
           orgId: row.org_id,
           orgName: orgItem.organization.name,
-          title: row.title ?? row.file_name,
+          title: row.file_name,
           fileName: row.file_name,
           kind: row.kind,
           durationSeconds: Number(row.duration_seconds ?? 0),
