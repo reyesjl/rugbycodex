@@ -600,11 +600,11 @@ watch(activeOrgId, (orgId, prevOrgId) => {
         <div
           v-for="asset in searchFilteredAssets"
           :key="asset.id"
-          class="w-full flex gap-4 p-4 bg-white/5 hover:bg-white/10 rounded-lg transition-colors group"
+          class="w-full flex gap-3 sm:gap-4 p-3 sm:p-4 bg-white/5 hover:bg-white/10 rounded-lg transition-colors group"
         >
           <!-- Thumbnail -->
           <div 
-            class="w-32 h-20 flex-shrink-0 rounded overflow-hidden bg-black cursor-pointer"
+            class="w-20 h-14 sm:w-32 sm:h-20 flex-shrink-0 rounded overflow-hidden bg-black cursor-pointer"
             @click="openAsset(asset.id)"
           >
             <img
@@ -617,7 +617,7 @@ watch(activeOrgId, (orgId, prevOrgId) => {
               v-else
               class="w-full h-full flex items-center justify-center text-white/20 text-xs"
             >
-              <Icon icon="carbon:video" width="24" />
+              <Icon icon="carbon:video" width="20" class="sm:w-6" />
             </div>
           </div>
 
@@ -628,52 +628,53 @@ watch(activeOrgId, (orgId, prevOrgId) => {
           >
             <!-- Title -->
             <div>
-              <h3 class="font-semibold text-white group-hover:text-white/90 truncate capitalize mb-1">
+              <h3 class="text-sm sm:text-base font-semibold text-white group-hover:text-white/90 truncate capitalize mb-1">
                 {{ formatMediaAssetNameForDisplay(asset.fileName) }}
               </h3>
               
               <!-- Metadata -->
-              <div class="flex items-center gap-2 text-xs text-white/50">
+              <div class="flex items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs text-white/50 flex-wrap">
                 <span>{{ formatRelativeDate(asset.createdAt) }}</span>
                 <span class="text-white/30">•</span>
                 <span>{{ formatDuration(asset.durationSeconds) }}</span>
-                <span class="text-white/30">•</span>
-                <span class="capitalize">{{ asset.kind }}</span>
+                <span class="text-white/30 hidden sm:inline">•</span>
+                <span class="capitalize hidden sm:inline">{{ asset.kind }}</span>
               </div>
             </div>
 
             <!-- Coverage badge & narration count -->
-            <div class="flex items-center gap-3 mt-2">
+            <div class="flex items-start sm:items-center gap-2 sm:gap-3 mt-2 flex-wrap">
               <div
                 :class="[
-                  'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border',
+                  'inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-[11px] font-medium border',
                   getCoverageDisplay(asset.coverageTier).colorClass
                 ]"
               >
-                <Icon :icon="getCoverageDisplay(asset.coverageTier).icon" width="14" />
+                <Icon :icon="getCoverageDisplay(asset.coverageTier).icon" width="12" class="sm:w-3.5" />
                 <span>{{ getCoverageDisplay(asset.coverageTier).label }}</span>
               </div>
               
-              <div class="text-xs text-white/60">
+              <div class="text-[11px] sm:text-xs text-white/60">
                 <div>{{ getNarrationProgress(asset.narrationCount).main }}</div>
-                <div v-if="getNarrationProgress(asset.narrationCount).helper" class="text-white/40 text-[11px]">
+                <div v-if="getNarrationProgress(asset.narrationCount).helper" class="text-white/40 text-[10px] sm:text-[11px]">
                   {{ getNarrationProgress(asset.narrationCount).helper }}
                 </div>
               </div>
 
               <!-- Large gap warning -->
-              <div v-if="asset.hasLargeGap" class="flex items-center gap-1 text-xs text-orange-400" title="Contains gaps larger than 8 minutes">
-                <Icon icon="carbon:warning" width="14" />
-                <span>Large gaps</span>
+              <div v-if="asset.hasLargeGap" class="flex items-center gap-1 text-[11px] sm:text-xs text-orange-400" title="Contains gaps larger than 8 minutes">
+                <Icon icon="carbon:warning" width="12" class="sm:w-3.5" />
+                <span class="hidden sm:inline">Large gaps</span>
+                <span class="sm:hidden">Gaps</span>
               </div>
             </div>
           </div>
 
           <!-- Actions menu -->
-          <div class="flex-shrink-0 flex items-start">
+          <div class="flex-shrink-0 flex items-start pt-1">
             <Menu as="div" class="relative z-10">
               <MenuButton
-                class="rounded p-2 text-white/50 hover:bg-white/10 hover:text-white/80 transition"
+                class="rounded p-1.5 sm:p-2 text-white/50 hover:bg-white/10 hover:text-white/80 transition touch-manipulation"
                 aria-label="More actions"
                 @click.stop
               >
@@ -689,13 +690,13 @@ watch(activeOrgId, (orgId, prevOrgId) => {
                 leave-to-class="transform scale-95 opacity-0"
               >
                 <MenuItems
-                  class="absolute right-0 top-full mt-2 min-w-40 origin-top-right rounded-md border border-white/10 bg-black/90 backdrop-blur-md text-white focus:outline-none"
+                  class="absolute right-0 top-full mt-2 min-w-40 origin-top-right rounded-md border border-white/10 bg-black/90 backdrop-blur-md text-white focus:outline-none shadow-xl"
                   @click.stop
                 >
                   <MenuItem v-slot="{ active }">
                     <button
                       type="button"
-                      class="w-full px-3 py-2 text-left text-sm transition"
+                      class="w-full px-3 py-2.5 text-left text-sm transition touch-manipulation"
                       :class="active ? 'bg-white/10' : ''"
                       @click="viewInReview(asset.id)"
                     >
@@ -705,7 +706,7 @@ watch(activeOrgId, (orgId, prevOrgId) => {
                   <MenuItem v-slot="{ active }">
                     <button
                       type="button"
-                      class="w-full px-3 py-2 text-left text-sm transition"
+                      class="w-full px-3 py-2.5 text-left text-sm transition touch-manipulation"
                       :class="active ? 'bg-white/10' : ''"
                       @click="viewInFeed(asset.id)"
                     >
@@ -715,7 +716,7 @@ watch(activeOrgId, (orgId, prevOrgId) => {
                   <MenuItem v-if="canManage" v-slot="{ active }">
                     <button
                       type="button"
-                      class="w-full px-3 py-2 text-left text-sm transition border-t border-white/10"
+                      class="w-full px-3 py-2.5 text-left text-sm transition border-t border-white/10 touch-manipulation"
                       :class="active ? 'bg-white/10' : ''"
                       @click="openEditMedia(asset.id)"
                     >
@@ -725,7 +726,7 @@ watch(activeOrgId, (orgId, prevOrgId) => {
                   <MenuItem v-if="canManage" v-slot="{ active }">
                     <button
                       type="button"
-                      class="w-full px-3 py-2 text-left text-sm text-red-300 transition border-t border-white/10"
+                      class="w-full px-3 py-2.5 text-left text-sm text-red-300 transition border-t border-white/10 touch-manipulation"
                       :class="active ? 'bg-white/10' : ''"
                       @click="openConfirmDelete(asset.id)"
                     >
