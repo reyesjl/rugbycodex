@@ -23,7 +23,7 @@ const error = ref<string | null>(null);
 // Filter and pagination state
 const searchQuery = ref('');
 const debouncedSearch = ref('');
-const searchDebounceTimer = ref<NodeJS.Timeout | null>(null);
+const searchDebounceTimer = ref<ReturnType<typeof setTimeout> | null>(null);
 const statusFilter = ref<'all' | 'active' | 'inactive'>('all');
 const typeFilter = ref<'all' | 'team' | 'personal'>('all');
 const itemsPerPage = ref(20);
@@ -79,18 +79,7 @@ const visiblePageNumbers = computed(() => {
   return pages;
 });
 
-const statusCounts = computed(() => {
-  // Calculate from loaded orgs
-  const active = orgs.value.filter(item => isActive(item)).length;
-  const inactive = orgs.value.filter(item => !isActive(item)).length;
-  return { all: orgs.value.length, active, inactive };
-});
 
-const typeCounts = computed(() => {
-  const team = orgs.value.filter(item => item.organization.type === 'team').length;
-  const personal = orgs.value.filter(item => item.organization.type === 'personal').length;
-  return { all: orgs.value.length, team, personal };
-});
 
 const loadOrgs = async () => {
   loading.value = true;

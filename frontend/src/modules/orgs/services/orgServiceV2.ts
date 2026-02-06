@@ -28,6 +28,8 @@ import type {
   Organization,
   OrganizationAdminFilters,
   OrganizationAdminListItem,
+  OrganizationType,
+  OrganizationVisibility,
   ResolvedOrgContext,
   SubmitOrgRequestPayload,
   UploadEligibility,
