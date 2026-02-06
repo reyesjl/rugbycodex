@@ -14,6 +14,8 @@ import NarrationFilterPanel from './NarrationFilterPanel.vue';
 import LoadingDot from '@/components/LoadingDot.vue';
 import ShimmerText from '@/components/ShimmerText.vue';
 import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
+import NarrationActionsMenu from '@/components/NarrationActionsMenu.vue';
+import SegmentActionsMenu from '@/components/SegmentActionsMenu.vue';
 import type { OrgRole } from '@/modules/orgs/types/OrgRole';
 
 const props = defineProps<{
@@ -38,6 +40,7 @@ const emit = defineEmits<{
   (e: 'assignSegment', segment: MediaAssetSegment): void;
   (e: 'editNarration', narrationId: string, transcriptRaw: string): void;
   (e: 'deleteNarration', narrationId: string): void;
+  (e: 'deleteSegment', segmentId: string): void;
   (e: 'addTag', payload: { segmentId: string; tagKey: string; tagType: SegmentTagType }): void;
   (e: 'removeTag', payload: { segmentId: string; tagId: string }): void;
   (e: 'update:sourceFilter', value: SourceFilter): void;
@@ -52,6 +55,11 @@ const editingText = ref('');
 const showDeleteConfirm = ref(false);
 const narrationToDelete = ref<Narration | null>(null);
 const isDeleting = ref(false);
+
+// Segment delete confirmation state
+const showSegmentDeleteConfirm = ref(false);
+const segmentToDelete = ref<MediaAssetSegment | null>(null);
+const isDeletingSegment = ref(false);
 
 const SET_PIECE_TAGS = ['scrum', 'lineout', 'kickoff', 'restart'] as const;
 const ACTION_TAGS = ['carry', 'pass', 'kick', 'tackle', 'breakdown', 'maul'] as const;
@@ -275,6 +283,37 @@ async function confirmDelete() {
     narrationToDelete.value = null;
   } finally {
     isDeleting.value = false;
+  }
+}
+
+// Segment deletion handlers
+function getNarrationCount(segmentId: string): number {
+  return allNarrationsForSegment(segmentId).length;
+}
+
+function canDeleteSegment(): boolean {
+  return isStaffRole(props.currentUserRole);
+}
+
+function requestDeleteSegment(seg: MediaAssetSegment) {
+  segmentToDelete.value = seg;
+  showSegmentDeleteConfirm.value = true;
+}
+
+function closeSegmentDeleteConfirm() {
+  if (isDeletingSegment.value) return;
+  showSegmentDeleteConfirm.value = false;
+  segmentToDelete.value = null;
+}
+
+async function confirmDeleteSegment() {
+  if (!segmentToDelete.value) return;
+  isDeletingSegment.value = true;
+  try {
+    emit('deleteSegment', String(segmentToDelete.value.id));
+    closeSegmentDeleteConfirm();
+  } finally {
+    isDeletingSegment.value = false;
   }
 }
 
@@ -667,24 +706,6 @@ function formatSegmentSourceMeta(seg: MediaAssetSegment): string | null {
             </span>
 
             <button
-              type="button"
-              class="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-200 transition"
-              @click.stop="emit('addNarration', seg)"
-            >
-              <Icon icon="carbon:microphone" width="14" height="14" />
-              <span>Add</span>
-            </button>
-
-            <button
-              v-if="props.canAssignSegments"
-              type="button"
-              class="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-200 transition"
-              @click.stop="emit('assignSegment', seg)"
-            >
-              <Icon icon="carbon:task" width="14" height="14" />
-            </button>
-
-            <button
               v-if="props.canTagSegments"
               type="button"
               class="text-xs text-slate-400 hover:text-slate-200 transition"
@@ -692,6 +713,14 @@ function formatSegmentSourceMeta(seg: MediaAssetSegment): string | null {
             >
               <Icon icon="carbon:tag" width="14" height="14" />
             </button>
+
+            <SegmentActionsMenu
+              :can-delete="canDeleteSegment()"
+              :narration-count="getNarrationCount(String(seg.id))"
+              @add-narration="emit('addNarration', seg)"
+              @assign="props.canAssignSegments && emit('assignSegment', seg)"
+              @delete="requestDeleteSegment(seg)"
+            />
 
             <button
               v-if="narrationsForSegment(String(seg.id)).length > 1"
@@ -838,5 +867,16 @@ function formatSegmentSourceMeta(seg: MediaAssetSegment): string | null {
     @confirm="confirmDelete"
     @cancel="closeDeleteConfirm"
     @close="closeDeleteConfirm"
+  />
+
+  <!-- Segment Delete Confirmation Modal -->
+  <ConfirmDeleteModal
+    :show="showSegmentDeleteConfirm"
+    :item-name="`this segment${segmentToDelete && getNarrationCount(String(segmentToDelete.id)) > 0 ? ` and ${getNarrationCount(String(segmentToDelete.id))} narration${getNarrationCount(String(segmentToDelete.id)) > 1 ? 's' : ''}` : ''}`"
+    popup-title="Delete Segment"
+    :is-deleting="isDeletingSegment"
+    @confirm="confirmDeleteSegment"
+    @cancel="closeSegmentDeleteConfirm"
+    @close="closeSegmentDeleteConfirm"
   />
 </template>

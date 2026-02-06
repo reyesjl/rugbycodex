@@ -1252,6 +1252,26 @@ async function handleDeleteNarration(narrationId: string) {
     toast({ message, variant: 'error' });
   }
 }
+
+async function handleDeleteSegment(segmentId: string) {
+  if (!asset.value?.id) return;
+  try {
+    console.log(JSON.stringify({
+      severity: 'info',
+      event_type: 'segment_delete',
+      org_id: activeOrgId.value ?? null,
+      media_id: asset.value?.id ?? null,
+      segment_id: segmentId,
+    }));
+    await segmentService.deleteSegment(segmentId);
+    segments.value = segments.value.filter((s) => String(s.id) !== segmentId);
+    narrations.value = (narrations.value as any[]).filter((n) => String(n.media_asset_segment_id) !== segmentId);
+    toast({ message: 'Segment deleted.', variant: 'success', durationMs: 1500 });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Failed to delete segment.';
+    toast({ message, variant: 'error' });
+  }
+}
 </script>
 
 <template>
@@ -1525,6 +1545,8 @@ async function handleDeleteNarration(narrationId: string) {
                 @assignSegment="openAssignSegment"
                 @editNarration="handleEditNarration"
                 @deleteNarration="handleDeleteNarration"
+                @deleteSegment="handleDeleteSegment"
+                @deleteSegment="handleDeleteSegment"
                 @addTag="handleAddSegmentTag"
                 @removeTag="handleRemoveSegmentTag"
                 @update:sourceFilter="handleNarrationSourceFilterChange"
@@ -1590,6 +1612,7 @@ async function handleDeleteNarration(narrationId: string) {
               @assignSegment="openAssignSegment"
               @editNarration="handleEditNarration"
               @deleteNarration="handleDeleteNarration"
+              @deleteSegment="handleDeleteSegment"
               @addTag="handleAddSegmentTag"
               @removeTag="handleRemoveSegmentTag"
               @update:sourceFilter="handleNarrationSourceFilterChange"

@@ -5,6 +5,7 @@ import type { NarrationSourceType } from '@/modules/narrations/types/Narration';
 import type { NarrationListItem } from '@/modules/narrations/composables/useNarrationRecorder';
 import LoadingDot from '@/components/LoadingDot.vue';
 import ShimmerText from '@/components/ShimmerText.vue';
+import NarrationActionsMenu from '@/components/NarrationActionsMenu.vue';
 
 const props = defineProps<{
   narration: NarrationListItem;
@@ -99,27 +100,16 @@ function handleSaveEdit() {
         </div>
 
         <div 
-          class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity"
+          v-if="(canEdit || canDelete) && !isEditing"
+          class="opacity-0 group-hover:opacity-100 transition-opacity"
           @click.stop
         >
-          <button
-            v-if="canEdit && !isEditing"
-            type="button"
-            class="text-xs text-slate-400 hover:text-slate-200 transition"
-            title="Edit narration"
-            @click="emit('edit')"
-          >
-            <Icon icon="carbon:edit" width="14" height="14" />
-          </button>
-          <button
-            v-if="canDelete && !isEditing"
-            type="button"
-            class="text-xs text-rose-400 hover:text-rose-300 transition"
-            title="Delete narration"
-            @click="emit('delete')"
-          >
-            <Icon icon="carbon:trash-can" width="14" height="14" />
-          </button>
+          <NarrationActionsMenu
+            :can-edit="canEdit"
+            :can-delete="canDelete"
+            @edit="emit('edit')"
+            @delete="emit('delete')"
+          />
         </div>
       </div>
 

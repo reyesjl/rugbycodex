@@ -4,6 +4,7 @@ import type { Narration } from '@/modules/narrations/types/Narration';
 import type { NarrationListItem } from '@/modules/narrations/composables/useNarrationRecorder';
 import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
 import ShimmerText from '@/components/ShimmerText.vue';
+import NarrationActionsMenu from '@/components/NarrationActionsMenu.vue';
 import type { OrgRole } from '@/modules/orgs/types/OrgRole';
 
 const props = withDefaults(
@@ -216,24 +217,14 @@ watch(
             </span>
           </div>
 
-          <div v-if="canManage(item)" class="flex items-center gap-2 opacity-40 transition group-hover:opacity-100 focus-within:opacity-100">
-            <button
+          <div v-if="canManage(item)" class="opacity-40 transition group-hover:opacity-100 focus-within:opacity-100">
+            <NarrationActionsMenu
               v-if="editingId !== item.id"
-              type="button"
-              class="text-[11px] text-white/60 hover:text-white"
-              :disabled="saving"
-              @click.stop="beginEdit(item)"
-            >
-              Edit
-            </button>
-            <button
-              type="button"
-              class="text-[11px] text-red-300/70 hover:text-red-200"
-              :disabled="saving"
-              @click.stop="requestDelete(item)"
-            >
-              Trash
-            </button>
+              :can-edit="true"
+              :can-delete="true"
+              @edit="beginEdit(item)"
+              @delete="requestDelete(item)"
+            />
           </div>
         </div>
 
