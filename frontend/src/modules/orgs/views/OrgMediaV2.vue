@@ -2,6 +2,7 @@
 import { storeToRefs } from 'pinia';
 import { computed, onMounted, ref, watch } from 'vue';
 import { Icon } from '@iconify/vue';
+import { Menu, MenuButton, MenuItems, MenuItem } from '@headlessui/vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/modules/auth/stores/useAuthStore';
 import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrganizationStore';
@@ -128,6 +129,33 @@ function openAsset(assetId: string) {
       },
     });
   }
+}
+
+function viewInReview(assetId: string) {
+  const slug = route.params.slug;
+  if (!slug) return;
+  
+  void router.push({
+    name: 'OrgMediaAssetReview',
+    params: {
+      slug,
+      mediaAssetId: assetId,
+    },
+  });
+}
+
+function viewInFeed(assetId: string) {
+  const slug = route.params.slug;
+  if (!slug) return;
+  
+  void router.push({
+    name: 'OrgFeedView',
+    params: { slug },
+    query: {
+      source: 'match',
+      mediaAssetId: assetId,
+    },
+  });
 }
 
 function closeAddMedia() {
@@ -569,14 +597,16 @@ watch(activeOrgId, (orgId, prevOrgId) => {
 
       <!-- Footage list -->
       <div v-else class="space-y-3">
-        <button
+        <div
           v-for="asset in searchFilteredAssets"
           :key="asset.id"
-          @click="openAsset(asset.id)"
-          class="w-full flex gap-4 p-4 bg-white/5 hover:bg-white/10 rounded-lg transition-colors group cursor-pointer text-left"
+          class="w-full flex gap-4 p-4 bg-white/5 hover:bg-white/10 rounded-lg transition-colors group"
         >
           <!-- Thumbnail -->
-          <div class="w-32 h-20 flex-shrink-0 rounded overflow-hidden bg-black">
+          <div 
+            class="w-32 h-20 flex-shrink-0 rounded overflow-hidden bg-black cursor-pointer"
+            @click="openAsset(asset.id)"
+          >
             <img
               v-if="asset.thumbnailPath"
               :src="`https://cdn.rugbycodex.com/${asset.thumbnailPath}`"
@@ -592,7 +622,10 @@ watch(activeOrgId, (orgId, prevOrgId) => {
           </div>
 
           <!-- Asset info -->
-          <div class="flex-1 min-w-0 flex flex-col justify-between">
+          <div 
+            class="flex-1 min-w-0 flex flex-col justify-between cursor-pointer"
+            @click="openAsset(asset.id)"
+          >
             <!-- Title -->
             <div>
               <h3 class="font-semibold text-white group-hover:text-white/90 truncate capitalize mb-1">
@@ -636,11 +669,74 @@ watch(activeOrgId, (orgId, prevOrgId) => {
             </div>
           </div>
 
-          <!-- Arrow icon -->
-          <div class="flex-shrink-0 flex items-center text-white/40 group-hover:text-white/70 transition-colors">
-            <Icon icon="carbon:arrow-right" width="20" />
+          <!-- Actions menu -->
+          <div class="flex-shrink-0 flex items-start">
+            <Menu as="div" class="relative z-10">
+              <MenuButton
+                class="rounded p-2 text-white/50 hover:bg-white/10 hover:text-white/80 transition"
+                aria-label="More actions"
+                @click.stop
+              >
+                <Icon icon="carbon:overflow-menu-vertical" class="h-5 w-5" />
+              </MenuButton>
+
+              <transition
+                enter-active-class="transition duration-100 ease-out"
+                enter-from-class="transform scale-95 opacity-0"
+                enter-to-class="transform scale-100 opacity-100"
+                leave-active-class="transition duration-75 ease-in"
+                leave-from-class="transform scale-100 opacity-100"
+                leave-to-class="transform scale-95 opacity-0"
+              >
+                <MenuItems
+                  class="absolute right-0 top-full mt-2 min-w-40 origin-top-right rounded-md border border-white/10 bg-black/90 backdrop-blur-md text-white focus:outline-none"
+                  @click.stop
+                >
+                  <MenuItem v-slot="{ active }">
+                    <button
+                      type="button"
+                      class="w-full px-3 py-2 text-left text-sm transition"
+                      :class="active ? 'bg-white/10' : ''"
+                      @click="viewInReview(asset.id)"
+                    >
+                      View in Review
+                    </button>
+                  </MenuItem>
+                  <MenuItem v-slot="{ active }">
+                    <button
+                      type="button"
+                      class="w-full px-3 py-2 text-left text-sm transition"
+                      :class="active ? 'bg-white/10' : ''"
+                      @click="viewInFeed(asset.id)"
+                    >
+                      View in Feed
+                    </button>
+                  </MenuItem>
+                  <MenuItem v-if="canManage" v-slot="{ active }">
+                    <button
+                      type="button"
+                      class="w-full px-3 py-2 text-left text-sm transition border-t border-white/10"
+                      :class="active ? 'bg-white/10' : ''"
+                      @click="openEditMedia(asset.id)"
+                    >
+                      Edit
+                    </button>
+                  </MenuItem>
+                  <MenuItem v-if="canManage" v-slot="{ active }">
+                    <button
+                      type="button"
+                      class="w-full px-3 py-2 text-left text-sm text-red-300 transition border-t border-white/10"
+                      :class="active ? 'bg-white/10' : ''"
+                      @click="openConfirmDelete(asset.id)"
+                    >
+                      Delete
+                    </button>
+                  </MenuItem>
+                </MenuItems>
+              </transition>
+            </Menu>
           </div>
-        </button>
+        </div>
       </div>
     </div>
   </div>
