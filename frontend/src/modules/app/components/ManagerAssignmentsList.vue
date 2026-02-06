@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
 import { useManagerAssignments } from '@/modules/app/composables/useManagerAssignments';
 import type { AssignmentStatus } from '@/modules/app/composables/useManagerAssignments';
+import type { ManagerAssignment } from '@/modules/assignments/types';
 
 const router = useRouter();
 
@@ -61,11 +62,14 @@ const filteredEmptyMessage = computed(() => {
   }
 });
 
-const navigateToAssignment = (orgSlug: string) => {
-  // For now, navigate to org page - can be updated to assignment detail page later
+const navigateToAssignment = (assignment: ManagerAssignment) => {
+  // Navigate to assignment detail page
   router.push({
-    name: 'OrgOverview',
-    params: { slug: orgSlug },
+    name: 'AssignmentDetail',
+    params: { 
+      slug: assignment.orgSlug,
+      assignmentId: assignment.id
+    },
   });
 };
 
@@ -189,7 +193,7 @@ const setStatus = (status: AssignmentStatus) => {
       <button
         v-for="assignment in assignments"
         :key="assignment.id"
-        @click="navigateToAssignment(assignment.orgSlug)"
+        @click="navigateToAssignment(assignment)"
         class="w-full flex gap-4 p-4 bg-white/5 hover:bg-white/10 rounded-lg transition-colors group cursor-pointer text-left"
       >
         <!-- Assignment info -->
