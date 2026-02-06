@@ -1,18 +1,9 @@
 import { supabase } from '@/lib/supabaseClient';
-import { mediaService } from '@/modules/media/services/mediaService';
-import type { OrgMediaAsset } from '@/modules/media/types/OrgMediaAsset';
 import type { UserOrganizationSummary } from '@/modules/orgs/types';
 import type { MatchWithCoverage, CoverageTier } from '../types/MatchWithCoverage';
 
 const GAP_THRESHOLD_MINUTES = 8;
 const MANAGER_ROLES = ['owner', 'manager', 'staff'];
-
-type SegmentRow = {
-  id: string;
-  media_asset_id: string;
-  start_seconds: number;
-  end_seconds: number;
-};
 
 /**
  * Get coverage tier based on narration count
@@ -37,50 +28,6 @@ function demoteTier(tier: CoverageTier): CoverageTier {
 }
 
 /**
- * Calculate max gap in minutes between consecutive narrated segments
- */
-function calculateMaxGapMinutes(segments: SegmentRow[]): number | null {
-  if (segments.length < 2) return null;
-
-  // Sort by start_seconds
-  const sorted = [...segments].sort((a, b) => a.start_seconds - b.start_seconds);
-
-  let maxGapSeconds = 0;
-  for (let i = 1; i < sorted.length; i++) {
-    const gap = sorted[i]!.start_seconds - sorted[i - 1]!.end_seconds;
-    maxGapSeconds = Math.max(maxGapSeconds, gap);
-  }
-
-  return maxGapSeconds / 60; // Convert to minutes
-}
-
-/**
- * Fetch segments that have narrations for a given media asset
- */
-async function fetchNarratedSegments(mediaAssetId: string): Promise<SegmentRow[]> {
-  // First get segment IDs that have narrations
-  const { data: narrationData, error: narrationError } = await supabase
-    .from('narrations')
-    .select('media_asset_segment_id')
-    .eq('media_asset_id', mediaAssetId);
-
-  if (narrationError) throw narrationError;
-  if (!narrationData || narrationData.length === 0) return [];
-
-  // Get unique segment IDs
-  const segmentIds = [...new Set(narrationData.map(n => n.media_asset_segment_id))];
-
-  // Fetch segments
-  const { data: segmentData, error: segmentError } = await supabase
-    .from('media_asset_segments')
-    .select('id, media_asset_id, start_seconds, end_seconds')
-    .in('id', segmentIds);
-
-  if (segmentError) throw segmentError;
-  return segmentData ?? [];
-}
-
-/**
  * Service for fetching and enriching matches with coverage data
  */
 export const managerMatchCoverageService = {
@@ -92,65 +39,33 @@ export const managerMatchCoverageService = {
     limit: number = 5
   ): Promise<MatchWithCoverage[]> {
     // Filter to only manager roles
-    const orgIds = managerOrgs
-      .filter(item => MANAGER_ROLES.includes(item.membership.role))
-      .map(item => item.organization.id);
+    const filteredOrgs = managerOrgs.filter(item => 
+      MANAGER_ROLES.includes(item.membership.role)
+    );
 
-    if (orgIds.length === 0) {
+    if (filteredOrgs.length === 0) {
       return [];
     }
 
-    // Fetch matches and narration counts in parallel for all orgs
-    const matchesPromises = orgIds.map(orgId =>
-      mediaService.listByOrganization(orgId, { limit })
-    );
-    const narrationCountsPromises = orgIds.map(orgId =>
-      mediaService.getNarrationCountsByOrg(orgId)
-    );
-
-    const [matchesArrays, narrationCountsArrays] = await Promise.all([
-      Promise.all(matchesPromises),
-      Promise.all(narrationCountsPromises),
-    ]);
-
-    // Flatten and combine matches with their org info
-    const allMatches: Array<OrgMediaAsset & { orgName: string }> = [];
-    matchesArrays.forEach((matches, index) => {
-      const orgName = managerOrgs.find(
-        item => item.organization.id === orgIds[index]
-      )?.organization.name ?? 'Unknown';
-      
-      matches.forEach(match => {
-        allMatches.push({ ...match, orgName });
+    // Fetch matches with coverage data in parallel for all orgs using RPC
+    const matchesPromises = filteredOrgs.map(async (orgItem) => {
+      const { data, error } = await supabase.rpc('rpc_get_manager_matches_with_coverage', {
+        p_org_id: orgItem.organization.id,
+        p_limit: limit,
       });
-    });
 
-    // Build narration count map
-    const narrationCountMap = new Map<string, number>();
-    narrationCountsArrays.forEach(counts => {
-      counts.forEach(({ media_asset_id, count }) => {
-        narrationCountMap.set(media_asset_id, count);
-      });
-    });
+      if (error) {
+        console.error(`Failed to fetch matches for org ${orgItem.organization.name}:`, error);
+        return [];
+      }
 
-    // Enrich matches with coverage data
-    const enrichedMatches = await Promise.all(
-      allMatches.map(async (match) => {
-        const narrationCount = narrationCountMap.get(match.id) ?? 0;
-        
-        // Calculate max gap if there are narrations
-        let maxGapMinutes: number | null = null;
-        let hasLargeGap = false;
+      if (!data || data.length === 0) return [];
 
-        if (narrationCount > 0) {
-          try {
-            const segments = await fetchNarratedSegments(match.id);
-            maxGapMinutes = calculateMaxGapMinutes(segments);
-            hasLargeGap = maxGapMinutes !== null && maxGapMinutes > GAP_THRESHOLD_MINUTES;
-          } catch (error) {
-            console.error(`Failed to fetch segments for match ${match.id}:`, error);
-          }
-        }
+      // Transform RPC results to MatchWithCoverage
+      return data.map((row: any) => {
+        const narrationCount = row.narration_count ?? 0;
+        const maxGapMinutes = row.max_gap_minutes ?? null;
+        const hasLargeGap = maxGapMinutes !== null && maxGapMinutes > GAP_THRESHOLD_MINUTES;
 
         // Calculate coverage tier
         let coverageTier = getBaseCoverageTier(narrationCount);
@@ -158,29 +73,32 @@ export const managerMatchCoverageService = {
           coverageTier = demoteTier(coverageTier);
         }
 
-        const enriched: MatchWithCoverage = {
-          id: match.id,
-          orgId: match.org_id,
-          orgName: match.orgName,
-          title: match.title ?? match.file_name,
-          fileName: match.file_name,
-          kind: match.kind,
-          durationSeconds: match.duration_seconds,
-          createdAt: match.created_at,
-          thumbnailPath: match.thumbnail_path,
+        const match: MatchWithCoverage = {
+          id: row.media_asset_id,
+          orgId: row.org_id,
+          orgName: orgItem.organization.name,
+          title: row.title ?? row.file_name,
+          fileName: row.file_name,
+          kind: row.kind,
+          durationSeconds: Number(row.duration_seconds ?? 0),
+          createdAt: new Date(row.created_at),
+          thumbnailPath: row.thumbnail_path,
           narrationCount,
           coverageTier,
           maxGapMinutes,
           hasLargeGap,
         };
 
-        return enriched;
-      })
-    );
+        return match;
+      });
+    });
+
+    const matchesArrays = await Promise.all(matchesPromises);
+    const allMatches = matchesArrays.flat();
 
     // Sort by most recent first
-    enrichedMatches.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    allMatches.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
-    return enrichedMatches.slice(0, limit);
+    return allMatches.slice(0, limit);
   },
 };
