@@ -14,7 +14,6 @@ import NarrationFilterPanel from './NarrationFilterPanel.vue';
 import LoadingDot from '@/components/LoadingDot.vue';
 import ShimmerText from '@/components/ShimmerText.vue';
 import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
-import NarrationActionsMenu from '@/components/NarrationActionsMenu.vue';
 import SegmentActionsMenu from '@/components/SegmentActionsMenu.vue';
 import type { OrgRole } from '@/modules/orgs/types/OrgRole';
 

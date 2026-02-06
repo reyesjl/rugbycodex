@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { Icon } from '@iconify/vue';
 import type { NarrationSourceType } from '@/modules/narrations/types/Narration';
 import type { NarrationListItem } from '@/modules/narrations/composables/useNarrationRecorder';
 import LoadingDot from '@/components/LoadingDot.vue';
@@ -8,14 +7,20 @@ import ShimmerText from '@/components/ShimmerText.vue';
 import NarrationActionsMenu from '@/components/NarrationActionsMenu.vue';
 import { formatRelativeTime } from '@/lib/date';
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   narration: NarrationListItem;
   isActive?: boolean;
   isEditing?: boolean;
   editText?: string;
   canEdit?: boolean;
   canDelete?: boolean;
-}>();
+}>(), {
+  isActive: false,
+  isEditing: false,
+  editText: '',
+  canEdit: false,
+  canDelete: false,
+});
 
 const emit = defineEmits<{
   (e: 'click'): void;

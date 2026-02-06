@@ -6,11 +6,7 @@ const props = defineProps<{
   totalCount: number;
 }>();
 
-// Calculate progress percentage
-const progressPercent = computed(() => {
-  if (props.totalCount === 0) return 0;
-  return ((props.activeIndex + 1) / props.totalCount) * 100;
-});
+
 
 // Create segments for each item
 const segments = computed(() => {

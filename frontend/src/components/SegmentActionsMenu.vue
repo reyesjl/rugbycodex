@@ -2,7 +2,7 @@
 import { Menu, MenuButton, MenuItems, MenuItem } from '@headlessui/vue';
 import { Icon } from '@iconify/vue';
 
-const props = defineProps<{
+defineProps<{
   canDelete: boolean;
   narrationCount?: number;
 }>();
