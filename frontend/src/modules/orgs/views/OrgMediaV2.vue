@@ -600,10 +600,10 @@ watch(activeOrgId, (orgId, prevOrgId) => {
         <div
           v-for="asset in searchFilteredAssets"
           :key="asset.id"
-          class="w-full flex flex-col sm:flex-row gap-0 sm:gap-4 bg-white/5 hover:bg-white/10 rounded-lg transition-colors group overflow-hidden"
+          class="w-full flex flex-col sm:flex-row gap-0 sm:gap-4 bg-white/5 hover:bg-white/10 rounded-lg transition-colors group relative"
         >
           <!-- Mobile: Thumbnail with menu overlay -->
-          <div class="relative sm:hidden w-full aspect-video bg-black cursor-pointer" @click="openAsset(asset.id)">
+          <div class="relative sm:hidden w-full aspect-video bg-black cursor-pointer overflow-hidden rounded-t-lg" @click="openAsset(asset.id)">
             <img
               v-if="asset.thumbnailPath"
               :src="`https://cdn.rugbycodex.com/${asset.thumbnailPath}`"
@@ -618,8 +618,8 @@ watch(activeOrgId, (orgId, prevOrgId) => {
             </div>
             
             <!-- Menu button overlay (mobile) -->
-            <div class="absolute top-2 right-2">
-              <Menu as="div" class="relative z-10">
+            <div class="absolute top-2 right-2 z-20">
+              <Menu as="div" class="relative">
                 <MenuButton
                   class="rounded p-2 bg-black/60 backdrop-blur-sm text-white/90 hover:bg-black/80 transition touch-manipulation"
                   aria-label="More actions"
@@ -637,7 +637,7 @@ watch(activeOrgId, (orgId, prevOrgId) => {
                   leave-to-class="transform scale-95 opacity-0"
                 >
                   <MenuItems
-                    class="absolute right-0 top-full mt-2 min-w-40 origin-top-right rounded-md border border-white/10 bg-black/90 backdrop-blur-md text-white focus:outline-none shadow-xl"
+                    class="absolute right-0 top-full mt-2 min-w-40 origin-top-right rounded-md border border-white/10 bg-black/90 backdrop-blur-md text-white focus:outline-none shadow-xl z-50"
                     @click.stop
                   >
                     <MenuItem v-slot="{ active }">
@@ -755,8 +755,8 @@ watch(activeOrgId, (orgId, prevOrgId) => {
           </div>
 
           <!-- Desktop: Actions menu (right side) -->
-          <div class="hidden sm:flex flex-shrink-0 items-start pt-4 pr-4">
-            <Menu as="div" class="relative z-10">
+          <div class="hidden sm:flex flex-shrink-0 items-start pt-4 pr-4 z-20">
+            <Menu as="div" class="relative">
               <MenuButton
                 class="rounded p-2 text-white/50 hover:bg-white/10 hover:text-white/80 transition"
                 aria-label="More actions"
@@ -774,7 +774,7 @@ watch(activeOrgId, (orgId, prevOrgId) => {
                 leave-to-class="transform scale-95 opacity-0"
               >
                 <MenuItems
-                  class="absolute right-0 top-full mt-2 min-w-40 origin-top-right rounded-md border border-white/10 bg-black/90 backdrop-blur-md text-white focus:outline-none shadow-xl"
+                  class="absolute right-0 top-full mt-2 min-w-40 origin-top-right rounded-md border border-white/10 bg-black/90 backdrop-blur-md text-white focus:outline-none shadow-xl z-50"
                   @click.stop
                 >
                   <MenuItem v-slot="{ active }">
