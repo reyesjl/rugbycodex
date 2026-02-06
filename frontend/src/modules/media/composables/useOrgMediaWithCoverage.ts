@@ -76,6 +76,7 @@ export const useOrgMediaWithCoverage = (orgId: string | null) => {
   const loading = ref(false);
   const error = ref<string | null>(null);
   const selectedKind = ref<'all' | MediaAssetKind>('all');
+  const selectedLimit = ref<20 | 50 | 100>(20);
 
   const isEmpty = computed(() => !loading.value && assets.value.length === 0);
   
@@ -107,7 +108,7 @@ export const useOrgMediaWithCoverage = (orgId: string | null) => {
     try {
       const { data, error: rpcError } = await supabase.rpc('rpc_get_manager_matches_with_coverage', {
         p_org_id: orgId,
-        p_limit: 100, // Get all ready assets (can adjust if needed)
+        p_limit: selectedLimit.value,
       });
 
       if (rpcError) throw rpcError;
@@ -231,6 +232,7 @@ export const useOrgMediaWithCoverage = (orgId: string | null) => {
     isEmpty,
     isFilteredEmpty,
     selectedKind,
+    selectedLimit,
     loadAssets,
     getCoverageDisplay,
     formatDuration,
