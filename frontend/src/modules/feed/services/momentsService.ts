@@ -5,12 +5,6 @@ import type { FeedItem } from '@/modules/feed/types/FeedItem';
 import type { SegmentTag } from '@/modules/media/types/SegmentTag';
 import { formatMediaAssetNameForDisplay } from '@/modules/media/utils/assetUtilities';
 
-function formatTimestamp(seconds: number): string {
-  const minutes = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60);
-  return `${minutes}:${String(secs).padStart(2, '0')}`;
-}
-
 function formatTagKey(key: string): string {
   return key.replace(/_/g, ' ');
 }
