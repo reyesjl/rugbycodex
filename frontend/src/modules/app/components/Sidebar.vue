@@ -89,7 +89,7 @@ void mobileSheetRef.value;
                 Assignments
               </RouterLink>
             </li>
-            <li v-if="canManageOrgTools">
+            <li>
               <RouterLink :to="`/organizations/${orgContext?.organization.slug}/media`"
                 active-class="bg-white text-black hover:!bg-white"
                 class="flex items-center px-4 py-2 hover:bg-white/10 rounded">
@@ -231,7 +231,7 @@ void mobileSheetRef.value;
                   Assignments
                 </RouterLink>
               </li>
-              <li v-if="canManageOrgTools">
+              <li>
                 <RouterLink :to="`/organizations/${orgContext?.organization.slug}/media`"
                   active-class="bg-white text-black hover:!bg-white"
                   class="flex items-center px-4 py-2 hover:bg-white/10 rounded"

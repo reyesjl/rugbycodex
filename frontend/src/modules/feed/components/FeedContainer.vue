@@ -61,6 +61,7 @@ const preload = useFeedPreload({
 const swiperInstance = ref<SwiperType | null>(null);
 
 function onSwiper(swiper: SwiperType) {
+  console.log('[FeedContainer] onSwiper called', { initialIndex: initialIndex.value });
   swiperInstance.value = swiper;
   // Sync swiper to initial index
   if (initialIndex.value > 0) {
@@ -69,21 +70,39 @@ function onSwiper(swiper: SwiperType) {
 }
 
 function onSlideChange(swiper: SwiperType) {
+  console.log('[FeedContainer] onSlideChange', { 
+    activeIndex: swiper.activeIndex,
+    previousIndex: swiper.previousIndex 
+  });
   nav.setActive(swiper.activeIndex);
 }
 
 function goNext() {
+  console.log('[FeedContainer] goNext called', { 
+    hasSwiperInstance: !!swiperInstance.value,
+    currentIndex: nav.activeIndex.value 
+  });
   if (swiperInstance.value) {
-    swiperInstance.value.slideNext();
+    const targetIndex = Math.min(pageCount.value - 1, nav.activeIndex.value + 1);
+    console.log('[FeedContainer] Calling swiper.slideTo', targetIndex);
+    swiperInstance.value.slideTo(targetIndex);
   } else {
     nav.goNext();
   }
 }
 
 function goPrev() {
+  console.log('[FeedContainer] goPrev called', { 
+    hasSwiperInstance: !!swiperInstance.value,
+    currentIndex: nav.activeIndex.value,
+    swiperActiveIndex: swiperInstance.value?.activeIndex 
+  });
   if (swiperInstance.value) {
-    swiperInstance.value.slidePrev();
+    const targetIndex = Math.max(0, nav.activeIndex.value - 1);
+    console.log('[FeedContainer] Calling swiper.slideTo', targetIndex);
+    swiperInstance.value.slideTo(targetIndex);
   } else {
+    console.log('[FeedContainer] Calling nav.goPrev()');
     nav.goPrev();
   }
 }
@@ -133,6 +152,9 @@ defineExpose({
       :touch-start-prevent-default="false"
       :touch-move-stop-propagation="false"
       :nested="true"
+      :loop="false"
+      :allow-slide-prev="true"
+      :allow-slide-next="true"
       @swiper="onSwiper"
       @slide-change="onSlideChange"
       class="h-full w-full"

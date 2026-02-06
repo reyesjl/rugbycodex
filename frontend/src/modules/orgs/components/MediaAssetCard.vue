@@ -21,7 +21,7 @@ const props = defineProps<{
   };
 }>();
 
-const emit = defineEmits(['open', 'review', 'delete', 'reattach', 'edit']);
+const emit = defineEmits(['open', 'review', 'delete', 'reattach', 'edit', 'viewAsFeed']);
 
 // Reactive timestamp - updates every 30 seconds
 const now = ref(new Date());
@@ -121,6 +121,11 @@ function handleDelete() {
 
 function handleReattach() {
   emit('reattach', props.asset.id);
+}
+
+function handleViewAsFeed() {
+  if (!isInteractive.value) return;
+  emit('viewAsFeed', props.asset.id);
 }
 
 function handleCardClick() {
@@ -238,13 +243,24 @@ function handleCardClick() {
                     :disabled="!isInteractive"
                     @click="handleReview"
                   >
-                    Review
+                    View Timeline
                   </button>
                 </MenuItem>
                 <MenuItem v-slot="{ active }">
                   <button
                     type="button"
-                    class="w-full px-3 py-2 text-left text-xs transition"
+                    class="w-full px-3 py-2 text-left text-xs transition disabled:opacity-60 disabled:cursor-not-allowed"
+                    :class="active ? 'bg-white/10' : ''"
+                    :disabled="!isInteractive"
+                    @click="handleViewAsFeed"
+                  >
+                    View as Feed
+                  </button>
+                </MenuItem>
+                <MenuItem v-slot="{ active }">
+                  <button
+                    type="button"
+                    class="w-full px-3 py-2 text-left text-xs transition border-t border-white/10"
                     :class="active ? 'bg-white/10' : ''"
                     @click="handleEdit"
                   >

@@ -35,16 +35,17 @@ const userId = computed(() => userReadonly.value?.id ?? null);
 const membershipRole = computed(() => (orgContextReadonly.value?.membership?.role ?? null) as any);
 const canAddIdentityTag = computed(() => hasOrgAccess(membershipRole.value, 'member'));
 
-// Support both route params (moments view) and query (segment/assignment views)
-const mediaAssetId = computed(() => String(route.params.mediaAssetId ?? ''));
+// Support both route params (moments view) and query (match/segment/assignment views)
+const mediaAssetId = computed(() => String(route.params.mediaAssetId ?? route.query.mediaAssetId ?? ''));
 const segmentId = computed(() => String(route.query.segmentId ?? route.query.segment ?? ''));
 
 const source = computed(() => {
-  // If mediaAssetId is present, we're in moments view
-  if (mediaAssetId.value) return 'moments';
-  
   const querySource = String(route.query.source ?? '');
   if (querySource) return querySource;
+  
+  // If mediaAssetId is present in params, we're in moments view
+  if (route.params.mediaAssetId) return 'moments';
+  
   if (segmentId.value) return 'segment';
   return '';
 });

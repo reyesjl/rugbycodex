@@ -195,13 +195,29 @@ function openAddMedia() {
 function openAsset(assetId: string) {
   const slug = route.params.slug;
   if (!slug) return;
-  void router.push({
-    name: 'OrgMediaAssetReview',
-    params: {
-      slug,
-      mediaAssetId: assetId,
-    },
-  });
+  
+  // Members: Open in Feed mode (swipeable segments)
+  // Staff: Open in Timeline view (default)
+  if (canManage.value) {
+    // Staff can view in timeline
+    void router.push({
+      name: 'OrgMediaAssetReview',
+      params: {
+        slug,
+        mediaAssetId: assetId,
+      },
+    });
+  } else {
+    // Members view in feed mode
+    void router.push({
+      name: 'OrgFeedView',
+      params: { slug },
+      query: {
+        source: 'match',
+        mediaAssetId: assetId,
+      },
+    });
+  }
 }
 
 function openReview(assetId: string) {
@@ -211,6 +227,19 @@ function openReview(assetId: string) {
     name: 'OrgMediaAssetReview',
     params: {
       slug,
+      mediaAssetId: assetId,
+    },
+  });
+}
+
+function openFeed(assetId: string) {
+  const slug = route.params.slug;
+  if (!slug) return;
+  void router.push({
+    name: 'OrgFeedView',
+    params: { slug },
+    query: {
+      source: 'match',
       mediaAssetId: assetId,
     },
   });
@@ -705,6 +734,7 @@ watch(activeOrgId, (orgId, prevOrgId) => {
                   :upload-metrics="uploadMetricsByAssetId.get(asset.id)"
                   @open="openAsset(asset.id)"
                   @review="openReview(asset.id)"
+                  @view-as-feed="openFeed(asset.id)"
                   @delete="openConfirmDelete(asset.id)"
                   @edit="openEditMedia(asset.id)"
                   @reattach="openReattachModal(asset.id)"

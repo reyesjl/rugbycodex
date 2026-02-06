@@ -3,6 +3,7 @@ import type { PostgrestError } from '@supabase/supabase-js';
 import type { MediaAssetSegment } from '@/modules/narrations/types/MediaAssetSegment';
 import type { OrgMediaAsset } from '@/modules/media/types/OrgMediaAsset';
 import { requireUserId } from '@/modules/auth/identity';
+import { formatMinutesSeconds } from '@/lib/duration';
 
 type SegmentRow = {
   id: string;
@@ -595,5 +596,115 @@ export const segmentService = {
     }
 
     return results;
+  },
+
+  /**
+   * Get all segments from a match as FeedItems for swipeable feed view.
+   * Used when members want to view a full match in Feed mode.
+   */
+  async getMatchSegmentFeed(mediaAssetId: string) {
+    const { data, error } = await supabase
+      .from('media_asset_segments')
+      .select(`
+        id,
+        media_asset_id,
+        segment_index,
+        start_seconds,
+        end_seconds,
+        created_at,
+        media_assets!inner (
+          id,
+          bucket,
+          file_name,
+          created_at,
+          org_id,
+          organizations!inner (
+            id,
+            name
+          )
+        ),
+        segment_tags (
+          id,
+          segment_id,
+          tag_type,
+          tag_key,
+          created_by,
+          created_at
+        )
+      `)
+      .eq('media_asset_id', mediaAssetId)
+      .order('segment_index', { ascending: true });
+
+    if (error) throw new Error(`Failed to fetch match segments: ${error.message}`);
+    if (!data || data.length === 0) return [];
+
+    // Transform to FeedItems
+    const feedItems = data.map((row: any) => {
+      const asset = row.media_assets;
+      const org = asset.organizations;
+      const matchDate = new Date(asset.created_at);
+      
+      // Format timestamps
+      const startTime = formatMinutesSeconds(row.start_seconds);
+      const endTime = formatMinutesSeconds(row.end_seconds);
+      const timeRange = `${startTime} - ${endTime}`;
+      
+      // Build title from tags (similar to momentsService.formatSegmentTitle)
+      const tags = row.segment_tags || [];
+      const actionTags = tags
+        .filter((t: any) => t.tag_type === 'action')
+        .map((t: any) => t.tag_key.replace(/_/g, ' '));
+      const contextTags = tags
+        .filter((t: any) => t.tag_type === 'context')
+        .map((t: any) => t.tag_key.replace(/_/g, ' '));
+      
+      // Build title
+      let title = timeRange; // Default to time range
+      
+      if (actionTags.length > 0) {
+        title = actionTags.join(', ');
+        if (contextTags.length > 0) {
+          title += ` (${contextTags.join(', ')})`;
+        }
+      }
+      
+      const dateLabel = Number.isNaN(matchDate.getTime()) ? '' : matchDate.toLocaleDateString();
+      const metaLine = dateLabel 
+        ? `${asset.file_name} • ${dateLabel} • ${timeRange}`
+        : `${asset.file_name} • ${timeRange}`;
+
+      return {
+        id: row.id,
+        orgId: org.id,
+        orgName: org.name,
+        mediaAssetId: asset.id,
+        bucket: asset.bucket,
+        mediaAssetSegmentId: row.id,
+        segmentIndex: row.segment_index,
+        startSeconds: row.start_seconds,
+        endSeconds: row.end_seconds,
+        title,
+        metaLine,
+        createdAt: new Date(row.created_at),
+        segment: {
+          id: row.id,
+          media_asset_id: row.media_asset_id,
+          segment_index: row.segment_index,
+          start_seconds: row.start_seconds,
+          end_seconds: row.end_seconds,
+          created_at: new Date(row.created_at),
+          tags: tags.map((t: any) => ({
+            id: t.id,
+            segment_id: t.segment_id,
+            tag_key: t.tag_key,
+            tag_type: t.tag_type,
+            created_by: t.created_by,
+            created_at: t.created_at,
+          })),
+        },
+      };
+    });
+
+    return feedItems;
   },
 };

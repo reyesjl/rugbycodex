@@ -387,6 +387,28 @@ export function useFeedData(options: FeedDataOptions) {
         return;
       }
 
+      if (options.source() === 'match') {
+        const mediaAssetId = options.mediaAssetId?.() ?? '';
+        if (!mediaAssetId) {
+          if (activeRequestId === requestId) {
+            error.value = 'Media asset ID is required for match feed.';
+          }
+          return;
+        }
+
+        const matchFeed = await segmentService.getMatchSegmentFeed(mediaAssetId);
+
+        if (activeRequestId !== requestId) return;
+        
+        if (matchFeed.length === 0) {
+          error.value = 'This match has no segments yet. Coaches will add them soon!';
+          return;
+        }
+
+        items.value = matchFeed;
+        return;
+      }
+
       // const feedRows = await segmentService.listFeedItemsForOrg(orgId, { maxRows: 50 });
       const feedRows = await segmentService.getRandomFeedItemsForOrg(orgId);
 
