@@ -9,6 +9,8 @@ import type {
   UserAssignmentFeed,
   ManagerAssignment,
   AssignmentTargetInfo,
+  AssignmentWithProgress,
+  AssignmentDetail,
 } from '@/modules/assignments/types';
 import type { OrgMediaAsset } from '@/modules/media/types/OrgMediaAsset';
 import type { MediaAssetSegment } from '@/modules/narrations/types/MediaAssetSegment';
@@ -872,5 +874,66 @@ export const assignmentsService = {
     return assignments
       .filter((a: any) => userAssignmentIds.has(String(a.id)))
       .map((a: any) => String(a.id));
+  },
+
+  /**
+   * Get paginated assignments with progress using RPC
+   * Optimized single-query approach that eliminates N+1 problems
+   */
+  async getAssignmentsWithProgress(params: {
+    orgId: string;
+    status?: 'due' | 'overdue' | 'completed';
+    groupId?: string;
+    userId?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<AssignmentWithProgress[]> {
+    const { data, error } = await supabase.rpc('get_org_assignments_with_progress', {
+      p_org_id: params.orgId,
+      p_status: params.status || null,
+      p_group_id: params.groupId || null,
+      p_user_id: params.userId || null,
+      p_limit: params.limit || 10,
+      p_offset: params.offset || 0,
+    });
+
+    if (error) throw error;
+    return (data ?? []) as AssignmentWithProgress[];
+  },
+
+  /**
+   * Get total count of assignments matching filters
+   * Used for pagination calculations
+   */
+  async getAssignmentsCount(params: {
+    orgId: string;
+    status?: string;
+    groupId?: string;
+    userId?: string;
+  }): Promise<number> {
+    const { data, error } = await supabase.rpc('get_org_assignments_count', {
+      p_org_id: params.orgId,
+      p_status: params.status || null,
+      p_group_id: params.groupId || null,
+      p_user_id: params.userId || null,
+    });
+
+    if (error) throw error;
+    return (data as number) ?? 0;
+  },
+
+  /**
+   * Get detailed assignment information with all assignees
+   * Used for Assignment Detail page
+   */
+  async getAssignmentDetail(assignmentId: string): Promise<AssignmentDetail> {
+    const { data, error } = await supabase.rpc('get_assignment_detail', {
+      p_assignment_id: assignmentId,
+    });
+
+    if (error) throw error;
+    if (!data) throw new Error('Assignment not found');
+    
+    return data as AssignmentDetail;
   },
 };

@@ -2,7 +2,7 @@
 import { computed, nextTick, ref, toRef, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { Icon } from '@iconify/vue';
-import type { Narration, NarrationSourceType } from '@/modules/narrations/types/Narration';
+import type { Narration, NarrationSourceType, NarrationWithAuthor } from '@/modules/narrations/types/Narration';
 import type { MediaAssetSegment } from '@/modules/narrations/types/MediaAssetSegment';
 import type { SegmentTag, SegmentTagType } from '@/modules/media/types/SegmentTag';
 import { formatMinutesSeconds } from '@/lib/duration';
@@ -209,7 +209,7 @@ function removeTag(seg: MediaAssetSegment, tag: SegmentTag) {
   emit('removeTag', { segmentId: String(seg.id), tagId: String(tag.id) });
 }
 
-function isSavedNarration(n: NarrationListItem): n is Narration {
+function isSavedNarration(n: NarrationListItem): n is NarrationWithAuthor {
   return !(n as any)?.status;
 }
 

@@ -6,7 +6,7 @@ import ShakaSurfacePlayer from '@/modules/media/components/ShakaSurfacePlayer.vu
 import FeedGestureLayer from '@/modules/feed/components/FeedGestureLayer.vue';
 import FeedOverlayControls from '@/modules/feed/components/FeedOverlayControls.vue';
 import FeedMeta from '@/modules/feed/components/FeedMeta.vue';
-import FeedActionBar from '@/modules/feed/components/FeedActionBar.vue';
+import FeedTags from '@/modules/feed/components/FeedTags.vue';
 import NarrationPanel from '@/modules/narrations/components/NarrationPanel.vue';
 import NarrationRecorder from '@/modules/narrations/components/NarrationRecorder.vue';
 import { narrationService } from '@/modules/narrations/services/narrationService';
@@ -39,6 +39,7 @@ const emit = defineEmits<{
 
 const authStore = useAuthStore();
 const currentUserId = computed(() => authStore.user?.id ?? null);
+const currentUserName = computed(() => authStore.user?.user_metadata?.name || authStore.user?.email || 'Unknown');
 const activeOrgStore = useActiveOrganizationStore();
 const membershipRole = computed(() => (activeOrgStore.orgContext?.membership?.role ?? null) as any);
 const canAddIdentityTag = computed(() => hasOrgAccess(membershipRole.value, 'member'));
@@ -277,7 +278,7 @@ const narrationCount = computed(() => narrations.value.length);
 async function refreshNarrations() {
   loadingNarrations.value = true;
   try {
-    const list = await narrationService.listNarrationsForSegment(props.feedItem.mediaAssetSegmentId);
+    const list = await narrationService.listNarrationsWithAuthors(props.feedItem.mediaAssetSegmentId);
     narrations.value = list;
   } finally {
     loadingNarrations.value = false;
@@ -328,7 +329,13 @@ function endRecordingNonBlocking() {
   // async resolve/replace
   result.promise
     .then((saved) => {
-      narrations.value = narrations.value.map((n) => (n.id === result.optimistic.id ? saved : n));
+      // Add current user's author info
+      const savedWithAuthor: NarrationListItem = {
+        ...saved,
+        author_name: currentUserName.value,
+        author_username: null,
+      };
+      narrations.value = narrations.value.map((n) => (n.id === result.optimistic.id ? savedWithAuthor : n));
       toast({ message: 'Narration added.', variant: 'success', durationMs: 2000 });
     })
     .catch((err) => {
@@ -377,7 +384,14 @@ async function submitTypedNarration(text: string) {
       transcriptRaw: text.trim(),
     });
 
-    narrations.value = narrations.value.map((n) => (n.id === optimisticId ? saved : n));
+    // Add current user's author info since createNarration returns Narration, not NarrationWithAuthor
+    const savedWithAuthor: NarrationListItem = {
+      ...saved,
+      author_name: currentUserName.value,
+      author_username: null,
+    };
+
+    narrations.value = narrations.value.map((n) => (n.id === optimisticId ? savedWithAuthor : n));
     toast({ message: 'Narration added.', variant: 'success', durationMs: 2000 });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to save narration.';
@@ -601,15 +615,19 @@ onBeforeUnmount(() => {
     <!-- Below-video stack: on desktop, let the whole page scroll (no inner scroller). -->
     <div class="flex-1 min-h-0 flex flex-col md:flex-none md:px-6 pb-14 md:pb-0">
       <div class="shrink-0 md:mx-auto md:w-full md:max-w-5xl">
-        <FeedMeta :title="feedItem.title" :meta-line="feedItem.metaLine" />
-        <FeedActionBar
-          :tags="segmentTags"
-          :current-user-id="currentUserId"
+        <FeedMeta 
+          :title="feedItem.title" 
+          :meta-line="feedItem.metaLine" 
+          :created-at="feedItem.createdAt"
           :can-add-identity="canAddIdentityTag && Boolean(currentUserId)"
           :has-identity-tag="hasIdentityTag"
-          :profile-name-by-id="props.profileNameById"
-          @addIdentityTag="requestIdentityTag"
+          @requestIdentityTag="requestIdentityTag"
           @removeIdentityTag="requestRemoveIdentityTag"
+        />
+        <FeedTags
+          :tags="segmentTags"
+          :current-user-id="currentUserId"
+          :profile-name-by-id="props.profileNameById"
         />
       </div>
 
@@ -627,6 +645,35 @@ onBeforeUnmount(() => {
           @delete="onDeleteNarration"
           @updateText="onUpdateNarrationText"
         />
+
+        <!-- Ad Space Promotion Card (Desktop Only) -->
+        <div class="px-4 py-6">
+          <a
+            href="https://rugbycodex.com/advertise"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="block group"
+          >
+            <div class="bg-gradient-to-br from-white/5 to-white/10 rounded-xl p-6 border border-white/20 hover:border-white/30 transition-all duration-200">
+              <div class="flex items-start justify-between gap-4">
+                <div class="flex-1 space-y-2">
+                  <h3 class="text-lg font-semibold text-white">
+                    Advertise Here
+                  </h3>
+                  <p class="text-sm text-white/70">
+                    Reach rugby coaches and players actively using video analysis. Premium ad placements available.
+                  </p>
+                </div>
+                <div class="shrink-0">
+                  <Icon 
+                    icon="carbon:arrow-up-right" 
+                    class="h-6 w-6 text-white/60 group-hover:text-white transition-colors"
+                  />
+                </div>
+              </div>
+            </div>
+          </a>
+        </div>
       </div>
     </div>
 

@@ -7,4 +7,12 @@ export type {
   UserAssignmentFeed,
   AssignmentTargetInfo,
   ManagerAssignment,
+  AssignmentStatus,
+  AssignmentWithProgress,
+  AssigneeStatus,
+  AssignmentDetailAssignee,
+  AssignmentDetailClip,
+  AssignmentDetailTarget,
+  AssignmentDetailSummary,
+  AssignmentDetail,
 } from './Assignment';

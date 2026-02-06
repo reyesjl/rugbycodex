@@ -109,6 +109,13 @@ export const orgRoutes: RouteRecordRaw = {
           meta: { minOrgRole: 'staff' },
         },
         {
+          path: 'assignments/:assignmentId',
+          name: 'AssignmentDetail',
+          component: () => import('@/modules/assignments/views/AssignmentDetail.vue'),
+          props: true,
+          meta: { minOrgRole: 'staff' },
+        },
+        {
           path: 'groups',
           name: 'OrgGroups',
           component: () => import('@/modules/groups/views/OrgGroups.vue'),

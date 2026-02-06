@@ -1546,7 +1546,6 @@ async function handleDeleteSegment(segmentId: string) {
                 @editNarration="handleEditNarration"
                 @deleteNarration="handleDeleteNarration"
                 @deleteSegment="handleDeleteSegment"
-                @deleteSegment="handleDeleteSegment"
                 @addTag="handleAddSegmentTag"
                 @removeTag="handleRemoveSegmentTag"
                 @update:sourceFilter="handleNarrationSourceFilterChange"

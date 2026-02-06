@@ -6,6 +6,7 @@ import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
 import ShimmerText from '@/components/ShimmerText.vue';
 import NarrationActionsMenu from '@/components/NarrationActionsMenu.vue';
 import type { OrgRole } from '@/modules/orgs/types/OrgRole';
+import { formatRelativeTime } from '@/lib/date';
 
 const props = withDefaults(
   defineProps<{
@@ -33,6 +34,22 @@ const emit = defineEmits<{
 
 function isOptimistic(item: NarrationListItem): item is Exclude<NarrationListItem, Narration> {
   return (item as any).status === 'uploading' || (item as any).status === 'error';
+}
+
+function getAuthorDisplayName(item: NarrationListItem): string {
+  // If it's optimistic (uploading), check if it's current user
+  if (isOptimistic(item) && item.author_id === props.currentUserId) {
+    return 'you';
+  }
+  
+  // If author is current user, show "you"
+  if (item.author_id === props.currentUserId) {
+    return 'you';
+  }
+  
+  // Try author_name first, then author_username, then fallback
+  const authorName = (item as any).author_name || (item as any).author_username;
+  return authorName || 'Unknown';
 }
 
 const draft = ref('');
@@ -160,43 +177,42 @@ watch(
 
 <template>
   <div class="px-4 pt-4 pb-24">
-    <div class="flex items-center justify-between">
-      <div class="text-sm font-semibold text-white">Narrations ({{ narrations.length }})</div>
-      <button
-        type="button"
-        class="text-xs text-white/60 hover:text-white"
-        @click="emit('refresh')"
-      >
-        Refresh
-      </button>
+    <div class="flex items-center justify-between mb-3">
+      <div class="font-semibold text-white">
+        {{ narrations.length }} {{ narrations.length === 1 ? 'Narration' : 'Narrations' }}
+      </div>
     </div>
 
     <!-- Input area (typed narration) -->
-    <div class="mt-3 border-b border-white/10 pb-3">
+    <div class="mb-4 border-b border-white/10 pb-3">
       <textarea
         v-model="draft"
         rows="3"
         class="w-full resize-none bg-transparent text-sm text-white placeholder-white/40 focus:outline-none"
         placeholder="Add a narration"
         :disabled="submitting"
+        @focus="() => {}"
+        @blur="() => {}"
       />
-      <div class="mt-2 flex items-center justify-between">
-        <div class="text-xs text-white/50">
-          <span v-if="submitting">Saving…</span>
-          <span v-else-if="submitError" class="text-red-300">{{ submitError }}</span>
-          <span v-else>{{ draft.length }} chars</span>
-        </div>
+      <div v-if="draft.trim()" class="mt-2 flex items-center justify-end gap-2">
         <button
           type="button"
-          class="rounded-md px-3 py-1 text-xs ring-1 transition"
-          :class="canSubmit
-            ? 'bg-white/5 text-white ring-white/10 hover:bg-white/10'
-            : 'bg-white/5 text-white/30 ring-white/10 cursor-not-allowed'"
-          :disabled="!canSubmit"
+          class="rounded-md px-3 py-1 text-xs text-white/60 hover:text-white transition"
+          @click="draft = ''"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          class="rounded-md px-3 py-1 text-xs bg-blue-500 text-white hover:bg-blue-600 transition"
+          :disabled="!canSubmit || submitting"
           @click="submit"
         >
-          Submit
+          {{ submitting ? 'Saving...' : 'Submit' }}
         </button>
+      </div>
+      <div v-if="submitError" class="mt-2 text-xs text-red-300">
+        {{ submitError }}
       </div>
     </div>
 
@@ -209,10 +225,12 @@ watch(
         @click="emit('selectNarration', item.id)"
       >
         <div class="flex items-start justify-between gap-3">
-          <div class="text-[10px] font-mono text-white/40">
-            {{ new Date(item.created_at).toLocaleString() }}
+          <div class="flex items-center gap-1.5 text-xs">
+            <span class="font-semibold text-white">{{ getAuthorDisplayName(item) }}</span>
+            <span class="text-white/30">·</span>
+            <span class="text-white/40">{{ formatRelativeTime(item.created_at) || 'Unknown time' }}</span>
             <span v-if="isOptimistic(item)" class="ml-2">
-              <span v-if="item.status === 'uploading'">• Uploading…</span>
+              <span v-if="item.status === 'uploading'" class="text-white/40">• Uploading…</span>
               <span v-else class="text-red-300">• Failed</span>
             </span>
           </div>
@@ -228,7 +246,7 @@ watch(
           </div>
         </div>
 
-        <div v-if="editingId === item.id" class="mt-2">
+        <div v-if="editingId === item.id" class="mt-1">
           <textarea
             v-model="editDraft"
             rows="3"

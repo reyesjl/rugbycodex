@@ -131,7 +131,7 @@ function removeIdentityTag() {
           <button
             v-if="props.canAddIdentity && !props.hasIdentityTag"
             type="button"
-            class="rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-black shadow-sm transition hover:bg-white/90"
+            class="md:hidden rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-black shadow-sm transition hover:bg-white/90"
             @click="requestIdentityConfirm"
           >
             That's me
@@ -139,7 +139,7 @@ function removeIdentityTag() {
           <button
             v-else-if="props.canAddIdentity && props.hasIdentityTag"
             type="button"
-            class="rounded-full bg-white/10 px-3 py-1 text-[11px] font-semibold text-white/70 ring-1 ring-white/20 shadow-sm transition hover:bg-red-500/20 hover:text-red-200 hover:ring-red-300/30"
+            class="md:hidden rounded-full bg-white/10 px-3 py-1 text-[11px] font-semibold text-white/70 ring-1 ring-white/20 shadow-sm transition hover:bg-red-500/20 hover:text-red-200 hover:ring-red-300/30"
             title="Remove your tag"
             @click="removeIdentityTag"
           >

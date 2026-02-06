@@ -19,3 +19,11 @@ export type Narration = {
   created_at: Date;
   updated_at: Date;
 };
+
+/**
+ * Narration with author profile information (from RPC)
+ */
+export type NarrationWithAuthor = Narration & {
+  author_name: string | null;
+  author_username: string | null;
+};

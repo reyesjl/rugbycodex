@@ -2,7 +2,7 @@ import { computed, ref } from 'vue';
 import { useAudioRecording } from '@/composables/useAudioRecording';
 import { transcriptionService } from '@/modules/narrations/services/transcriptionService';
 import { narrationService } from '@/modules/narrations/services/narrationService';
-import type { Narration, NarrationSourceType } from '@/modules/narrations/types/Narration';
+import type { Narration, NarrationSourceType, NarrationWithAuthor } from '@/modules/narrations/types/Narration';
 
 export type OptimisticNarration = {
   id: string;
@@ -16,9 +16,11 @@ export type OptimisticNarration = {
   transcript_raw: string;
   status: 'uploading' | 'error';
   errorMessage?: string;
+  author_name?: string | null;
+  author_username?: string | null;
 };
 
-export type NarrationListItem = Narration | OptimisticNarration;
+export type NarrationListItem = NarrationWithAuthor | OptimisticNarration;
 
 type StartContext = {
   orgId: string;

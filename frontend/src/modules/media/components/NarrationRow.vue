@@ -6,6 +6,7 @@ import type { NarrationListItem } from '@/modules/narrations/composables/useNarr
 import LoadingDot from '@/components/LoadingDot.vue';
 import ShimmerText from '@/components/ShimmerText.vue';
 import NarrationActionsMenu from '@/components/NarrationActionsMenu.vue';
+import { formatRelativeTime } from '@/lib/date';
 
 const props = defineProps<{
   narration: NarrationListItem;
@@ -54,8 +55,7 @@ const sourceColorClass = computed(() => {
 const formattedTime = computed(() => {
   const d = (props.narration as any).created_at;
   if (!d) return '';
-  const date = d instanceof Date ? d : new Date(d);
-  return Number.isNaN(date.getTime()) ? '' : date.toLocaleString();
+  return formatRelativeTime(d) || '';
 });
 
 const transcriptWithBoldTerms = computed(() => {

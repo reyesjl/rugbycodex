@@ -1,7 +1,7 @@
 import { supabase } from "@/lib/supabaseClient";
 import { invokeEdge } from "@/lib/api";
 import { requireUserId } from "@/modules/auth/identity";
-import type { Narration, NarrationSourceType } from "../types/Narration";
+import type { Narration, NarrationSourceType, NarrationWithAuthor } from "../types/Narration";
 import type { PostgrestError } from "@supabase/supabase-js";
 import { handleEdgeFunctionError } from "@/lib/handleEdgeFunctionError";
 
@@ -33,6 +33,11 @@ type NarrationRow = {
   transcript_lang: string | null;
   created_at: string | Date;
   updated_at: string | Date;
+};
+
+type NarrationWithAuthorRow = NarrationRow & {
+  author_name: string | null;
+  author_username: string | null;
 };
 
 export type NarrationSearchResultRow = {
@@ -124,6 +129,14 @@ function toNarration(row: NarrationRow): Narration {
     transcript_lang: row.transcript_lang,
     created_at: asDate(row.created_at, "created_at"),
     updated_at: asDate(row.updated_at, "updated_at"),
+  };
+}
+
+function toNarrationWithAuthor(row: NarrationWithAuthorRow): NarrationWithAuthor {
+  return {
+    ...toNarration(row),
+    author_name: row.author_name,
+    author_username: row.author_username,
   };
 }
 
@@ -287,6 +300,29 @@ export const narrationService = {
     );
 
     return rows.map(toNarration);
+  },
+
+  /**
+   * Lists narrations for a segment with author profile information (name + username).
+   * Uses RPC to fetch narrations with a LEFT JOIN to profiles in a single query.
+   * This eliminates N+1 queries for author names.
+   * 
+   * Authorization:
+   * - Enforced via Supabase RLS on narrations table.
+   * - RPC uses SECURITY DEFINER but respects row-level security.
+   * 
+   * @param segmentId The media asset segment ID.
+   * @returns List of narrations with author names.
+   */
+  async listNarrationsWithAuthors(segmentId: string): Promise<NarrationWithAuthor[]> {
+    const { data, error } = await supabase.rpc('get_narrations_with_authors', {
+      segment_id_param: segmentId
+    });
+
+    if (error) throw error;
+    if (!data) return [];
+
+    return (data as NarrationWithAuthorRow[]).map(toNarrationWithAuthor);
   },
 
   /**

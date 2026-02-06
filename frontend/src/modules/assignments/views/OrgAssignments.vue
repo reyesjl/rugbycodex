@@ -2,10 +2,11 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useRoute, useRouter } from 'vue-router';
-import { Listbox, ListboxButton, ListboxOptions, ListboxOption } from '@headlessui/vue';
+import { Combobox, ComboboxButton, ComboboxInput, ComboboxOption, ComboboxOptions } from '@headlessui/vue';
 import { Icon } from '@iconify/vue';
+import AssignmentActionsMenu from '@/components/AssignmentActionsMenu.vue';
 import { useAuthStore } from '@/modules/auth/stores/useAuthStore';
-import { getRelativeDaysWeeks } from '@/lib/date';
+import { formatRelativeTime } from '@/lib/date';
 import { toast } from '@/lib/toast';
 import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrganizationStore';
 import { orgService } from '@/modules/orgs/services/orgServiceV2';
@@ -16,38 +17,15 @@ import type { OrgGroup } from '@/modules/groups/types';
 
 import {
   assignmentsService,
-  type AssignmentProgressRow,
   type AssignmentTargetInput,
 } from '@/modules/assignments/services/assignmentsService';
-import type { AssignmentTargetType, OrgAssignmentListItem, OrgAssignmentTarget } from '@/modules/assignments/types';
+import type { OrgAssignmentListItem } from '@/modules/assignments/types';
 import CreateAssignmentModal from '@/modules/assignments/components/CreateAssignmentModal.vue';
 import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
 
-type ExtendOption = {
-  value: number | null;
-  label: string;
-};
-
 type StatusOption = {
-  value: 'all' | 'overdue' | 'due_soon' | 'completed';
+  value: 'all' | 'due' | 'overdue' | 'completed';
   label: string;
-};
-
-type TargetOption = {
-  value: 'all' | 'team' | 'group' | 'player';
-  label: string;
-};
-
-type GroupOption = {
-  value: string;
-  label: string;
-  group: OrgGroup;
-};
-
-type PlayerOption = {
-  value: string;
-  label: string;
-  member: OrgMember;
 };
 
 const route = useRoute();
@@ -70,42 +48,40 @@ const error = ref<string | null>(null);
 
 const members = ref<OrgMember[]>([]);
 const groups = ref<Array<{ group: OrgGroup; memberIds: string[] }>>([]);
-const assignments = ref<OrgAssignmentListItem[]>([]);
-const progressRows = ref<AssignmentProgressRow[]>([]);
 const editingAssignment = ref<OrgAssignmentListItem | null>(null);
 const showDeleteModal = ref(false);
 const deleteAssignmentId = ref<string | null>(null);
 const deleteAssignmentName = ref('this assignment');
 const deleteError = ref<string | null>(null);
 const isDeleting = ref(false);
-const isBulkDelete = ref(false);
-const extendByDays = ref<number | null>(null);
-const isExtending = ref(false);
 
-const extendOptionList: ExtendOption[] = [
-  { value: null, label: 'Select' },
-  { value: 1, label: '1 day' },
-  { value: 2, label: '2 days' },
-  { value: 3, label: '3 days' },
-  { value: 7, label: '1 week' },
-];
-const selectedExtendOption = ref<ExtendOption>(extendOptionList[0]!);
+// Pagination state
+const currentPage = ref(1);
+const itemsPerPage = ref(10);
+const totalAssignments = ref(0); // Total count from server for pagination
+
+// Server-paginated assignment data (replaces old client-side data)
+const serverAssignments = ref<import('@/modules/assignments/types').AssignmentWithProgress[]>([]);
+
+// Combobox state
+const groupQuery = ref('');
+const playerQuery = ref('');
+
+type ComboOption = {
+  id: string;
+  label: string;
+};
+
+const selectedGroupOption = ref<ComboOption>({ id: 'all', label: 'All' });
+const selectedPlayerOption = ref<ComboOption>({ id: 'all', label: 'All' });
 
 const statusOptionList: StatusOption[] = [
   { value: 'all', label: 'All' },
+  { value: 'due', label: 'Due' },
   { value: 'overdue', label: 'Overdue' },
-  { value: 'due_soon', label: 'Due Soon' },
   { value: 'completed', label: 'Completed' },
 ];
 const selectedStatusOption = ref<StatusOption>(statusOptionList[0]!);
-
-const targetOptionList: TargetOption[] = [
-  { value: 'all', label: 'All' },
-  { value: 'team', label: 'Team' },
-  { value: 'group', label: 'Group' },
-  { value: 'player', label: 'Player' },
-];
-const selectedTargetOption = ref<TargetOption>(targetOptionList[0]!);
 
 const statusFilter = computed({
   get: () => selectedStatusOption.value.value,
@@ -115,21 +91,10 @@ const statusFilter = computed({
   },
 });
 
-const targetFilter = computed({
-  get: () => selectedTargetOption.value.value,
-  set: (val) => {
-    const option = targetOptionList.find(o => o.value === val);
-    if (option) selectedTargetOption.value = option;
-  },
-});
-
 const groupFilter = ref('all');
 const playerFilter = ref('all');
-const assignmentIdFilter = ref('');
-const selectedAssignmentIds = ref<string[]>([]);
 
-const statusFilterOptions = new Set(['all', 'overdue', 'due_soon', 'completed']);
-const targetFilterOptions = new Set(['all', 'team', 'group', 'player']);
+const statusFilterOptions = new Set(['all', 'due', 'overdue', 'completed']);
 const isSyncingFilters = ref(false);
 
 const getQueryValue = (value: unknown): string | null => {
@@ -141,53 +106,33 @@ const getQueryValue = (value: unknown): string | null => {
 
 const isFilterQueryInSync = () => {
   const queryStatus = getQueryValue(route.query.status);
-  const queryTarget = getQueryValue(route.query.target);
   const queryGroup = getQueryValue(route.query.group);
   const queryPlayer = getQueryValue(route.query.player);
-  const queryAssignmentId = getQueryValue(route.query.assignmentId);
 
   const statusMatches = statusFilter.value === 'all'
     ? queryStatus == null
     : queryStatus === statusFilter.value;
-  const targetMatches = targetFilter.value === 'all'
-    ? queryTarget == null
-    : queryTarget === targetFilter.value;
   const groupMatches = groupFilter.value === 'all'
     ? queryGroup == null
     : queryGroup === groupFilter.value;
   const playerMatches = playerFilter.value === 'all'
     ? queryPlayer == null
     : queryPlayer === playerFilter.value;
-  const assignmentMatches = assignmentIdFilter.value
-    ? queryAssignmentId === assignmentIdFilter.value
-    : queryAssignmentId == null;
 
-  return statusMatches && targetMatches && groupMatches && playerMatches && assignmentMatches;
+  return statusMatches && groupMatches && playerMatches;
 };
 
 const syncFiltersFromQuery = () => {
   isSyncingFilters.value = true;
   try {
-  const nextAssignmentId = getQueryValue(route.query.assignmentId) ?? '';
-  assignmentIdFilter.value = nextAssignmentId;
-  if (nextAssignmentId) {
-    statusFilter.value = 'all';
-    targetFilter.value = 'all';
-    groupFilter.value = 'all';
-    playerFilter.value = 'all';
-    return;
-  }
-  const nextStatus = getQueryValue(route.query.status);
-  statusFilter.value = nextStatus && statusFilterOptions.has(nextStatus) ? (nextStatus as typeof statusFilter.value) : 'all';
+    const nextStatus = getQueryValue(route.query.status);
+    statusFilter.value = nextStatus && statusFilterOptions.has(nextStatus) ? (nextStatus as typeof statusFilter.value) : 'all';
 
-  const nextTarget = getQueryValue(route.query.target);
-  targetFilter.value = nextTarget && targetFilterOptions.has(nextTarget) ? (nextTarget as 'team' | 'group' | 'player') : 'all';
+    const nextGroup = getQueryValue(route.query.group);
+    groupFilter.value = nextGroup ?? 'all';
 
-  const nextGroup = getQueryValue(route.query.group);
-  groupFilter.value = nextGroup ?? 'all';
-
-  const nextPlayer = getQueryValue(route.query.player);
-  playerFilter.value = nextPlayer ?? 'all';
+    const nextPlayer = getQueryValue(route.query.player);
+    playerFilter.value = nextPlayer ?? 'all';
   } finally {
     isSyncingFilters.value = false;
   }
@@ -198,16 +143,12 @@ const syncQueryFromFilters = () => {
 
   const nextQuery = { ...route.query };
   delete nextQuery.status;
-  delete nextQuery.target;
   delete nextQuery.group;
   delete nextQuery.player;
-  delete nextQuery.assignmentId;
 
   if (statusFilter.value !== 'all') nextQuery.status = statusFilter.value;
-  if (targetFilter.value !== 'all') nextQuery.target = targetFilter.value;
   if (groupFilter.value !== 'all') nextQuery.group = groupFilter.value;
   if (playerFilter.value !== 'all') nextQuery.player = playerFilter.value;
-  if (assignmentIdFilter.value) nextQuery.assignmentId = assignmentIdFilter.value;
 
   void router.replace({ query: nextQuery });
 };
@@ -219,131 +160,75 @@ async function load() {
   error.value = null;
 
   try {
-    const [memberRows, groupRows, assignmentRows] = await Promise.all([
+    // Load members/groups for comboboxes only
+    const [memberRows, groupRows] = await Promise.all([
       orgService.listMembers(orgId.value),
       groupsService.getGroupsForOrg(orgId.value),
-      assignmentsService.getAssignmentsForOrg(orgId.value),
     ]);
 
     members.value = memberRows;
     groups.value = groupRows;
-    assignments.value = assignmentRows;
 
-    progressRows.value = assignmentRows.length > 0
-      ? await assignmentsService.getAssignmentProgress(assignmentRows.map((a) => a.id))
-      : [];
+    // Load paginated assignments with progress (single RPC call!)
+    await loadAssignmentsPage();
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Failed to load assignments.';
-    assignments.value = [];
-    progressRows.value = [];
   } finally {
     loading.value = false;
   }
 }
 
-const memberNameById = computed(() => {
-  const map = new Map<string, string>();
-  for (const member of members.value) {
-    const name = member.profile.name || member.profile.username || 'Player';
-    map.set(member.profile.id, name);
+async function loadAssignmentsPage() {
+  if (!orgId.value) return;
+
+  const offset = (currentPage.value - 1) * itemsPerPage.value;
+
+  try {
+    const [assignmentsData, totalCount] = await Promise.all([
+      assignmentsService.getAssignmentsWithProgress({
+        orgId: orgId.value,
+        status: statusFilter.value === 'all' ? undefined : statusFilter.value as any,
+        groupId: groupFilter.value === 'all' ? undefined : groupFilter.value,
+        userId: playerFilter.value === 'all' ? undefined : playerFilter.value,
+        limit: itemsPerPage.value,
+        offset,
+      }),
+      assignmentsService.getAssignmentsCount({
+        orgId: orgId.value,
+        status: statusFilter.value === 'all' ? undefined : statusFilter.value,
+        groupId: groupFilter.value === 'all' ? undefined : groupFilter.value,
+        userId: playerFilter.value === 'all' ? undefined : playerFilter.value,
+      }),
+    ]);
+
+    serverAssignments.value = assignmentsData;
+    totalAssignments.value = totalCount;
+  } catch (e) {
+    console.error('Failed to load assignments page:', e);
+    serverAssignments.value = [];
+    totalAssignments.value = 0;
   }
-  return map;
-});
+}
 
-const teamMemberIds = computed(() => {
-  return members.value
-    .filter((member) => member.membership.role === 'member')
-    .map((member) => member.profile.id);
-});
-
-const groupById = computed(() => {
-  return new Map(groups.value.map((g) => [g.group.id, g]));
-});
-
+// Keep assignmentById for backwards compatibility with edit/delete modals
 const assignmentById = computed(() => {
-  return new Map(assignments.value.map((assignment) => [assignment.id, assignment]));
-});
-
-const completedByAssignment = computed(() => {
-  const map = new Map<string, Set<string>>();
-  for (const row of progressRows.value) {
-    if (!row.completed) continue;
-    const set = map.get(row.assignment_id) ?? new Set<string>();
-    set.add(row.profile_id);
-    map.set(row.assignment_id, set);
+  // Convert serverAssignments to OrgAssignmentListItem format for modals
+  const map = new Map<string, OrgAssignmentListItem>();
+  for (const item of serverAssignments.value) {
+    map.set(item.id, {
+      id: item.id,
+      org_id: orgId.value!,
+      created_by: item.created_by,
+      title: item.title,
+      description: item.description,
+      due_at: item.due_at,
+      created_at: item.created_at,
+      targets: item.targets,
+      clipCount: item.clip_count,
+    });
   }
   return map;
 });
-
-function assignmentTargetLabels(item: OrgAssignmentListItem): string[] {
-  const labels: string[] = [];
-  const memberNames = memberNameById.value;
-  const groupsById = groupById.value;
-
-  for (const target of item.targets ?? []) {
-    if (target.target_type === 'team') {
-      labels.push('Team');
-    } else if (target.target_type === 'player') {
-      const name = memberNames.get(String(target.target_id ?? ''));
-      labels.push(name || 'Player');
-    } else if (target.target_type === 'group') {
-      const group = groupsById.get(String(target.target_id ?? ''));
-      labels.push(group?.group.name || 'Group');
-    }
-  }
-
-  return Array.from(new Set(labels)).filter(Boolean);
-}
-
-function assignmentAssignees(item: OrgAssignmentListItem): Set<string> {
-  const ids = new Set<string>();
-  const memberIds = teamMemberIds.value;
-  const groupsById = groupById.value;
-
-  for (const target of item.targets ?? []) {
-    if (target.target_type === 'team') {
-      for (const id of memberIds) ids.add(id);
-    }
-    if (target.target_type === 'player' && target.target_id) {
-      ids.add(String(target.target_id));
-    }
-    if (target.target_type === 'group' && target.target_id) {
-      const group = groupsById.get(String(target.target_id));
-      for (const id of group?.memberIds ?? []) ids.add(id);
-    }
-  }
-
-  return ids;
-}
-
-function assignmentTargetTypes(item: OrgAssignmentListItem): Set<string> {
-  const types = new Set<string>();
-  for (const target of item.targets ?? []) {
-    types.add(target.target_type);
-  }
-  return types;
-}
-
-function assignmentTargetGroupIds(item: OrgAssignmentListItem): Set<string> {
-  const ids = new Set<string>();
-  for (const target of item.targets ?? []) {
-    if (target.target_type === 'group' && target.target_id) {
-      ids.add(String(target.target_id));
-    }
-  }
-  return ids;
-}
-
-function primaryTarget(item: OrgAssignmentListItem): { type: AssignmentTargetType; id?: string | null } {
-  const targets = item.targets ?? [];
-  const teamTarget = targets.find((t) => t.target_type === 'team');
-  if (teamTarget) return { type: 'team' };
-  const groupTarget = targets.find((t) => t.target_type === 'group');
-  if (groupTarget) return { type: 'group', id: groupTarget.target_id ?? null };
-  const playerTarget = targets.find((t) => t.target_type === 'player');
-  if (playerTarget) return { type: 'player', id: playerTarget.target_id ?? null };
-  return { type: 'team' };
-}
 
 type AssignmentStatus = 'overdue' | 'due_soon' | 'completed' | 'upcoming';
 
@@ -358,86 +243,30 @@ type AssignmentRow = {
   completedCount: number;
   progress01: number;
   status: AssignmentStatus;
-  targetTypes: Set<string>;
-  targetGroupIds: Set<string>;
-  assigneeIds: Set<string>;
+  createdAt?: Date | null;
 };
 
+// Simplified: Use server data directly (no heavy client-side transformations)
 const assignmentRows = computed<AssignmentRow[]>(() => {
-  const now = new Date();
-  const dueSoonCutoff = new Date(now);
-  dueSoonCutoff.setDate(now.getDate() + 7);
-  const completedMap = completedByAssignment.value;
-
-  return assignments.value.map((item) => {
-    const assignees = assignmentAssignees(item);
-    const completedSet = completedMap.get(item.id) ?? new Set<string>();
-    let completedCount = 0;
-    for (const id of assignees) {
-      if (completedSet.has(id)) completedCount += 1;
-    }
-
-    const totalAssignees = assignees.size;
-    const isCompleted = totalAssignees > 0 && completedCount >= totalAssignees;
-    const dueAt = item.due_at ? new Date(item.due_at) : null;
-
-    let status: AssignmentStatus = 'upcoming';
-    if (isCompleted) {
-      status = 'completed';
-    } else if (dueAt && dueAt < now) {
-      status = 'overdue';
-    } else if (dueAt && dueAt <= dueSoonCutoff) {
-      status = 'due_soon';
-    }
-
-    const targetLabels = assignmentTargetLabels(item);
-    const targetLabel = targetLabels.length > 0 ? targetLabels.join(', ') : 'Team';
-    const progress01 = totalAssignees > 0 ? completedCount / totalAssignees : 0;
-
-    return {
-      id: item.id,
-      title: item.title?.trim() || 'Untitled assignment',
-      description: item.description ?? null,
-      clipCount: item.clipCount,
-      dueAt,
-      targetLabel,
-      totalAssignees,
-      completedCount,
-      progress01,
-      status,
-      targetTypes: assignmentTargetTypes(item),
-      targetGroupIds: assignmentTargetGroupIds(item),
-      assigneeIds: assignees,
-    } satisfies AssignmentRow;
-  });
-});
-
-const baseFilteredRows = computed(() => {
-  return assignmentRows.value.filter((row) => {
-    if (assignmentIdFilter.value && row.id !== assignmentIdFilter.value) return false;
-    if (assignmentIdFilter.value) return true;
-    if (targetFilter.value !== 'all' && !row.targetTypes.has(targetFilter.value)) return false;
-    if (groupFilter.value !== 'all' && !row.targetGroupIds.has(groupFilter.value)) return false;
-    if (playerFilter.value !== 'all' && !row.assigneeIds.has(playerFilter.value)) return false;
-    return true;
-  });
-});
-
-const filteredRows = computed(() => {
-  return baseFilteredRows.value.filter((row) => {
-    if (statusFilter.value !== 'all') {
-      if (statusFilter.value === 'due_soon') {
-        if (row.status !== 'due_soon' && row.status !== 'upcoming') return false;
-      } else if (row.status !== statusFilter.value) {
-        return false;
-      }
-    }
-    return true;
-  });
+  return serverAssignments.value.map((item) => ({
+    id: item.id,
+    title: item.title?.trim() || 'Untitled assignment',
+    description: item.description ?? null,
+    clipCount: item.clip_count,
+    dueAt: item.due_at ? new Date(item.due_at) : null,
+    targetLabel: item.target_label,
+    totalAssignees: item.total_assignees,
+    completedCount: item.completed_count,
+    progress01: item.total_assignees > 0 ? item.completed_count / item.total_assignees : 0,
+    status: item.status as AssignmentStatus,
+    createdAt: item.created_at ? new Date(item.created_at) : null,
+  }));
 });
 
 const statusCounts = computed(() => {
-  const rows = baseFilteredRows.value;
+  // Note: These counts are now based on current page only
+  // For accurate counts across all pages, would need separate RPC calls
+  const rows = assignmentRows.value;
   return {
     due: rows.filter((row) => row.status === 'due_soon' || row.status === 'upcoming').length,
     overdue: rows.filter((row) => row.status === 'overdue').length,
@@ -445,85 +274,129 @@ const statusCounts = computed(() => {
   };
 });
 
-const sections = computed(() => {
-  const rows = filteredRows.value;
-  return {
-    overdue: rows.filter((row) => row.status === 'overdue'),
-    dueSoon: rows.filter((row) => row.status === 'due_soon' || (statusFilter.value === 'all' && row.status === 'upcoming')),
-    completed: rows.filter((row) => row.status === 'completed'),
-  };
+// Pagination computed (now uses server-side pagination)
+const totalPages = computed(() => {
+  return Math.ceil(totalAssignments.value / itemsPerPage.value);
 });
 
-const visibleRowIds = computed(() => {
-  const rows = filteredRows.value;
-  return rows.map((row) => row.id);
+// Server returns already paginated data - no need to slice again
+const paginatedRows = computed(() => assignmentRows.value);
+
+const visiblePageNumbers = computed(() => {
+  const total = totalPages.value;
+  const current = currentPage.value;
+  const delta = 2;
+  
+  const range: number[] = [];
+  const rangeWithDots: (number | string)[] = [];
+  
+  for (let i = Math.max(2, current - delta); i <= Math.min(total - 1, current + delta); i++) {
+    range.push(i);
+  }
+  
+  if (current - delta > 2) {
+    rangeWithDots.push(1, '...');
+  } else {
+    rangeWithDots.push(1);
+  }
+  
+  rangeWithDots.push(...range);
+  
+  if (current + delta < total - 1) {
+    rangeWithDots.push('...', total);
+  } else if (total > 1) {
+    rangeWithDots.push(total);
+  }
+  
+  return rangeWithDots;
 });
 
-const selectedCount = computed(() => selectedAssignmentIds.value.length);
+// Combobox computed options
+const groupComboOptions = computed<ComboOption[]>(() => {
+  const options: ComboOption[] = [{ id: 'all', label: 'All' }];
+  const query = groupQuery.value.toLowerCase();
+  
+  groups.value.forEach(({ group }) => {
+    const label = group.name || 'Unnamed Group';
+    if (!query || label.toLowerCase().includes(query)) {
+      options.push({ id: group.id, label });
+    }
+  });
+  
+  return options;
+});
 
-const hasSelection = computed(() => selectedAssignmentIds.value.length > 0);
-
-const selectedIdSet = computed(() => new Set(selectedAssignmentIds.value));
-
-const allVisibleSelected = computed(() => {
-  const visibleIds = visibleRowIds.value;
-  if (visibleIds.length === 0) return false;
-  const selected = selectedIdSet.value;
-  return visibleIds.every((id) => selected.has(id));
+const playerComboOptions = computed<ComboOption[]>(() => {
+  const options: ComboOption[] = [{ id: 'all', label: 'All' }];
+  const query = playerQuery.value.toLowerCase();
+  
+  members.value.forEach((member) => {
+    const label = member.profile.name || member.profile.username || 'Unnamed';
+    if (!query || label.toLowerCase().includes(query)) {
+      options.push({ id: member.membership.user_id, label });
+    }
+  });
+  
+  return options;
 });
 
 const hasResults = computed(() => {
-  return sections.value.overdue.length > 0 || sections.value.dueSoon.length > 0 || sections.value.completed.length > 0;
+  return paginatedRows.value.length > 0;
 });
 
-function metaLine(row: AssignmentRow): string {
-  const target = row.targetLabel || 'Team';
-  const base = `to ${target}`;
-  if (!row.dueAt) return base;
+// Pagination functions
+function goToPage(page: number) {
+  if (page < 1 || page > totalPages.value) return;
+  currentPage.value = page;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
 
-  const relative = getRelativeDaysWeeks(row.dueAt, new Date());
-  if (!relative) return base;
-
-  const unitLabel = relative.count === 1 ? relative.unit : `${relative.unit}s`;
-  const timeLabel = relative.count === 0 ? 'today' : `${relative.count} ${unitLabel}`;
-
-  if (row.status === 'completed') {
-    if (!relative.isPast || relative.count === 0) return `${base} completed today`;
-    return `${base} completed ${timeLabel} ago`;
+function nextPage() {
+  if (currentPage.value < totalPages.value) {
+    goToPage(currentPage.value + 1);
   }
+}
 
-  if (row.status === 'overdue') {
-    if (relative.count === 0) return `${base} overdue today`;
-    return `${base} overdue by ${timeLabel}`;
+function prevPage() {
+  if (currentPage.value > 1) {
+    goToPage(currentPage.value - 1);
   }
+}
 
-  if (relative.count === 0) return `${base} due today`;
-  return `${base} due in ${timeLabel}`;
+function resetToFirstPage() {
+  currentPage.value = 1;
 }
 
 const editInitial = computed(() => {
   if (!editingAssignment.value) return null;
-  const target = primaryTarget(editingAssignment.value);
+  
+  // Get first target for initial state
+  const targets = editingAssignment.value.targets ?? [];
+  const teamTarget = targets.find((t) => t.target_type === 'team');
+  const groupTarget = targets.find((t) => t.target_type === 'group');
+  const playerTarget = targets.find((t) => t.target_type === 'player');
+  
+  let targetType: 'team' | 'player' | 'group' = 'team';
+  let targetId: string | null = null;
+  
+  if (teamTarget) {
+    targetType = 'team';
+  } else if (groupTarget) {
+    targetType = 'group';
+    targetId = groupTarget.target_id ?? null;
+  } else if (playerTarget) {
+    targetType = 'player';
+    targetId = playerTarget.target_id ?? null;
+  }
+  
   return {
     title: editingAssignment.value.title ?? '',
     description: editingAssignment.value.description ?? null,
     dueAt: editingAssignment.value.due_at ?? null,
-    targetType: target.type,
-    targetId: target.id ?? null,
+    targetType,
+    targetId,
   };
 });
-
-function clearAssignmentFocus() {
-  assignmentIdFilter.value = '';
-}
-
-function setDueTab() {
-  statusFilter.value = 'due_soon';
-}
-
-function setCompletedTab() {
-  statusFilter.value = 'completed';
-}
 
 function openEdit(assignmentId: string) {
   if (!canManage.value) return;
@@ -551,115 +424,45 @@ function closeDeleteModal(force = false) {
   showDeleteModal.value = false;
   deleteError.value = null;
   deleteAssignmentId.value = null;
-  isBulkDelete.value = false;
 }
 
 async function confirmDeleteAssignment() {
   if (isDeleting.value) return;
-  const ids = isBulkDelete.value
-    ? selectedAssignmentIds.value
-    : deleteAssignmentId.value
-      ? [deleteAssignmentId.value]
-      : [];
+  const ids = deleteAssignmentId.value ? [deleteAssignmentId.value] : [];
   if (ids.length === 0) return;
+  await executeDelete(ids);
+}
+
+async function executeDelete(ids: string[]) {
+  if (!canManage.value || ids.length === 0) return;
   isDeleting.value = true;
   deleteError.value = null;
 
   try {
-    await Promise.all(ids.map((id) => assignmentsService.deleteAssignment(id)));
-    assignments.value = assignments.value.filter((item) => !ids.includes(item.id));
-    progressRows.value = progressRows.value.filter((row) => !ids.includes(row.assignment_id));
-    if (editingAssignment.value && ids.includes(editingAssignment.value.id)) closeEdit();
-    if (isBulkDelete.value) selectedAssignmentIds.value = [];
-    if (isBulkDelete.value) {
-      toast({
-        variant: 'success',
-        message: `Deleted ${ids.length} assignment${ids.length === 1 ? '' : 's'}.`,
-        durationMs: 2500,
-      });
-    }
-    closeDeleteModal(true);
-  } catch (e) {
-    deleteError.value = e instanceof Error ? e.message : 'Failed to delete assignments.';
-    if (isBulkDelete.value) {
-      toast({
-        variant: 'error',
-        message: deleteError.value ?? 'Failed to delete assignments.',
-        durationMs: 3000,
-      });
-    }
-  } finally {
-    isDeleting.value = false;
-  }
-}
-
-async function requestDeleteBulk() {
-  if (!canManage.value) return;
-  const ids = selectedAssignmentIds.value;
-  if (ids.length === 0) return;
-  isBulkDelete.value = true;
-  deleteAssignmentId.value = null;
-  deleteAssignmentName.value = ids.length === 1 ? 'this assignment' : `${ids.length} assignments`;
-  deleteError.value = null;
-  showDeleteModal.value = true;
-}
-
-async function extendSelectedAssignments() {
-  if (!canManage.value) return;
-  if (isExtending.value) return;
-  const days = extendByDays.value;
-  const ids = selectedAssignmentIds.value;
-  if (!days || ids.length === 0) return;
-
-  isExtending.value = true;
-  error.value = null;
-
-  try {
-    const updates = ids
-      .map((id) => assignmentById.value.get(id))
-      .filter((item): item is OrgAssignmentListItem => Boolean(item))
-      .map((item) => {
-        const base = item.due_at ? new Date(item.due_at) : new Date();
-        const next = new Date(base);
-        next.setDate(base.getDate() + days);
-        return { id: item.id, dueAt: next.toISOString() };
-      });
-
-    await Promise.all(updates.map((u) => {
-      const current = assignmentById.value.get(u.id);
-      const title = current?.title?.trim() || 'Untitled assignment';
-      const description = current?.description ?? null;
-      return assignmentsService.updateAssignment(u.id, { title, description, dueAt: u.dueAt });
-    }));
-
-    assignments.value = assignments.value.map((item) => {
-      const update = updates.find((u) => u.id === item.id);
-      if (!update) return item;
-      return { ...item, due_at: update.dueAt };
-    });
+    await Promise.all(ids.map((id: string) => assignmentsService.deleteAssignment(id)));
+    
     toast({
       variant: 'success',
-      message: `Extended ${updates.length} assignment${updates.length === 1 ? '' : 's'} by ${days} day${days === 1 ? '' : 's'}.`,
+      message: `Deleted ${ids.length} assignment${ids.length === 1 ? '' : 's'}.`,
       durationMs: 2500,
     });
+    
+    closeDeleteModal(true);
+    
+    // Reload from server
+    await loadAssignmentsPage();
+    
+    if (editingAssignment.value && ids.includes(editingAssignment.value.id)) closeEdit();
   } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Failed to extend assignments.';
+    deleteError.value = e instanceof Error ? e.message : 'Failed to delete assignments.';
     toast({
       variant: 'error',
-      message: error.value ?? 'Failed to extend assignments.',
+      message: deleteError.value ?? 'Failed to delete assignments.',
       durationMs: 3000,
     });
   } finally {
-    isExtending.value = false;
+    isDeleting.value = false;
   }
-}
-
-function mapTargets(assignmentId: string, targets: AssignmentTargetInput[]): OrgAssignmentTarget[] {
-  return targets.map((target) => ({
-    assignment_id: assignmentId,
-    target_type: target.type,
-    target_id: target.type === 'team' ? null : (target.id ?? null),
-  }));
 }
 
 async function handleEdit(payload: {
@@ -679,17 +482,10 @@ async function handleEdit(payload: {
     });
     await assignmentsService.replaceAssignmentTargets(assignmentId, payload.targets);
 
-    assignments.value = assignments.value.map((assignment) => {
-      if (assignment.id !== assignmentId) return assignment;
-      return {
-        ...assignment,
-        title: payload.title,
-        description: payload.description ?? null,
-        due_at: payload.dueAt ?? null,
-        targets: mapTargets(assignmentId, payload.targets),
-      };
-    });
     closeEdit();
+    
+    // Reload from server to get updated data
+    await loadAssignmentsPage();
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Failed to update assignment.';
   }
@@ -697,31 +493,84 @@ async function handleEdit(payload: {
 
 function openAssignment(assignmentId: string) {
   if (!orgSlug.value) return;
+  // Navigate to Assignment Detail page
   void router.push({
-    name: 'OrgFeedView',
-    params: { slug: orgSlug.value },
-    query: { source: 'assignments', assignmentId },
+    name: 'AssignmentDetail',
+    params: { slug: orgSlug.value, assignmentId },
   });
 }
 
-function toggleRowSelection(id: string, checked: boolean) {
-  const next = new Set(selectedAssignmentIds.value);
-  if (checked) {
-    next.add(id);
-  } else {
-    next.delete(id);
-  }
-  selectedAssignmentIds.value = Array.from(next);
+// Format relative date (e.g., "2 days ago")
+function formatRelativeDate(date: Date | string | null): string {
+  if (!date) return 'Unknown date';
+  return formatRelativeTime(date) || 'Unknown date';
 }
 
-function toggleSelectAllVisible(checked: boolean) {
-  const next = new Set(selectedAssignmentIds.value);
-  if (checked) {
-    for (const id of visibleRowIds.value) next.add(id);
+// Format due date text
+function formatDueDateText(dueAt: Date | string | null): string {
+  if (!dueAt) return '';
+  
+  const date = new Date(dueAt);
+  const now = new Date();
+  const diffMs = date.getTime() - now.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  
+  if (diffDays < 0) {
+    return 'Overdue';
+  } else if (diffDays === 0) {
+    return 'Due today';
+  } else if (diffDays === 1) {
+    return 'Due tomorrow';
+  } else if (diffDays <= 7) {
+    return `Due in ${diffDays} days`;
   } else {
-    for (const id of visibleRowIds.value) next.delete(id);
+    return `Due ${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
   }
-  selectedAssignmentIds.value = Array.from(next);
+}
+
+// Get status badge label
+function getStatusLabel(status: string): string {
+  switch (status) {
+    case 'completed':
+      return 'Completed';
+    case 'overdue':
+      return 'Overdue';
+    case 'due_soon':
+      return 'Due Soon';
+    default:
+      return 'Active';
+  }
+}
+
+// Get status badge color class
+function getStatusBadgeClass(status: string): string {
+  switch (status) {
+    case 'completed':
+      return 'bg-green-500/10 text-green-400 border-green-500/20';
+    case 'overdue':
+      return 'bg-red-500/10 text-red-400 border-red-500/20';
+    case 'due_soon':
+      return 'bg-orange-500/10 text-orange-400 border-orange-500/20';
+    default:
+      return 'bg-blue-500/10 text-blue-400 border-blue-500/20';
+  }
+}
+
+// Get due date color class
+function getDueDateClass(_status: string, dueAt: Date | string | null): string {
+  if (!dueAt) return 'text-white/50';
+  
+  const date = new Date(dueAt);
+  const now = new Date();
+  const diffMs = date.getTime() - now.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  
+  if (diffDays < 0) {
+    return 'text-red-400';
+  } else if (diffDays === 0) {
+    return 'text-orange-400';
+  }
+  return 'text-white/50';
 }
 
 const groupOptions = computed(() => {
@@ -735,58 +584,28 @@ const playerOptions = computed(() => {
   }));
 });
 
-const groupListboxOptions = computed<GroupOption[]>(() => {
-  const options: GroupOption[] = [
-    { value: 'all', label: 'All', group: null as any },
-  ];
-  for (const g of groups.value) {
-    options.push({
-      value: g.group.id,
-      label: g.group.name,
-      group: g.group,
-    });
-  }
-  return options;
-});
-
-const selectedGroupOption = ref<GroupOption | null>(null);
-watch(groupListboxOptions, (opts) => {
-  selectedGroupOption.value = opts[0] ?? null;
-}, { immediate: true });
-
-watch(selectedGroupOption, (opt) => {
-  if (opt) groupFilter.value = opt.value;
-});
-
-const playerListboxOptions = computed<PlayerOption[]>(() => {
-  const options: PlayerOption[] = [
-    { value: 'all', label: 'All', member: null as any },
-  ];
-  for (const m of members.value) {
-    options.push({
-      value: m.profile.id,
-      label: m.profile.name || m.profile.username || 'Player',
-      member: m,
-    });
-  }
-  return options;
-});
-
-const selectedPlayerOption = ref<PlayerOption | null>(null);
-watch(playerListboxOptions, (opts) => {
-  selectedPlayerOption.value = opts[0] ?? null;
-}, { immediate: true });
-
-watch(selectedPlayerOption, (opt) => {
-  if (opt) playerFilter.value = opt.value;
-});
-
-watch(selectedExtendOption, (opt) => {
-  extendByDays.value = opt.value;
-});
-
 const groupList = computed(() => {
   return groups.value.map((g) => g.group);
+});
+
+// Watch filters to reload data from server
+watch([statusFilter, groupFilter, playerFilter, itemsPerPage], () => {
+  currentPage.value = 1; // Reset to first page
+  void loadAssignmentsPage(); // Reload from server
+});
+
+// Watch page changes to load new data
+watch(currentPage, () => {
+  void loadAssignmentsPage();
+});
+
+// Watch combobox selections to update filters (which triggers reload above)
+watch(selectedGroupOption, (option) => {
+  groupFilter.value = option.id;
+});
+
+watch(selectedPlayerOption, (option) => {
+  playerFilter.value = option.id;
 });
 
 onMounted(() => {
@@ -806,36 +625,13 @@ watch(
 );
 
 watch(
-  () => [statusFilter.value, targetFilter.value, groupFilter.value, playerFilter.value],
-  (next, prev) => {
-    if (!isSyncingFilters.value && assignmentIdFilter.value) {
-      const [nextStatus, nextTarget, nextGroup, nextPlayer] = next;
-      const [prevStatus, prevTarget, prevGroup, prevPlayer] = prev ?? [];
-      const filtersChanged = nextStatus !== prevStatus
-        || nextTarget !== prevTarget
-        || nextGroup !== prevGroup
-        || nextPlayer !== prevPlayer;
-      if (filtersChanged) assignmentIdFilter.value = '';
+  () => [statusFilter.value, groupFilter.value, playerFilter.value],
+  () => {
+    if (!isSyncingFilters.value) {
+      syncQueryFromFilters();
     }
-    syncQueryFromFilters();
   }
 );
-
-watch(targetFilter, (nextTarget, prevTarget) => {
-  if (isSyncingFilters.value || nextTarget === prevTarget) return;
-  if (nextTarget !== 'group') groupFilter.value = 'all';
-  if (nextTarget !== 'player') playerFilter.value = 'all';
-});
-
-watch(assignmentIdFilter, () => {
-  syncQueryFromFilters();
-});
-
-watch(filteredRows, () => {
-  const visible = new Set(visibleRowIds.value);
-  selectedAssignmentIds.value = selectedAssignmentIds.value.filter((id) => visible.has(id));
-});
-
 
 watch(groupOptions, (nextOptions) => {
   if (groupFilter.value === 'all') return;
@@ -861,296 +657,177 @@ watch(playerOptions, (nextOptions) => {
         <p class="text-sm text-white/50">Track what was assigned, who is behind, and what’s due soon.</p>
       </div>
 
-      <div class="flex flex-col gap-3 rounded-t-lg border border-b-0 border-white/10 bg-black/60 px-3 py-2 text-xs text-white/70 md:flex-row md:items-center md:justify-between">
-        <div class="flex flex-wrap items-center gap-2">
-          <label class="flex items-center gap-2 text-white/60">
-            <input
-              type="checkbox"
-              class="h-3.5 w-3.5 accent-blue-600"
-              :checked="allVisibleSelected"
-              :disabled="visibleRowIds.length === 0 || !canManage"
-              @change="() => toggleSelectAllVisible(!hasSelection)"
-            />
-          </label>
-
-          <div v-if="selectedCount > 0" class="flex items-center gap-2 text-sm text-white/60">
-            <div class="font-semibold">{{ selectedCount }} of {{ visibleRowIds.length }} selected</div>
-          </div>
-
-          <div v-else class="flex items-center">
+      <!-- Filter Bar - MyRugby Style -->
+      <div class="flex flex-col gap-3 text-sm mb-10">
+        <!-- First Row: Show Count and Status Filters -->
+        <div class="flex flex-wrap items-center gap-4">
+          <!-- Show Count -->
+          <div class="flex items-center gap-2">
+            <span class="text-white/50">Show</span>
             <button
               type="button"
-              class="rounded px-2 py-1 text-xs transition hover:cursor-pointer hover:bg-white/10"
-              :class="statusFilter === 'due_soon' ? 'font-semibold text-white' : 'text-white/40 hover:text-white/70'"
-              @click="setDueTab"
+              @click="itemsPerPage = 5; resetToFirstPage()"
+              class="transition px-2 py-0.5 rounded"
+              :class="itemsPerPage === 5 ? 'text-white font-semibold bg-white/10' : 'text-white/40 hover:text-white/60'"
+            >
+              5
+            </button>
+            <div class="h-4 w-px bg-white/20"></div>
+            <button
+              type="button"
+              @click="itemsPerPage = 10; resetToFirstPage()"
+              class="transition px-2 py-0.5 rounded"
+              :class="itemsPerPage === 10 ? 'text-white font-semibold bg-white/10' : 'text-white/40 hover:text-white/60'"
+            >
+              10
+            </button>
+            <div class="h-4 w-px bg-white/20"></div>
+            <button
+              type="button"
+              @click="itemsPerPage = 20; resetToFirstPage()"
+              class="transition px-2 py-0.5 rounded"
+              :class="itemsPerPage === 20 ? 'text-white font-semibold bg-white/10' : 'text-white/40 hover:text-white/60'"
+            >
+              20
+            </button>
+          </div>
+
+          <!-- Status Filters -->
+          <div class="flex items-center gap-2">
+            <button
+              type="button"
+              @click="statusFilter = 'all'"
+              class="transition"
+              :class="statusFilter === 'all' ? 'font-semibold text-white' : 'text-white/60'"
+            >
+              All
+            </button>
+            <span class="text-white/30">|</span>
+            <button
+              type="button"
+              @click="statusFilter = 'due'"
+              class="transition"
+              :class="statusFilter === 'due' ? 'font-semibold text-white' : 'text-white/60'"
             >
               <span>Due</span>
-              <span class="ml-1 inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-white/10 px-1.5 text-[10px] text-white/70">
+              <span class="ml-1 inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-white/10 px-1.5 text-[10px]">
                 {{ statusCounts.due }}
               </span>
             </button>
+            <span class="text-white/30">|</span>
             <button
               type="button"
-              class="rounded px-2 py-1 text-xs transition hover:cursor-pointer hover:bg-white/10"
-              :class="statusFilter === 'overdue' ? 'font-semibold text-white' : 'text-white/40 hover:text-white/70'"
-              @click="() => { statusFilter = 'overdue'; }"
+              @click="statusFilter = 'overdue'"
+              class="transition"
+              :class="statusFilter === 'overdue' ? 'font-semibold text-white' : 'text-white/60'"
             >
               <span>Overdue</span>
-              <span class="ml-1 inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-white/10 px-1.5 text-[10px] text-white/70">
+              <span class="ml-1 inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-white/10 px-1.5 text-[10px]">
                 {{ statusCounts.overdue }}
               </span>
             </button>
+            <span class="text-white/30">|</span>
             <button
               type="button"
-              class="rounded px-2 py-1 text-xs transition hover:cursor-pointer hover:bg-white/10"
-              :class="statusFilter === 'completed' ? 'font-semibold text-white' : 'text-white/40 hover:text-white/70'"
-              @click="setCompletedTab"
+              @click="statusFilter = 'completed'"
+              class="transition"
+              :class="statusFilter === 'completed' ? 'font-semibold text-white' : 'text-white/60'"
             >
               <span>Completed</span>
-              <span class="ml-1 inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-white/10 px-1.5 text-[10px] text-white/70">
+              <span class="ml-1 inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-white/10 px-1.5 text-[10px]">
                 {{ statusCounts.completed }}
               </span>
             </button>
           </div>
-
-          <button
-            v-if="assignmentIdFilter"
-            type="button"
-            class="rounded border border-white/10 bg-black/70 px-2 py-1 text-xs text-white/70 transition hover:text-white"
-            @click="clearAssignmentFocus"
-          >
-            Show all assignments
-          </button>
         </div>
 
-        <div v-if="selectedCount > 0" class="flex flex-wrap items-center gap-3 text-xs">
-          <label class="flex items-center gap-2 text-white/60">
-            <span class="text-white/40">Extend by</span>
-            <Listbox v-model="selectedExtendOption" :disabled="!canManage">
-              <div class="relative">
-                <ListboxButton class="relative w-full cursor-pointer rounded bg-black/70 px-2 py-1 pr-8 text-left text-sm ring-1 ring-white/10 focus:outline-none disabled:opacity-50">
-                  <span class="block truncate">{{ selectedExtendOption.label }}</span>
-                  <span class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
-                    <Icon icon="carbon:chevron-down" class="h-4 w-4 text-white/40" />
-                  </span>
-                </ListboxButton>
-                
-                <transition
-                  leave-active-class="transition duration-100 ease-in"
-                  leave-from-class="opacity-100"
-                  leave-to-class="opacity-0"
-                >
-                  <ListboxOptions class="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-gray-900 border border-white/20 py-1 text-sm shadow-lg focus:outline-none">
-                    <ListboxOption
-                      v-for="option in extendOptionList"
-                      :key="option.value ?? 'null'"
-                      :value="option"
-                      as="template"
-                      v-slot="{ active, selected }"
-                    >
-                      <li
-                        class="relative cursor-pointer select-none py-2 pl-3 pr-9"
-                        :class="active ? 'bg-white/10 text-white' : 'text-white/70'"
-                      >
-                        <span :class="selected ? 'font-semibold' : 'font-normal'" class="block truncate">
-                          {{ option.label }}
-                        </span>
-                        <span v-if="selected" class="absolute inset-y-0 right-0 flex items-center pr-3 text-green-500">
-                          <Icon icon="carbon:checkmark" class="h-4 w-4" />
-                        </span>
-                      </li>
-                    </ListboxOption>
-                  </ListboxOptions>
-                </transition>
-              </div>
-            </Listbox>
-          </label>
-          <button
-            type="button"
-            class="rounded-lg border border-white/20 bg-white/10 px-3 py-1 text-xs text-white/80 transition hover:bg-white/20 disabled:opacity-50"
-            :disabled="!canManage || !extendByDays || isExtending"
-            @click="extendSelectedAssignments"
+        <!-- Second Row: Target Comboboxes -->
+        <div class="flex items-center gap-3">
+          <!-- Group Combobox -->
+          <Combobox v-model="selectedGroupOption" as="div" class="relative">
+          <div class="relative">
+            <ComboboxInput
+              class="w-36 rounded bg-black/70 px-2 py-1 pr-8 text-left text-sm text-white ring-1 ring-white/10 placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-white/20"
+              :displayValue="(option: any) => option?.label || 'All'"
+              @change="groupQuery = $event.target.value"
+              placeholder="Group..."
+            />
+            <ComboboxButton class="absolute inset-y-0 right-0 flex items-center pr-2">
+              <Icon icon="carbon:chevron-down" class="h-4 w-4 text-white/40" />
+            </ComboboxButton>
+          </div>
+          
+          <transition
+            leave-active-class="transition duration-100 ease-in"
+            leave-from-class="opacity-100"
+            leave-to-class="opacity-0"
           >
-            Extend
-          </button>
-          <button
-            v-if="canManage"
-            type="button"
-            class="rounded-lg border border-red-500 bg-red-500/70 px-3 py-1 text-xs text-white transition hover:bg-red-700/70"
-            @click="requestDeleteBulk"
+            <ComboboxOptions class="absolute z-10 mt-1 max-h-60 w-full min-w-[200px] overflow-auto rounded-md border border-white/20 bg-gray-900 py-1 text-sm shadow-lg focus:outline-none">
+              <ComboboxOption
+                v-for="option in groupComboOptions"
+                :key="option.id"
+                :value="option"
+                v-slot="{ active, selected }"
+                as="template"
+              >
+                <li
+                  class="relative cursor-pointer select-none py-2 pl-8 pr-4 transition"
+                  :class="active ? 'bg-white/10 text-white' : 'text-white/70'"
+                >
+                  <span class="block truncate" :class="selected ? 'font-semibold' : 'font-normal'">
+                    {{ option.label }}
+                  </span>
+                  <span v-if="selected" class="absolute inset-y-0 left-0 flex items-center pl-2 text-white">
+                    <Icon icon="carbon:checkmark" class="h-4 w-4" />
+                  </span>
+                </li>
+              </ComboboxOption>
+            </ComboboxOptions>
+          </transition>
+        </Combobox>
+
+        <!-- Player Combobox -->
+        <Combobox v-model="selectedPlayerOption" as="div" class="relative">
+          <div class="relative">
+            <ComboboxInput
+              class="w-36 rounded bg-black/70 px-2 py-1 pr-8 text-left text-sm text-white ring-1 ring-white/10 placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-white/20"
+              :displayValue="(option: any) => option?.label || 'All'"
+              @change="playerQuery = $event.target.value"
+              placeholder="Player..."
+            />
+            <ComboboxButton class="absolute inset-y-0 right-0 flex items-center pr-2">
+              <Icon icon="carbon:chevron-down" class="h-4 w-4 text-white/40" />
+            </ComboboxButton>
+          </div>
+          
+          <transition
+            leave-active-class="transition duration-100 ease-in"
+            leave-from-class="opacity-100"
+            leave-to-class="opacity-0"
           >
-            Delete selected
-          </button>
-        </div>
-
-        <div v-else class="flex flex-wrap items-center gap-3">
-          <label class="hidden items-center gap-2 md:flex">
-            <span class="text-white/40">Status</span>
-            <Listbox v-model="selectedStatusOption">
-              <div class="relative">
-                <ListboxButton class="relative w-full cursor-pointer rounded bg-black/70 px-2 py-1 pr-8 text-left text-sm ring-1 ring-white/10 focus:outline-none">
-                  <span class="block truncate">{{ selectedStatusOption.label }}</span>
-                  <span class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
-                    <Icon icon="carbon:chevron-down" class="h-4 w-4 text-white/40" />
-                  </span>
-                </ListboxButton>
-                
-                <transition
-                  leave-active-class="transition duration-100 ease-in"
-                  leave-from-class="opacity-100"
-                  leave-to-class="opacity-0"
+            <ComboboxOptions class="absolute left-0 z-10 mt-1 max-h-60 w-full min-w-[200px] overflow-auto rounded-md border border-white/20 bg-gray-900 py-1 text-sm shadow-lg focus:outline-none">
+              <ComboboxOption
+                v-for="option in playerComboOptions"
+                :key="option.id"
+                :value="option"
+                v-slot="{ active, selected }"
+                as="template"
+              >
+                <li
+                  class="relative cursor-pointer select-none py-2 pl-8 pr-4 transition"
+                  :class="active ? 'bg-white/10 text-white' : 'text-white/70'"
                 >
-                  <ListboxOptions class="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-gray-900 border border-white/20 py-1 text-sm shadow-lg focus:outline-none">
-                    <ListboxOption
-                      v-for="option in statusOptionList"
-                      :key="option.value"
-                      :value="option"
-                      as="template"
-                      v-slot="{ active, selected }"
-                    >
-                      <li
-                        class="relative cursor-pointer select-none py-2 pl-3 pr-9"
-                        :class="active ? 'bg-white/10 text-white' : 'text-white/70'"
-                      >
-                        <span :class="selected ? 'font-semibold' : 'font-normal'" class="block truncate">
-                          {{ option.label }}
-                        </span>
-                        <span v-if="selected" class="absolute inset-y-0 right-0 flex items-center pr-3 text-green-500">
-                          <Icon icon="carbon:checkmark" class="h-4 w-4" />
-                        </span>
-                      </li>
-                    </ListboxOption>
-                  </ListboxOptions>
-                </transition>
-              </div>
-            </Listbox>
-          </label>
-
-          <label class="flex items-center gap-2">
-            <span class="text-white/40">Target</span>
-            <Listbox v-model="selectedTargetOption">
-              <div class="relative">
-                <ListboxButton class="relative w-full cursor-pointer rounded bg-black/70 px-2 py-1 pr-8 text-left text-sm ring-1 ring-white/10 focus:outline-none">
-                  <span class="block truncate">{{ selectedTargetOption.label }}</span>
-                  <span class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
-                    <Icon icon="carbon:chevron-down" class="h-4 w-4 text-white/40" />
+                  <span class="block truncate" :class="selected ? 'font-semibold' : 'font-normal'">
+                    {{ option.label }}
                   </span>
-                </ListboxButton>
-                
-                <transition
-                  leave-active-class="transition duration-100 ease-in"
-                  leave-from-class="opacity-100"
-                  leave-to-class="opacity-0"
-                >
-                  <ListboxOptions class="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-gray-900 border border-white/20 py-1 text-sm shadow-lg focus:outline-none">
-                    <ListboxOption
-                      v-for="option in targetOptionList"
-                      :key="option.value"
-                      :value="option"
-                      as="template"
-                      v-slot="{ active, selected }"
-                    >
-                      <li
-                        class="relative cursor-pointer select-none py-2 pl-3 pr-9"
-                        :class="active ? 'bg-white/10 text-white' : 'text-white/70'"
-                      >
-                        <span :class="selected ? 'font-semibold' : 'font-normal'" class="block truncate">
-                          {{ option.label }}
-                        </span>
-                        <span v-if="selected" class="absolute inset-y-0 right-0 flex items-center pr-3 text-green-500">
-                          <Icon icon="carbon:checkmark" class="h-4 w-4" />
-                        </span>
-                      </li>
-                    </ListboxOption>
-                  </ListboxOptions>
-                </transition>
-              </div>
-            </Listbox>
-          </label>
-
-          <label v-if="targetFilter !== 'player' && groupListboxOptions.length > 1 && selectedGroupOption" class="hidden items-center gap-2 md:flex">
-            <span class="text-white/40">Group</span>
-            <Listbox v-model="selectedGroupOption">
-              <div class="relative">
-                <ListboxButton class="relative w-full cursor-pointer rounded bg-black/70 px-2 py-1 pr-8 text-left text-sm ring-1 ring-white/10 focus:outline-none">
-                  <span class="block truncate">{{ selectedGroupOption.label }}</span>
-                  <span class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
-                    <Icon icon="carbon:chevron-down" class="h-4 w-4 text-white/40" />
+                  <span v-if="selected" class="absolute inset-y-0 left-0 flex items-center pl-2 text-white">
+                    <Icon icon="carbon:checkmark" class="h-4 w-4" />
                   </span>
-                </ListboxButton>
-                
-                <transition
-                  leave-active-class="transition duration-100 ease-in"
-                  leave-from-class="opacity-100"
-                  leave-to-class="opacity-0"
-                >
-                  <ListboxOptions class="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-gray-900 border border-white/20 py-1 text-sm shadow-lg focus:outline-none">
-                    <ListboxOption
-                      v-for="option in groupListboxOptions"
-                      :key="option.value"
-                      :value="option"
-                      as="template"
-                      v-slot="{ active, selected }"
-                    >
-                      <li
-                        class="relative cursor-pointer select-none py-2 pl-3 pr-9"
-                        :class="active ? 'bg-white/10 text-white' : 'text-white/70'"
-                      >
-                        <span :class="selected ? 'font-semibold' : 'font-normal'" class="block truncate">
-                          {{ option.label }}
-                        </span>
-                        <span v-if="selected" class="absolute inset-y-0 right-0 flex items-center pr-3 text-green-500">
-                          <Icon icon="carbon:checkmark" class="h-4 w-4" />
-                        </span>
-                      </li>
-                    </ListboxOption>
-                  </ListboxOptions>
-                </transition>
-              </div>
-            </Listbox>
-          </label>
-
-          <label v-else-if="targetFilter === 'player' && playerListboxOptions.length > 1 && selectedPlayerOption" class="flex items-center gap-2">
-            <span class="text-white/40">Player</span>
-            <Listbox v-model="selectedPlayerOption">
-              <div class="relative">
-                <ListboxButton class="relative w-full cursor-pointer rounded bg-black/70 px-2 py-1 pr-8 text-left text-sm ring-1 ring-white/10 focus:outline-none">
-                  <span class="block truncate">{{ selectedPlayerOption.label }}</span>
-                  <span class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
-                    <Icon icon="carbon:chevron-down" class="h-4 w-4 text-white/40" />
-                  </span>
-                </ListboxButton>
-                
-                <transition
-                  leave-active-class="transition duration-100 ease-in"
-                  leave-from-class="opacity-100"
-                  leave-to-class="opacity-0"
-                >
-                  <ListboxOptions class="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-gray-900 border border-white/20 py-1 text-sm shadow-lg focus:outline-none">
-                    <ListboxOption
-                      v-for="option in playerListboxOptions"
-                      :key="option.value"
-                      :value="option"
-                      as="template"
-                      v-slot="{ active, selected }"
-                    >
-                      <li
-                        class="relative cursor-pointer select-none py-2 pl-3 pr-9"
-                        :class="active ? 'bg-white/10 text-white' : 'text-white/70'"
-                      >
-                        <span :class="selected ? 'font-semibold' : 'font-normal'" class="block truncate">
-                          {{ option.label }}
-                        </span>
-                        <span v-if="selected" class="absolute inset-y-0 right-0 flex items-center pr-3 text-green-500">
-                          <Icon icon="carbon:checkmark" class="h-4 w-4" />
-                        </span>
-                      </li>
-                    </ListboxOption>
-                  </ListboxOptions>
-                </transition>
-              </div>
-            </Listbox>
-          </label>
+                </li>
+              </ComboboxOption>
+            </ComboboxOptions>
+          </transition>
+        </Combobox>
         </div>
       </div>
     </div>
@@ -1161,80 +838,126 @@ watch(playerOptions, (nextOptions) => {
 
     <div v-else-if="loading" class="mt-6 text-white/60">Loading assignments…</div>
 
-    <div v-else-if="assignments.length === 0" class="mt-6 text-white/50">
+    <div v-else-if="assignmentRows.length === 0" class="mt-6 text-white/50">
       No assignments yet.
     </div>
 
-    <div v-else class="rounded-b-lg border border-t-0 border-white/10 bg-black/60">
+    <div v-else class="space-y-3">
       <div v-if="!hasResults" class="px-3 py-4 text-white/50">No assignments match your filters.</div>
 
-      <div v-else class="divide-y divide-white/10">
-        <div
-          v-for="row in filteredRows"
+      <div v-else class="space-y-3">
+        <button
+          v-for="row in paginatedRows"
           :key="row.id"
-          class="group px-2 py-3 transition"
-          :class="selectedIdSet.has(row.id)
-            ? 'border border-blue-500/50 bg-blue-600/10'
-            : 'border border-transparent hover:bg-white/5'"
+          @click="openAssignment(row.id)"
+          class="w-full flex gap-4 p-4 bg-white/5 hover:bg-white/10 rounded-lg transition-colors group cursor-pointer text-left"
         >
-          <div class="flex items-start justify-between gap-6">
-            <div class="flex min-w-0 items-start gap-3">
-              <input
-                type="checkbox"
-                class="mt-1 h-3.5 w-3.5 accent-blue-600"
-                :checked="selectedIdSet.has(row.id)"
-                :disabled="!canManage"
-                @click.stop
-                @change="toggleRowSelection(row.id, ($event.target as HTMLInputElement).checked)"
-              />
-              <div class="min-w-0">
-                <span
-                  class="font-semibold text-sm tracking-wide text-white line-clamp-1 hover:text-sky-500/80 hover:underline hover:cursor-pointer"
-                  role="link"
-                  tabindex="0"
-                  @click="openAssignment(row.id)"
-                  @keydown.enter.prevent="openAssignment(row.id)"
-                >
-                  {{ row.title }}
-                </span>
-                <div class="mt-1 text-xs text-white/50 line-clamp-1">
-                  {{ metaLine(row) }}
+          <!-- Assignment info -->
+          <div class="flex-1 min-w-0 flex flex-col gap-3">
+            <!-- Row 1: Title (no org badge since page is org-scoped) -->
+            <div class="flex items-start gap-2">
+              <h3 class="font-semibold text-white group-hover:text-white/90 capitalize flex-1 min-w-0">
+                {{ row.title }}
+              </h3>
+            </div>
+
+            <!-- Row 2: Metadata -->
+            <div class="flex items-center gap-2 text-xs text-white/50 flex-wrap">
+              <span>{{ row.targetLabel || 'Team' }}</span>
+              <span class="text-white/30">•</span>
+              <span>{{ formatRelativeDate(row.createdAt ?? new Date()) }}</span>
+            </div>
+
+            <!-- Row 3: Progress & badges -->
+            <div class="flex items-center gap-3 flex-wrap">
+              <!-- Status badge -->
+              <div
+                :class="[
+                  'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border',
+                  getStatusBadgeClass(row.status)
+                ]"
+              >
+                <span>{{ getStatusLabel(row.status) }}</span>
+              </div>
+
+              <!-- Completion rate -->
+              <div class="flex items-center gap-2">
+                <div class="text-xs text-white/60">
+                  {{ row.completedCount }} / {{ row.totalAssignees }}
                 </div>
-                <div v-if="row.description" class="mt-2 text-xs text-white/40 line-clamp-2">
-                  {{ row.description }}
+                
+                <!-- Progress bar -->
+                <div v-if="row.totalAssignees > 0" class="w-24 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                  <div 
+                    class="h-full bg-green-400 transition-all"
+                    :style="{ width: `${Math.round(row.progress01 * 100)}%` }"
+                  ></div>
                 </div>
+              </div>
+
+              <!-- Due date -->
+              <div 
+                v-if="row.dueAt"
+                :class="['text-xs', getDueDateClass(row.status, row.dueAt)]"
+              >
+                {{ formatDueDateText(row.dueAt) }}
               </div>
             </div>
 
-            <div class="shrink-0 text-right">
-              <div class="text-xs text-white/60">
-                {{ row.completedCount }} / {{ row.totalAssignees }} reviewed
-              </div>
-              <div class="mt-2 h-1 w-24 rounded-full bg-white/10">
-                <div
-                  class="h-full rounded-full bg-white/40"
-                  :style="{ width: `${Math.round(row.progress01 * 100)}%` }"
-                />
-              </div>
-              <div v-if="canManage" class="mt-3 flex items-center justify-end gap-3">
-                <button
-                  type="button"
-                  class="text-xs text-white/50 transition hover:text-white/80 hover:cursor-pointer"
-                  @click.stop="openEdit(row.id)"
-                >
-                  Edit
-                </button>
-                <button
-                  type="button"
-                  class="text-xs text-red-200/80 transition hover:text-red-200 hover:cursor-pointer"
-                  @click.stop="requestDelete(row.id)"
-                >
-                  Delete
-                </button>
-              </div>
+            <!-- Description (if present) -->
+            <div v-if="row.description" class="text-xs text-white/60 line-clamp-2">
+              {{ row.description }}
             </div>
           </div>
-        </div>
+
+          <!-- Right side: Actions menu + Arrow icon -->
+          <div class="flex-shrink-0 flex items-center gap-2">
+            <!-- Manager actions menu -->
+            <AssignmentActionsMenu
+              v-if="canManage"
+              :can-edit="true"
+              :can-delete="true"
+              @edit="openEdit(row.id)"
+              @delete="requestDelete(row.id)"
+            />
+          </div>
+        </button>
+      </div>
+
+      <!-- Pagination -->
+      <div v-if="totalPages > 1" class="flex items-center justify-center gap-2 mt-6">
+        <button
+          type="button"
+          @click="prevPage"
+          :disabled="currentPage === 1"
+          class="rounded px-3 py-1.5 text-sm transition"
+          :class="currentPage === 1 ? 'text-white/30 cursor-not-allowed' : 'text-white/70 hover:bg-white/10'"
+        >
+          <Icon icon="carbon:chevron-left" class="h-4 w-4" />
+        </button>
+
+        <template v-for="(page, idx) in visiblePageNumbers" :key="idx">
+          <span v-if="page === '...'" class="px-2 text-white/40">...</span>
+          <button
+            v-else
+            type="button"
+            @click="goToPage(page as number)"
+            class="rounded px-3 py-1.5 text-sm transition"
+            :class="currentPage === page ? 'bg-white/20 font-semibold text-white' : 'text-white/70 hover:bg-white/10'"
+          >
+            {{ page }}
+          </button>
+        </template>
+
+        <button
+          type="button"
+          @click="nextPage"
+          :disabled="currentPage === totalPages"
+          class="rounded px-3 py-1.5 text-sm transition"
+          :class="currentPage === totalPages ? 'text-white/30 cursor-not-allowed' : 'text-white/70 hover:bg-white/10'"
+        >
+          <Icon icon="carbon:chevron-right" class="h-4 w-4" />
+        </button>
       </div>
     </div>
 

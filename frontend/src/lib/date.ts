@@ -50,6 +50,63 @@ export function formatDaysAgo(value: DateLike, now: Date = new Date()): string |
   return diffDays === 1 ? '1 day ago' : `${diffDays} days ago`;
 }
 
+/**
+ * Formats a Supabase timestamp as a full relative time string.
+ * Supports: "just now", "X minutes ago", "X hours ago", "X days ago", "X weeks ago", "X months ago", "X years ago"
+ * - Invalid/missing dates return null
+ * - Future dates clamp to "just now"
+ */
+export function formatRelativeTime(value: DateLike, now: Date = new Date()): string | null {
+  const date = parseSupabaseDate(value);
+  if (!date) return null;
+
+  const diffMs = now.getTime() - date.getTime();
+  const clampedMs = Math.max(0, diffMs);
+
+  // Less than 1 minute
+  if (clampedMs < 60_000) {
+    return 'just now';
+  }
+
+  const diffMinutes = Math.floor(clampedMs / 60_000);
+  
+  // Less than 1 hour
+  if (diffMinutes < 60) {
+    return diffMinutes === 1 ? '1 minute ago' : `${diffMinutes} minutes ago`;
+  }
+
+  const diffHours = Math.floor(diffMinutes / 60);
+  
+  // Less than 1 day
+  if (diffHours < 24) {
+    return diffHours === 1 ? '1 hour ago' : `${diffHours} hours ago`;
+  }
+
+  const diffDays = Math.floor(diffHours / 24);
+  
+  // Less than 1 week
+  if (diffDays < 7) {
+    return diffDays === 1 ? '1 day ago' : `${diffDays} days ago`;
+  }
+
+  const diffWeeks = Math.floor(diffDays / 7);
+  
+  // Less than 4 weeks (roughly 1 month)
+  if (diffWeeks < 4) {
+    return diffWeeks === 1 ? '1 week ago' : `${diffWeeks} weeks ago`;
+  }
+
+  const diffMonths = Math.floor(diffDays / 30.44); // Average days per month
+  
+  // Less than 12 months
+  if (diffMonths < 12) {
+    return diffMonths === 1 ? '1 month ago' : `${diffMonths} months ago`;
+  }
+
+  const diffYears = Math.floor(diffDays / 365.25); // Account for leap years
+  return diffYears === 1 ? '1 year ago' : `${diffYears} years ago`;
+}
+
 export type RelativeDuration = {
   count: number;
   unit: 'day' | 'week';
