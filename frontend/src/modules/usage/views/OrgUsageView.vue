@@ -98,7 +98,7 @@ const progressClass = computed(() => {
             </div>
           </div>
           <div class="text-xs text-white/40">
-            Coming soon: Track your AI-generated match summaries and analysis
+            We currently give teams unlimited access to generate match summaries during beta testing.
           </div>
         </div>
       </div>
