@@ -105,6 +105,9 @@ const {
           </li>
         </ul>
       </nav>
+      <div class="text-xs text-gray-400 px-4 py-3">
+       v0.11.1-beta
+      </div>
     </div>
   </div>
 
@@ -185,6 +188,9 @@ const {
             </li>
           </ul>
         </nav>
+      </div>
+      <div class="text-xs text-gray-400 px-4 py-3">
+       v0.11.1-beta
       </div>
     </div>
   </div>
