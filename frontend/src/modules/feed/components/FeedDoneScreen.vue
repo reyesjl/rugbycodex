@@ -51,7 +51,7 @@ const emit = defineEmits<{
       </div>
 
       <div class="mt-4 text-xs text-white/40">
-        Swipe down to return to the last clip.
+        Swipe left to go back, swipe right to restart.
       </div>
     </div>
   </div>

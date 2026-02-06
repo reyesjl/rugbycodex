@@ -34,8 +34,6 @@ const emit = defineEmits<{
   (e: 'prev'): void;
   (e: 'next'): void;
   (e: 'restart'): void;
-  (e: 'cc'): void;
-  (e: 'settings'): void;
   (e: 'scrubToSeconds', seconds: number): void;
   (e: 'scrubStart'): void;
   (e: 'scrubEnd'): void;
@@ -153,26 +151,6 @@ function endScrub(e: PointerEvent) {
     leave-to-class="opacity-0"
   >
     <div v-if="visible" class="absolute inset-0 bg-black/25"> 
-      <!-- Top-right icons (placeholders) -->
-      <div class="absolute right-3 top-3 flex items-center gap-2">
-        <button
-          type="button"
-          class="rounded-full bg-black/25 p-1.5 text-white/90 ring-1 ring-white/10 hover:bg-black/35"
-          @click.stop="emit('cc')"
-          title="Captions (placeholder)"
-        >
-          <Icon icon="carbon:closed-caption" width="18" height="18" />
-        </button>
-        <button
-          type="button"
-          class="rounded-full bg-black/10 p-1.5 text-white/90 ring-1 ring-white/10 hover:bg-black/35"
-          @click.stop="emit('settings')"
-          title="Settings (placeholder)"
-        >
-          <Icon icon="carbon:settings" width="18" height="18" />
-        </button>
-      </div>
-
       <!-- Center cluster (prev / play-pause / next) -->
       <div class="absolute inset-0 flex items-center justify-center">
         <div class="flex items-center gap-6 sm:gap-10">
@@ -190,22 +168,16 @@ function endScrub(e: PointerEvent) {
 
           <button
             type="button"
-            class="sm:hidden rounded-full bg-black/40 p-4 text-white ring-1 ring-white/15 hover:bg-black/50 active:bg-black/55"
+            class="p-0 text-white transition-opacity hover:opacity-80"
             @click.stop="emit('togglePlay')"
             :title="isPlaying ? 'Pause' : (showRestart ? 'Restart' : 'Play')"
             aria-label="Play / pause"
           >
             <Icon
               :icon="isPlaying ? 'carbon:pause-filled' : (showRestart ? 'carbon:restart' : 'carbon:play-filled-alt')"
-              width="34"
-              height="34"
-              class="sm:hidden"
-            />
-            <Icon
-              :icon="isPlaying ? 'carbon:pause-filled' : (showRestart ? 'carbon:restart' : 'carbon:play-filled-alt')"
-              width="40"
-              height="40"
-              class="hidden sm:inline"
+              width="52"
+              height="52"
+              class="drop-shadow-[0_2px_8px_rgba(0,0,0,0.65)]"
             />
           </button>
 

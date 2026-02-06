@@ -39,17 +39,17 @@ function isOptimistic(item: NarrationListItem): item is Exclude<NarrationListIte
 function getAuthorDisplayName(item: NarrationListItem): string {
   // If it's optimistic (uploading), check if it's current user
   if (isOptimistic(item) && item.author_id === props.currentUserId) {
-    return 'you';
+    return '@you';
   }
   
-  // If author is current user, show "you"
+  // If author is current user, show "@you"
   if (item.author_id === props.currentUserId) {
-    return 'you';
+    return '@you';
   }
   
   // Try author_name first, then author_username, then fallback
   const authorName = (item as any).author_name || (item as any).author_username;
-  return authorName || 'Unknown';
+  return authorName ? `@${authorName}` : '@Unknown';
 }
 
 const draft = ref('');
@@ -220,30 +220,30 @@ watch(
       <div
         v-for="item in narrations"
         :key="item.id"
-        class="group border-t border-white/10 px-1 py-2 transition hover:bg-white/5 first:border-t-0"
+        class="group relative border-t border-white/10 px-1 py-2 transition first:border-t-0"
         :ref="(el) => setNarrationEl(String(item.id), el)"
         @click="emit('selectNarration', item.id)"
       >
-        <div class="flex items-start justify-between gap-3">
-          <div class="flex items-center gap-1.5 text-xs">
-            <span class="font-semibold text-white">{{ getAuthorDisplayName(item) }}</span>
-            <span class="text-white/30">·</span>
-            <span class="text-white/40">{{ formatRelativeTime(item.created_at) || 'Unknown time' }}</span>
-            <span v-if="isOptimistic(item)" class="ml-2">
-              <span v-if="item.status === 'uploading'" class="text-white/40">• Uploading…</span>
-              <span v-else class="text-red-300">• Failed</span>
-            </span>
-          </div>
+        <!-- Three dots menu in top right corner -->
+        <div v-if="canManage(item)" class="absolute top-2 right-1 opacity-40 transition group-hover:opacity-100 focus-within:opacity-100">
+          <NarrationActionsMenu
+            v-if="editingId !== item.id"
+            :can-edit="true"
+            :can-delete="true"
+            @edit="beginEdit(item)"
+            @delete="requestDelete(item)"
+          />
+        </div>
 
-          <div v-if="canManage(item)" class="opacity-40 transition group-hover:opacity-100 focus-within:opacity-100">
-            <NarrationActionsMenu
-              v-if="editingId !== item.id"
-              :can-edit="true"
-              :can-delete="true"
-              @edit="beginEdit(item)"
-              @delete="requestDelete(item)"
-            />
-          </div>
+        <!-- Username and date -->
+        <div class="flex items-baseline gap-1.5 pr-8">
+          <span class="text-sm font-semibold text-white">{{ getAuthorDisplayName(item) }}</span>
+          <span class="text-white/30">·</span>
+          <span class="text-[11px] text-white/50">{{ formatRelativeTime(item.created_at) || 'Unknown time' }}</span>
+          <span v-if="isOptimistic(item)" class="ml-2">
+            <span v-if="item.status === 'uploading'" class="text-[11px] text-white/40">• Uploading…</span>
+            <span v-else class="text-[11px] text-red-300">• Failed</span>
+          </span>
         </div>
 
         <div v-if="editingId === item.id" class="mt-1">

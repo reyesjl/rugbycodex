@@ -5,9 +5,10 @@ import type { FeedItem as FeedItemType } from '@/modules/feed/types/FeedItem';
 import ShakaSurfacePlayer from '@/modules/media/components/ShakaSurfacePlayer.vue';
 import FeedGestureLayer from '@/modules/feed/components/FeedGestureLayer.vue';
 import FeedOverlayControls from '@/modules/feed/components/FeedOverlayControls.vue';
+import FeedProgressBar from '@/modules/feed/components/FeedProgressBar.vue';
+import FeedNavControls from '@/modules/feed/components/FeedNavControls.vue';
 import FeedMeta from '@/modules/feed/components/FeedMeta.vue';
-import FeedTags from '@/modules/feed/components/FeedTags.vue';
-import NarrationPanel from '@/modules/narrations/components/NarrationPanel.vue';
+import FeedContent from '@/modules/feed/components/FeedContent.vue';
 import NarrationRecorder from '@/modules/narrations/components/NarrationRecorder.vue';
 import { narrationService } from '@/modules/narrations/services/narrationService';
 import { useNarrationRecorder, type NarrationListItem } from '@/modules/narrations/composables/useNarrationRecorder';
@@ -27,6 +28,8 @@ const props = defineProps<{
   canPrev: boolean;
   canNext: boolean;
   profileNameById?: Record<string, string>;
+  activeIndex?: number;
+  totalCount?: number;
 }>();
 
 const emit = defineEmits<{
@@ -270,11 +273,6 @@ const loadingNarrations = ref(false);
 const submittingText = ref(false);
 const submitTextError = ref<string | null>(null);
 
-// Mobile-only: show narrations as a bottom drawer (keeps video visible).
-const narrationsDrawerOpen = ref(false);
-const narrationsDrawerHeightClass = computed(() => (narrationsDrawerOpen.value ? 'h-[65dvh]' : 'h-14'));
-const narrationCount = computed(() => narrations.value.length);
-
 async function refreshNarrations() {
   loadingNarrations.value = true;
   try {
@@ -455,13 +453,39 @@ async function onUpdateNarrationText(payload: { id: string; transcriptRaw: strin
   }
 }
 
+// Hide overlay when switching to a new video
+watch(() => props.isActive, (newIsActive) => {
+  if (newIsActive) {
+    overlayControls.hideOverlay();
+  }
+});
+
 onBeforeUnmount(() => {
   restoreVideoMuteAfterRecording();
 });
 </script>
 
 <template>
-  <div class="relative w-full bg-black text-white flex flex-col overflow-hidden h-full md:h-auto md:overflow-visible">
+  <div class="relative w-full bg-black text-white flex flex-col md:overflow-visible">
+    <!-- Progress Bar (Mobile Only) -->
+    <FeedProgressBar
+      v-if="activeIndex !== undefined && totalCount !== undefined"
+      :active-index="activeIndex"
+      :total-count="totalCount"
+      class="md:hidden absolute top-0 left-0 right-0 z-50"
+    />
+
+    <!-- Navigation Controls (Desktop Only) -->
+    <FeedNavControls
+      v-if="activeIndex !== undefined && totalCount !== undefined"
+      :can-prev="canPrev"
+      :can-next="canNext"
+      :current-index="activeIndex"
+      :total-count="totalCount"
+      @prev="emit('prev')"
+      @next="emit('next')"
+    />
+    
     <!-- Video surface (16:9) -->
     <div class="px-0 pt-0 shrink-0 md:px-6 md:pt-6">
       <div class="relative w-full bg-black md:mx-auto md:max-w-5xl">
@@ -475,7 +499,7 @@ onBeforeUnmount(() => {
           <ShakaSurfacePlayer
             ref="playerRef"
             :manifest-url="src"
-            :autoplay="false"
+            :autoplay="isActive"
             class="h-full w-full"
             @timeupdate="handlePlayerTimeupdate"
             @loadedmetadata="handleLoadedMetadata"
@@ -487,8 +511,6 @@ onBeforeUnmount(() => {
           <!-- Gesture + overlays live above the video -->
           <FeedGestureLayer
             @tap="onTap"
-            @swipeUp="emit('next')"
-            @swipeDown="emit('prev')"
           >
             <Transition
               enter-active-class="transition duration-150 ease-out"
@@ -523,13 +545,14 @@ onBeforeUnmount(() => {
             </Transition>
 
             <FeedOverlayControls
-              :visible="overlayVisible && !isBuffering"
+              :visible="overlayVisible && !isBuffering && !flashIcon"
               :is-playing="isPlaying"
               :progress01="progress01"
               :current-seconds="segmentCurrentSeconds"
               :duration-seconds="segmentLength"
               :can-prev="canPrev"
               :can-next="canNext"
+              :show-prev-next="false"
               :show-restart="endedWithinSegment"
               :can-fullscreen="canFullscreen"
               :is-fullscreen="isFullscreen"
@@ -613,7 +636,7 @@ onBeforeUnmount(() => {
     </div>
 
     <!-- Below-video stack: on desktop, let the whole page scroll (no inner scroller). -->
-    <div class="flex-1 min-h-0 flex flex-col md:flex-none md:px-6 pb-14 md:pb-0">
+    <div class="flex-1 min-h-0 flex flex-col md:flex-none md:px-6 md:pb-0">
       <div class="shrink-0 md:mx-auto md:w-full md:max-w-5xl">
         <FeedMeta 
           :title="feedItem.title" 
@@ -624,30 +647,26 @@ onBeforeUnmount(() => {
           @requestIdentityTag="requestIdentityTag"
           @removeIdentityTag="requestRemoveIdentityTag"
         />
-        <FeedTags
+      </div>
+
+      <div class="flex-1 min-h-0 md:overflow-visible md:flex-none md:mx-auto md:w-full md:max-w-5xl">
+        <FeedContent
           :tags="segmentTags"
           :current-user-id="currentUserId"
           :profile-name-by-id="props.profileNameById"
-        />
-      </div>
-
-      <div class="hidden md:block flex-1 min-h-0 overflow-y-auto md:overflow-visible md:flex-none md:mx-auto md:w-full md:max-w-5xl">
-        <div v-if="loadingNarrations" class="px-4 pt-3 text-sm text-white/50">Loading narrations…</div>
-        <NarrationPanel
-          :key="feedItem.mediaAssetSegmentId"
           :narrations="narrations"
-          :submitting="submittingText"
+          :loading-narrations="loadingNarrations"
+          :submitting-narration="submittingText"
           :submit-error="submitTextError"
-          :current-user-id="currentUserId"
           :current-user-role="membershipRole"
-          @refresh="refreshNarrations"
           @submitText="submitTypedNarration"
-          @delete="onDeleteNarration"
           @updateText="onUpdateNarrationText"
+          @delete="onDeleteNarration"
+          @selectNarration="() => {}"
         />
 
         <!-- Ad Space Promotion Card (Desktop Only) -->
-        <div class="px-4 py-6">
+        <div class="hidden md:block px-4 py-6">
           <a
             href="https://rugbycodex.com/advertise"
             target="_blank"
@@ -674,45 +693,6 @@ onBeforeUnmount(() => {
             </div>
           </a>
         </div>
-      </div>
-    </div>
-
-    <!-- Mobile-only narrations drawer (absolute so it works with the feed paging transform) -->
-    <div
-      class="md:hidden absolute left-0 right-0 bottom-0 z-30 bg-black/95 backdrop-blur border-t border-white/10 transition-[height] duration-200 ease-out"
-      :class="narrationsDrawerHeightClass"
-    >
-      <button
-        type="button"
-        class="w-full px-4 h-14 flex items-center justify-between text-left"
-        @click="narrationsDrawerOpen = !narrationsDrawerOpen"
-        :aria-expanded="narrationsDrawerOpen ? 'true' : 'false'"
-      >
-        <div class="flex items-center gap-3 min-w-0">
-          <div class="h-1 w-8 rounded-full bg-white/20" aria-hidden="true" />
-          <div class="text-sm font-semibold text-white truncate">Narrations</div>
-          <div class="text-xs text-white/50">({{ narrationCount }})</div>
-        </div>
-        <div class="text-xs text-white/60">
-          {{ narrationsDrawerOpen ? 'Close' : 'Open' }}
-        </div>
-      </button>
-
-      <div v-show="narrationsDrawerOpen" class="h-[calc(65dvh-3.5rem)] overflow-y-auto overscroll-contain">
-        <div v-if="loadingNarrations" class="px-4 pt-3 text-sm text-white/50">Loading narrations…</div>
-        <NarrationPanel
-          :key="feedItem.mediaAssetSegmentId"
-          :narrations="narrations"
-          :submitting="submittingText"
-          :submit-error="submitTextError"
-          :current-user-id="currentUserId"
-          :current-user-role="membershipRole"
-          @refresh="refreshNarrations"
-          @submitText="submitTypedNarration"
-          @delete="onDeleteNarration"
-          @updateText="onUpdateNarrationText"
-          @selectNarration="() => { narrationsDrawerOpen = false; }"
-        />
       </div>
     </div>
   </div>

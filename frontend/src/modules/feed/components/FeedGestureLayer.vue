@@ -14,6 +14,8 @@ const emit = defineEmits<{
   }): void;
   (e: 'swipeUp'): void;
   (e: 'swipeDown'): void;
+  (e: 'swipeLeft'): void;
+  (e: 'swipeRight'): void;
 }>();
 
 const SWIPE_PX = 50;
@@ -77,6 +79,13 @@ function finishPointer(e: PointerEvent) {
     return;
   }
 
+  // Swipe horizontal navigation.
+  if (absX >= SWIPE_PX && absX > absY * 1.2) {
+    if (dx < 0) emit('swipeLeft');
+    else emit('swipeRight');
+    return;
+  }
+
   // Tap (quick, minimal movement)
   if (elapsed < 500 && absX < SWIPE_PX && absY < SWIPE_PX) {
     emit('tap', { pointerType: startPointerType, xPct, yPct });
@@ -96,10 +105,10 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <!-- touch-action none so we can interpret swipes without browser scroll/pinch interference on the video surface -->
+  <!-- Only apply touch-none on desktop to prevent scroll interference. On mobile, allow normal scrolling -->
   <div
     class="absolute inset-0"
-    :class="['touch-none', 'md:touch-pan-y']"
+    :class="['md:touch-none']"
     @pointerdown="onPointerDown"
     @pointermove="onPointerMove"
     @pointerup="onPointerUp"
