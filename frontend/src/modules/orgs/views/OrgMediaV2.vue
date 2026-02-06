@@ -7,9 +7,9 @@ import { useAuthStore } from '@/modules/auth/stores/useAuthStore';
 import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrganizationStore';
 import { useOrgMediaStore } from '@/modules/media/stores/useOrgMediaStore';
 import { useUploadStore } from '@/modules/media/stores/useUploadStore';
+import { useOrgMediaWithCoverage } from '@/modules/media/composables/useOrgMediaWithCoverage';
 import { mediaService } from '@/modules/media/services/mediaService';
 import { formatMediaAssetNameForDisplay } from '@/modules/media/utils/assetUtilities';
-import MediaAssetCard from '@/modules/orgs/components/MediaAssetCard.vue';
 import ProcessingVideosList from '@/modules/orgs/components/ProcessingVideosList.vue';
 import AddMediaAssetModal from '@/modules/orgs/components/AddMediaAssetModal.vue';
 import EditMediaAssetModal from '@/modules/orgs/components/EditMediaAssetModal.vue';
@@ -17,7 +17,6 @@ import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
 import LoadingDot from '@/components/LoadingDot.vue';
 import ShimmerText from '@/components/ShimmerText.vue';
 import { toast } from '@/lib/toast';
-import type { MediaAssetKind } from '@/modules/media/types/MediaAssetKind';
 import type { OrgMediaAsset } from '@/modules/media/types/OrgMediaAsset';
 
 defineProps<{ slug?: string | string[] }>();
@@ -29,10 +28,26 @@ const router = useRouter();
 const route = useRoute();
 
 const { orgContext, resolving: orgResolving } = storeToRefs(activeOrgStore);
-const { assets, error, isLoading, isReady } = storeToRefs(mediaStore);
+const { assets: storeAssets, error: storeError, isLoading: storeLoading } = storeToRefs(mediaStore);
 const { isAdmin } = storeToRefs(authStore);
 
 const activeOrgId = computed(() => orgContext.value?.organization?.id ?? null);
+
+// Use new composable for coverage data
+const {
+  assets: readyAssetsWithCoverage,
+  filteredAssets,
+  loading: coverageLoading,
+  error: coverageError,
+  isEmpty,
+  isFilteredEmpty,
+  selectedKind,
+  loadAssets,
+  getCoverageDisplay,
+  formatDuration,
+  formatRelativeDate,
+  getNarrationProgress,
+} = useOrgMediaWithCoverage(activeOrgId.value);
 
 const canManage = computed(() => {
   if (isAdmin.value) return true;
@@ -54,137 +69,32 @@ const uploadStore = useUploadStore();
 
 const hasInFlightUploads = computed(() => uploadStore.activeUploads.length > 0);
 
-const uploadMetricsByAssetId = computed(() => {
-  return new Map(
-    uploadStore.activeUploads.map((job) => [
-      job.id,
-      {
-        state: job.state,
-        progress: job.progress,
-        uploadSpeedBps: job.uploadSpeedBps,
-      },
-    ])
-  );
-});
-
 const searchQuery = ref('');
-const selectedKind = ref<'all' | 'match' | 'training' | 'clinic'>('all');
 
 function normalizeSearchText(value: string | null | undefined) {
   if (!value) return '';
   return formatMediaAssetNameForDisplay(value).toLowerCase();
 }
 
-// Processing assets (not ready yet, shown in processing list)
+// Processing assets from store (not ready yet, shown in processing list)
 const processingAssets = computed(() => {
-  return assets.value.filter(asset => {
-    // Show in processing list if not streaming ready OR not complete
+  return storeAssets.value.filter(asset => {
     return !asset.streaming_ready || asset.processing_stage !== 'complete';
   });
 });
 
-// Ready assets (fully processed, shown in media cards)
-const readyAssets = computed(() => {
-  return assets.value.filter(asset => {
-    // Only show in media card grid if streaming ready AND complete
-    return asset.streaming_ready && asset.processing_stage === 'complete';
-  });
-});
-
-const filteredAssets = computed(() => {
-  let filtered = readyAssets.value;
-  
-  // Filter by kind
-  if (selectedKind.value !== 'all') {
-    filtered = filtered.filter(asset => asset.kind === selectedKind.value);
+// Filter ready assets by search query
+const searchFilteredAssets = computed(() => {
+  if (!searchQuery.value.trim()) {
+    return filteredAssets.value;
   }
   
-  // Filter by search query
-  if (searchQuery.value.trim()) {
-    const query = normalizeSearchText(searchQuery.value);
-    filtered = filtered.filter(asset => 
-      normalizeSearchText(asset.file_name).includes(query) ||
-      normalizeSearchText(asset.kind).includes(query)
-    );
-  }
-  
-  return filtered;
+  const query = normalizeSearchText(searchQuery.value);
+  return filteredAssets.value.filter(asset => 
+    normalizeSearchText(asset.fileName).includes(query) ||
+    normalizeSearchText(asset.kind).includes(query)
+  );
 });
-
-// Group assets by time period
-const groupedAssets = computed(() => {
-  type GroupLabel = 'Today' | 'Yesterday' | 'This Week' | 'This Month';
-  const groups: Record<GroupLabel, OrgMediaAsset[]> = {
-    'Today': [],
-    'Yesterday': [],
-    'This Week': [],
-    'This Month': [],
-  };
-  
-  const now = new Date();
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const yesterdayStart = new Date(todayStart);
-  yesterdayStart.setDate(yesterdayStart.getDate() - 1);
-  const weekStart = new Date(todayStart);
-  weekStart.setDate(weekStart.getDate() - 7);
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  
-  const olderGroups: Record<string, OrgMediaAsset[]> = {};
-  
-  filteredAssets.value.forEach(asset => {
-    const assetDate = new Date(asset.created_at);
-    
-    if (assetDate >= todayStart) {
-      groups.Today.push(asset);
-    } else if (assetDate >= yesterdayStart) {
-      groups.Yesterday.push(asset);
-    } else if (assetDate >= weekStart) {
-      groups['This Week'].push(asset);
-    } else if (assetDate >= monthStart) {
-      groups['This Month'].push(asset);
-    } else {
-      // Group by month for older items
-      const monthKey = assetDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
-      if (!olderGroups[monthKey]) olderGroups[monthKey] = [];
-      olderGroups[monthKey].push(asset);
-    }
-  });
-  
-  // Combine all groups, removing empty ones
-  const result: { label: string; assets: OrgMediaAsset[] }[] = [];
-  
-  Object.entries(groups).forEach(([label, assets]) => {
-    if (assets.length > 0) {
-      result.push({ label, assets });
-    }
-  });
-  
-  // Add older groups sorted by date (newest first)
-  Object.entries(olderGroups)
-    .sort((a, b) => new Date(b[0]).getTime() - new Date(a[0]).getTime())
-    .forEach(([label, assets]) => {
-      result.push({ label, assets });
-    });
-  
-  return result;
-});
-
-function scrollStrip(event: MouseEvent, direction: 'left' | 'right') {
-  const button = event.currentTarget as HTMLElement;
-  const stripContainer = button.parentElement?.querySelector('.overflow-x-auto') as HTMLElement;
-  if (!stripContainer) return;
-  
-  const scrollAmount = 300; // Scroll by ~1 card width + gap
-  const currentScroll = stripContainer.scrollLeft;
-  const targetScroll = direction === 'left' 
-    ? currentScroll - scrollAmount 
-    : currentScroll + scrollAmount;
-  
-  stripContainer.scrollTo({
-    left: targetScroll,
-    behavior: 'smooth'
-  });
-}
 
 function openAddMedia() {
   if (!activeOrgId.value) return;
@@ -220,31 +130,6 @@ function openAsset(assetId: string) {
   }
 }
 
-function openReview(assetId: string) {
-  const slug = route.params.slug;
-  if (!slug) return;
-  void router.push({
-    name: 'OrgMediaAssetReview',
-    params: {
-      slug,
-      mediaAssetId: assetId,
-    },
-  });
-}
-
-function openFeed(assetId: string) {
-  const slug = route.params.slug;
-  if (!slug) return;
-  void router.push({
-    name: 'OrgFeedView',
-    params: { slug },
-    query: {
-      source: 'match',
-      mediaAssetId: assetId,
-    },
-  });
-}
-
 function closeAddMedia() {
   showAddMedia.value = false;
 }
@@ -259,7 +144,7 @@ function openEditMedia(assetId: string) {
     return;
   }
 
-  const asset = assets.value.find(a => a.id === assetId);
+  const asset = storeAssets.value.find(a => a.id === assetId);
   if (!asset) return;
 
   assetToEdit.value = asset;
@@ -274,6 +159,7 @@ function closeEditMedia() {
 async function handleUploadStarted() {
   mediaStore.reset();
   await mediaStore.loadForActiveOrg();
+  await loadAssets(); // Reload coverage data
 }
 
 function openConfirmDelete(assetId: string) {
@@ -286,7 +172,7 @@ function openConfirmDelete(assetId: string) {
     return;
   }
 
-  const asset = assets.value.find(a => a.id === assetId);
+  const asset = storeAssets.value.find(a => a.id === assetId);
   if (!asset) return;
 
   assetToDelete.value = {
@@ -304,10 +190,8 @@ function closeConfirmDelete() {
   assetToDelete.value = null;
 }
 
-
-
 function openReattachModal(assetId: string) {
-  const asset = assets.value.find(a => a.id === assetId);
+  const asset = storeAssets.value.find(a => a.id === assetId);
   if (!asset) return;
 
   const existingJob = uploadStore.uploadsReadonly.find(u => u.mediaId === assetId);
@@ -505,17 +389,13 @@ async function cleanupOrphanedUploads() {
   if (!activeOrgId.value) return;
 
   try {
-    const orphanedAssets = assets.value.filter(asset => {
+    const orphanedAssets = storeAssets.value.filter(asset => {
       if (asset.status !== 'uploading') return false;
       
-      // Check if this asset has an active upload session on THIS device
       const hasActiveUpload = uploadStore.uploadsReadonly.some(
         job => job.mediaId === asset.id
       );
       
-      // Only mark as orphaned if:
-      // 1. No active upload on this device AND
-      // 2. Upload started more than 8 hours ago (accounts for large files on slow connections)
       const uploadAge = Date.now() - new Date(asset.created_at).getTime();
       const EIGHT_HOURS = 8 * 60 * 60 * 1000;
       
@@ -538,13 +418,15 @@ async function cleanupOrphanedUploads() {
 }
 
 onMounted(async () => {
-  await mediaStore.loadForActiveOrg();
+  await mediaStore.loadForActiveOrg(); // Load all assets (for processing list)
+  await loadAssets(); // Load ready assets with coverage
   await cleanupOrphanedUploads();
 });
 
 watch(activeOrgId, (orgId, prevOrgId) => {
   if (orgId && orgId !== prevOrgId) {
     void mediaStore.loadForActiveOrg();
+    void loadAssets();
   }
 });
 </script>
@@ -568,7 +450,7 @@ watch(activeOrgId, (orgId, prevOrgId) => {
       </div>
 
       <!-- Search bar and filters -->
-      <div v-if="assets.length > 0" class="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6">
+      <div v-if="!coverageLoading && readyAssetsWithCoverage.length > 0" class="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6 mb-6">
         <!-- Search -->
         <div class="relative w-full sm:max-w-md sm:flex-1">
           <Icon icon="carbon:search" class="absolute left-0 top-1/2 -translate-y-1/2 text-white/30" width="20" height="20" />
@@ -623,13 +505,22 @@ watch(activeOrgId, (orgId, prevOrgId) => {
       <!-- Upload notification -->
       <div
         v-if="hasInFlightUploads"
-        class="mt-4 rounded-xl border border-blue-500/30 bg-blue-500/10 p-4 text-blue-300"
+        class="rounded-xl border border-blue-500/30 bg-blue-500/10 p-4 text-blue-300 mb-6"
         aria-label="Upload status"
       >
         <div class="text-sm font-medium">
           Upload in progress. Please do not navigate away from this page.
         </div>
       </div>
+
+      <!-- Processing Videos -->
+      <ProcessingVideosList
+        v-if="processingAssets.length > 0"
+        :processing-assets="processingAssets"
+        :can-manage="canManage"
+        @delete="openConfirmDelete"
+        class="mb-8"
+      />
     </div>
 
     <!-- Loading/Error states - contained -->
@@ -642,19 +533,19 @@ watch(activeOrgId, (orgId, prevOrgId) => {
         No active organization.
       </div>
 
-      <div v-else-if="isLoading" class="rounded-lg border border-white/10 bg-white/5 p-6 text-white/70">
+      <div v-else-if="coverageLoading" class="rounded-lg border border-white/10 bg-white/5 p-6 text-white/70">
         <div class="flex items-center justify-center gap-3">
           <LoadingDot />
-          <ShimmerText class="text-sm text-white/70" text="Rugbycodex is getting all your footage..." />
+          <ShimmerText class="text-sm text-white/70" text="Loading footage..." />
         </div>
       </div>
 
-      <div v-else-if="!isReady && error" class="rounded-lg border border-white/10 bg-white/5 p-6 text-white/70">
-        {{ error ?? 'Unable to load media.' }}
+      <div v-else-if="coverageError" class="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded p-4">
+        {{ coverageError }}
       </div>
 
       <!-- Empty state -->
-      <div v-else-if="assets.length === 0" class="flex flex-col items-center justify-center rounded-2xl border border-white/10 bg-white/5 p-16 text-center">
+      <div v-else-if="isEmpty" class="flex flex-col items-center justify-center rounded-2xl border border-white/10 bg-white/5 p-16 text-center">
         <Icon icon="carbon:video" class="text-white/20 mb-6" width="64" height="64" />
         <h2 class="text-xl font-light text-white/80 mb-2">No media yet</h2>
         <p class="text-sm text-white/50 mb-6">Upload your first video to get started</p>
@@ -668,84 +559,88 @@ watch(activeOrgId, (orgId, prevOrgId) => {
           Upload video
         </button>
       </div>
-    </div>
 
-    <!-- Horizontal scrolling strips - full bleed -->
-    <div v-if="!isLoading && isReady && assets.length > 0" class="space-y-8 mt-6">
-      <!-- Processing Videos List (at top) -->
-      <div class="container-lg">
-        <ProcessingVideosList
-          :processing-assets="processingAssets"
-          :upload-metrics-by-asset-id="uploadMetricsByAssetId"
-          :can-manage="canManage"
-          @delete="openConfirmDelete"
-        />
+      <!-- Filtered empty state -->
+      <div v-else-if="isFilteredEmpty" class="text-center py-12 text-white/50">
+        <Icon icon="carbon:search" class="mx-auto mb-3" width="32" height="32" />
+        <p v-if="searchQuery">No results found for "{{ searchQuery }}"</p>
+        <p v-else>No {{ selectedKind }} footage found.</p>
       </div>
 
-      <!-- No results -->
-      <div v-if="filteredAssets.length === 0" class="container-lg">
-        <div class="text-center py-12 text-white/50">
-          <Icon icon="carbon:search" class="mx-auto mb-3" width="32" height="32" />
-          <p>No results found for "{{ searchQuery }}"</p>
-        </div>
-      </div>
-
-      <!-- Each time period strip -->
-      <div v-for="group in groupedAssets" :key="group.label" class="space-y-3">
-        <!-- Section header - contained -->
-        <div class="container-lg flex items-baseline gap-2">
-          <h2 class="text-lg font-light text-white/90">{{ group.label }}</h2>
-          <span class="text-sm text-white/40">({{ group.assets.length }})</span>
-        </div>
-
-        <!-- Horizontal scrolling strip - full bleed with padding -->
-        <div class="relative group/strip">
-          <!-- Left arrow (desktop only) -->
-          <button
-            type="button"
-            class="hidden lg:flex absolute left-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 items-center justify-center rounded-full bg-black/80 border border-white/20 text-white/80 hover:text-white hover:bg-black transition opacity-0 group-hover/strip:opacity-100"
-            @click="scrollStrip($event, 'left')"
-            aria-label="Scroll left"
-          >
-            <Icon icon="carbon:chevron-left" width="20" height="20" />
-          </button>
-
-          <!-- Right arrow (desktop only) -->
-          <button
-            type="button"
-            class="hidden lg:flex absolute right-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 items-center justify-center rounded-full bg-black/80 border border-white/20 text-white/80 hover:text-white hover:bg-black transition opacity-0 group-hover/strip:opacity-100"
-            @click="scrollStrip($event, 'right')"
-            aria-label="Scroll right"
-          >
-            <Icon icon="carbon:chevron-right" width="20" height="20" />
-          </button>
-
-          <!-- Scrollable container -->
-          <div class="overflow-x-auto scrollbar-hide" ref="stripContainer">
-            <div class="flex gap-4 pl-6 pr-6 lg:pl-12 lg:pr-12 pb-2">
-              <div
-                v-for="asset in group.assets"
-                :key="asset.id"
-                class="flex-none w-64"
-              >
-                <MediaAssetCard
-                  :asset="asset"
-                  :can-manage="canManage"
-                  :upload-metrics="uploadMetricsByAssetId.get(asset.id)"
-                  @open="openAsset(asset.id)"
-                  @review="openReview(asset.id)"
-                  @view-as-feed="openFeed(asset.id)"
-                  @delete="openConfirmDelete(asset.id)"
-                  @edit="openEditMedia(asset.id)"
-                  @reattach="openReattachModal(asset.id)"
-
-                />
-              </div>
-              <!-- Spacer to allow scrolling past the end -->
-              <div class="flex-none w-6 lg:w-12"></div>
+      <!-- Footage list -->
+      <div v-else class="space-y-3">
+        <button
+          v-for="asset in searchFilteredAssets"
+          :key="asset.id"
+          @click="openAsset(asset.id)"
+          class="w-full flex gap-4 p-4 bg-white/5 hover:bg-white/10 rounded-lg transition-colors group cursor-pointer text-left"
+        >
+          <!-- Thumbnail -->
+          <div class="w-32 h-20 flex-shrink-0 rounded overflow-hidden bg-black">
+            <img
+              v-if="asset.thumbnailPath"
+              :src="`https://cdn.rugbycodex.com/${asset.thumbnailPath}`"
+              :alt="formatMediaAssetNameForDisplay(asset.fileName)"
+              class="w-full h-full object-cover"
+            />
+            <div
+              v-else
+              class="w-full h-full flex items-center justify-center text-white/20 text-xs"
+            >
+              <Icon icon="carbon:video" width="24" />
             </div>
           </div>
-        </div>
+
+          <!-- Asset info -->
+          <div class="flex-1 min-w-0 flex flex-col justify-between">
+            <!-- Title -->
+            <div>
+              <h3 class="font-semibold text-white group-hover:text-white/90 truncate capitalize mb-1">
+                {{ formatMediaAssetNameForDisplay(asset.fileName) }}
+              </h3>
+              
+              <!-- Metadata -->
+              <div class="flex items-center gap-2 text-xs text-white/50">
+                <span>{{ formatRelativeDate(asset.createdAt) }}</span>
+                <span class="text-white/30">•</span>
+                <span>{{ formatDuration(asset.durationSeconds) }}</span>
+                <span class="text-white/30">•</span>
+                <span class="capitalize">{{ asset.kind }}</span>
+              </div>
+            </div>
+
+            <!-- Coverage badge & narration count -->
+            <div class="flex items-center gap-3 mt-2">
+              <div
+                :class="[
+                  'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border',
+                  getCoverageDisplay(asset.coverageTier).colorClass
+                ]"
+              >
+                <Icon :icon="getCoverageDisplay(asset.coverageTier).icon" width="14" />
+                <span>{{ getCoverageDisplay(asset.coverageTier).label }}</span>
+              </div>
+              
+              <div class="text-xs text-white/60">
+                <div>{{ getNarrationProgress(asset.narrationCount).main }}</div>
+                <div v-if="getNarrationProgress(asset.narrationCount).helper" class="text-white/40 text-[11px]">
+                  {{ getNarrationProgress(asset.narrationCount).helper }}
+                </div>
+              </div>
+
+              <!-- Large gap warning -->
+              <div v-if="asset.hasLargeGap" class="flex items-center gap-1 text-xs text-orange-400" title="Contains gaps larger than 8 minutes">
+                <Icon icon="carbon:warning" width="14" />
+                <span>Large gaps</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Arrow icon -->
+          <div class="flex-shrink-0 flex items-center text-white/40 group-hover:text-white/70 transition-colors">
+            <Icon icon="carbon:arrow-right" width="20" />
+          </div>
+        </button>
       </div>
     </div>
   </div>
