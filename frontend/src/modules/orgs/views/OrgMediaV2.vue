@@ -600,11 +600,95 @@ watch(activeOrgId, (orgId, prevOrgId) => {
         <div
           v-for="asset in searchFilteredAssets"
           :key="asset.id"
-          class="w-full flex gap-3 sm:gap-4 p-3 sm:p-4 bg-white/5 hover:bg-white/10 rounded-lg transition-colors group"
+          class="w-full flex flex-col sm:flex-row gap-0 sm:gap-4 bg-white/5 hover:bg-white/10 rounded-lg transition-colors group overflow-hidden"
         >
-          <!-- Thumbnail -->
+          <!-- Mobile: Thumbnail with menu overlay -->
+          <div class="relative sm:hidden w-full aspect-video bg-black cursor-pointer" @click="openAsset(asset.id)">
+            <img
+              v-if="asset.thumbnailPath"
+              :src="`https://cdn.rugbycodex.com/${asset.thumbnailPath}`"
+              :alt="formatMediaAssetNameForDisplay(asset.fileName)"
+              class="w-full h-full object-cover"
+            />
+            <div
+              v-else
+              class="w-full h-full flex items-center justify-center text-white/20"
+            >
+              <Icon icon="carbon:video" width="40" />
+            </div>
+            
+            <!-- Menu button overlay (mobile) -->
+            <div class="absolute top-2 right-2">
+              <Menu as="div" class="relative z-10">
+                <MenuButton
+                  class="rounded p-2 bg-black/60 backdrop-blur-sm text-white/90 hover:bg-black/80 transition touch-manipulation"
+                  aria-label="More actions"
+                  @click.stop
+                >
+                  <Icon icon="carbon:overflow-menu-vertical" class="h-5 w-5" />
+                </MenuButton>
+
+                <transition
+                  enter-active-class="transition duration-100 ease-out"
+                  enter-from-class="transform scale-95 opacity-0"
+                  enter-to-class="transform scale-100 opacity-100"
+                  leave-active-class="transition duration-75 ease-in"
+                  leave-from-class="transform scale-100 opacity-100"
+                  leave-to-class="transform scale-95 opacity-0"
+                >
+                  <MenuItems
+                    class="absolute right-0 top-full mt-2 min-w-40 origin-top-right rounded-md border border-white/10 bg-black/90 backdrop-blur-md text-white focus:outline-none shadow-xl"
+                    @click.stop
+                  >
+                    <MenuItem v-slot="{ active }">
+                      <button
+                        type="button"
+                        class="w-full px-3 py-2.5 text-left text-sm transition touch-manipulation"
+                        :class="active ? 'bg-white/10' : ''"
+                        @click="viewInReview(asset.id)"
+                      >
+                        View in Review
+                      </button>
+                    </MenuItem>
+                    <MenuItem v-slot="{ active }">
+                      <button
+                        type="button"
+                        class="w-full px-3 py-2.5 text-left text-sm transition touch-manipulation"
+                        :class="active ? 'bg-white/10' : ''"
+                        @click="viewInFeed(asset.id)"
+                      >
+                        View in Feed
+                      </button>
+                    </MenuItem>
+                    <MenuItem v-if="canManage" v-slot="{ active }">
+                      <button
+                        type="button"
+                        class="w-full px-3 py-2.5 text-left text-sm transition border-t border-white/10 touch-manipulation"
+                        :class="active ? 'bg-white/10' : ''"
+                        @click="openEditMedia(asset.id)"
+                      >
+                        Edit
+                      </button>
+                    </MenuItem>
+                    <MenuItem v-if="canManage" v-slot="{ active }">
+                      <button
+                        type="button"
+                        class="w-full px-3 py-2.5 text-left text-sm text-red-300 transition border-t border-white/10 touch-manipulation"
+                        :class="active ? 'bg-white/10' : ''"
+                        @click="openConfirmDelete(asset.id)"
+                      >
+                        Delete
+                      </button>
+                    </MenuItem>
+                  </MenuItems>
+                </transition>
+              </Menu>
+            </div>
+          </div>
+
+          <!-- Desktop: Thumbnail (left side) -->
           <div 
-            class="w-20 h-14 sm:w-32 sm:h-20 flex-shrink-0 rounded overflow-hidden bg-black cursor-pointer"
+            class="hidden sm:block w-32 h-20 flex-shrink-0 rounded overflow-hidden bg-black cursor-pointer m-4"
             @click="openAsset(asset.id)"
           >
             <img
@@ -617,13 +701,13 @@ watch(activeOrgId, (orgId, prevOrgId) => {
               v-else
               class="w-full h-full flex items-center justify-center text-white/20 text-xs"
             >
-              <Icon icon="carbon:video" width="20" class="sm:w-6" />
+              <Icon icon="carbon:video" width="24" />
             </div>
           </div>
 
           <!-- Asset info -->
           <div 
-            class="flex-1 min-w-0 flex flex-col justify-between cursor-pointer"
+            class="flex-1 min-w-0 flex flex-col justify-between cursor-pointer p-3 sm:py-4 sm:pr-0 sm:pl-0"
             @click="openAsset(asset.id)"
           >
             <!-- Title -->
@@ -637,8 +721,8 @@ watch(activeOrgId, (orgId, prevOrgId) => {
                 <span>{{ formatRelativeDate(asset.createdAt) }}</span>
                 <span class="text-white/30">•</span>
                 <span>{{ formatDuration(asset.durationSeconds) }}</span>
-                <span class="text-white/30 hidden sm:inline">•</span>
-                <span class="capitalize hidden sm:inline">{{ asset.kind }}</span>
+                <span class="text-white/30">•</span>
+                <span class="capitalize">{{ asset.kind }}</span>
               </div>
             </div>
 
@@ -670,11 +754,11 @@ watch(activeOrgId, (orgId, prevOrgId) => {
             </div>
           </div>
 
-          <!-- Actions menu -->
-          <div class="flex-shrink-0 flex items-start pt-1">
+          <!-- Desktop: Actions menu (right side) -->
+          <div class="hidden sm:flex flex-shrink-0 items-start pt-4 pr-4">
             <Menu as="div" class="relative z-10">
               <MenuButton
-                class="rounded p-1.5 sm:p-2 text-white/50 hover:bg-white/10 hover:text-white/80 transition touch-manipulation"
+                class="rounded p-2 text-white/50 hover:bg-white/10 hover:text-white/80 transition"
                 aria-label="More actions"
                 @click.stop
               >
@@ -696,7 +780,7 @@ watch(activeOrgId, (orgId, prevOrgId) => {
                   <MenuItem v-slot="{ active }">
                     <button
                       type="button"
-                      class="w-full px-3 py-2.5 text-left text-sm transition touch-manipulation"
+                      class="w-full px-3 py-2.5 text-left text-sm transition"
                       :class="active ? 'bg-white/10' : ''"
                       @click="viewInReview(asset.id)"
                     >
@@ -706,7 +790,7 @@ watch(activeOrgId, (orgId, prevOrgId) => {
                   <MenuItem v-slot="{ active }">
                     <button
                       type="button"
-                      class="w-full px-3 py-2.5 text-left text-sm transition touch-manipulation"
+                      class="w-full px-3 py-2.5 text-left text-sm transition"
                       :class="active ? 'bg-white/10' : ''"
                       @click="viewInFeed(asset.id)"
                     >
@@ -716,7 +800,7 @@ watch(activeOrgId, (orgId, prevOrgId) => {
                   <MenuItem v-if="canManage" v-slot="{ active }">
                     <button
                       type="button"
-                      class="w-full px-3 py-2.5 text-left text-sm transition border-t border-white/10 touch-manipulation"
+                      class="w-full px-3 py-2.5 text-left text-sm transition border-t border-white/10"
                       :class="active ? 'bg-white/10' : ''"
                       @click="openEditMedia(asset.id)"
                     >
@@ -726,7 +810,7 @@ watch(activeOrgId, (orgId, prevOrgId) => {
                   <MenuItem v-if="canManage" v-slot="{ active }">
                     <button
                       type="button"
-                      class="w-full px-3 py-2.5 text-left text-sm text-red-300 transition border-t border-white/10 touch-manipulation"
+                      class="w-full px-3 py-2.5 text-left text-sm text-red-300 transition border-t border-white/10"
                       :class="active ? 'bg-white/10' : ''"
                       @click="openConfirmDelete(asset.id)"
                     >
