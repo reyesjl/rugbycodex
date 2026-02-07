@@ -24,6 +24,7 @@
     "jwt-decode": "^4.0.0",
     "pinia": "^3.0.3",
     "shaka-player": "^4.16.13",
+    "swiper": "^12.1.0",
     "tus-js-client": "^4.3.1",
     "vue": "^3.5.22",
     "vue-chartjs": "^5.3.3",
