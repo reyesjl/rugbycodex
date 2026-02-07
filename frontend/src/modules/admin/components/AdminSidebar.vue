@@ -15,7 +15,7 @@ const adminLinks = [
   { to: '/admin/', label: 'Organizations', icon: 'carbon:group-presentation' },
   { to: '/admin/org-requests', label: 'New Org Requests', icon: 'carbon:notification-new' }, 
   { to: '/admin/users', label: 'Users', icon: 'carbon:user-multiple' },
-  { to: '/admin/narrations', label: 'Narrations Moderation', icon: 'carbon:microphone' },
+  { to: '/admin/narrations', label: 'Narrations', icon: 'carbon:microphone' },
   { to: '/admin/media', label: 'Media Review', icon: 'carbon:image-search' },
   { to: '/admin/jobs', label: 'Jobs / Pipelines', icon: 'carbon:flow' },
   { to: '/admin/billing', label: 'Billing / Metering', icon: 'carbon:finance' },
@@ -190,7 +190,7 @@ const {
         </nav>
       </div>
       <div class="text-xs text-gray-400 px-4 py-3">
-       v0.11.1-beta
+       v0.11.2-beta
       </div>
     </div>
   </div>

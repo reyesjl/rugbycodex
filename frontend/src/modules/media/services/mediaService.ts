@@ -6,6 +6,9 @@ import {
   isNotFoundError,
 } from "@/lib/handleEdgeFunctionError";
 import type { OrgMediaAsset } from "@/modules/media/types/OrgMediaAsset";
+import type { AdminMediaAssetListItem } from "@/modules/media/types/AdminMediaAssetListItem";
+import type { MediaAssetStatus } from "@/modules/media/types/MediaAssetStatus";
+import type { MediaAssetKind } from "@/modules/media/types/MediaAssetKind";
 import type { PostgrestError } from "@supabase/supabase-js";
 
 const HLS_PLAYLIST_MIME = "application/vnd.apple.mpegurl";
@@ -388,5 +391,86 @@ export const mediaService = {
 
     const blob = new Blob([playlistText], { type: HLS_PLAYLIST_MIME });
     return URL.createObjectURL(blob);
+  },
+
+  // =============================================
+  // Admin Methods
+  // =============================================
+
+  /**
+   * Lists all media assets in the system (admin only).
+   * 
+   * @param filters - Optional search, status, and kind filters
+   * @returns List of media assets with org and uploader details
+   */
+  async listAllMediaAssets(filters?: {
+    searchQuery?: string;
+    status?: MediaAssetStatus | null;
+    kind?: MediaAssetKind | null;
+  }): Promise<AdminMediaAssetListItem[]> {
+    type RpcRow = {
+      id: string;
+      org_id: string;
+      org_name: string | null;
+      uploader_id: string;
+      uploader_name: string | null;
+      uploader_username: string | null;
+      status: string;
+      processing_stage: string | null;
+      kind: string;
+      file_name: string;
+      file_size_bytes: number;
+      mime_type: string;
+      duration_seconds: number;
+      storage_path: string;
+      bucket: string;
+      streaming_ready: boolean;
+      thumbnail_path: string | null;
+      transcode_progress: number | null;
+      created_at: string;
+    };
+
+    const { data, error } = await supabase.rpc('admin_list_media_assets_rpc', {
+      p_search_query: filters?.searchQuery || null,
+      p_status: filters?.status || null,
+      p_kind: filters?.kind || null,
+    });
+
+    if (error) throw error;
+
+    return (data as RpcRow[]).map((row) => ({
+      id: row.id,
+      org_id: row.org_id,
+      org_name: row.org_name,
+      uploader_id: row.uploader_id,
+      uploader_name: row.uploader_name,
+      uploader_username: row.uploader_username,
+      status: row.status as MediaAssetStatus,
+      processing_stage: row.processing_stage,
+      kind: row.kind as MediaAssetKind,
+      file_name: row.file_name,
+      file_size_bytes: row.file_size_bytes,
+      mime_type: row.mime_type,
+      duration_seconds: row.duration_seconds,
+      storage_path: row.storage_path,
+      bucket: row.bucket,
+      streaming_ready: row.streaming_ready,
+      thumbnail_path: row.thumbnail_path,
+      transcode_progress: row.transcode_progress,
+      created_at: new Date(row.created_at),
+    }));
+  },
+
+  /**
+   * Admin-level deletion of media asset.
+   * Uses standard delete with admin privileges.
+   */
+  async adminDeleteMediaAsset(id: string): Promise<void> {
+    const { error } = await supabase
+      .from('media_assets')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
   },
 }

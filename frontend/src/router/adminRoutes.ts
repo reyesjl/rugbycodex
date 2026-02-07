@@ -23,12 +23,12 @@ export const adminRoutes: RouteRecordRaw = {
     {
       path: 'narrations',
       name: 'AdminNarrationsModeration',
-      component: () => import('@/modules/admin/views/AdminNarrationsModerationStub.vue'),
+      component: () => import('@/modules/admin/views/AdminNarrations.vue'),
     },
     {
       path: 'media',
       name: 'AdminMediaReview',
-      component: () => import('@/modules/admin/views/AdminMediaReviewStub.vue'),
+      component: () => import('@/modules/admin/views/AdminMediaReview.vue'),
     },
     {
       path: 'jobs',

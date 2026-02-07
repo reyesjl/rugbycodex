@@ -326,133 +326,139 @@ onMounted(() => {
       </div>
       
       <!-- Filter Bar -->
-      <div class="flex flex-col gap-3 text-sm mb-6">
-        <!-- First Row: Show Count and Status/Type Filters -->
-        <div class="flex flex-col md:flex-row md:flex-wrap items-start md:items-center gap-4">
-          <!-- Show Count -->
-          <div class="flex items-center gap-2">
-            <span class="text-white/50">Show</span>
-            <button
-              type="button"
-              @click="itemsPerPage = 20; resetToFirstPage()"
-              class="transition px-2 py-0.5 rounded"
-              :class="itemsPerPage === 20 ? 'text-white font-semibold bg-white/10' : 'text-white/40 hover:text-white/60'"
-            >
-              20
-            </button>
-            <div class="h-4 w-px bg-white/20"></div>
-            <button
-              type="button"
-              @click="itemsPerPage = 50; resetToFirstPage()"
-              class="transition px-2 py-0.5 rounded"
-              :class="itemsPerPage === 50 ? 'text-white font-semibold bg-white/10' : 'text-white/40 hover:text-white/60'"
-            >
-              50
-            </button>
-            <div class="h-4 w-px bg-white/20"></div>
-            <button
-              type="button"
-              @click="itemsPerPage = 100; resetToFirstPage()"
-              class="transition px-2 py-0.5 rounded"
-              :class="itemsPerPage === 100 ? 'text-white font-semibold bg-white/10' : 'text-white/40 hover:text-white/60'"
-            >
-              100
-            </button>
-          </div>
-
-          <!-- Status Filters -->
-          <div class="flex items-center gap-2">
-            <button
-              type="button"
-              @click="statusFilter = 'all'"
-              class="transition px-2 py-0.5 rounded"
-              :class="statusFilter === 'all' ? 'text-white font-semibold bg-white/10' : 'text-white/40 hover:text-white/60'"
-            >
-              All
-            </button>
-            <div class="h-4 w-px bg-white/20"></div>
-            <button
-              type="button"
-              @click="statusFilter = 'pending'"
-              class="transition px-2 py-0.5 rounded"
-              :class="statusFilter === 'pending' ? 'text-white font-semibold bg-white/10' : 'text-white/40 hover:text-white/60'"
-            >
-              Pending
-            </button>
-            <div class="h-4 w-px bg-white/20"></div>
-            <button
-              type="button"
-              @click="statusFilter = 'approved'"
-              class="transition px-2 py-0.5 rounded"
-              :class="statusFilter === 'approved' ? 'text-white font-semibold bg-white/10' : 'text-white/40 hover:text-white/60'"
-            >
-              Approved
-            </button>
-            <div class="h-4 w-px bg-white/20"></div>
-            <button
-              type="button"
-              @click="statusFilter = 'rejected'"
-              class="transition px-2 py-0.5 rounded"
-              :class="statusFilter === 'rejected' ? 'text-white font-semibold bg-white/10' : 'text-white/40 hover:text-white/60'"
-            >
-              Rejected
-            </button>
-            <div class="h-4 w-px bg-white/20"></div>
-            <button
-              type="button"
-              @click="statusFilter = 'contacted'"
-              class="transition px-2 py-0.5 rounded"
-              :class="statusFilter === 'contacted' ? 'text-white font-semibold bg-white/10' : 'text-white/40 hover:text-white/60'"
-            >
-              Contacted
-            </button>
-          </div>
-
-          <!-- Type Filters -->
-          <div class="flex items-center gap-2">
-            <button
-              type="button"
-              @click="typeFilter = 'all'"
-              class="transition px-2 py-0.5 rounded"
-              :class="typeFilter === 'all' ? 'text-white font-semibold bg-white/10' : 'text-white/40 hover:text-white/60'"
-            >
-              All Types
-            </button>
-            <div class="h-4 w-px bg-white/20"></div>
-            <button
-              type="button"
-              @click="typeFilter = 'team'"
-              class="transition px-2 py-0.5 rounded"
-              :class="typeFilter === 'team' ? 'text-white font-semibold bg-white/10' : 'text-white/40 hover:text-white/60'"
-            >
-              Team
-            </button>
-            <div class="h-4 w-px bg-white/20"></div>
-            <button
-              type="button"
-              @click="typeFilter = 'personal'"
-              class="transition px-2 py-0.5 rounded"
-              :class="typeFilter === 'personal' ? 'text-white font-semibold bg-white/10' : 'text-white/40 hover:text-white/60'"
-            >
-              Personal
-            </button>
-          </div>
+      <div class="flex flex-wrap items-center gap-3 border-y border-white/10 bg-black/50 p-4 -mx-6">
+        <!-- Show Count -->
+        <div class="flex items-center gap-2">
+          <span class="text-sm text-white/60">Show</span>
+          <button
+            v-for="count in [20, 50, 100]"
+            :key="count"
+            @click="itemsPerPage = count; resetToFirstPage()"
+            :class="[
+              'rounded px-2 py-1 text-sm transition',
+              itemsPerPage === count
+                ? 'bg-blue-500/20 text-blue-400'
+                : 'text-white/60 hover:bg-white/10 hover:text-white'
+            ]"
+          >
+            {{ count }}
+          </button>
         </div>
 
-        <!-- Second Row: Search Bar -->
-        <div class="flex items-center gap-3">
-          <div class="relative flex-1 max-w-md">
-            <Icon 
-              icon="carbon:search" 
-              class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40"
-            />
-            <input
-              v-model="searchQuery"
-              type="text"
-              placeholder="Search by name..."
-              class="w-full rounded border border-white/20 bg-black/40 pl-9 pr-3 py-2 text-sm text-white outline-none transition focus:border-white/40"
-            />
-          </div>
+        <!-- Divider -->
+        <div class="h-6 w-px bg-white/10" />
+
+        <!-- Status Filters -->
+        <div class="flex flex-wrap items-center gap-2">
+          <button
+            @click="statusFilter = 'all'"
+            :class="[
+              'rounded px-3 py-1.5 text-sm transition',
+              statusFilter === 'all'
+                ? 'bg-blue-500/20 text-blue-400'
+                : 'text-white/60 hover:bg-white/10 hover:text-white'
+            ]"
+          >
+            All
+          </button>
+          <button
+            @click="statusFilter = 'pending'"
+            :class="[
+              'rounded px-3 py-1.5 text-sm transition',
+              statusFilter === 'pending'
+                ? 'bg-blue-500/20 text-blue-400'
+                : 'text-white/60 hover:bg-white/10 hover:text-white'
+            ]"
+          >
+            Pending
+          </button>
+          <button
+            @click="statusFilter = 'approved'"
+            :class="[
+              'rounded px-3 py-1.5 text-sm transition',
+              statusFilter === 'approved'
+                ? 'bg-blue-500/20 text-blue-400'
+                : 'text-white/60 hover:bg-white/10 hover:text-white'
+            ]"
+          >
+            Approved
+          </button>
+          <button
+            @click="statusFilter = 'rejected'"
+            :class="[
+              'rounded px-3 py-1.5 text-sm transition',
+              statusFilter === 'rejected'
+                ? 'bg-blue-500/20 text-blue-400'
+                : 'text-white/60 hover:bg-white/10 hover:text-white'
+            ]"
+          >
+            Rejected
+          </button>
+          <button
+            @click="statusFilter = 'contacted'"
+            :class="[
+              'rounded px-3 py-1.5 text-sm transition',
+              statusFilter === 'contacted'
+                ? 'bg-blue-500/20 text-blue-400'
+                : 'text-white/60 hover:bg-white/10 hover:text-white'
+            ]"
+          >
+            Contacted
+          </button>
+        </div>
+
+        <!-- Divider -->
+        <div class="h-6 w-px bg-white/10" />
+
+        <!-- Type Filters -->
+        <div class="flex flex-wrap items-center gap-2">
+          <button
+            @click="typeFilter = 'all'"
+            :class="[
+              'rounded px-3 py-1.5 text-sm transition',
+              typeFilter === 'all'
+                ? 'bg-blue-500/20 text-blue-400'
+                : 'text-white/60 hover:bg-white/10 hover:text-white'
+            ]"
+          >
+            All Types
+          </button>
+          <button
+            @click="typeFilter = 'team'"
+            :class="[
+              'rounded px-3 py-1.5 text-sm transition',
+              typeFilter === 'team'
+                ? 'bg-blue-500/20 text-blue-400'
+                : 'text-white/60 hover:bg-white/10 hover:text-white'
+            ]"
+          >
+            Team
+          </button>
+          <button
+            @click="typeFilter = 'personal'"
+            :class="[
+              'rounded px-3 py-1.5 text-sm transition',
+              typeFilter === 'personal'
+                ? 'bg-blue-500/20 text-blue-400'
+                : 'text-white/60 hover:bg-white/10 hover:text-white'
+            ]"
+          >
+            Personal
+          </button>
+        </div>
+
+        <!-- Spacer -->
+        <div class="flex-1" />
+
+        <!-- Search -->
+        <div class="relative w-full sm:w-64">
+          <Icon icon="ph:magnifying-glass" class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" />
+          <input
+            v-model="searchQuery"
+            type="text"
+            placeholder="Search requests..."
+            class="w-full rounded-lg border border-white/20 bg-white/10 pl-9 pr-3 py-2 text-sm text-white placeholder-white/40 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
         </div>
       </div>
     </div>
