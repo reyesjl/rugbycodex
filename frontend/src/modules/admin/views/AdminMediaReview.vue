@@ -193,7 +193,7 @@ onMounted(() => {
         <button
           v-for="count in [20, 50, 100]"
           :key="count"
-          @click="showCount = count"
+          @click="showCount = count as 20 | 50 | 100"
           :class="[
             'rounded px-2 py-1 text-sm transition',
             showCount === count
