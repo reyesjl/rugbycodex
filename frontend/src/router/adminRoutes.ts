@@ -40,16 +40,6 @@ export const adminRoutes: RouteRecordRaw = {
       name: 'AdminBilling',
       component: () => import('@/modules/admin/views/AdminBillingStub.vue'),
     },
-    {
-      path: 'flags',
-      name: 'AdminFeatureFlags',
-      component: () => import('@/modules/admin/views/AdminFeatureFlagsStub.vue'),
-    },
-    {
-      path: 'experiments',
-      name: 'AdminExperiments',
-      component: () => import('@/modules/admin/views/AdminExperimentsStub.vue'),
-    },
   ],
 };
 

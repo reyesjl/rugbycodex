@@ -19,8 +19,6 @@ const adminLinks = [
   { to: '/admin/media', label: 'Media Review', icon: 'carbon:image-search' },
   { to: '/admin/jobs', label: 'Jobs / Pipelines', icon: 'carbon:flow' },
   { to: '/admin/billing', label: 'Billing / Metering', icon: 'carbon:finance' },
-  { to: '/admin/flags', label: 'Feature Flags', icon: 'carbon:flag' },
-  { to: '/admin/experiments', label: 'Experiments', icon: 'carbon:chemistry' },
   { to: '/profile', label: 'Profile', icon: 'carbon:user-profile' },
 ];
 
@@ -190,7 +188,7 @@ const {
         </nav>
       </div>
       <div class="text-xs text-gray-400 px-4 py-3">
-       v0.11.2-beta
+       v0.11.3-beta
       </div>
     </div>
   </div>
