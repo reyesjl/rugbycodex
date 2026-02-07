@@ -2,6 +2,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { invokeEdge } from "@/lib/api";
 import { requireUserId } from "@/modules/auth/identity";
 import type { Narration, NarrationSourceType, NarrationWithAuthor } from "../types/Narration";
+import type { AdminNarrationListItem } from "../types/AdminNarrationListItem";
 import type { PostgrestError } from "@supabase/supabase-js";
 import { handleEdgeFunctionError } from "@/lib/handleEdgeFunctionError";
 
@@ -373,6 +374,104 @@ export const narrationService = {
    * - Typical policies are: author can delete own narration; org managers may delete within org.
    */
   async deleteNarration(narrationId: string): Promise<void> {
+    const { error } = await supabase
+      .from('narrations')
+      .delete()
+      .eq('id', narrationId);
+
+    if (error) throw error;
+  },
+
+  // =============================================
+  // Admin Methods
+  // =============================================
+
+  /**
+   * Lists all narrations in the system (admin only).
+   * 
+   * @param filters - Optional search and source type filters
+   * @returns List of narrations with author and media details
+   */
+  async listAllNarrations(filters?: {
+    searchQuery?: string;
+    sourceType?: NarrationSourceType | null;
+  }): Promise<AdminNarrationListItem[]> {
+    type RpcRow = {
+      id: string;
+      org_id: string;
+      org_name: string | null;
+      media_asset_id: string;
+      media_asset_title: string | null;
+      media_asset_segment_id: string;
+      author_id: string | null;
+      author_name: string | null;
+      author_username: string | null;
+      source_type: string;
+      transcript_raw: string;
+      transcript_clean: string | null;
+      transcript_lang: string | null;
+      audio_storage_path: string | null;
+      created_at: string;
+      updated_at: string;
+    };
+
+    const { data, error } = await supabase.rpc('admin_list_narrations_rpc', {
+      p_search_query: filters?.searchQuery || null,
+      p_source_type: filters?.sourceType || null,
+    });
+
+    if (error) throw error;
+
+    return (data as RpcRow[]).map((row) => ({
+      id: row.id,
+      org_id: row.org_id,
+      org_name: row.org_name,
+      media_asset_id: row.media_asset_id,
+      media_asset_title: row.media_asset_title,
+      media_asset_segment_id: row.media_asset_segment_id,
+      author_id: row.author_id,
+      author_name: row.author_name,
+      author_username: row.author_username,
+      source_type: row.source_type as NarrationSourceType,
+      transcript_raw: row.transcript_raw,
+      transcript_clean: row.transcript_clean,
+      transcript_lang: row.transcript_lang,
+      audio_storage_path: row.audio_storage_path,
+      created_at: asDate(row.created_at, 'created_at'),
+      updated_at: asDate(row.updated_at, 'updated_at'),
+    }));
+  },
+
+  /**
+   * Admin-level update of narration transcript.
+   * Uses SECURITY DEFINER RPC to bypass RLS.
+   */
+  async adminUpdateNarration(
+    narrationId: string,
+    updates: {
+      transcriptRaw?: string;
+    }
+  ): Promise<void> {
+    const { error } = await supabase
+      .from('narrations')
+      .update({
+        transcript_raw: updates.transcriptRaw,
+      })
+      .eq('id', narrationId);
+
+    if (error) throw error;
+
+    // Re-trigger embedding generation
+    if (updates.transcriptRaw) {
+      triggerNarrationEmbedding(narrationId);
+    }
+  },
+
+  /**
+   * Admin-level deletion of narration.
+   * Uses standard delete with admin privileges.
+   */
+  async adminDeleteNarration(narrationId: string): Promise<void> {
     const { error } = await supabase
       .from('narrations')
       .delete()

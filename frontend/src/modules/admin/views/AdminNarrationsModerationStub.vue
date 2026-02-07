@@ -1,5 +1,8 @@
+<script setup lang="ts">
+import AdminNarrations from './AdminNarrations.vue';
+</script>
+
 <template>
-  <div class="p-10 text-center text-gray-700">
-    Stub: Narrations Moderation
-  </div>
+  <AdminNarrations />
 </template>
+
