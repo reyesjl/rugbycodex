@@ -1,4 +1,5 @@
 export type { ActiveOrgContext } from "./ActiveOrgContext";
+export type { AdminJobListItem } from "./AdminJobListItem";
 export type { ApproveAndCreateOrgResult } from "./ApproveAndCreateOrgResult";
 export type { Bytes } from "./Bytes";
 export type { CreateOrgPayload } from "./CreateOrgPayload";

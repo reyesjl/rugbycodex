@@ -364,7 +364,7 @@ onMounted(() => {
       </div>
       
       <!-- Filter Bar -->
-      <div class="flex flex-wrap items-center gap-3 border-y border-white/10 bg-black/50 p-4 -mx-6">
+      <div class="flex flex-wrap items-center gap-3 border-y border-white/10 bg-black/50 p-4">
         <!-- Show Count -->
         <div class="flex items-center gap-2">
           <span class="text-sm text-white/60">Show</span>
