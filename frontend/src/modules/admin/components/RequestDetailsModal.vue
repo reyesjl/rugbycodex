@@ -67,7 +67,7 @@ const profileLabel = (
 
 <template>
   <TransitionRoot :show="show" as="template">
-    <Dialog as="div" class="relative z-50" @close="handleClose">
+    <Dialog as="div" class="relative z-70" @close="handleClose">
       <TransitionChild
         as="template"
         enter="duration-300 ease-out"
@@ -77,7 +77,7 @@ const profileLabel = (
         leave-from="opacity-100"
         leave-to="opacity-0"
       >
-        <div class="fixed inset-0 bg-black/75 backdrop-blur-sm" />
+        <div class="fixed inset-0 bg-black/40 backdrop-blur-sm" />
       </TransitionChild>
 
       <div class="fixed inset-0 overflow-y-auto">
@@ -91,23 +91,16 @@ const profileLabel = (
             leave-from="opacity-100 scale-100"
             leave-to="opacity-0 scale-95"
           >
-            <DialogPanel class="w-full max-w-2xl transform overflow-hidden rounded-lg border border-white/20 bg-gray-900 text-left align-middle shadow-xl transition-all">
+            <DialogPanel class="bg-black border border-white/20 rounded-lg w-full max-w-2xl text-white my-8">
               <!-- Header -->
-              <div class="flex items-start justify-between border-b border-white/10 px-6 py-4">
-                <DialogTitle as="h3" class="text-lg font-semibold text-white">
+              <header class="p-4 border-b border-b-white/20">
+                <DialogTitle as="h2" class="text-lg font-semibold">
                   Request Details
                 </DialogTitle>
-                <button
-                  type="button"
-                  class="text-white/40 transition hover:text-white/70"
-                  @click="handleClose"
-                >
-                  <Icon icon="carbon:close" class="h-5 w-5" />
-                </button>
-              </div>
+              </header>
 
               <!-- Body -->
-              <div v-if="request" class="px-6 py-4 space-y-6">
+              <div v-if="request" class="p-4 space-y-6">
                 <!-- Basic Info -->
                 <div class="space-y-4">
                   <div class="flex items-start gap-3">
@@ -202,10 +195,10 @@ const profileLabel = (
               </div>
 
               <!-- Footer -->
-              <div class="flex items-center justify-end border-t border-white/10 px-6 py-4">
+              <div class="flex justify-end p-4 border-t border-t-white/20">
                 <button
                   type="button"
-                  class="rounded border border-white/20 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+                  class="px-4 py-2 text-sm rounded-lg border border-white/20 bg-white/10 hover:bg-white/20 transition"
                   @click="handleClose"
                 >
                   Close

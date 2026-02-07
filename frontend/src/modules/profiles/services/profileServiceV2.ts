@@ -1,7 +1,7 @@
 import { supabase } from "@/lib/supabaseClient";
 import type { User } from "@supabase/supabase-js";
 import { isPlatformAdmin, requireAuthUser, requireUserId } from "@/modules/auth/identity";
-import type { ActiveProfileContext, Profile, PublicProfileView, XPHistoryEntry } from "../types";
+import type { ActiveProfileContext, Profile, PublicProfileView, XPHistoryEntry, AdminUserListItem, UserOrgMembership } from "../types";
 import type { OrgMembership } from "@/modules/profiles/types/OrgMembership";
 
 /**
@@ -1018,5 +1018,67 @@ export const profileService = {
         "";
 
     return String(name).trim();
+    },
+
+    // ===========================================================================
+    // Admin Methods
+    // ===========================================================================
+
+    /**
+     * Lists all users with aggregated statistics (admin only).
+     * 
+     * @param filters Search, role, and pagination filters
+     * @returns Array of users with stats
+     */
+    async listAllUsers(filters: {
+        search?: string;
+        role?: 'user' | 'admin';
+        hasPrimaryOrg?: boolean;
+        limit?: number;
+        offset?: number;
+    }): Promise<AdminUserListItem[]> {
+        const { data, error } = await supabase.rpc('admin_list_users', {
+            p_search: filters.search || null,
+            p_role: filters.role || null,
+            p_has_primary_org: filters.hasPrimaryOrg ?? null,
+            p_limit: filters.limit || 20,
+            p_offset: filters.offset || 0,
+        });
+
+        if (error) throw error;
+        return data || [];
+    },
+
+    /**
+     * Updates a user's role (admin only).
+     * 
+     * @param userId User ID to update
+     * @param newRole New role ('user' or 'admin')
+     */
+    async updateUserRole(userId: string, newRole: 'user' | 'admin'): Promise<void> {
+        const { data, error } = await supabase.rpc('admin_update_user_role', {
+            p_user_id: userId,
+            p_new_role: newRole,
+        });
+
+        if (error) throw error;
+        if (!data?.success) {
+            throw new Error('Failed to update user role');
+        }
+    },
+
+    /**
+     * Gets all organization memberships for a user (admin only).
+     * 
+     * @param userId User ID to get organizations for
+     * @returns Array of organization memberships
+     */
+    async getUserOrganizations(userId: string): Promise<UserOrgMembership[]> {
+        const { data, error } = await supabase.rpc('admin_get_user_organizations', {
+            p_user_id: userId,
+        });
+
+        if (error) throw error;
+        return data || [];
     },
 };

@@ -1,4 +1,5 @@
 export type { ActiveProfileContext, ActiveProfileContextSource } from "./ActiveProfileContext";
+export type { AdminUserListItem } from "./AdminUserListItem";
 export type { MemberLeaderboardEntry } from "./MemberLeaderboardEntry";
 export type { MembershipRole, MembershipRoleOption } from "./membership";
 export { MEMBERSHIP_ROLES, ROLE_ORDER } from "./membership";
@@ -8,5 +9,6 @@ export type { ProfileDetail } from "./ProfileDetail";
 export type { ProfileWithMembership } from "./ProfileWithMembership";
 export type { PublicProfileView } from "./PublicProfileView";
 export type { UserProfile } from "./UserProfile";
+export type { UserOrgMembership } from "./UserOrgMembership";
 export type { XPHistoryEntry } from "./XPHistoryEntry";
 
