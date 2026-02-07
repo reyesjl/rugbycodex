@@ -10,7 +10,7 @@ import {
 import { Icon } from '@iconify/vue';
 import type { AdminMediaAssetListItem } from '@/modules/media/types/AdminMediaAssetListItem';
 
-const props = defineProps<{
+defineProps<{
   mediaAsset: AdminMediaAssetListItem;
 }>();
 
