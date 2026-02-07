@@ -18,7 +18,7 @@ const error = ref<string | null>(null);
 // Filter and pagination state
 const searchQuery = ref('');
 const debouncedSearch = ref('');
-const searchDebounceTimer = ref<NodeJS.Timeout | null>(null);
+const searchDebounceTimer = ref<ReturnType<typeof setTimeout> | null>(null);
 const roleFilter = ref<'all' | 'user' | 'admin'>('all');
 const activityFilter = ref<'all' | 'active' | 'inactive'>('all');
 const itemsPerPage = ref(20);
@@ -217,7 +217,7 @@ const confirmRoleChange = async (newRole: 'user' | 'admin') => {
 };
 
 const isSelf = (userId: string) => {
-  return userStore.userId === userId;
+  return userStore.profile?.id === userId;
 };
 
 // Pagination functions

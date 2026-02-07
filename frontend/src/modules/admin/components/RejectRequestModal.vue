@@ -7,7 +7,6 @@ import {
   TransitionChild,
   TransitionRoot,
 } from '@headlessui/vue';
-import { Icon } from '@iconify/vue';
 
 interface Props {
   show: boolean;

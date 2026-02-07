@@ -6,7 +6,6 @@ import {
   TransitionChild,
   TransitionRoot,
 } from '@headlessui/vue';
-import { Icon } from '@iconify/vue';
 import type { OrgRequestAdminView } from '@/modules/orgs/types';
 
 interface Props {
