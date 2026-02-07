@@ -168,7 +168,7 @@ onMounted(() => {
         <span class="text-sm text-white/60">Show</span>
         <div class="flex gap-1">
           <button
-            v-for="count in [20, 50, 100]"
+            v-for="count in counts"
             :key="count"
             @click="showCount = count"
             :class="[
