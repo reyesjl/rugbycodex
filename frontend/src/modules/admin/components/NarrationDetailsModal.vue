@@ -10,7 +10,7 @@ import {
 import { Icon } from '@iconify/vue';
 import type { AdminNarrationListItem } from '@/modules/narrations/types/AdminNarrationListItem';
 
-const props = defineProps<{
+defineProps<{
   narration: AdminNarrationListItem;
 }>();
 

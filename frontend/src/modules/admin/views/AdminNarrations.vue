@@ -117,7 +117,7 @@ async function handleEditSubmit(transcriptRaw: string) {
 
     // Update local state
     const index = narrations.value.findIndex(n => n.id === editingNarration.value!.id);
-    if (index !== -1) {
+    if (index !== -1 && narrations.value[index]) {
       narrations.value[index].transcript_raw = transcriptRaw;
     }
 
@@ -186,7 +186,7 @@ onMounted(() => {
       <div class="flex items-center gap-2">
         <span class="text-sm text-white/60">Show</span>
         <button
-          v-for="count in [20, 50, 100]"
+          v-for="count in [20, 50, 100] as const"
           :key="count"
           @click="showCount = count"
           :class="[
