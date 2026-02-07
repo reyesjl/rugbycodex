@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabaseClient';
-import type { DashboardStats } from '@/modules/admin/types';
+import type { DashboardStats, AdminDashboardOverview } from '@/modules/admin/types';
 
 async function getTableCount(table: string): Promise<number> {
   const { count, error } = await supabase.from(table).select('*', { count: 'exact', head: true });
@@ -29,4 +29,18 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     narrations,
     uploads,
   };
+}
+
+export async function getAdminDashboardOverview(): Promise<AdminDashboardOverview> {
+  const { data, error } = await supabase.rpc('admin_get_dashboard_overview');
+
+  if (error) {
+    throw new Error(`Failed to fetch admin dashboard overview: ${error.message}`);
+  }
+
+  if (!data) {
+    throw new Error('No data returned from admin dashboard overview');
+  }
+
+  return data as AdminDashboardOverview;
 }

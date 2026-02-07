@@ -18,6 +18,7 @@
     "@noble/hashes": "^2.0.1",
     "@supabase/supabase-js": "^2.58.0",
     "@vueuse/core": "^14.2.0",
+    "chart.js": "^4.5.1",
     "hls.js": "^1.5.17",
     "idb": "^8.0.3",
     "jwt-decode": "^4.0.0",
@@ -25,6 +26,7 @@
     "shaka-player": "^4.16.13",
     "tus-js-client": "^4.3.1",
     "vue": "^3.5.22",
+    "vue-chartjs": "^5.3.3",
     "vue-router": "^4.5.1"
   },
   "devDependencies": {

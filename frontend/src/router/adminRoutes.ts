@@ -7,8 +7,17 @@ export const adminRoutes: RouteRecordRaw = {
   children: [
     {
       path: '',
+      name: 'AdminDashboard',
+      component: () => import('@/modules/admin/views/AdminDashboardOverview.vue'),
+    },
+    {
+      path: 'orgs',
       name: 'AdminOrgs',
       component: () => import('@/modules/admin/views/AdminOrgs.vue'),
+    },
+    {
+      path: 'dashboard',
+      redirect: { name: 'AdminDashboard' },
     },
     {
       path: 'org-requests',
