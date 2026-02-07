@@ -1,71 +1,103 @@
 <script setup lang="ts">
 import { Icon } from "@iconify/vue";
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { Listbox, ListboxButton, ListboxOptions, ListboxOption } from '@headlessui/vue';
+import { computed, onMounted, ref, watch } from "vue";
+import { Menu, MenuButton, MenuItems, MenuItem } from '@headlessui/vue';
 import { orgService } from "@/modules/orgs/services/orgServiceV2";
 import { toast } from "@/lib/toast";
+import ConfirmApproveModal from '@/modules/admin/components/ConfirmApproveModal.vue';
+import RejectRequestModal from '@/modules/admin/components/RejectRequestModal.vue';
+import RequestDetailsModal from '@/modules/admin/components/RequestDetailsModal.vue';
 import type {
-  OrgRequestAdminFilters,
   OrgRequestAdminView,
   OrganizationRequestStatus,
 } from "@/modules/orgs/types";
 
-type ActionState = "approve" | "reject";
-
-type StatusOption = {
-  value: OrganizationRequestStatus | "all";
-  label: string;
-};
-
 const requests = ref<OrgRequestAdminView[]>([]);
 const loading = ref(false);
 const error = ref<string | null>(null);
-const statusFilter = ref<OrganizationRequestStatus | "all">("pending");
-const search = ref("");
-const actionById = ref<Record<string, ActionState>>({});
-const rejectionNotes = ref<Record<string, string>>({});
-const expandedById = ref<Record<string, boolean>>({});
 
-const statusOptions: StatusOption[] = [
-  { value: "pending", label: "Pending" },
-  { value: "approved", label: "Approved" },
-  { value: "rejected", label: "Rejected" },
-  { value: "contacted", label: "Contacted" },
-  { value: "all", label: "All" },
-];
+// Filter and pagination state
+const searchQuery = ref('');
+const debouncedSearch = ref('');
+const searchDebounceTimer = ref<NodeJS.Timeout | null>(null);
+const statusFilter = ref<'all' | OrganizationRequestStatus>('pending');
+const typeFilter = ref<'all' | 'team' | 'personal'>('all');
+const itemsPerPage = ref(20);
+const currentPage = ref(1);
+const totalCount = ref(0);
+const totalRequestsCount = ref(0);
 
-const selectedStatusOption = ref<StatusOption>(statusOptions[0]!);
+// Modal states
+const showApproveModal = ref(false);
+const showRejectModal = ref(false);
+const showDetailsModal = ref(false);
+const selectedRequest = ref<OrgRequestAdminView | null>(null);
+const isApproving = ref(false);
+const isRejecting = ref(false);
 
-watch(selectedStatusOption, (opt) => {
-  statusFilter.value = opt.value;
+// Computed
+const totalPages = computed(() => Math.ceil(totalCount.value / itemsPerPage.value));
+
+const visiblePageNumbers = computed(() => {
+  const pages: (number | string)[] = [];
+  const total = totalPages.value;
+  const current = currentPage.value;
+
+  if (total <= 7) {
+    for (let i = 1; i <= total; i++) {
+      pages.push(i);
+    }
+  } else {
+    pages.push(1);
+    if (current > 3) {
+      pages.push('...');
+    }
+    const start = Math.max(2, current - 1);
+    const end = Math.min(total - 1, current + 1);
+    for (let i = start; i <= end; i++) {
+      pages.push(i);
+    }
+    if (current < total - 2) {
+      pages.push('...');
+    }
+    pages.push(total);
+  }
+  return pages;
 });
 
-const pendingCount = computed(
-  () => requests.value.filter((request) => request.status === "pending").length
-);
-
-const reviewedCount = computed(
-  () => requests.value.filter((request) => request.status !== "pending").length
-);
-
-const buildFilters = (): OrgRequestAdminFilters => {
-  const filters: OrgRequestAdminFilters = {};
-  const trimmedSearch = search.value.trim();
-  if (statusFilter.value !== "all") {
-    filters.status = statusFilter.value;
+const filteredRequests = computed(() => {
+  let filtered = [...requests.value];
+  
+  // Client-side type filtering
+  if (typeFilter.value !== 'all') {
+    filtered = filtered.filter(req => req.requested_type === typeFilter.value);
   }
-  if (trimmedSearch) {
-    filters.search = trimmedSearch;
-  }
-  return filters;
-};
+  
+  return filtered;
+});
+
+const paginatedRequests = computed(() => {
+  const start = (currentPage.value - 1) * itemsPerPage.value;
+  const end = start + itemsPerPage.value;
+  return filteredRequests.value.slice(start, end);
+});
 
 const loadRequests = async () => {
   loading.value = true;
   error.value = null;
   try {
-    requests.value = await orgService.listOrgRequests(buildFilters());
-    expandedById.value = {};
+    const filters: any = {};
+    
+    if (debouncedSearch.value.trim()) {
+      filters.search = debouncedSearch.value.trim();
+    }
+    
+    if (statusFilter.value !== 'all') {
+      filters.status = statusFilter.value;
+    }
+    
+    requests.value = await orgService.listOrgRequests(filters);
+    totalCount.value = filteredRequests.value.length;
   } catch (err) {
     const message =
       err instanceof Error ? err.message : "Failed to load organization requests.";
@@ -79,66 +111,17 @@ const loadRequests = async () => {
   }
 };
 
-const handleApprove = async (request: OrgRequestAdminView) => {
-  if (request.status !== "pending") return;
-  if (!window.confirm(`Approve request for ${request.requested_name}?`)) {
-    return;
-  }
-  actionById.value[request.id] = "approve";
+const loadTotalCount = async () => {
   try {
-    await orgService.approveAndCreateOrg(request.id);
-    toast({
-      variant: "success",
-      message: `Approved ${request.requested_name}.`,
-    });
-    await loadRequests();
+    const allRequests = await orgService.listOrgRequests({});
+    totalRequestsCount.value = allRequests.length;
   } catch (err) {
-    toast({
-      variant: "error",
-      message: err instanceof Error ? err.message : "Failed to approve request.",
-    });
-  } finally {
-    delete actionById.value[request.id];
+    console.error('Failed to load total request count:', err);
   }
-};
-
-const handleReject = async (request: OrgRequestAdminView) => {
-  if (request.status !== "pending") return;
-  const notes = rejectionNotes.value[request.id]?.trim() || undefined;
-  const confirmMessage = notes
-    ? `Reject request for ${request.requested_name} with notes?`
-    : `Reject request for ${request.requested_name}?`;
-  if (!window.confirm(confirmMessage)) {
-    return;
-  }
-  actionById.value[request.id] = "reject";
-  try {
-    await orgService.rejectOrgRequest(request.id, notes);
-    toast({
-      variant: "success",
-      message: `Rejected ${request.requested_name}.`,
-    });
-    rejectionNotes.value[request.id] = "";
-    await loadRequests();
-  } catch (err) {
-    toast({
-      variant: "error",
-      message: err instanceof Error ? err.message : "Failed to reject request.",
-    });
-  } finally {
-    delete actionById.value[request.id];
-  }
-};
-
-const formatDate = (value: Date | string | null | undefined) => {
-  if (!value) return "-";
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return String(value);
-  return date.toLocaleString();
 };
 
 const formatRelative = (value: Date | string | null | undefined) => {
-  if (!value) return "-";
+  if (!value) return "Never";
   const date = value instanceof Date ? value : new Date(value);
   const ms = date.getTime();
   if (Number.isNaN(ms)) return String(value);
@@ -164,23 +147,24 @@ const formatRelative = (value: Date | string | null | undefined) => {
 
 const typeLabel = (value: string | null | undefined) => {
   const normalized = (value || "").toLowerCase();
-  if (normalized === "team" || normalized === "organization") return "TEAM";
-  if (normalized === "personal" || normalized === "individual") return "PERSONAL";
-  return "UNKNOWN";
+  if (normalized === "team" || normalized === "organization") return "Team";
+  if (normalized === "personal" || normalized === "individual") return "Personal";
+  return "Unknown";
 };
 
-const isExpanded = (id: string) => !!expandedById.value[id];
-const toggleExpanded = (id: string) => {
-  expandedById.value[id] = !expandedById.value[id];
-};
-
-const reviewedSummary = (request: OrgRequestAdminView) => {
-  const when = request.reviewed_at ? formatRelative(request.reviewed_at) : null;
-  const who = request.reviewed_by || request.reviewer ? profileLabel(request.reviewer, request.reviewed_by) : null;
-  if (when && who) return `Reviewed ${when} by ${who}`;
-  if (when) return `Reviewed ${when}`;
-  if (who) return `Reviewed by ${who}`;
-  return "Reviewed";
+const statusBadgeClass = (status: string) => {
+  switch (status) {
+    case "pending":
+      return "bg-amber-500/10 text-amber-400 border-amber-500/20";
+    case "approved":
+      return "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
+    case "rejected":
+      return "bg-rose-500/10 text-rose-400 border-rose-500/20";
+    case "contacted":
+      return "bg-sky-500/10 text-sky-400 border-sky-500/20";
+    default:
+      return "bg-white/5 text-white/70 border-white/20";
+  }
 };
 
 const profileLabel = (
@@ -194,307 +178,473 @@ const profileLabel = (
   return "Unknown";
 };
 
-const statusBadgeClass = (status: string) => {
-  switch (status) {
-    case "pending":
-      return "border-amber-400/40 bg-amber-400/15 text-amber-200";
-    case "approved":
-      return "border-emerald-400/40 bg-emerald-400/15 text-emerald-200";
-    case "rejected":
-      return "border-rose-400/40 bg-rose-400/15 text-rose-200";
-    case "contacted":
-      return "border-sky-400/40 bg-sky-400/15 text-sky-200";
-    default:
-      return "border-white/20 bg-white/5 text-white/70";
+const reviewedSummary = (request: OrgRequestAdminView) => {
+  const when = request.reviewed_at ? formatRelative(request.reviewed_at) : null;
+  const who = request.reviewed_by || request.reviewer ? profileLabel(request.reviewer, request.reviewed_by) : null;
+  if (when && who) return `Reviewed ${when} by ${who}`;
+  if (when) return `Reviewed ${when}`;
+  if (who) return `Reviewed by ${who}`;
+  return "Reviewed";
+};
+
+// Modal actions
+const openApproveModal = (request: OrgRequestAdminView) => {
+  selectedRequest.value = request;
+  showApproveModal.value = true;
+};
+
+const closeApproveModal = () => {
+  if (isApproving.value) return;
+  showApproveModal.value = false;
+  selectedRequest.value = null;
+};
+
+const confirmApprove = async () => {
+  if (!selectedRequest.value) return;
+  
+  isApproving.value = true;
+  try {
+    await orgService.approveAndCreateOrg(selectedRequest.value.id);
+    toast({
+      variant: "success",
+      message: `Approved ${selectedRequest.value.requested_name}.`,
+    });
+    closeApproveModal();
+    await loadRequests();
+    await loadTotalCount();
+  } catch (err) {
+    toast({
+      variant: "error",
+      message: err instanceof Error ? err.message : "Failed to approve request.",
+    });
+  } finally {
+    isApproving.value = false;
   }
 };
 
-let refreshTimer: number | undefined;
-const scheduleRefresh = () => {
-  if (refreshTimer) window.clearTimeout(refreshTimer);
-  refreshTimer = window.setTimeout(() => {
-    void loadRequests();
-  }, 250);
+const openRejectModal = (request: OrgRequestAdminView) => {
+  selectedRequest.value = request;
+  showRejectModal.value = true;
 };
 
-watch([statusFilter, search], () => {
-  scheduleRefresh();
+const closeRejectModal = () => {
+  if (isRejecting.value) return;
+  showRejectModal.value = false;
+  selectedRequest.value = null;
+};
+
+const confirmReject = async (reason: string) => {
+  if (!selectedRequest.value) return;
+  
+  isRejecting.value = true;
+  try {
+    await orgService.rejectOrgRequest(selectedRequest.value.id, reason);
+    toast({
+      variant: "success",
+      message: `Rejected ${selectedRequest.value.requested_name}.`,
+    });
+    closeRejectModal();
+    await loadRequests();
+    await loadTotalCount();
+  } catch (err) {
+    toast({
+      variant: "error",
+      message: err instanceof Error ? err.message : "Failed to reject request.",
+    });
+  } finally {
+    isRejecting.value = false;
+  }
+};
+
+const openDetailsModal = (request: OrgRequestAdminView) => {
+  selectedRequest.value = request;
+  showDetailsModal.value = true;
+};
+
+const closeDetailsModal = () => {
+  showDetailsModal.value = false;
+  selectedRequest.value = null;
+};
+
+// Pagination functions
+const goToPage = (page: number) => {
+  if (page < 1 || page > totalPages.value) return;
+  currentPage.value = page;
+};
+
+const nextPage = () => {
+  if (currentPage.value < totalPages.value) {
+    currentPage.value++;
+  }
+};
+
+const prevPage = () => {
+  if (currentPage.value > 1) {
+    currentPage.value--;
+  }
+};
+
+const resetToFirstPage = () => {
+  currentPage.value = 1;
+};
+
+// Debounce search input
+watch(searchQuery, (newValue) => {
+  if (searchDebounceTimer.value) {
+    clearTimeout(searchDebounceTimer.value);
+  }
+  
+  searchDebounceTimer.value = setTimeout(() => {
+    debouncedSearch.value = newValue;
+    resetToFirstPage();
+  }, 500);
 });
 
-onBeforeUnmount(() => {
-  if (refreshTimer) window.clearTimeout(refreshTimer);
+// Watch filters to reset to first page and reload
+watch([debouncedSearch, statusFilter, typeFilter, itemsPerPage], () => {
+  resetToFirstPage();
+  void loadRequests();
+});
+
+// Watch filtered results to update total count
+watch(filteredRequests, (newFiltered) => {
+  totalCount.value = newFiltered.length;
 });
 
 onMounted(() => {
   void loadRequests();
+  void loadTotalCount();
 });
 </script>
 
 <template>
-  <section class="container-lg space-y-6 py-5 text-white">
-    <header class="space-y-4">
-      <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-        <div>
-          <h1 class="text-3xl font-semibold">Organization Requests</h1>
-          <p class="text-white/70">Review pending requests. Audit details are available per item.</p>
-        </div>
-
-        <div class="flex flex-wrap items-end gap-3">
-          <div class="flex flex-col gap-1">
-            <label
-              class="text-[11px] uppercase tracking-[0.3em] text-white/50"
+  <section class="container-lg text-white py-6">
+    <div class="flex flex-col gap-4 mb-4">
+      <div class="flex items-center gap-3">
+        <h1 class="text-3xl">Organization Requests</h1>
+        <span class="text-lg text-white/40">({{ totalRequestsCount.toLocaleString() }})</span>
+      </div>
+      
+      <!-- Filter Bar -->
+      <div class="flex flex-col gap-3 text-sm mb-6">
+        <!-- First Row: Show Count and Status/Type Filters -->
+        <div class="flex flex-col md:flex-row md:flex-wrap items-start md:items-center gap-4">
+          <!-- Show Count -->
+          <div class="flex items-center gap-2">
+            <span class="text-white/50">Show</span>
+            <button
+              type="button"
+              @click="itemsPerPage = 20; resetToFirstPage()"
+              class="transition px-2 py-0.5 rounded"
+              :class="itemsPerPage === 20 ? 'text-white font-semibold bg-white/10' : 'text-white/40 hover:text-white/60'"
             >
-              Status
-            </label>
-            <Listbox v-model="selectedStatusOption" :disabled="loading">
-              <div class="relative">
-                <ListboxButton class="relative w-full cursor-pointer rounded border border-white/20 bg-black/40 px-2 py-1 pr-8 text-left text-xs text-white outline-none disabled:opacity-50">
-                  <span class="block truncate">{{ selectedStatusOption.label }}</span>
-                  <span class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
-                    <Icon icon="carbon:chevron-down" class="h-4 w-4 text-white/40" />
-                  </span>
-                </ListboxButton>
-                
-                <transition
-                  leave-active-class="transition duration-100 ease-in"
-                  leave-from-class="opacity-100"
-                  leave-to-class="opacity-0"
-                >
-                  <ListboxOptions class="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-gray-900 border border-white/20 py-1 text-sm shadow-lg focus:outline-none">
-                    <ListboxOption
-                      v-for="option in statusOptions"
-                      :key="option.value"
-                      :value="option"
-                      as="template"
-                      v-slot="{ active, selected }"
-                    >
-                      <li
-                        class="relative cursor-pointer select-none py-2 pl-3 pr-9"
-                        :class="active ? 'bg-white/10 text-white' : 'text-white/70'"
-                      >
-                        <span :class="selected ? 'font-semibold' : 'font-normal'" class="block truncate">
-                          {{ option.label }}
-                        </span>
-                        <span v-if="selected" class="absolute inset-y-0 right-0 flex items-center pr-3 text-green-500">
-                          <Icon icon="carbon:checkmark" class="h-4 w-4" />
-                        </span>
-                      </li>
-                    </ListboxOption>
-                  </ListboxOptions>
-                </transition>
-              </div>
-            </Listbox>
+              20
+            </button>
+            <div class="h-4 w-px bg-white/20"></div>
+            <button
+              type="button"
+              @click="itemsPerPage = 50; resetToFirstPage()"
+              class="transition px-2 py-0.5 rounded"
+              :class="itemsPerPage === 50 ? 'text-white font-semibold bg-white/10' : 'text-white/40 hover:text-white/60'"
+            >
+              50
+            </button>
+            <div class="h-4 w-px bg-white/20"></div>
+            <button
+              type="button"
+              @click="itemsPerPage = 100; resetToFirstPage()"
+              class="transition px-2 py-0.5 rounded"
+              :class="itemsPerPage === 100 ? 'text-white font-semibold bg-white/10' : 'text-white/40 hover:text-white/60'"
+            >
+              100
+            </button>
           </div>
 
-          <div class="flex flex-col gap-1">
-            <label
-              class="text-[11px] uppercase tracking-[0.3em] text-white/50"
-              for="search-requests"
+          <!-- Status Filters -->
+          <div class="flex items-center gap-2">
+            <button
+              type="button"
+              @click="statusFilter = 'all'"
+              class="transition px-2 py-0.5 rounded"
+              :class="statusFilter === 'all' ? 'text-white font-semibold bg-white/10' : 'text-white/40 hover:text-white/60'"
             >
-              Search
-            </label>
+              All
+            </button>
+            <div class="h-4 w-px bg-white/20"></div>
+            <button
+              type="button"
+              @click="statusFilter = 'pending'"
+              class="transition px-2 py-0.5 rounded"
+              :class="statusFilter === 'pending' ? 'text-white font-semibold bg-white/10' : 'text-white/40 hover:text-white/60'"
+            >
+              Pending
+            </button>
+            <div class="h-4 w-px bg-white/20"></div>
+            <button
+              type="button"
+              @click="statusFilter = 'approved'"
+              class="transition px-2 py-0.5 rounded"
+              :class="statusFilter === 'approved' ? 'text-white font-semibold bg-white/10' : 'text-white/40 hover:text-white/60'"
+            >
+              Approved
+            </button>
+            <div class="h-4 w-px bg-white/20"></div>
+            <button
+              type="button"
+              @click="statusFilter = 'rejected'"
+              class="transition px-2 py-0.5 rounded"
+              :class="statusFilter === 'rejected' ? 'text-white font-semibold bg-white/10' : 'text-white/40 hover:text-white/60'"
+            >
+              Rejected
+            </button>
+            <div class="h-4 w-px bg-white/20"></div>
+            <button
+              type="button"
+              @click="statusFilter = 'contacted'"
+              class="transition px-2 py-0.5 rounded"
+              :class="statusFilter === 'contacted' ? 'text-white font-semibold bg-white/10' : 'text-white/40 hover:text-white/60'"
+            >
+              Contacted
+            </button>
+          </div>
+
+          <!-- Type Filters -->
+          <div class="flex items-center gap-2">
+            <button
+              type="button"
+              @click="typeFilter = 'all'"
+              class="transition px-2 py-0.5 rounded"
+              :class="typeFilter === 'all' ? 'text-white font-semibold bg-white/10' : 'text-white/40 hover:text-white/60'"
+            >
+              All Types
+            </button>
+            <div class="h-4 w-px bg-white/20"></div>
+            <button
+              type="button"
+              @click="typeFilter = 'team'"
+              class="transition px-2 py-0.5 rounded"
+              :class="typeFilter === 'team' ? 'text-white font-semibold bg-white/10' : 'text-white/40 hover:text-white/60'"
+            >
+              Team
+            </button>
+            <div class="h-4 w-px bg-white/20"></div>
+            <button
+              type="button"
+              @click="typeFilter = 'personal'"
+              class="transition px-2 py-0.5 rounded"
+              :class="typeFilter === 'personal' ? 'text-white font-semibold bg-white/10' : 'text-white/40 hover:text-white/60'"
+            >
+              Personal
+            </button>
+          </div>
+        </div>
+
+        <!-- Second Row: Search Bar -->
+        <div class="flex items-center gap-3">
+          <div class="relative flex-1 max-w-md">
+            <Icon 
+              icon="carbon:search" 
+              class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40"
+            />
             <input
-              id="search-requests"
-              v-model="search"
+              v-model="searchQuery"
               type="text"
-              placeholder="Search by name"
-              class="rounded border border-white/20 bg-black/40 px-2 py-1 text-xs text-white outline-none"
-              :disabled="loading"
-              autocomplete="off"
+              placeholder="Search by name..."
+              class="w-full rounded border border-white/20 bg-black/40 pl-9 pr-3 py-2 text-sm text-white outline-none transition focus:border-white/40"
             />
           </div>
-
-          <button
-            type="button"
-            class="inline-flex items-center justify-center rounded border border-white/20 bg-white/5 p-2 text-white/80 transition hover:bg-white/10 disabled:opacity-60"
-            :disabled="loading"
-            aria-label="Refresh"
-            title="Refresh"
-            @click="loadRequests"
-          >
-            <span class="sr-only">Refresh</span>
-            <Icon icon="carbon:renew" width="18" height="18" />
-          </button>
         </div>
       </div>
-
-      <div class="flex flex-wrap gap-4 text-xs uppercase tracking-[0.3em] text-white/40">
-        <span>Total: {{ requests.length }}</span>
-        <span>Pending: {{ pendingCount }}</span>
-        <span v-if="reviewedCount">Reviewed: {{ reviewedCount }}</span>
-      </div>
-    </header>
-
-    <div v-if="loading" class="rounded-lg border border-white/10 bg-white/5 p-6 text-white/70">
-      Loading organization requests...
     </div>
 
+    <!-- Loading State -->
+    <div v-if="loading" class="space-y-3">
+      <div v-for="i in 5" :key="i" class="rounded-lg border border-white/10 bg-white/5 p-5 animate-pulse">
+        <div class="flex items-start justify-between">
+          <div class="flex-1 space-y-3">
+            <div class="h-5 bg-white/10 rounded w-1/3"></div>
+            <div class="h-4 bg-white/10 rounded w-1/4"></div>
+          </div>
+          <div class="h-6 w-20 bg-white/10 rounded"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Error State -->
     <div v-else-if="error" class="rounded-lg border border-rose-400/40 bg-rose-500/10 p-6 text-white">
       <p class="font-semibold">Unable to load organization requests.</p>
       <p class="mt-2 text-sm text-white/80">{{ error }}</p>
     </div>
 
+    <!-- Empty State -->
     <div
-      v-else-if="requests.length === 0"
-      class="rounded-lg border border-white/10 bg-white/5 p-6 text-white/70"
+      v-else-if="paginatedRequests.length === 0"
+      class="rounded-lg border border-white/10 bg-white/5 p-6 text-center text-white/70"
     >
-      No organization requests match the current filters.
+      No organization requests found.
     </div>
 
+    <!-- Request Cards -->
     <div v-else class="space-y-3">
       <div
-        v-for="request in requests"
+        v-for="request in paginatedRequests"
         :key="request.id"
-        class="rounded-lg border bg-white/5"
-        :class="[
-          request.status === 'pending'
-            ? 'border-white/15'
-            : 'border-white/10 opacity-80',
-        ]"
+        class="relative group rounded-lg border border-white/10 bg-white/5 transition cursor-pointer hover:bg-white/10"
+        @click="openDetailsModal(request)"
       >
-        <div
-          class="flex items-start gap-4 px-5 py-4"
-          :class="[
-            request.status === 'pending'
-              ? 'border-l-2 border-amber-300/60'
-              : 'border-l-2 border-transparent',
-          ]"
-        >
-          <div class="min-w-0 flex-1">
-            <div class="flex flex-wrap items-start justify-between gap-3">
-              <div class="min-w-0">
-                <div class="flex flex-wrap items-center gap-2">
-                  <div class="truncate text-base font-semibold text-white">
-                    {{ request.requested_name }}
-                  </div>
-                  <span
-                    class="inline-flex rounded-full border border-white/20 bg-black/30 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-white/80"
-                  >
-                    {{ typeLabel(request.requested_type) }}
-                  </span>
-                </div>
-
-                <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-white/60">
-                  <span class="text-white/70">
-                    {{ profileLabel(request.requester, request.requester_id) }}
-                  </span>
-                  <span class="text-white/35">•</span>
-                  <span v-if="request.status === 'pending'">Requested {{ formatRelative(request.created_at) }}</span>
-                </div>
-              </div>
-
-              <div class="flex items-center gap-2">
-                <span
-                  class="inline-flex rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide"
-                  :class="statusBadgeClass(request.status)"
-                >
-                  {{ request.status }}
-                </span>
-
-                <button
-                  type="button"
-                  class="inline-flex items-center gap-2 rounded border border-white/15 bg-white/5 px-3 py-2 text-xs font-semibold text-white/80 transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/20"
-                  :aria-expanded="isExpanded(request.id) ? 'true' : 'false'"
-                  :aria-controls="`org-request-details-${request.id}`"
-                  @click="toggleExpanded(request.id)"
-                >
-                  <span>Details</span>
-                  <Icon
-                    icon="carbon:chevron-down"
-                    width="16"
-                    height="16"
-                    class="transition-transform"
-                    :class="[ isExpanded(request.id) ? 'rotate-180' : 'rotate-0' ]"
-                  />
-                </button>
-              </div>
+        <div class="p-5">
+          <!-- Top Row: Name, Type, Status, Menu -->
+          <div class="flex items-start justify-between gap-4 mb-3">
+            <div class="flex items-center gap-2 flex-1 min-w-0">
+              <h3 class="text-lg font-semibold text-white truncate">
+                {{ request.requested_name }}
+              </h3>
+              <span class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-white/70 border-white/20 bg-black/30 shrink-0">
+                {{ typeLabel(request.requested_type) }}
+              </span>
             </div>
 
-            <p
-              class="mt-3 truncate text-sm text-white/75"
-              :title="request.message || ''"
-            >
-              {{ request.message || 'No message provided.' }}
-            </p>
+            <div class="flex items-center gap-2 shrink-0">
+              <span
+                class="inline-flex rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide"
+                :class="statusBadgeClass(request.status)"
+              >
+                {{ request.status }}
+              </span>
 
-            <div v-if="request.status === 'pending'" class="mt-4 space-y-2">
-              <textarea
-                v-model="rejectionNotes[request.id]"
-                rows="2"
-                placeholder="Rejection notes (optional)"
-                class="w-full rounded border border-white/20 bg-black/40 px-2 py-2 text-xs text-white outline-none focus:border-white/30"
-                :disabled="!!actionById[request.id]"
-              ></textarea>
-
-              <div class="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  class="rounded border border-emerald-400 bg-emerald-500/70 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-emerald-500 disabled:opacity-60"
-                  :disabled="!!actionById[request.id]"
-                  @click="handleApprove(request)"
+              <!-- Three-dot menu -->
+              <Menu as="div" class="relative z-10">
+                <MenuButton
+                  class="inline-flex items-center justify-center rounded p-1.5 text-white/60 transition hover:bg-white/10 hover:text-white"
+                  @click.stop
                 >
-                  <span v-if="actionById[request.id] === 'approve'">Approving...</span>
-                  <span v-else>Approve</span>
-                </button>
-                <button
-                  type="button"
-                  class="rounded border border-rose-400 bg-rose-500/70 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-rose-500 disabled:opacity-60"
-                  :disabled="!!actionById[request.id]"
-                  @click="handleReject(request)"
+                  <Icon icon="carbon:overflow-menu-vertical" class="h-5 w-5" />
+                </MenuButton>
+                <transition
+                  enter-active-class="transition duration-100 ease-out"
+                  enter-from-class="transform scale-95 opacity-0"
+                  enter-to-class="transform scale-100 opacity-100"
+                  leave-active-class="transition duration-75 ease-in"
+                  leave-from-class="transform scale-100 opacity-100"
+                  leave-to-class="transform scale-95 opacity-0"
                 >
-                  <span v-if="actionById[request.id] === 'reject'">Rejecting...</span>
-                  <span v-else>Reject</span>
-                </button>
-              </div>
-            </div>
-            <div v-else class="mt-4 text-xs text-white/45">
-              {{ reviewedSummary(request) }}
-            </div>
-          </div>
-        </div>
-
-        <div
-          v-if="isExpanded(request.id)"
-          :id="`org-request-details-${request.id}`"
-          class="border-t border-white/10 bg-black/20 px-5 py-4 text-sm text-white/70"
-        >
-          <div class="grid gap-3 md:grid-cols-2">
-            <div>
-              <div class="text-xs uppercase tracking-[0.25em] text-white/40">Requested</div>
-              <div class="mt-1 text-white/75">{{ formatDate(request.created_at) }}</div>
-            </div>
-
-            <div>
-              <div class="text-xs uppercase tracking-[0.25em] text-white/40">Reviewed</div>
-              <div class="mt-1 text-white/75">{{ formatDate(request.reviewed_at) }}</div>
-              <div v-if="request.reviewed_by || request.reviewer" class="mt-1 text-xs text-white/50">
-                {{ profileLabel(request.reviewer, request.reviewed_by) }}
-              </div>
+                  <MenuItems class="absolute right-0 mt-2 w-48 origin-top-right rounded-lg border border-white/20 bg-gray-900 shadow-lg focus:outline-none overflow-hidden">
+                    <MenuItem v-if="request.status === 'pending'" v-slot="{ active }">
+                      <button
+                        @click.stop="openApproveModal(request)"
+                        class="w-full text-left px-4 py-2.5 text-sm transition flex items-center gap-2"
+                        :class="active ? 'bg-white/10 text-white' : 'text-white/70'"
+                      >
+                        <Icon icon="carbon:checkmark" class="h-4 w-4" />
+                        Approve
+                      </button>
+                    </MenuItem>
+                    <MenuItem v-if="request.status === 'pending'" v-slot="{ active }">
+                      <button
+                        @click.stop="openRejectModal(request)"
+                        class="w-full text-left px-4 py-2.5 text-sm transition flex items-center gap-2"
+                        :class="active ? 'bg-white/10 text-white' : 'text-white/70'"
+                      >
+                        <Icon icon="carbon:close" class="h-4 w-4" />
+                        Reject with Reason
+                      </button>
+                    </MenuItem>
+                    <MenuItem v-slot="{ active }">
+                      <button
+                        @click.stop="openDetailsModal(request)"
+                        class="w-full text-left px-4 py-2.5 text-sm transition flex items-center gap-2"
+                        :class="active ? 'bg-white/10 text-white' : 'text-white/70'"
+                      >
+                        <Icon icon="carbon:information" class="h-4 w-4" />
+                        View Details
+                      </button>
+                    </MenuItem>
+                  </MenuItems>
+                </transition>
+              </Menu>
             </div>
           </div>
 
-          <div class="mt-4">
-            <div class="text-xs uppercase tracking-[0.25em] text-white/40">Review Notes</div>
-            <p class="mt-1 whitespace-pre-line text-white/75">
-              {{ request.review_notes || '—' }}
-            </p>
+          <!-- Second Row: Requester and Time -->
+          <div class="flex items-center gap-2 text-sm text-white/60 mb-2">
+            <span class="text-white/70">{{ profileLabel(request.requester, request.requester_id) }}</span>
+            <span class="text-white/30">•</span>
+            <span>Requested {{ formatRelative(request.created_at) }}</span>
           </div>
 
-          <div class="mt-4">
-            <div class="text-xs uppercase tracking-[0.25em] text-white/40">Internal IDs</div>
-            <div class="mt-2 grid gap-2 text-xs text-white/60 md:grid-cols-2">
-              <div><span class="text-white/40">Request:</span> {{ request.id }}</div>
-              <div><span class="text-white/40">Requester:</span> {{ request.requester_id || '—' }}</div>
-              <div><span class="text-white/40">Organization:</span> {{ request.organization_id || '—' }}</div>
-              <div><span class="text-white/40">Reviewed By:</span> {{ request.reviewed_by || '—' }}</div>
-            </div>
+          <!-- Message -->
+          <p v-if="request.message" class="text-sm text-white/60 line-clamp-2 mb-2">
+            {{ request.message }}
+          </p>
+
+          <!-- Review Summary (for reviewed requests) -->
+          <div v-if="request.status !== 'pending'" class="text-xs text-white/45 italic">
+            {{ reviewedSummary(request) }}
+            <span v-if="request.review_notes" class="ml-2">— {{ request.review_notes }}</span>
           </div>
         </div>
       </div>
     </div>
+
+    <!-- Pagination -->
+    <div v-if="!loading && paginatedRequests.length > 0 && totalPages > 1" class="flex items-center justify-center gap-2 mt-6">
+      <button
+        type="button"
+        @click="prevPage"
+        :disabled="currentPage === 1"
+        class="rounded border border-white/20 bg-white/5 p-2 text-white/70 transition hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed"
+      >
+        <Icon icon="carbon:chevron-left" class="h-4 w-4" />
+      </button>
+
+      <template v-for="page in visiblePageNumbers" :key="page">
+        <button
+          v-if="typeof page === 'number'"
+          type="button"
+          @click="goToPage(page)"
+          class="min-w-[2rem] rounded border px-3 py-1 text-sm transition"
+          :class="currentPage === page 
+            ? 'border-white/40 bg-white/20 text-white font-semibold' 
+            : 'border-white/20 bg-white/5 text-white/60 hover:bg-white/10'"
+        >
+          {{ page }}
+        </button>
+        <span v-else class="text-white/40 px-1">{{ page }}</span>
+      </template>
+
+      <button
+        type="button"
+        @click="nextPage"
+        :disabled="currentPage === totalPages"
+        class="rounded border border-white/20 bg-white/5 p-2 text-white/70 transition hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed"
+      >
+        <Icon icon="carbon:chevron-right" class="h-4 w-4" />
+      </button>
+    </div>
+
+    <!-- Modals -->
+    <ConfirmApproveModal
+      :show="showApproveModal"
+      :request-name="selectedRequest?.requested_name || ''"
+      :requester-name="profileLabel(selectedRequest?.requester, selectedRequest?.requester_id)"
+      :loading="isApproving"
+      @close="closeApproveModal"
+      @confirm="confirmApprove"
+    />
+
+    <RejectRequestModal
+      :show="showRejectModal"
+      :request-name="selectedRequest?.requested_name || ''"
+      :requester-name="profileLabel(selectedRequest?.requester, selectedRequest?.requester_id)"
+      :loading="isRejecting"
+      @close="closeRejectModal"
+      @confirm="confirmReject"
+    />
+
+    <RequestDetailsModal
+      :show="showDetailsModal"
+      :request="selectedRequest"
+      @close="closeDetailsModal"
+    />
   </section>
 </template>
-
-<style scoped>
-
-</style>
