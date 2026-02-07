@@ -19,7 +19,7 @@ const error = ref<string | null>(null);
 // Filter and pagination state
 const searchQuery = ref('');
 const debouncedSearch = ref('');
-const searchDebounceTimer = ref<NodeJS.Timeout | null>(null);
+const searchDebounceTimer = ref<ReturnType<typeof setTimeout> | null>(null);
 const statusFilter = ref<'all' | OrganizationRequestStatus>('pending');
 const typeFilter = ref<'all' | 'team' | 'personal'>('all');
 const itemsPerPage = ref(20);
