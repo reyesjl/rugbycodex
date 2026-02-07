@@ -14,6 +14,9 @@ const typeFilter = ref<JobType | 'all'>('all');
 const searchQuery = ref('');
 const debouncedSearch = ref('');
 
+// Valid show counts
+const counts = [20, 50, 100] as const;
+
 // Pagination
 const currentPage = ref(1);
 
