@@ -191,7 +191,7 @@ void mobileSheetRef.value;
           </li>
         </ul>
         <div class="text-xs text-gray-400 px-4 py-3 mt-auto">
-          v0.11.4-beta
+          v0.12.0-beta
         </div>
       </nav>
     </div>
@@ -237,6 +237,15 @@ void mobileSheetRef.value;
                   @click="handleSidebarToggle">
                   <Icon icon="carbon:task" width="20" height="20" class="mr-5" />
                   Assignments
+                </RouterLink>
+              </li>
+              <li v-if="canManageOrgTools">
+                <RouterLink :to="`/organizations/${orgContext?.organization.slug}/playlists`"
+                  active-class="bg-white text-black hover:!bg-white"
+                  class="flex items-center px-4 py-2 hover:bg-white/10 rounded"
+                  @click="handleSidebarToggle">
+                  <Icon icon="carbon:playlist" width="20" height="20" class="mr-5" />
+                  Playlists
                 </RouterLink>
               </li>
               <li>
@@ -342,7 +351,7 @@ void mobileSheetRef.value;
         </nav>
       </div>
       <div class="text-xs text-gray-400 px-4 py-3">
-       v0.11.4-beta
+       v0.12.0-beta
       </div>
     </div>
   </div>
