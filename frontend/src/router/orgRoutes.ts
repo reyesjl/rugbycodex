@@ -116,6 +116,20 @@ export const orgRoutes: RouteRecordRaw = {
           meta: { minOrgRole: 'staff' },
         },
         {
+          path: 'playlists',
+          name: 'OrgPlaylists',
+          component: () => import('@/modules/playlists/views/OrgPlaylistsView.vue'),
+          props: true,
+          meta: { minOrgRole: 'staff' },
+        },
+        {
+          path: 'playlists/:playlistId',
+          name: 'OrgPlaylistDetail',
+          component: () => import('@/modules/playlists/views/OrgPlaylistDetailView.vue'),
+          props: true,
+          meta: { minOrgRole: 'staff' },
+        },
+        {
           path: 'groups',
           name: 'OrgGroups',
           component: () => import('@/modules/groups/views/OrgGroups.vue'),

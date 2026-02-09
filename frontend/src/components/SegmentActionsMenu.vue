@@ -5,12 +5,14 @@ import { Icon } from '@iconify/vue';
 defineProps<{
   canDelete: boolean;
   narrationCount?: number;
+  canAddToPlaylist?: boolean;
 }>();
 
 const emit = defineEmits<{
   (e: 'delete'): void;
   (e: 'addNarration'): void;
   (e: 'assign'): void;
+  (e: 'addToPlaylist'): void;
 }>();
 </script>
 
@@ -57,6 +59,18 @@ const emit = defineEmits<{
             >
               <Icon icon="carbon:user-multiple" class="h-4 w-4" />
               Assign to players
+            </button>
+          </MenuItem>
+
+          <MenuItem v-if="canAddToPlaylist" v-slot="{ active }">
+            <button
+              type="button"
+              class="flex w-full items-center gap-2 px-3 py-2 text-sm text-white"
+              :class="active ? 'bg-white/10' : ''"
+              @click.stop="emit('addToPlaylist')"
+            >
+              <Icon icon="carbon:playlist" class="h-4 w-4" />
+              Add to playlist
             </button>
           </MenuItem>
 

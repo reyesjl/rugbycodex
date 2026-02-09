@@ -71,6 +71,7 @@ const feedData = useFeedData({
   groupId: () => groupId.value,
   startAssignmentId: () => startAssignmentId.value,
   mediaAssetId: () => mediaAssetId.value,
+  playlistId: () => String(route.query.playlistId ?? ''),
 });
 
 const {

@@ -37,6 +37,7 @@ const emit = defineEmits<{
   (e: 'jumpToSegment', segment: MediaAssetSegment): void;
   (e: 'addNarration', segment: MediaAssetSegment): void;
   (e: 'assignSegment', segment: MediaAssetSegment): void;
+  (e: 'addToPlaylist', segment: MediaAssetSegment): void;
   (e: 'editNarration', narrationId: string, transcriptRaw: string): void;
   (e: 'deleteNarration', narrationId: string): void;
   (e: 'deleteSegment', segmentId: string): void;
@@ -715,9 +716,11 @@ function formatSegmentSourceMeta(seg: MediaAssetSegment): string | null {
 
             <SegmentActionsMenu
               :can-delete="canDeleteSegment()"
+              :can-add-to-playlist="props.canAssignSegments"
               :narration-count="getNarrationCount(String(seg.id))"
               @add-narration="emit('addNarration', seg)"
               @assign="props.canAssignSegments && emit('assignSegment', seg)"
+              @add-to-playlist="props.canAssignSegments && emit('addToPlaylist', seg)"
               @delete="requestDeleteSegment(seg)"
             />
 

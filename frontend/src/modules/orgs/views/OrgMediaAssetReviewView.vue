@@ -39,6 +39,7 @@ import { formatMinutesSeconds } from '@/lib/duration';
 import MediaAssetReviewTimeline from '@/modules/media/components/MediaAssetReviewTimeline.vue';
 import MediaAssetReviewNarrationList from '@/modules/media/components/MediaAssetReviewNarrationList.vue';
 import AssignSegmentModal from '@/modules/assignments/components/AssignSegmentModal.vue';
+import AddToPlaylistModal from '@/modules/playlists/components/AddToPlaylistModal.vue';
 import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
 
 const PRE_BUFFER_SECONDS = 5;
@@ -233,6 +234,7 @@ const processingNarrationIds = ref<Map<string, number>>(new Map());
 
 const activeOrgIdOrEmpty = computed(() => activeOrgId.value ?? '');
 const assigningSegment = ref<MediaAssetSegment | null>(null);
+const playlistSegment = ref<MediaAssetSegment | null>(null);
 const pendingEmptySegmentIds = ref<string[]>([]);
 const showDeleteEmptySegmentsModal = ref(false);
 const deleteEmptySegmentsError = ref<string | null>(null);
@@ -319,6 +321,15 @@ function openAssignSegment(seg: MediaAssetSegment) {
 
 function closeAssignSegment() {
   assigningSegment.value = null;
+}
+
+function openAddToPlaylist(seg: MediaAssetSegment) {
+  if (!isStaffOrAbove.value) return;
+  playlistSegment.value = seg;
+}
+
+function closeAddToPlaylist() {
+  playlistSegment.value = null;
 }
 
 function requestDeleteEmptySegments(segmentIds: string[]) {
@@ -1543,6 +1554,7 @@ async function handleDeleteSegment(segmentId: string) {
                 @jumpToSegment="jumpToSegment"
                 @addNarration="handleAddNarrationForSegment"
                 @assignSegment="openAssignSegment"
+                @addToPlaylist="openAddToPlaylist"
                 @editNarration="handleEditNarration"
                 @deleteNarration="handleDeleteNarration"
                 @deleteSegment="handleDeleteSegment"
@@ -1609,6 +1621,7 @@ async function handleDeleteSegment(segmentId: string) {
               @jumpToSegment="jumpToSegment"
               @addNarration="handleAddNarrationForSegment"
               @assignSegment="openAssignSegment"
+              @addToPlaylist="openAddToPlaylist"
               @editNarration="handleEditNarration"
               @deleteNarration="handleDeleteNarration"
               @deleteSegment="handleDeleteSegment"
@@ -1629,6 +1642,14 @@ async function handleDeleteSegment(segmentId: string) {
         :segment-label="labelForSegment(assigningSegment)"
         :on-close="closeAssignSegment"
         :on-assigned="closeAssignSegment"
+      />
+
+      <AddToPlaylistModal
+        v-if="playlistSegment && activeOrgIdOrEmpty"
+        :org-id="activeOrgIdOrEmpty"
+        :segment-id="String(playlistSegment.id)"
+        :on-close="closeAddToPlaylist"
+        :on-added="closeAddToPlaylist"
       />
 
       <ConfirmDeleteModal
