@@ -87,6 +87,8 @@ type SegmentInsightRow = {
   insight_sentence: string;
   coach_script: string | null;
   narration_count_at_generation?: number | null;
+  coach_audio_url?: string | null;
+  coach_audio_generated_at?: string | null;
   model?: string | null;
   prompt_version?: string | null;
   confidence?: string | null;
@@ -403,7 +405,7 @@ Deno.serve(withObservability("summarize-media-segment", async (req: Request) => 
     {
       const { data: insightRow, error: insightError } = await supabase
         .from("segment_insights")
-        .select("id, media_segment_id, state, insight_headline, insight_sentence, coach_script, narration_count_at_generation")
+        .select("id, media_segment_id, state, insight_headline, insight_sentence, coach_script, narration_count_at_generation, coach_audio_url, coach_audio_generated_at")
         .eq("media_segment_id", mediaSegmentId)
         .eq("is_active", true)
         .order("generated_at", { ascending: false })
@@ -424,6 +426,14 @@ Deno.serve(withObservability("summarize-media-segment", async (req: Request) => 
       const narrationCountCurrent = context.narration_count;
       const narrationCountAtGeneration = existingInsight.narration_count_at_generation ?? null;
       const isStale = computeSegmentStale(narrationCountCurrent, narrationCountAtGeneration);
+      const { error: cleanupError } = await serviceRoleClient
+        .from("segment_insights")
+        .delete()
+        .eq("media_segment_id", mediaSegmentId)
+        .neq("id", existingInsight.id);
+      if (cleanupError) {
+        console.error("summarize_media_segment cleanup error", cleanupError);
+      }
       return jsonResponse({
         ...mapSegmentInsightRow(existingInsight),
         narration_count_at_generation: narrationCountAtGeneration,
@@ -444,6 +454,8 @@ Deno.serve(withObservability("summarize-media-segment", async (req: Request) => 
       insight_headline: response.insight_headline,
       insight_sentence: response.insight_sentence,
       coach_script: response.coach_script,
+      coach_audio_url: null,
+      coach_audio_generated_at: null,
       confidence: null,
       model,
       prompt_version: PROMPT_VERSION,
@@ -458,7 +470,7 @@ Deno.serve(withObservability("summarize-media-segment", async (req: Request) => 
         .from("segment_insights")
         .update(payload)
         .eq("id", existingInsight.id)
-        .select("id, media_segment_id, state, insight_headline, insight_sentence, coach_script, narration_count_at_generation")
+        .select("id, media_segment_id, state, insight_headline, insight_sentence, coach_script, narration_count_at_generation, coach_audio_url, coach_audio_generated_at")
         .maybeSingle();
 
       if (updateError) {
@@ -471,7 +483,7 @@ Deno.serve(withObservability("summarize-media-segment", async (req: Request) => 
       const { data: inserted, error: insertError } = await serviceRoleClient
         .from("segment_insights")
         .insert(payload)
-        .select("id, media_segment_id, state, insight_headline, insight_sentence, coach_script, narration_count_at_generation")
+        .select("id, media_segment_id, state, insight_headline, insight_sentence, coach_script, narration_count_at_generation, coach_audio_url, coach_audio_generated_at")
         .maybeSingle();
 
       if (insertError) {
@@ -480,6 +492,17 @@ Deno.serve(withObservability("summarize-media-segment", async (req: Request) => 
       }
 
       savedRow = (inserted ?? payload) as SegmentInsightRow;
+    }
+
+    if (savedRow?.id) {
+      const { error: cleanupError } = await serviceRoleClient
+        .from("segment_insights")
+        .delete()
+        .eq("media_segment_id", mediaSegmentId)
+        .neq("id", savedRow.id);
+      if (cleanupError) {
+        console.error("summarize_media_segment cleanup error", cleanupError);
+      }
     }
 
     return jsonResponse({

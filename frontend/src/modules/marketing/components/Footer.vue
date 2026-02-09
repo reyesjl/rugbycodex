@@ -12,6 +12,7 @@
             <RouterLink class="transition-colors hover:text-white" to="/players">Players</RouterLink>
             <RouterLink class="transition-colors hover:text-white" to="/unions">Unions</RouterLink>
             <RouterLink class="transition-colors hover:text-white" to="/mission">Mission</RouterLink>
+            <RouterLink class="transition-colors hover:text-white" to="/acknowledgements">Acknowledgements</RouterLink>
           </nav>
         </div>
 

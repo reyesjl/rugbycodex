@@ -15,6 +15,25 @@ const simonImg = `${CDN_BASE}/static/assets/modules/marketing/simon.jpg`;
 const coreyImg = `${CDN_BASE}/static/assets/modules/marketing/corey.png`;
 const usawImg = `${CDN_BASE}/static/assets/modules/marketing/usaw.jpg`;
 const bgImg = `${CDN_BASE}/static/assets/modules/marketing/mission1.jpg`;
+
+const acknowledgements = [
+  'Tony Flay',
+  'Grant Keenan',
+  'Gabrielle Domina',
+  'Benn Mellinger',
+  'Shupp',
+  'Owen Lentz',
+  'Alex Webb',
+  'Tim Brown',
+  'Simon Cross',
+  'Steff Hughes',
+  'Joseph Ritter',
+  'Aidan Gallagher',
+  'Kevin Dougherty',
+  'Corey Kroboth',
+  'Dom Tom',
+  'Jacob Powers',
+];
 </script>
 <template>
   <!-- <section class="min-h-screen grid place-items-center px-4">
@@ -114,6 +133,25 @@ const bgImg = `${CDN_BASE}/static/assets/modules/marketing/mission1.jpg`;
         </div>
 
         <div>The foundation for next-generation rugby analysis, coaching, and pathways.</div>
+      </div>
+    </div>
+  </section>
+  <section class="py-20 bg-white">
+    <div class="container">
+      <h1 class="text-3xl md:text-4xl text-center text-black font-semibold">Acknowledgements</h1>
+      <div class="mt-6 space-y-4 text-black">
+        <p>
+          Rugbycodex exists only because of the people who believed in the idea before it was fully formed, who challenged it, improved it, and helped turn it into something real.
+        </p>
+        <p>
+          Thank you to everyone who contributed their time, knowledge, and perspective along the way. Your feedback, conversations, and encouragement helped shape not just the product, but the thinking behind it.
+        </p>
+        <p>
+          This project was built on shared passion for the game, curiosity about what better analysis can unlock, and the willingness of others to invest energy into something new. That support made the difficult parts possible and the wins meaningful.
+        </p>
+      </div>
+      <div class="mt-6 flex flex-wrap gap-3 text-lg text-black font-semibold">
+        <span v-for="name in acknowledgements" :key="name">{{ name }}</span>
       </div>
     </div>
   </section>

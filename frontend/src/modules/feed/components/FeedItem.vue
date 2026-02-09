@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { Icon } from '@iconify/vue';
 import type { FeedItem as FeedItemType } from '@/modules/feed/types/FeedItem';
 import ShakaSurfacePlayer from '@/modules/media/components/ShakaSurfacePlayer.vue';
@@ -282,6 +282,11 @@ const segmentInsightRefreshing = ref(false);
 const segmentInsightError = ref<string | null>(null);
 let segmentInsightRequestId = 0;
 const segmentInsightNarrationsNeeded = 1;
+const coachAudioUrl = ref<string | null>(null);
+const coachAudioLoading = ref(false);
+const coachAudioError = ref<string | null>(null);
+const coachAudioPlaying = ref(false);
+const coachAudioElement = ref<HTMLAudioElement | null>(null);
 
 const segmentNarrationCount = computed(() => narrations.value.length);
 const segmentInsightState = computed<MatchSummaryState>(() => {
@@ -291,6 +296,7 @@ const segmentInsightState = computed<MatchSummaryState>(() => {
 const insightHeadline = computed(() => segmentInsight.value?.insight_headline ?? null);
 const insightSentence = computed(() => segmentInsight.value?.insight_sentence ?? null);
 const insightCoachScript = computed(() => segmentInsight.value?.coach_script ?? null);
+const coachAudioAvailable = computed(() => Boolean(insightCoachScript.value));
 
 const hasSegmentInsightContent = computed(() => Boolean(insightSentence.value));
 const insightPlaceholder = computed(() => {
@@ -309,6 +315,17 @@ function resetSegmentInsight() {
   segmentInsightError.value = null;
   segmentInsightLoading.value = false;
   segmentInsightRefreshing.value = false;
+}
+
+function resetCoachAudio() {
+  coachAudioUrl.value = null;
+  coachAudioError.value = null;
+  coachAudioLoading.value = false;
+  coachAudioPlaying.value = false;
+  if (coachAudioElement.value) {
+    coachAudioElement.value.pause();
+    coachAudioElement.value.currentTime = 0;
+  }
 }
 
 function hasInsightPayload(next: SegmentInsight | null): boolean {
@@ -330,6 +347,7 @@ watch(
   () => props.feedItem.mediaAssetSegmentId,
   () => {
     resetSegmentInsight();
+    resetCoachAudio();
     void refreshNarrations();
     void loadStoredSegmentInsight();
   },
@@ -471,6 +489,7 @@ async function generateSegmentInsight(params?: { forceRefresh?: boolean }) {
     });
     if (summaryRequestId !== segmentInsightRequestId) return;
     segmentInsight.value = next;
+    resetCoachAudio();
   } catch (err) {
     if (summaryRequestId !== segmentInsightRequestId) return;
     segmentInsightError.value = err instanceof Error ? err.message : 'Unable to generate insight.';
@@ -494,6 +513,7 @@ async function refreshStaleSegmentInsight() {
     if (summaryRequestId !== segmentInsightRequestId) return;
     if (hasInsightPayload(next)) {
       segmentInsight.value = next;
+      resetCoachAudio();
     }
   } catch (err) {
     if (summaryRequestId !== segmentInsightRequestId) return;
@@ -531,6 +551,56 @@ async function loadStoredSegmentInsight() {
     if (summaryRequestId === segmentInsightRequestId) {
       segmentInsightLoading.value = false;
     }
+  }
+}
+
+function handleCoachAudioEnded() {
+  coachAudioPlaying.value = false;
+  if (coachAudioElement.value) {
+    coachAudioElement.value.currentTime = 0;
+  }
+}
+
+function handleCoachAudioPause() {
+  coachAudioPlaying.value = false;
+}
+
+function handleCoachAudioPlay() {
+  coachAudioPlaying.value = true;
+}
+
+async function toggleCoachAudio() {
+  if (!coachAudioAvailable.value) return;
+  if (coachAudioLoading.value) return;
+  coachAudioError.value = null;
+
+  const audioEl = coachAudioElement.value;
+  if (coachAudioPlaying.value && audioEl) {
+    audioEl.pause();
+    return;
+  }
+
+  if (!coachAudioUrl.value) {
+    coachAudioLoading.value = true;
+    try {
+      const response = await analysisService.getSegmentCoachAudio(props.feedItem.mediaAssetSegmentId, {
+        forceRefresh: false,
+      });
+      coachAudioUrl.value = response.coach_audio_url;
+    } catch (err) {
+      coachAudioError.value = err instanceof Error ? err.message : 'Unable to load coach audio.';
+      return;
+    } finally {
+      coachAudioLoading.value = false;
+    }
+  }
+
+  await nextTick();
+  if (!coachAudioElement.value) return;
+  try {
+    await coachAudioElement.value.play();
+  } catch (err) {
+    coachAudioError.value = err instanceof Error ? err.message : 'Unable to play coach audio.';
   }
 }
 
@@ -588,6 +658,7 @@ watch(() => props.isActive, (newIsActive) => {
 
 onBeforeUnmount(() => {
   restoreVideoMuteAfterRecording();
+  resetCoachAudio();
 });
 </script>
 
@@ -795,11 +866,24 @@ onBeforeUnmount(() => {
           :insight-can-generate="canGenerateSegmentInsight"
           :insight-has-generated="hasSegmentInsightContent"
           :insight-narration-count="segmentNarrationCount"
+          :coach-audio-loading="coachAudioLoading"
+          :coach-audio-playing="coachAudioPlaying"
+          :coach-audio-error="coachAudioError"
+          :coach-audio-available="coachAudioAvailable"
           @submitText="submitTypedNarration"
           @updateText="onUpdateNarrationText"
           @delete="onDeleteNarration"
           @generateInsight="generateSegmentInsight({ forceRefresh: true })"
+          @toggleCoachAudio="toggleCoachAudio"
           @selectNarration="() => {}"
+        />
+        <audio
+          ref="coachAudioElement"
+          class="hidden"
+          :src="coachAudioUrl ?? undefined"
+          @ended="handleCoachAudioEnded"
+          @pause="handleCoachAudioPause"
+          @play="handleCoachAudioPlay"
         />
 
         <!-- Ad Space Promotion Card (Desktop Only) -->

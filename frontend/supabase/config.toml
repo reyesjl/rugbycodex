@@ -402,6 +402,9 @@ verify_jwt = false
 [functions.generate-narration-embedding]
 verify_jwt = false
 
+[functions.generate-coach-audio]
+verify_jwt = false
+
 [functions.generate-query-embedding]
 verify_jwt = false
 

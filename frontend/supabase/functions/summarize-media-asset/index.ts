@@ -667,6 +667,14 @@ Deno.serve(withObservability("summarize-media-asset", async (req: Request) => {
       const narrationCountCurrent = context.narration_count;
       const narrationCountAtGeneration = existingSummary.narration_count_at_generation ?? null;
       const isStale = computeMatchStale(narrationCountCurrent, narrationCountAtGeneration);
+      const { error: cleanupError } = await serviceRoleClient
+        .from("match_intelligence")
+        .delete()
+        .eq("media_asset_id", mediaAssetId)
+        .neq("id", existingSummary.id);
+      if (cleanupError) {
+        console.error("summarize_media_asset cleanup error", cleanupError);
+      }
       return jsonResponse({
         ...mapMatchIntelligenceRow(existingSummary),
         narration_count_at_generation: narrationCountAtGeneration,
@@ -733,6 +741,17 @@ Deno.serve(withObservability("summarize-media-asset", async (req: Request) => {
       }
 
       savedRow = (inserted ?? payload) as MatchIntelligenceRow;
+    }
+
+    if (savedRow?.id) {
+      const { error: cleanupError } = await serviceRoleClient
+        .from("match_intelligence")
+        .delete()
+        .eq("media_asset_id", mediaAssetId)
+        .neq("id", savedRow.id);
+      if (cleanupError) {
+        console.error("summarize_media_asset cleanup error", cleanupError);
+      }
     }
 
     return jsonResponse({

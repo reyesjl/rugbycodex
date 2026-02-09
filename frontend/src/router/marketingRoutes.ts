@@ -30,5 +30,10 @@ export const marketingRoutes: RouteRecordRaw = {
       name: 'Mission',
       component: () => import('@/modules/marketing/views/Mission.vue'),
     },
+    {
+      path: 'acknowledgements',
+      name: 'Acknowledgements',
+      component: () => import('@/modules/marketing/views/Acknowledgements.vue'),
+    },
   ],
 };

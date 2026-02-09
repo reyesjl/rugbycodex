@@ -141,6 +141,37 @@ export const analysisService = {
     return insight;
   },
 
+  async getSegmentCoachAudio(
+    mediaSegmentId: string,
+    options?: { forceRefresh?: boolean }
+  ): Promise<{ coach_audio_url: string; coach_audio_generated_at?: string | null }> {
+    const id = String(mediaSegmentId ?? "").trim();
+    if (!id) throw new Error("Missing mediaSegmentId.");
+
+    const response = await invokeEdge("generate-coach-audio", {
+      body: {
+        media_segment_id: id,
+        force_refresh: Boolean(options?.forceRefresh),
+      },
+      orgScoped: true,
+    });
+
+    if (response.error) {
+      throw await handleEdgeFunctionError(response.error, "Unable to generate coach audio.");
+    }
+
+    const data = response.data as any;
+    const coachAudioUrl = String(data?.coach_audio_url ?? "").trim();
+    if (!coachAudioUrl) {
+      throw new Error("Coach audio URL was not returned.");
+    }
+
+    return {
+      coach_audio_url: coachAudioUrl,
+      coach_audio_generated_at: data?.coach_audio_generated_at ?? null,
+    };
+  },
+
   /**
    * Calls the `summarize_media_asset` edge function to generate a short, neutral match summary.
    *

@@ -34,6 +34,10 @@ const props = withDefaults(
     insightCanGenerate?: boolean;
     insightHasGenerated?: boolean;
     insightNarrationCount?: number | null;
+    coachAudioLoading?: boolean;
+    coachAudioPlaying?: boolean;
+    coachAudioError?: string | null;
+    coachAudioAvailable?: boolean;
   }>(),
   {
     tags: () => [],
@@ -54,6 +58,10 @@ const props = withDefaults(
     insightCanGenerate: false,
     insightHasGenerated: false,
     insightNarrationCount: null,
+    coachAudioLoading: false,
+    coachAudioPlaying: false,
+    coachAudioError: null,
+    coachAudioAvailable: false,
   }
 );
 
@@ -63,6 +71,7 @@ const emit = defineEmits<{
   (e: 'delete', id: string): void;
   (e: 'selectNarration', id: string): void;
   (e: 'generateInsight'): void;
+  (e: 'toggleCoachAudio'): void;
 }>();
 
 const tagList = computed(() => props.tags ?? []);
@@ -117,11 +126,28 @@ function classForTag(tag: SegmentTag): string {
   <div class="px-4 py-3 space-y-4">
     <button
       type="button"
-      class="inline-flex items-center gap-2 text-sm text-white/70 hover:text-white"
+      class="inline-flex items-center gap-2 text-sm text-white/70 hover:text-white disabled:opacity-60 disabled:cursor-not-allowed"
+      :disabled="coachAudioLoading || !coachAudioAvailable"
+      @click="emit('toggleCoachAudio')"
     >
       Hear coach
-      <Icon icon="carbon:play-filled" width="16" height="16" class="text-white/70" />
+      <template v-if="coachAudioLoading">
+        <LoadingDot />
+        <ShimmerText text="Coach is thinking" />
+      </template>
+      <template v-else>
+        <Icon
+          :icon="coachAudioPlaying ? 'carbon:pause-filled' : 'carbon:play-filled'"
+          width="16"
+          height="16"
+          class="text-white/70"
+        />
+        <span v-if="coachAudioPlaying" class="coach-waveform">
+          <span v-for="i in 5" :key="i" class="coach-wave-bar" :style="{ animationDelay: `${i * 0.12}s` }" />
+        </span>
+      </template>
     </button>
+    <p v-if="coachAudioError" class="text-xs text-rose-300">{{ coachAudioError }}</p>
     
     <div class="space-y-2">
       <div class="flex items-center justify-between gap-3">
@@ -243,3 +269,32 @@ function classForTag(tag: SegmentTag): string {
     </div>
   </div>
 </template>
+
+<style scoped>
+.coach-waveform {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 14px;
+}
+
+.coach-wave-bar {
+  width: 2px;
+  height: 6px;
+  border-radius: 999px;
+  background-color: rgba(255, 255, 255, 0.7);
+  animation: coach-wave 0.9s ease-in-out infinite;
+}
+
+@keyframes coach-wave {
+  0%,
+  100% {
+    transform: scaleY(0.4);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scaleY(1.1);
+    opacity: 0.9;
+  }
+}
+</style>
