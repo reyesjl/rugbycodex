@@ -16,35 +16,35 @@ export function useFeedPreload(options: {
   const radius = options.radius ?? 1;
 
   // cache by media_asset_id (one playlist per asset)
-  const srcByMediaAssetId = ref(new Map<string, string>());
-  const errorsByMediaAssetId = ref(new Map<string, string>());
+  const srcByMediaAssetId = ref<Record<string, string>>({});
+  const errorsByMediaAssetId = ref<Record<string, string>>({});
 
   const items = computed(() => options.items());
 
   async function ensureSrcForItem(item: FeedItem): Promise<string | null> {
     const mediaAssetId = item.mediaAssetId;
     if (!mediaAssetId) return null;
-    const cached = srcByMediaAssetId.value.get(mediaAssetId);
+    const cached = srcByMediaAssetId.value[mediaAssetId];
     if (cached) return cached;
 
     try {
       // IMPORTANT: this mirrors the working OrgMediaAssetView/MediaAssetSegmentView playback path.
       const url = await mediaService.getPresignedHlsPlaylistUrl(item.orgId, mediaAssetId, item.bucket);
-      srcByMediaAssetId.value.set(mediaAssetId, url);
+      srcByMediaAssetId.value = { ...srcByMediaAssetId.value, [mediaAssetId]: url };
       return url;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unable to load this clip.';
-      errorsByMediaAssetId.value.set(mediaAssetId, message);
+      errorsByMediaAssetId.value = { ...errorsByMediaAssetId.value, [mediaAssetId]: message };
       return null;
     }
   }
 
   function getSrc(mediaAssetId: string): string {
-    return srcByMediaAssetId.value.get(mediaAssetId) ?? '';
+    return srcByMediaAssetId.value[mediaAssetId] ?? '';
   }
 
   function getError(mediaAssetId: string): string | null {
-    return errorsByMediaAssetId.value.get(mediaAssetId) ?? null;
+    return errorsByMediaAssetId.value[mediaAssetId] ?? null;
   }
 
   watch(

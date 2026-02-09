@@ -242,7 +242,7 @@ Deno.serve(withObservability("get-playback-playlist", async (req, ctx) => {
     // Fetch media asset
     const { data: asset, error: assetError } = await supabase
       .from("media_assets")
-      .select("id, org_id")
+      .select("id, org_id, base_org_storage_path")
       .eq("id", mediaId)
       .maybeSingle();
 
@@ -252,6 +252,10 @@ Deno.serve(withObservability("get-playback-playlist", async (req, ctx) => {
     }
 
     const orgId = String(asset.org_id ?? "");
+    const baseOrgStoragePath = String((asset as { base_org_storage_path?: string | null }).base_org_storage_path ?? "");
+    const normalizedBase =
+      (baseOrgStoragePath.trim() || `orgs/${orgId}/uploads/`).replace(/^\/+/, "");
+    const basePrefix = normalizedBase.endsWith("/") ? normalizedBase : `${normalizedBase}/`;
 
     if (!orgId) {
       return errorResponse("UNEXPECTED_SERVER_ERROR", "Media asset missing org_id", 500);
@@ -275,7 +279,7 @@ Deno.serve(withObservability("get-playback-playlist", async (req, ctx) => {
       return errorResponse("FORBIDDEN", message, 403);
     }
 
-    const streamingPrefix = `orgs/${orgId}/uploads/${mediaId}/streaming`;
+    const streamingPrefix = `${basePrefix}${mediaId}/streaming`;
     const manifestKey = `${streamingPrefix}/${HLS_MANIFEST_KEY}`;
 
     // Log the manifest lookup key

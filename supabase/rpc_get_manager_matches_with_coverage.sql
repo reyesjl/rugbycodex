@@ -26,7 +26,7 @@ SECURITY DEFINER
 STABLE
 AS $$
   WITH media_assets_limited AS (
-    -- Get most recent media assets for the org
+    -- Get most recent media assets for the org (only ready/complete videos)
     SELECT 
       ma.id,
       ma.org_id,
@@ -37,6 +37,8 @@ AS $$
       ma.thumbnail_path
     FROM media_assets ma
     WHERE ma.org_id = p_org_id
+      AND ma.streaming_ready = true
+      AND ma.processing_stage = 'complete'
     ORDER BY ma.created_at DESC
     LIMIT p_limit
   ),

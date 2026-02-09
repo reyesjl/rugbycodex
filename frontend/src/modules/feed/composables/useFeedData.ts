@@ -3,6 +3,7 @@ import { assignmentsService, type AssignmentFeedEntry, type AssignmentFeedMode }
 import type { FeedItem } from '@/modules/feed/types/FeedItem';
 import { segmentService } from '@/modules/media/services/segmentService';
 import { momentsService } from '@/modules/feed/services/momentsService';
+import { playlistService } from '@/modules/playlists/services/playlistService';
 import type { SegmentTag } from '@/modules/media/types/SegmentTag';
 import { useSegmentTags } from '@/modules/media/composables/useSegmentTags';
 import { supabase } from '@/lib/supabaseClient';
@@ -19,6 +20,7 @@ type FeedDataOptions = {
   groupId: () => string;
   startAssignmentId: () => string;
   mediaAssetId?: () => string;
+  playlistId?: () => string;
 };
 
 export function useFeedData(options: FeedDataOptions) {
@@ -406,6 +408,58 @@ export function useFeedData(options: FeedDataOptions) {
         }
 
         items.value = matchFeed;
+        return;
+      }
+
+      if (options.source() === 'playlist') {
+        const playlistId = options.playlistId?.() ?? '';
+        if (!playlistId) {
+          if (activeRequestId === requestId) {
+            error.value = 'Playlist ID is required for playlist feed.';
+          }
+          return;
+        }
+
+        const playlistFeed = await playlistService.getPlaylistFeed(playlistId, orgId);
+
+        if (activeRequestId !== requestId) return;
+        
+        if (playlistFeed.length === 0) {
+          error.value = 'This playlist has no segments yet.';
+          return;
+        }
+
+        items.value = playlistFeed.map((entry) => {
+          const createdAt = entry.segment_created_at instanceof Date 
+            ? entry.segment_created_at 
+            : new Date(entry.segment_created_at);
+          const title = entry.media_asset_file_name || 'Untitled clip';
+          const metaLine = `Playlist • Position ${entry.sort_order + 1} • ${createdAt.toLocaleDateString()}`;
+
+          return {
+            id: entry.segment_id,
+            orgId,
+            orgName: options.orgName(),
+            mediaAssetId: entry.media_asset_id,
+            bucket: entry.media_asset_bucket,
+            mediaAssetSegmentId: entry.segment_id,
+            segmentIndex: entry.segment_index,
+            startSeconds: entry.start_seconds,
+            endSeconds: entry.end_seconds,
+            title,
+            metaLine,
+            createdAt,
+            segment: {
+              id: entry.segment_id,
+              media_asset_id: entry.media_asset_id,
+              segment_index: entry.segment_index,
+              start_seconds: entry.start_seconds,
+              end_seconds: entry.end_seconds,
+              created_at: entry.segment_created_at,
+              tags: [],
+            },
+          } satisfies FeedItem;
+        });
         return;
       }
 
