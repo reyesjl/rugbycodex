@@ -105,7 +105,7 @@ const {
         </ul>
       </nav>
       <div class="text-xs text-gray-400 px-4 py-3">
-       v0.11.1-beta
+       v0.11.4-beta
       </div>
     </div>
   </div>
@@ -189,7 +189,7 @@ const {
         </nav>
       </div>
       <div class="text-xs text-gray-400 px-4 py-3">
-       v0.11.3-beta
+       v0.11.4-beta
       </div>
     </div>
   </div>
