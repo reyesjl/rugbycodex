@@ -13,6 +13,8 @@ import LoadingDot from '@/components/LoadingDot.vue';
 import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
 import { formatMinutesSeconds } from '@/lib/duration';
 import { CDN_BASE } from '@/lib/cdn';
+import { formatMediaAssetNameForDisplay } from '@/modules/media/utils/assetUtilities';
+import { useSegmentTags } from '@/modules/media/composables/useSegmentTags';
 
 const route = useRoute();
 const router = useRouter();
@@ -43,6 +45,9 @@ const isDeleting = ref(false);
 const orgSlug = computed(() => orgContextReadonly.value?.organization?.slug ?? '');
 const orgId = computed(() => orgContextReadonly.value?.organization?.id ?? '');
 const playlistId = computed(() => String(route.params.playlistId ?? ''));
+const segmentIds = computed(() => feedEntries.value.map((entry) => String(entry.segment_id)).filter(Boolean));
+
+const { tagsBySegmentId } = useSegmentTags({ segmentIds: () => segmentIds.value });
 
 async function load() {
   if (!playlistId.value || !orgId.value) return;
@@ -258,6 +263,35 @@ function formatSegmentTime(entry: PlaylistFeedEntry): string {
   const end = formatMinutesSeconds(entry.end_seconds);
   return `${start} – ${end}`;
 }
+
+function formatTagKey(key: string): string {
+  return key.replace(/_/g, ' ');
+}
+
+function formatClipTitle(entry: PlaylistFeedEntry): string {
+  const tags = tagsBySegmentId.value[String(entry.segment_id)] ?? [];
+  const actionTags = tags.filter((t) => t.tag_type === 'action').map((t) => formatTagKey(t.tag_key));
+  const contextTags = tags.filter((t) => t.tag_type === 'context').map((t) => formatTagKey(t.tag_key));
+
+  if (actionTags.length === 0 && contextTags.length === 0) {
+    return 'Clip of action';
+  }
+
+  const parts: string[] = [];
+  if (actionTags.length > 0) {
+    parts.push(actionTags.join(', '));
+  }
+  if (contextTags.length > 0) {
+    parts.push(`(${contextTags.join(', ')})`);
+  }
+
+  return `Clip of ${parts.join(' ')}`;
+}
+
+const segmentToRemoveLabel = computed(() => {
+  if (!segmentToRemove.value) return 'this segment';
+  return formatMediaAssetNameForDisplay(segmentToRemove.value.media_asset_file_name);
+});
 
 function formatDate(date: Date): string {
   return new Intl.DateTimeFormat('en-US', {
@@ -502,11 +536,14 @@ watch([sortableContainer, feedEntries], ([container, entries]) => {
               <!-- Title -->
               <div>
                 <h3 class="text-sm sm:text-base font-semibold text-white group-hover:text-white/90 truncate mb-1">
-                  {{ entry.media_asset_file_name }}
+                  {{ formatClipTitle(entry) }}
                 </h3>
+                <p class="text-xs text-white/60 truncate">
+                  {{ formatMediaAssetNameForDisplay(entry.media_asset_file_name) }}
+                </p>
                 
                 <!-- Metadata -->
-                <div class="flex items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs text-white/50 flex-wrap">
+                <div class="flex items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs text-white/50 flex-wrap mt-1">
                   <Icon icon="carbon:time" width="12" class="sm:w-3.5" />
                   <span>{{ formatSegmentTime(entry) }}</span>
                   <span class="text-white/30">•</span>
@@ -591,7 +628,7 @@ watch([sortableContainer, feedEntries], ([container, entries]) => {
     <!-- Remove Segment Confirmation Modal -->
     <ConfirmDeleteModal
       :show="showDeleteSegmentModal"
-      :item-name="segmentToRemove?.media_asset_file_name || 'this segment'"
+      :item-name="segmentToRemoveLabel"
       popup-title="Remove segment from playlist?"
       :is-deleting="isRemoving"
       @confirm="confirmRemoveSegment"
