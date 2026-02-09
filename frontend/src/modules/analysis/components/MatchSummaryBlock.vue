@@ -35,6 +35,12 @@ const props = withDefaults(
     collapsed?: boolean;
     narrationCount?: number | null;
     narrationsNeeded?: number | null;
+    summaryLabel?: string;
+    analyzeLabel?: string;
+    emptyMessage?: string;
+    loadingMessage?: string;
+    infoModalTitle?: string;
+    infoModalMessage?: string;
   }>(),
   {
     bullets: () => [],
@@ -48,6 +54,13 @@ const props = withDefaults(
     collapsed: false,
     narrationCount: null,
     narrationsNeeded: null,
+    summaryLabel: 'Match summary',
+    analyzeLabel: 'Analyze Match',
+    emptyMessage: 'Add 25+ narrations to generate summary',
+    loadingMessage: 'Rugbycodex is summarizing all your match moments',
+    infoModalTitle: 'Match summaries',
+    infoModalMessage:
+      'Each narration captures a perspective on what happened. Together, they form a shared picture of the match. As more narrations are added, the summary becomes richer, clearer, and more representative of what actually unfolded.',
   }
 );
 
@@ -116,11 +129,17 @@ const shouldShowAnalyzeButton = computed(() => {
   return Boolean(props.canGenerate);
 });
 
+const summaryAriaLabel = computed(() => {
+  const label = String(props.summaryLabel ?? 'Summary').trim();
+  if (!label) return 'How summary works';
+  return `How ${label.toLowerCase()} works`;
+});
+
 </script>
 
 <template>
   <div v-if="state === 'empty' || state === 'light'" class="text-sm text-slate-400">
-    Add 25+ narrations to generate summary
+    {{ emptyMessage }}
     <span v-if="Number.isFinite(narrationCount) && Number.isFinite(narrationsNeeded)">
       ({{ narrationCount }} / {{ narrationsNeeded }})
     </span>
@@ -132,13 +151,13 @@ const shouldShowAnalyzeButton = computed(() => {
     class="inline-flex items-center gap-2 rounded-md border border-blue-400/40 bg-blue-400/10 px-3 py-2 text-sm font-medium text-blue-400 transition hover:bg-blue-400/20"
     @click="emit('generate')"
   >
-    Analyze Match
+    {{ analyzeLabel }}
     <Icon icon="carbon:ai-generate" width="16" height="16" />
   </button>
 
   <div v-else-if="state === 'normal' && loading" class="flex items-center gap-3 text-sm text-slate-300">
     <LoadingDot />
-    <ShimmerText text="Rugbycodex is summarizing all your match moments" />
+    <ShimmerText :text="loadingMessage" />
   </div>
 
   <div v-else-if="shouldShowContainer" :class="containerClass">
@@ -157,7 +176,7 @@ const shouldShowAnalyzeButton = computed(() => {
             height="16"
             class="text-slate-400"
           />
-          <div class="text-sm font-semibold text-slate-50 truncate">Match summary</div>
+          <div class="text-sm font-semibold text-slate-50 truncate">{{ summaryLabel }}</div>
         </div>
         <div
           v-if="(hasBullets || hasGenerated) && Number.isFinite(narrationCount)"
@@ -168,7 +187,7 @@ const shouldShowAnalyzeButton = computed(() => {
             type="button"
             class="inline-flex cursor-pointer gap-1 items-center justify-center text-slate-400 transition hover:text-slate-200"
             @click.stop="openInfoModal"
-            aria-label="How match summary works"
+            :aria-label="summaryAriaLabel"
           >Click
             <Icon icon="carbon:information" width="14" height="14" /> to learn more.
           </button>
@@ -242,8 +261,8 @@ const shouldShowAnalyzeButton = computed(() => {
 
   <ConfirmNoticeModal
     :show="showInfoModal"
-    popup-title="Match summaries"
-    message="Each narration captures a perspective on what happened. Together, they form a shared picture of the match. As more narrations are added, the summary becomes richer, clearer, and more representative of what actually unfolded."
+    :popup-title="infoModalTitle"
+    :message="infoModalMessage"
     button-label="Got it"
     @close="closeInfoModal"
   />

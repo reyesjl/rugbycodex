@@ -462,6 +462,9 @@ verify_jwt = false
 [functions.summarize-media-asset]
 verify_jwt = false
 
+[functions.summarize-media-segment]
+verify_jwt = false
+
 [functions.transcribe-wav-file]
 verify_jwt = false
 

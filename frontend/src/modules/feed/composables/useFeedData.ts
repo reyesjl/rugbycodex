@@ -8,6 +8,7 @@ import type { SegmentTag } from '@/modules/media/types/SegmentTag';
 import { useSegmentTags } from '@/modules/media/composables/useSegmentTags';
 import { supabase } from '@/lib/supabaseClient';
 import { toast } from '@/lib/toast';
+import { formatMediaAssetNameForDisplay } from '@/modules/media/utils/assetUtilities';
 
 type FeedDataOptions = {
   orgId: () => string | null;
@@ -44,9 +45,16 @@ export function useFeedData(options: FeedDataOptions) {
     return dateLabel ? `${label} • ${dateLabel}` : label;
   }
 
+  function normalizeMediaTitle(fileName?: string | null, fallback = 'Untitled clip'): string {
+    if (fileName && fileName.trim().length > 0) {
+      return formatMediaAssetNameForDisplay(fileName);
+    }
+    return fallback;
+  }
+
   function toFeedItem(entry: AssignmentFeedEntry): FeedItem {
     const createdAt = new Date(entry.assignment.created_at);
-    const title = entry.assignment.title || 'Clip review';
+    const title = entry.assignment.title || normalizeMediaTitle(entry.asset.file_name, 'Clip review');
     return {
       id: entry.segment.id,
       orgId: options.orgId()!,
@@ -253,7 +261,7 @@ export function useFeedData(options: FeedDataOptions) {
           feedItem.segment.created_at instanceof Date
             ? feedItem.segment.created_at
             : new Date(feedItem.segment.created_at);
-        const title = feedItem.asset.title || feedItem.asset.file_name || 'Untitled clip';
+        const title = feedItem.asset.title || normalizeMediaTitle(feedItem.asset.file_name);
         const metaLine = `${options.orgName() ?? 'Organization'} • Segment ${feedItem.segment.segment_index + 1} • ${createdAt.toLocaleDateString()}`;
 
         items.value = [
@@ -433,7 +441,7 @@ export function useFeedData(options: FeedDataOptions) {
           const createdAt = entry.segment_created_at instanceof Date 
             ? entry.segment_created_at 
             : new Date(entry.segment_created_at);
-          const title = entry.media_asset_file_name || 'Untitled clip';
+          const title = normalizeMediaTitle(entry.media_asset_file_name);
           const metaLine = `Playlist • Position ${entry.sort_order + 1} • ${createdAt.toLocaleDateString()}`;
 
           return {
@@ -469,7 +477,7 @@ export function useFeedData(options: FeedDataOptions) {
       if (activeRequestId !== requestId) return;
       items.value = feedRows.map(({ asset, segment }) => {
         const createdAt = segment.created_at instanceof Date ? segment.created_at : new Date(segment.created_at);
-        const title = asset.title || asset.file_name || 'Untitled clip';
+        const title = asset.title || normalizeMediaTitle(asset.file_name);
         const metaLine = `${options.orgName() ?? 'Organization'} • Segment ${segment.segment_index + 1} • ${createdAt.toLocaleDateString()}`;
 
         return {

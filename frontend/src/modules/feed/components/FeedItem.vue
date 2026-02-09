@@ -15,6 +15,9 @@ import { useNarrationRecorder, type NarrationListItem } from '@/modules/narratio
 import { useAuthStore } from '@/modules/auth/stores/useAuthStore';
 import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrganizationStore';
 import { hasOrgAccess } from '@/modules/orgs/composables/useOrgCapabilities';
+import { analysisService } from '@/modules/analysis/services/analysisService';
+import type { MatchSummaryState } from '@/modules/analysis/types/MatchSummary';
+import type { SegmentInsight } from '@/modules/analysis/types/SegmentInsight';
 import type { SegmentTag } from '@/modules/media/types/SegmentTag';
 import { toast } from '@/lib/toast';
 import { useVideoOverlayControls } from '@/modules/media/composables/useVideoOverlayControls';
@@ -46,6 +49,7 @@ const currentUserName = computed(() => authStore.user?.user_metadata?.name || au
 const activeOrgStore = useActiveOrganizationStore();
 const membershipRole = computed(() => (activeOrgStore.orgContext?.membership?.role ?? null) as any);
 const canAddIdentityTag = computed(() => hasOrgAccess(membershipRole.value, 'member'));
+const canGenerateSegmentInsight = computed(() => hasOrgAccess(membershipRole.value, 'member'));
 
 const segmentTags = computed<SegmentTag[]>(() => (props.feedItem.segment?.tags ?? []) as SegmentTag[]);
 const hasIdentityTag = computed(() => {
@@ -272,6 +276,38 @@ const narrations = ref<NarrationListItem[]>([]);
 const loadingNarrations = ref(false);
 const submittingText = ref(false);
 const submitTextError = ref<string | null>(null);
+const segmentInsight = ref<SegmentInsight | null>(null);
+const segmentInsightLoading = ref(false);
+const segmentInsightError = ref<string | null>(null);
+let segmentInsightRequestId = 0;
+const segmentInsightNarrationsNeeded = 1;
+
+const segmentNarrationCount = computed(() => narrations.value.length);
+const segmentInsightState = computed<MatchSummaryState>(() => {
+  return segmentNarrationCount.value >= segmentInsightNarrationsNeeded ? 'normal' : 'empty';
+});
+
+const insightHeadline = computed(() => segmentInsight.value?.insight_headline ?? null);
+const insightSentence = computed(() => segmentInsight.value?.insight_sentence ?? null);
+const insightCoachScript = computed(() => segmentInsight.value?.coach_script ?? null);
+
+const hasSegmentInsightContent = computed(() => Boolean(insightSentence.value));
+const insightPlaceholder = computed(() => {
+  if (segmentNarrationCount.value < segmentInsightNarrationsNeeded) {
+    return 'Add 1+ narrations to generate insight.';
+  }
+  if (!hasSegmentInsightContent.value) {
+    return 'Generate an insight to see the summary.';
+  }
+  return '';
+});
+
+function resetSegmentInsight() {
+  segmentInsightRequestId += 1;
+  segmentInsight.value = null;
+  segmentInsightError.value = null;
+  segmentInsightLoading.value = false;
+}
 
 async function refreshNarrations() {
   loadingNarrations.value = true;
@@ -286,6 +322,7 @@ async function refreshNarrations() {
 watch(
   () => props.feedItem.mediaAssetSegmentId,
   () => {
+    resetSegmentInsight();
     void refreshNarrations();
   },
   { immediate: true }
@@ -405,6 +442,34 @@ async function submitTypedNarration(text: string) {
     toast({ message, variant: 'error', durationMs: 2500 });
   } finally {
     submittingText.value = false;
+  }
+}
+
+async function generateSegmentInsight(params?: { forceRefresh?: boolean }) {
+  if (!props.feedItem.mediaAssetSegmentId) return;
+  if (!canGenerateSegmentInsight.value) return;
+  
+  if (segmentInsightState.value !== 'normal') {
+    segmentInsight.value = { state: segmentInsightState.value };
+    return;
+  }
+  
+  const summaryRequestId = ++segmentInsightRequestId;
+  segmentInsightError.value = null;
+  segmentInsightLoading.value = true;
+  try {
+    const next = await analysisService.getSegmentSummary(props.feedItem.mediaAssetSegmentId, {
+      forceRefresh: Boolean(params?.forceRefresh),
+    });
+    if (summaryRequestId !== segmentInsightRequestId) return;
+    segmentInsight.value = next;
+  } catch (err) {
+    if (summaryRequestId !== segmentInsightRequestId) return;
+    segmentInsightError.value = err instanceof Error ? err.message : 'Unable to generate insight.';
+  } finally {
+    if (summaryRequestId === segmentInsightRequestId) {
+      segmentInsightLoading.value = false;
+    }
   }
 }
 
@@ -659,9 +724,19 @@ onBeforeUnmount(() => {
           :submitting-narration="submittingText"
           :submit-error="submitTextError"
           :current-user-role="membershipRole"
+          :insight-headline="insightHeadline"
+          :insight-sentence="insightSentence"
+          :insight-coach-script="insightCoachScript"
+          :insight-placeholder="insightPlaceholder"
+          :insight-loading="segmentInsightLoading"
+          :insight-error="segmentInsightError"
+          :insight-can-generate="canGenerateSegmentInsight"
+          :insight-has-generated="hasSegmentInsightContent"
+          :insight-narration-count="segmentNarrationCount"
           @submitText="submitTypedNarration"
           @updateText="onUpdateNarrationText"
           @delete="onDeleteNarration"
+          @generateInsight="generateSegmentInsight({ forceRefresh: true })"
           @selectNarration="() => {}"
         />
 

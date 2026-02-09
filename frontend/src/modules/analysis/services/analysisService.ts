@@ -1,6 +1,7 @@
 import { invokeEdge } from "@/lib/api";
 import { handleEdgeFunctionError } from "@/lib/handleEdgeFunctionError";
 import type { MatchSummary, MatchSummaryState } from "@/modules/analysis/types/MatchSummary";
+import type { SegmentInsight } from "@/modules/analysis/types/SegmentInsight";
 
 export type MatchSummaryMode = 'state' | 'summary';
 
@@ -11,6 +12,7 @@ type CacheEntry<T> = {
 
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 const summaryCache = new Map<string, CacheEntry<MatchSummary>>();
+const segmentSummaryCache = new Map<string, CacheEntry<SegmentInsight>>();
 
 function asStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
@@ -23,8 +25,17 @@ function asMatchSummaryState(value: unknown): MatchSummaryState {
   return 'empty';
 }
 
+function asInsightText(value: unknown): string | null {
+  const text = String(value ?? '').trim();
+  return text ? text : null;
+}
+
 function cacheKey(mediaAssetId: string, mode: MatchSummaryMode): string {
   return `${String(mediaAssetId ?? '').trim()}:${mode}`;
+}
+
+function segmentCacheKey(mediaSegmentId: string, mode: MatchSummaryMode): string {
+  return `segment:${String(mediaSegmentId ?? '').trim()}:${mode}`;
 }
 
 function getCachedSummary(mediaAssetId: string, mode: MatchSummaryMode): MatchSummary | null {
@@ -40,10 +51,29 @@ function getCachedSummary(mediaAssetId: string, mode: MatchSummaryMode): MatchSu
   return entry.value;
 }
 
+function getCachedSegmentSummary(mediaSegmentId: string, mode: MatchSummaryMode): SegmentInsight | null {
+  const key = segmentCacheKey(mediaSegmentId, mode);
+  if (!key) return null;
+  
+  const entry = segmentSummaryCache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAtMs) {
+    segmentSummaryCache.delete(key);
+    return null;
+  }
+  return entry.value;
+}
+
 function setCachedSummary(mediaAssetId: string, mode: MatchSummaryMode, value: MatchSummary) {
   const key = cacheKey(mediaAssetId, mode);
   if (!key) return;
   summaryCache.set(key, { value, expiresAtMs: Date.now() + CACHE_TTL_MS });
+}
+
+function setCachedSegmentSummary(mediaSegmentId: string, mode: MatchSummaryMode, value: SegmentInsight) {
+  const key = segmentCacheKey(mediaSegmentId, mode);
+  if (!key) return;
+  segmentSummaryCache.set(key, { value, expiresAtMs: Date.now() + CACHE_TTL_MS });
 }
 
 export const analysisService = {
@@ -67,6 +97,25 @@ export const analysisService = {
     const summary = await this.summarizeMediaAsset(id, { mode });
     setCachedSummary(id, mode, summary);
     return summary;
+  },
+
+  async getSegmentSummary(
+    mediaSegmentId: string,
+    options?: { forceRefresh?: boolean; mode?: MatchSummaryMode }
+  ): Promise<SegmentInsight> {
+    const id = String(mediaSegmentId ?? "").trim();
+    if (!id) throw new Error("Missing mediaSegmentId.");
+    
+    const mode: MatchSummaryMode = options?.mode ?? 'summary';
+    
+    if (!options?.forceRefresh) {
+      const cached = getCachedSegmentSummary(id, mode);
+      if (cached) return cached;
+    }
+    
+    const insight = await this.summarizeMediaSegment(id, { mode });
+    setCachedSegmentSummary(id, mode, insight);
+    return insight;
   },
 
   /**
@@ -116,8 +165,42 @@ export const analysisService = {
     return summary;
   },
 
+  async summarizeMediaSegment(mediaSegmentId: string, options?: { mode?: MatchSummaryMode }): Promise<SegmentInsight> {
+    const id = String(mediaSegmentId ?? "").trim();
+    if (!id) throw new Error("Missing mediaSegmentId.");
+    
+    const mode: MatchSummaryMode = options?.mode ?? 'summary';
+    
+    const response = await invokeEdge("summarize-media-segment", {
+      body: {
+        media_segment_id: id,
+        mode,
+      },
+      orgScoped: true,
+    });
+    
+    if (response.error) {
+      throw await handleEdgeFunctionError(response.error, "Unable to generate segment summary.");
+    }
+    
+    const data = response.data as any;
+    
+    const state = asMatchSummaryState(data?.state);
+    
+    const insight: SegmentInsight = {
+      state,
+      insight_headline: state === 'normal' ? asInsightText(data?.insight_headline) : null,
+      insight_sentence: state === 'normal' ? asInsightText(data?.insight_sentence) : null,
+      coach_script: state === 'normal' ? asInsightText(data?.coach_script) : null,
+    };
+    
+    setCachedSegmentSummary(id, mode, insight);
+    return insight;
+  },
+
   /** Clears in-memory caches (useful on logout/org switch). */
   clearCache() {
     summaryCache.clear();
+    segmentSummaryCache.clear();
   },
 };

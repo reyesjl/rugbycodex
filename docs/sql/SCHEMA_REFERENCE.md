@@ -219,6 +219,38 @@ CREATE TABLE public.organizations (
   CONSTRAINT organizations_pkey PRIMARY KEY (id),
   CONSTRAINT organizations_owner_fkey FOREIGN KEY (owner) REFERENCES public.profiles(id)
 );
+CREATE TABLE public.playlist_segments (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  playlist_id uuid NOT NULL,
+  media_segment_id uuid NOT NULL,
+  sort_order integer NOT NULL DEFAULT 0 CHECK (sort_order >= 0),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT playlist_segments_pkey PRIMARY KEY (id),
+  CONSTRAINT playlist_segments_playlist_id_fkey FOREIGN KEY (playlist_id) REFERENCES public.playlists(id),
+  CONSTRAINT playlist_segments_media_segment_id_fkey FOREIGN KEY (media_segment_id) REFERENCES public.media_asset_segments(id)
+);
+CREATE TABLE public.playlist_tags (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  playlist_id uuid NOT NULL,
+  tag_key text NOT NULL,
+  created_by uuid NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT playlist_tags_pkey PRIMARY KEY (id),
+  CONSTRAINT playlist_tags_playlist_id_fkey FOREIGN KEY (playlist_id) REFERENCES public.playlists(id),
+  CONSTRAINT playlist_tags_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.playlists (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  org_id uuid NOT NULL,
+  created_by uuid NOT NULL,
+  name text NOT NULL,
+  description text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT playlists_pkey PRIMARY KEY (id),
+  CONSTRAINT playlists_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id),
+  CONSTRAINT playlists_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.profiles(id)
+);
 CREATE TABLE public.profiles (
   id uuid NOT NULL,
   xp bigint NOT NULL DEFAULT '0'::bigint,
@@ -241,4 +273,21 @@ CREATE TABLE public.segment_tags (
   CONSTRAINT segment_tags_pkey PRIMARY KEY (id),
   CONSTRAINT segment_tags_segment_id_fkey FOREIGN KEY (segment_id) REFERENCES public.media_asset_segments(id),
   CONSTRAINT segment_tags_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.segment_viewing_sessions (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  profile_id uuid NOT NULL,
+  assignment_id uuid,
+  media_asset_id uuid,
+  segments_viewed integer NOT NULL DEFAULT 0,
+  segments_completed integer NOT NULL DEFAULT 0,
+  total_segments integer NOT NULL DEFAULT 0,
+  total_time_seconds numeric NOT NULL DEFAULT 0 CHECK (total_time_seconds >= 0::numeric),
+  max_video_completion_percent numeric NOT NULL DEFAULT 0 CHECK (max_video_completion_percent >= 0::numeric AND max_video_completion_percent <= 100::numeric),
+  started_at timestamp with time zone NOT NULL DEFAULT now(),
+  ended_at timestamp with time zone,
+  CONSTRAINT segment_viewing_sessions_pkey PRIMARY KEY (id),
+  CONSTRAINT segment_viewing_sessions_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES public.profiles(id),
+  CONSTRAINT segment_viewing_sessions_assignment_id_fkey FOREIGN KEY (assignment_id) REFERENCES public.assignments(id),
+  CONSTRAINT segment_viewing_sessions_media_asset_id_fkey FOREIGN KEY (media_asset_id) REFERENCES public.media_assets(id)
 );

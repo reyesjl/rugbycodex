@@ -154,6 +154,15 @@ const activeItem = computed(() => {
   return items.value[nav.activeIndex.value] ?? null;
 });
 
+watch(
+  () => activeItem.value,
+  (next) => {
+    if (!next) return;
+    void preload.ensureSrcForItem(next);
+  },
+  { immediate: true }
+);
+
 defineExpose({
   goNext,
   goPrev,
@@ -226,6 +235,7 @@ defineExpose({
 
     <FeedItem
       v-else-if="activeItem"
+      :key="String(activeItem.mediaAssetSegmentId || activeItem.mediaAssetId)"
       :feed-item="activeItem"
       :is-active="true"
       :src="preload.getSrc(activeItem.mediaAssetId)"
