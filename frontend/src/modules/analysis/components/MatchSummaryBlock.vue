@@ -18,7 +18,8 @@ const props = withDefaults(
   defineProps<{
     state: MatchSummaryState;
     bullets?: string[];
-    matchSignature?: string[];
+    matchHeadline?: string | null;
+    matchSummaryLines?: string[];
     sections?: {
       set_piece?: string | null;
       territory?: string | null;
@@ -44,7 +45,8 @@ const props = withDefaults(
   }>(),
   {
     bullets: () => [],
-    matchSignature: () => [],
+    matchHeadline: null,
+    matchSummaryLines: () => [],
     sections: () => ({}),
     loading: false,
     error: null,
@@ -68,8 +70,10 @@ const emit = defineEmits<{ (e: 'generate'): void; (e: 'toggle'): void }>();
 
 // Support both legacy bullets and new structured format
 const hasLegacyBullets = computed(() => Array.isArray(props.bullets) && props.bullets.length > 0);
-const hasMatchSignature = computed(() => Array.isArray(props.matchSignature) && props.matchSignature.length > 0);
-const hasBullets = computed(() => hasLegacyBullets.value || hasMatchSignature.value);
+const hasHeadline = computed(() => Boolean(props.matchHeadline && props.matchHeadline.trim().length > 0));
+const hasSummaryText = computed(() => Array.isArray(props.matchSummaryLines) && props.matchSummaryLines.length > 0);
+const hasOverview = computed(() => hasHeadline.value || hasSummaryText.value);
+const hasBullets = computed(() => hasLegacyBullets.value);
 
 // Section metadata
 const sectionMetadata: Record<string, string> = {
@@ -102,7 +106,7 @@ const availableSections = computed((): MatchAnalysisSection[] => {
   return sections;
 });
 
-const hasStructuredContent = computed(() => hasMatchSignature.value || availableSections.value.length > 0);
+const hasStructuredContent = computed(() => availableSections.value.length > 0);
 
 const showInfoModal = ref(false);
 
@@ -119,13 +123,13 @@ const containerClass = computed(() => 'rounded-lg border border-slate-700/50 bg-
 const shouldShowContainer = computed(() => {
   if (props.state !== 'normal') return false;
   if (props.loading) return false;
-  return Boolean(props.error || hasBullets.value || hasStructuredContent.value || props.hasGenerated);
+  return Boolean(props.error || hasOverview.value || hasBullets.value || hasStructuredContent.value || props.hasGenerated);
 });
 
 const shouldShowAnalyzeButton = computed(() => {
   if (props.state !== 'normal') return false;
   if (props.loading || props.error) return false;
-  if (hasBullets.value || hasStructuredContent.value || props.hasGenerated) return false;
+  if (hasOverview.value || hasBullets.value || hasStructuredContent.value || props.hasGenerated) return false;
   return Boolean(props.canGenerate);
 });
 
@@ -179,7 +183,7 @@ const summaryAriaLabel = computed(() => {
           <div class="text-sm font-semibold text-slate-50 truncate">{{ summaryLabel }}</div>
         </div>
         <div
-          v-if="(hasBullets || hasGenerated) && Number.isFinite(narrationCount)"
+          v-if="(hasOverview || hasBullets || hasStructuredContent || hasGenerated) && Number.isFinite(narrationCount)"
           class="mt-1 ml-6 flex items-center gap-2 border-l-2 border-blue-400/60 pl-1 text-xs text-slate-400"
         >
           <span>Based on {{ narrationCount }} narrations.</span>
@@ -206,21 +210,21 @@ const summaryAriaLabel = computed(() => {
 
     <!-- Content -->
     <div v-else class="mt-4">
-      <!-- Match Signature (always visible, not expandable) -->
-      <div v-if="hasMatchSignature" class="mb-4">
-        <div class="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
-          Match Signature
+      <!-- Headline + summary -->
+      <div v-if="hasOverview" class="mb-4 space-y-2">
+        <div v-if="hasHeadline" class="text-sm font-semibold text-slate-100">
+          {{ matchHeadline }}
         </div>
-        <ul class="space-y-2 text-sm text-slate-300">
-          <li v-for="(bullet, idx) in matchSignature" :key="idx" class="flex gap-3">
+        <ul v-if="hasSummaryText" class="space-y-2 text-sm text-slate-300">
+          <li v-for="(line, idx) in matchSummaryLines" :key="idx" class="flex gap-3">
             <span class="text-slate-500 shrink-0">•</span>
-            <span class="leading-relaxed">{{ bullet }}</span>
+            <span class="leading-relaxed">{{ line }}</span>
           </li>
         </ul>
       </div>
 
       <!-- Legacy bullets (backward compatibility) -->
-      <div v-else-if="hasLegacyBullets" class="mb-4">
+      <div v-if="hasLegacyBullets" class="mb-4">
         <ul class="space-y-2 text-sm text-slate-300">
           <li v-for="(b, idx) in bullets" :key="idx" class="flex gap-3">
             <span class="text-slate-500 shrink-0">•</span>

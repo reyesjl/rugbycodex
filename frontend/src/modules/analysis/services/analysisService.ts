@@ -25,6 +25,11 @@ function asMatchSummaryState(value: unknown): MatchSummaryState {
   return 'empty';
 }
 
+function asSummaryText(value: unknown): string | null {
+  const text = String(value ?? '').trim();
+  return text ? text : null;
+}
+
 function asInsightText(value: unknown): string | null {
   const text = String(value ?? '').trim();
   return text ? text : null;
@@ -147,7 +152,8 @@ export const analysisService = {
     
     // Support both legacy bullets and new structured format
     const bullets = asStringArray(data?.bullets);
-    const match_signature = asStringArray(data?.match_signature);
+    const match_headline = asSummaryText(data?.match_headline);
+    const match_summary = asStringArray(data?.match_summary);
     const sections = data?.sections && typeof data.sections === 'object' ? data.sections : undefined;
 
     const summary: MatchSummary = {
@@ -155,8 +161,9 @@ export const analysisService = {
       // Legacy format
       bullets: state === 'normal' ? bullets : [],
       // New structured format (union type compatibility)
-      ...(match_signature.length > 0 || sections ? {
-        match_signature: state === 'normal' ? match_signature : [],
+      ...(match_headline || match_summary.length > 0 || sections ? {
+        match_headline: state === 'normal' ? match_headline : null,
+        match_summary: state === 'normal' ? match_summary : [],
         sections: state === 'normal' ? sections : undefined,
       } : {})
     };

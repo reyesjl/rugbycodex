@@ -407,11 +407,22 @@ const matchSummaryBullets = computed(() => {
   return (structured?.bullets ?? []).filter(Boolean);
 });
 
-const matchSummarySignature = computed(() => {
+const matchSummaryHeadline = computed(() => {
+  if (matchSummaryState.value !== 'normal') return null;
+  if (matchSummary.value?.state !== 'normal') return null;
+  const structured = matchSummary.value as any;
+  const headline = String(structured?.match_headline ?? '').trim();
+  return headline ? headline : null;
+});
+
+const matchSummaryOverview = computed(() => {
   if (matchSummaryState.value !== 'normal') return [];
   if (matchSummary.value?.state !== 'normal') return [];
   const structured = matchSummary.value as any;
-  return (structured?.match_signature ?? []).filter(Boolean);
+  const summary = Array.isArray(structured?.match_summary)
+    ? structured.match_summary.map((line: any) => String(line ?? '').trim()).filter(Boolean)
+    : [];
+  return summary;
 });
 
 const matchSummarySections = computed(() => {
@@ -424,12 +435,12 @@ const matchSummarySections = computed(() => {
 const hasMatchSummaryContent = computed(() => {
   if (matchSummaryState.value !== 'normal') return false;
   
+  if (matchSummaryHeadline.value || matchSummaryOverview.value.length > 0) return true;
+  
   // Check for legacy bullets
   if (matchSummaryBullets.value.length > 0) return true;
   
   // Check for new structured format
-  if (matchSummarySignature.value.length > 0) return true;
-  
   // Check if any section has content
   const sections = matchSummarySections.value;
   if (sections && typeof sections === 'object') {
@@ -443,8 +454,8 @@ const matchSummaryCollapsed = ref(false);
 
 const { value: matchSummaryTypedText, typeText: typeMatchSummary } = useTypewriter();
 
-// For display, prefer match signature over legacy bullets, and support typewriter effect
-// (use `matchSummarySignature`, `typedMatchSummaryBullets`, and `matchSummaryBullets` directly in templates)
+// For display, support typewriter effect for legacy bullets
+// (use `typedMatchSummaryBullets` and `matchSummaryBullets` directly in templates)
 
 watch(
   matchSummaryBullets,
@@ -1522,7 +1533,8 @@ async function handleDeleteSegment(segmentId: string) {
                 <MatchSummaryBlock
                   :state="matchSummaryState"
                   :bullets="matchSummaryBullets"
-                  :match-signature="matchSummarySignature"
+                  :match-headline="matchSummaryHeadline"
+                  :match-summary-lines="matchSummaryOverview"
                   :sections="matchSummarySections"
                   :loading="matchSummaryLoading"
                   :error="matchSummaryError"
@@ -1589,7 +1601,8 @@ async function handleDeleteSegment(segmentId: string) {
               <MatchSummaryBlock
                 :state="matchSummaryState"
                 :bullets="matchSummaryBullets"
-                :match-signature="matchSummarySignature"
+                :match-headline="matchSummaryHeadline"
+                :match-summary-lines="matchSummaryOverview"
                 :sections="matchSummarySections"
                 :loading="matchSummaryLoading"
                 :error="matchSummaryError"

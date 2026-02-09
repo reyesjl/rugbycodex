@@ -68,39 +68,58 @@ const DEFAULT_MODEL = "gpt-4.1-mini";
 //   "- Reflect team observations, not an 'AI opinion'.\n";
 
 const NORMAL_SYSTEM_PROMPT =
-  "You are an assistant summarizing a full rugby match from team match-review narrations.\n" +
-  "Your job is to produce a structured analysis with two components:\n\n" +
-  
-  "1) MATCH SIGNATURE (2-3 bullets)\n" +
-  "   - High-level match identity and feel\n" +
-  "   - Include approximate counts of key events if clearly inferable (scrums, lineouts, tries, kicks)\n" +
-  "   - Use 'approx', 'around', or 'multiple' if exact counts unclear\n" +
-  "   - Territory and pressure trends\n" +
-  "   - Overall match character\n\n" +
-  
-  "2) ANALYSIS SECTIONS (coach-style summaries)\n" +
-  "   Generate 2-3 sentence summaries for each section below ONLY if there is sufficient signal in the narrations.\n" +
-  "   If a section lacks clear, repeated patterns, return null for that section instead of speculating.\n\n" +
-  
-  "   SECTIONS:\n" +
-  "   - set_piece: Scrum dominance/issues, lineout success/steals, first phase effectiveness, maul patterns\n" +
-  "   - territory: Field position control, exit success, red zone time, pressure cycles, where game was played\n" +
-  "   - possession: Retention quality, turnovers won/lost, phase building ability, ball security, ruck speed\n" +
-  "   - defence: Tackle completion, line breaks conceded, defensive shape/speed, collision dominance, system pressure\n" +
-  "   - kick_battle: Kick pressure success, kick return threat, territory outcomes, restart quality, aerial contest\n" +
-  "   - scoring: Try source patterns, line break sources, attack shape success, opponent scoring patterns\n\n" +
-  
+  "You are an assistant extracting tactical match intelligence from team match-review narrations.\n\n" +
+  "PRIMARY GOAL:\n" +
+  "Identify the tactical signature of the match using ONLY the provided narrations.\n" +
+  "The output should describe what TYPE OF GAME this was, not tell a story of events.\n\n" +
+  "OUTPUT STRUCTURE:\n\n" +
+  "1) MATCH SIGNATURE (one sentence)\n" +
+  "- A short tactical identity of the match\n" +
+  "- Should describe dominant recurring patterns that defined the game\n" +
+  "- Think like a coach describing the game to another coach in one sentence\n" +
+  "- Prefer naming patterns over describing events\n\n" +
+  "2) MATCH INTELLIGENCE SUMMARY (max 3 short lines)\n" +
+  "- Each line should describe a recurring tactical pattern\n" +
+  "- Focus on structural causes (shape, pressure, spacing, launch platforms, territory cycles)\n" +
+  "- Avoid narrative storytelling\n\n" +
+  "3) ANALYSIS SECTIONS (coach-style tactical summaries)\n" +
+  "Generate 2-3 sentence summaries for each section ONLY if there is clear repeated signal.\n" +
+  "If a section lacks strong repeated patterns, return null instead of speculating.\n\n" +
+  "SECTIONS:\n" +
+  "- set_piece: Scrum stability or pressure, lineout success or disruption, maul patterns, first phase outcomes\n" +
+  "- territory: Field position control, exit success, pressure cycles, red zone time, where the game was played\n" +
+  "- possession: Retention quality, turnover patterns, phase building ability, ruck speed, ball security\n" +
+  "- defence: Tackle completion, line breaks conceded, defensive spacing, line speed, collision dominance, system pressure\n" +
+  "- kick_battle: Kick pressure success, kick return threat, aerial contest outcomes, restart control, territory outcomes\n" +
+  "- scoring: Try source patterns, attack launch points, line break origins, opponent scoring patterns\n\n" +
   "STYLE GUIDELINES:\n" +
-  "- Write in direct, practical rugby language like a coach speaking after a review session\n" +
-  "- Prefer structural language (spacing, shape, alignment, connection, communication, pressure, territory)\n" +
-  "- Avoid academic or report-style phrasing\n" +
+  "- Write in direct, practical rugby coaching language\n" +
+  "- Prefer structural and systems language (shape, spacing, connection, alignment, pressure, territory)\n" +
   "- Focus on repeated patterns, not isolated moments\n" +
-  "- Preserve 'our' vs 'their' perspective if present in narrations\n" +
   "- Reflect asymmetry if one side clearly dominates\n" +
-  "- NO play-by-play, timestamps, or chronological recap\n" +
-  "- NO tactical recommendations or prescriptions (no 'should', no strategy, no fixes)\n" +
-  "- Neutral observational tone reflecting team observations, not AI opinion\n" +
-  "- Only reflect what is explicitly present in narrations - no speculation\n";
+  "- Preserve 'our' vs 'their' perspective if present in narrations\n" +
+  "- Avoid academic, report-style, or storytelling tone\n\n" +
+  "STRICT RULES:\n" +
+  "- Only use information explicitly present in narrations\n" +
+  "- No speculation or inference beyond narration evidence\n" +
+  "- No play-by-play or chronological recap\n" +
+  "- No timestamps\n" +
+  "- No tactical recommendations or prescriptions (no 'should', no strategy advice, no fixes)\n" +
+  "- Maintain neutral observational coaching tone\n\n" +
+  "OUTPUT FORMAT:\n" +
+  "Return strict JSON with this shape:\n\n" +
+  "{\n" +
+  '  "match_headline": string,\n' +
+  '  "match_summary": string[],\n' +
+  '  "sections": {\n' +
+  '    "set_piece": string | null,\n' +
+  '    "territory": string | null,\n' +
+  '    "possession": string | null,\n' +
+  '    "defence": string | null,\n' +
+  '    "kick_battle": string | null,\n' +
+  '    "scoring": string | null\n' +
+  "  }\n" +
+  "}";
 
 
 
@@ -196,7 +215,8 @@ function shapeBullets(input: string[]): string[] {
 }
 
 type StructuredSummaryResponse = {
-  match_signature: string[];
+  match_headline: string | null;
+  match_summary: string[];
   sections: {
     set_piece?: string | null;
     territory?: string | null;
@@ -217,22 +237,7 @@ async function callOpenAIStructured(
 
   const model = Deno.env.get("OPENAI_SUMMARY_MODEL") ?? DEFAULT_MODEL;
 
-  const jsonSchemaInstruction = 
-    "\n\nOUTPUT FORMAT (strict JSON):\n" +
-    "{\n" +
-    '  "match_signature": ["bullet1", "bullet2", "bullet3"],  // 2-3 bullets\n' +
-    '  "sections": {\n' +
-    '    "set_piece": "2-3 sentence summary or null if insufficient data",\n' +
-    '    "territory": "2-3 sentence summary or null if insufficient data",\n' +
-    '    "possession": "2-3 sentence summary or null if insufficient data",\n' +
-    '    "defence": "2-3 sentence summary or null if insufficient data",\n' +
-    '    "kick_battle": "2-3 sentence summary or null if insufficient data",\n' +
-    '    "scoring": "2-3 sentence summary or null if insufficient data"\n' +
-    "  }\n" +
-    "}\n" +
-    "Return null for any section that lacks clear, repeated patterns in the narrations.";
-
-  const systemPrompt = NORMAL_SYSTEM_PROMPT + jsonSchemaInstruction;
+  const systemPrompt = NORMAL_SYSTEM_PROMPT;
 
   const body = {
     model,
@@ -274,9 +279,12 @@ async function callOpenAIStructured(
   }
 
   // Validate and shape the response
-  const match_signature = Array.isArray(parsed?.match_signature)
-    ? parsed.match_signature.map((s: any) => String(s ?? "").trim()).filter(Boolean).slice(0, 3)
+  const match_headline_raw = String(parsed?.match_headline ?? "").trim();
+  const match_summary_raw = Array.isArray(parsed?.match_summary)
+    ? parsed.match_summary.map((s: any) => String(s ?? "").trim()).filter(Boolean).slice(0, 3)
     : [];
+  const match_headline = match_headline_raw ? match_headline_raw : null;
+  const match_summary = match_summary_raw;
 
   const sections: StructuredSummaryResponse["sections"] = {};
   const sectionKeys = ["set_piece", "territory", "possession", "defence", "kick_battle", "scoring"] as const;
@@ -291,7 +299,7 @@ async function callOpenAIStructured(
   }
 
   return { 
-    response: { match_signature, sections }, 
+    response: { match_headline, match_summary, sections }, 
     model 
   };
 }
@@ -592,7 +600,8 @@ Deno.serve(withObservability("summarize-media-asset", async (req: Request) => {
 
     return jsonResponse({ 
       state, 
-      match_signature: response.match_signature,
+      match_headline: response.match_headline,
+      match_summary: response.match_summary,
       sections: response.sections
     });
   } catch (err) {

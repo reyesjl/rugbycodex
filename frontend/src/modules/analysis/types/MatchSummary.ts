@@ -16,7 +16,8 @@ export type MatchSummarySections = {
 
 export type StructuredMatchSummary = {
   state: MatchSummaryState;
-  match_signature?: string[];
+  match_headline?: string | null;
+  match_summary?: string[];
   sections?: MatchSummarySections;
 };
 
