@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
 import { storeToRefs } from 'pinia';
 import { useSortable } from '@vueuse/integrations/useSortable';
+import type { UseSortableOptions } from '@vueuse/integrations/useSortable';
 import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrganizationStore';
 import { playlistService } from '@/modules/playlists/services/playlistService';
 import type { Playlist, PlaylistTag, PlaylistFeedEntry } from '@/modules/playlists/types';
@@ -275,7 +276,7 @@ onMounted(() => {
 // Initialize sortable after feed entries are loaded
 watch([sortableContainer, feedEntries], ([container, entries]) => {
   if (container && entries.length > 0) {
-    useSortable(sortableContainer, feedEntries, {
+    const sortableOptions = {
       handle: '.drag-handle',
       ghostClass: 'sortable-ghost',
       dragClass: 'sortable-drag',
@@ -295,7 +296,9 @@ watch([sortableContainer, feedEntries], ([container, entries]) => {
           void handleReorder();
         }
       },
-    });
+    } as unknown as UseSortableOptions;
+
+    useSortable(sortableContainer, feedEntries, sortableOptions);
   }
 }, { immediate: true });
 </script>
