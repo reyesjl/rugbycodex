@@ -13,7 +13,7 @@ export function computeSegmentBounds(
   mediaDuration: number,
   preBufferSeconds = 5,
   postBufferSeconds = 10,
-  minLengthSeconds = 30,
+  minLengthSeconds = 15,
   maxLengthSeconds = 60
 ): SegmentBounds {
   const startTime = toFiniteNumber(recordStartVideoTime, 0);
