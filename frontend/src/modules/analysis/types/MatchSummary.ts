@@ -5,6 +5,12 @@ export type MatchAnalysisSection = {
   summary: string;
 };
 
+export type SummaryRefreshMeta = {
+  narration_count_at_generation?: number | null;
+  narration_count_current?: number | null;
+  is_stale?: boolean | null;
+};
+
 export type MatchSummarySections = {
   set_piece?: MatchAnalysisSection | null;
   territory?: MatchAnalysisSection | null;
@@ -19,10 +25,10 @@ export type StructuredMatchSummary = {
   match_headline?: string | null;
   match_summary?: string[];
   sections?: MatchSummarySections;
-};
+} & SummaryRefreshMeta;
 
 // Legacy format support
 export type MatchSummary = {
   state: MatchSummaryState;
   bullets?: string[];
-} | StructuredMatchSummary;
+} & SummaryRefreshMeta | StructuredMatchSummary;

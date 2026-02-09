@@ -2,7 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 import { handleCors, jsonResponse } from "../_shared/cors.ts";
 import { errorResponse } from "../_shared/errors.ts";
-import { getAuthContext, getClientBoundToRequest } from "../_shared/auth.ts";
+import { getAuthContext, getClientBoundToRequest, getServiceRoleClient } from "../_shared/auth.ts";
 import { getUserRoleFromRequest, requireAuthenticated, requireOrgRoleSource, requireRole } from "../_shared/roles.ts";
 import { withObservability } from "../_shared/observability.ts";
 
@@ -55,6 +55,8 @@ type SummaryContext = {
 };
 
 const DEFAULT_MODEL = "gpt-4.1-mini";
+const PROMPT_VERSION = "segment-insight-v1";
+const INSIGHT_TEMPERATURE = 0.2;
 
 const SEGMENT_SYSTEM_PROMPT =
   "You are an assistant summarizing a single rugby match segment from team narrations.\n" +
@@ -76,6 +78,34 @@ type InsightResponse = {
   insight_sentence: string | null;
   coach_script: string | null;
 };
+
+type SegmentInsightRow = {
+  id: string;
+  media_segment_id: string;
+  state: string;
+  insight_headline: string;
+  insight_sentence: string;
+  coach_script: string | null;
+  narration_count_at_generation?: number | null;
+  model?: string | null;
+  prompt_version?: string | null;
+  confidence?: string | null;
+};
+
+function mapSegmentInsightRow(row: SegmentInsightRow) {
+  return {
+    state: String(row?.state ?? "normal"),
+    insight_headline: row.insight_headline ?? null,
+    insight_sentence: row.insight_sentence ?? null,
+    coach_script: row.coach_script ?? null,
+  };
+}
+
+function computeSegmentStale(currentCount: number, generatedCount: number | null | undefined): boolean {
+  const base = Number.isFinite(Number(generatedCount)) ? Math.max(0, Number(generatedCount)) : 0;
+  const threshold = Math.max(1, Math.ceil(base * 0.4));
+  return currentCount - base >= threshold;
+}
 
 function normalizeRole(role: unknown): string {
   return String(role ?? "").trim().toLowerCase();
@@ -136,7 +166,7 @@ async function callOpenAI(
   
   const body = {
     model,
-    temperature: 0.2,
+    temperature: INSIGHT_TEMPERATURE,
     response_format: { type: "json_object" },
     messages: [
       { role: "system", content: systemPrompt },
@@ -210,8 +240,10 @@ Deno.serve(withObservability("summarize-media-segment", async (req: Request) => 
     
     const rawMode = String(body?.mode ?? "summary").trim().toLowerCase();
     const mode: SummaryMode = rawMode === "state" ? "state" : "summary";
+    const forceRefresh = Boolean(body?.force_refresh ?? body?.forceRefresh);
     
     const supabase = getClientBoundToRequest(req);
+    const serviceRoleClient = getServiceRoleClient();
     
     const { data: segment, error: segmentError } = await supabase
       .from("media_asset_segments")
@@ -366,14 +398,95 @@ Deno.serve(withObservability("summarize-media-segment", async (req: Request) => 
     if (mode === "state") {
       return jsonResponse({ state });
     }
-    
-    const { response } = await callOpenAI(context);
-    
-    return jsonResponse({
+
+    let existingInsight: SegmentInsightRow | null = null;
+    {
+      const { data: insightRow, error: insightError } = await supabase
+        .from("segment_insights")
+        .select("id, media_segment_id, state, insight_headline, insight_sentence, coach_script, narration_count_at_generation")
+        .eq("media_segment_id", mediaSegmentId)
+        .eq("is_active", true)
+        .order("generated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (insightError) {
+        console.error("summarize_media_segment segment_insights error", insightError);
+        return errorResponse("DB_QUERY_FAILED", "Failed to load segment insights", 500);
+      }
+
+      if (insightRow) {
+        existingInsight = insightRow as SegmentInsightRow;
+      }
+    }
+
+    if (existingInsight && !forceRefresh) {
+      const narrationCountCurrent = context.narration_count;
+      const narrationCountAtGeneration = existingInsight.narration_count_at_generation ?? null;
+      const isStale = computeSegmentStale(narrationCountCurrent, narrationCountAtGeneration);
+      return jsonResponse({
+        ...mapSegmentInsightRow(existingInsight),
+        narration_count_at_generation: narrationCountAtGeneration,
+        narration_count_current: narrationCountCurrent,
+        is_stale: isStale,
+      });
+    }
+
+    const { response, model } = await callOpenAI(context);
+
+    if (!response.insight_headline || !response.insight_sentence) {
+      return errorResponse("INVALID_AI_RESPONSE", "Segment insight missing required fields.", 500);
+    }
+
+    const payload = {
+      media_segment_id: mediaSegmentId,
       state,
       insight_headline: response.insight_headline,
       insight_sentence: response.insight_sentence,
       coach_script: response.coach_script,
+      confidence: null,
+      model,
+      prompt_version: PROMPT_VERSION,
+      narration_count_at_generation: context.narration_count,
+      is_active: true,
+      generated_at: new Date().toISOString(),
+    };
+
+    let savedRow: SegmentInsightRow | null = null;
+    if (existingInsight) {
+      const { data: updated, error: updateError } = await serviceRoleClient
+        .from("segment_insights")
+        .update(payload)
+        .eq("id", existingInsight.id)
+        .select("id, media_segment_id, state, insight_headline, insight_sentence, coach_script, narration_count_at_generation")
+        .maybeSingle();
+
+      if (updateError) {
+        console.error("summarize_media_segment segment_insights update error", updateError);
+        return errorResponse("DB_QUERY_FAILED", "Failed to update segment insights", 500);
+      }
+
+      savedRow = (updated ?? existingInsight) as SegmentInsightRow;
+    } else {
+      const { data: inserted, error: insertError } = await serviceRoleClient
+        .from("segment_insights")
+        .insert(payload)
+        .select("id, media_segment_id, state, insight_headline, insight_sentence, coach_script, narration_count_at_generation")
+        .maybeSingle();
+
+      if (insertError) {
+        console.error("summarize_media_segment segment_insights insert error", insertError);
+        return errorResponse("DB_QUERY_FAILED", "Failed to save segment insights", 500);
+      }
+
+      savedRow = (inserted ?? payload) as SegmentInsightRow;
+    }
+
+    return jsonResponse({
+      ...mapSegmentInsightRow(savedRow),
+      narration_count_at_generation: savedRow?.narration_count_at_generation ?? context.narration_count,
+      narration_count_current: context.narration_count,
+      is_stale: false,
     });
   } catch (err) {
     console.error("summarize_media_segment unexpected error", err);

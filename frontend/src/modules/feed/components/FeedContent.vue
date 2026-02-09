@@ -29,6 +29,7 @@ const props = withDefaults(
     insightCoachScript?: string | null;
     insightPlaceholder?: string | null;
     insightLoading?: boolean;
+    insightRefreshing?: boolean;
     insightError?: string | null;
     insightCanGenerate?: boolean;
     insightHasGenerated?: boolean;
@@ -48,6 +49,7 @@ const props = withDefaults(
     insightCoachScript: null,
     insightPlaceholder: null,
     insightLoading: false,
+    insightRefreshing: false,
     insightError: null,
     insightCanGenerate: false,
     insightHasGenerated: false,
@@ -123,8 +125,9 @@ function classForTag(tag: SegmentTag): string {
     
     <div class="space-y-2">
       <div class="flex items-center justify-between gap-3">
-        <div class="text-sm font-semibold text-white">
+        <div class="flex items-center gap-2 text-sm font-semibold text-white">
           {{ insightHeadlineText }}
+          <Icon icon="carbon:ai-generate" width="14" height="14" class="text-white/60" />
         </div>
         <button
           v-if="showGenerateInsight"
@@ -139,6 +142,10 @@ function classForTag(tag: SegmentTag): string {
       <div v-if="insightLoading" class="flex items-center gap-2 text-sm text-white/70">
         <LoadingDot />
         <ShimmerText text="Rugbycodex is generating insight" />
+      </div>
+      <div v-else-if="insightRefreshing" class="flex items-center gap-2 text-xs text-white/50">
+        <LoadingDot />
+        <span>Refreshing insight…</span>
       </div>
       <p v-else class="text-sm" :class="isInsightPlaceholder ? 'text-white/50' : 'text-white/70'">
         {{ insightSentenceText }}

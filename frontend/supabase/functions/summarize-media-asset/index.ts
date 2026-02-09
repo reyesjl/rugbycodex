@@ -2,7 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 import { handleCors, jsonResponse } from "../_shared/cors.ts";
 import { errorResponse } from "../_shared/errors.ts";
-import { getAuthContext, getClientBoundToRequest } from "../_shared/auth.ts";
+import { getAuthContext, getClientBoundToRequest, getServiceRoleClient } from "../_shared/auth.ts";
 import { getUserRoleFromRequest, requireAuthenticated, requireOrgRoleSource, requireRole } from "../_shared/roles.ts";
 import { withObservability } from "../_shared/observability.ts";
 
@@ -50,6 +50,9 @@ type SummaryContext = {
 const ALLOWED_ROLES = new Set(["owner", "manager", "staff"]);
 
 const DEFAULT_MODEL = "gpt-4.1-mini";
+const PROMPT_VERSION = "match-intelligence-v1";
+const SUMMARY_TEMPERATURE = 0.2;
+const MIN_NARRATIONS_FOR_SUMMARY = 25;
 
 // const NORMAL_SYSTEM_PROMPT =
 //   "You are an assistant extracting patterns from team match-review narrations.\n" +
@@ -227,6 +230,46 @@ type StructuredSummaryResponse = {
   };
 };
 
+type MatchIntelligenceRow = {
+  id: string;
+  media_asset_id: string;
+  state: string;
+  match_headline: string;
+  match_summary: string[];
+  set_piece: string | null;
+  territory: string | null;
+  possession: string | null;
+  defence: string | null;
+  kick_battle: string | null;
+  scoring: string | null;
+  narration_count_at_generation?: number | null;
+  model?: string | null;
+  prompt_version?: string | null;
+  temperature?: number | null;
+};
+
+function mapMatchIntelligenceRow(row: MatchIntelligenceRow) {
+  return {
+    state: String(row?.state ?? "normal"),
+    match_headline: row.match_headline ?? null,
+    match_summary: Array.isArray(row.match_summary) ? row.match_summary.filter(Boolean) : [],
+    sections: {
+      set_piece: row.set_piece ?? null,
+      territory: row.territory ?? null,
+      possession: row.possession ?? null,
+      defence: row.defence ?? null,
+      kick_battle: row.kick_battle ?? null,
+      scoring: row.scoring ?? null,
+    },
+  };
+}
+
+function computeMatchStale(currentCount: number, generatedCount: number | null | undefined): boolean {
+  const base = Number.isFinite(Number(generatedCount)) ? Math.max(0, Number(generatedCount)) : 0;
+  const threshold = Math.max(5, Math.ceil(base * 0.2));
+  return currentCount - base >= threshold;
+}
+
 async function callOpenAIStructured(
   context: SummaryContext
 ): Promise<{ response: StructuredSummaryResponse; model: string }> {
@@ -241,7 +284,7 @@ async function callOpenAIStructured(
 
   const body = {
     model,
-    temperature: 0.2,
+    temperature: SUMMARY_TEMPERATURE,
     response_format: { type: "json_object" },
     messages: [
       { role: "system", content: systemPrompt },
@@ -396,8 +439,10 @@ Deno.serve(withObservability("summarize-media-asset", async (req: Request) => {
 
     const rawMode = String(body?.mode ?? "summary").trim().toLowerCase();
     const mode: SummaryMode = rawMode === "state" ? "state" : "summary";
+    const forceRefresh = Boolean(body?.force_refresh ?? body?.forceRefresh);
 
     const supabase = getClientBoundToRequest(req);
+    const serviceRoleClient = getServiceRoleClient();
 
     // Fetch media asset (and org scope)
     const { data: asset, error: assetError } = await supabase
@@ -582,8 +627,8 @@ Deno.serve(withObservability("summarize-media-asset", async (req: Request) => {
       return jsonResponse({ state: "empty" });
     }
 
-    // Tier 1 – Light narrations (< 5)
-    const state = narrationCount < 5 ? ("light" as const) : ("normal" as const);
+    // Tier 1 – Light narrations (< 25)
+    const state = narrationCount < MIN_NARRATIONS_FOR_SUMMARY ? ("light" as const) : ("normal" as const);
 
     // In light mode, do not generate AI output.
     if (state === "light") {
@@ -595,14 +640,106 @@ Deno.serve(withObservability("summarize-media-asset", async (req: Request) => {
       return jsonResponse({ state });
     }
 
-    // Generate structured summary for normal state
-    const { response } = await callOpenAIStructured(context);
+    let existingSummary: MatchIntelligenceRow | null = null;
+    {
+      const { data: summaryRow, error: summaryError } = await supabase
+        .from("match_intelligence")
+        .select(
+          "id, media_asset_id, state, match_headline, match_summary, set_piece, territory, possession, defence, kick_battle, scoring, narration_count_at_generation"
+        )
+        .eq("media_asset_id", mediaAssetId)
+        .eq("is_active", true)
+        .order("generated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-    return jsonResponse({ 
-      state, 
+      if (summaryError) {
+        console.error("summarize_media_asset match_intelligence error", summaryError);
+        return errorResponse("DB_QUERY_FAILED", "Failed to load match intelligence", 500);
+      }
+
+      if (summaryRow) {
+        existingSummary = summaryRow as MatchIntelligenceRow;
+      }
+    }
+
+    if (existingSummary && !forceRefresh) {
+      const narrationCountCurrent = context.narration_count;
+      const narrationCountAtGeneration = existingSummary.narration_count_at_generation ?? null;
+      const isStale = computeMatchStale(narrationCountCurrent, narrationCountAtGeneration);
+      return jsonResponse({
+        ...mapMatchIntelligenceRow(existingSummary),
+        narration_count_at_generation: narrationCountAtGeneration,
+        narration_count_current: narrationCountCurrent,
+        is_stale: isStale,
+      });
+    }
+
+    // Generate structured summary for normal state
+    const { response, model } = await callOpenAIStructured(context);
+
+    if (!response.match_headline || response.match_summary.length === 0) {
+      return errorResponse("INVALID_AI_RESPONSE", "Match summary missing required fields.", 500);
+    }
+
+    const payload = {
+      media_asset_id: mediaAssetId,
+      state,
       match_headline: response.match_headline,
       match_summary: response.match_summary,
-      sections: response.sections
+      set_piece: response.sections?.set_piece ?? null,
+      territory: response.sections?.territory ?? null,
+      possession: response.sections?.possession ?? null,
+      defence: response.sections?.defence ?? null,
+      kick_battle: response.sections?.kick_battle ?? null,
+      scoring: response.sections?.scoring ?? null,
+      model,
+      prompt_version: PROMPT_VERSION,
+      temperature: SUMMARY_TEMPERATURE,
+      narration_count_at_generation: context.narration_count,
+      is_active: true,
+      generated_at: new Date().toISOString(),
+    };
+
+    let savedRow: MatchIntelligenceRow | null = null;
+    if (existingSummary) {
+      const { data: updated, error: updateError } = await serviceRoleClient
+        .from("match_intelligence")
+        .update(payload)
+        .eq("id", existingSummary.id)
+        .select(
+          "id, media_asset_id, state, match_headline, match_summary, set_piece, territory, possession, defence, kick_battle, scoring, narration_count_at_generation"
+        )
+        .maybeSingle();
+
+      if (updateError) {
+        console.error("summarize_media_asset match_intelligence update error", updateError);
+        return errorResponse("DB_QUERY_FAILED", "Failed to update match intelligence", 500);
+      }
+
+      savedRow = (updated ?? existingSummary) as MatchIntelligenceRow;
+    } else {
+      const { data: inserted, error: insertError } = await serviceRoleClient
+        .from("match_intelligence")
+        .insert(payload)
+        .select(
+          "id, media_asset_id, state, match_headline, match_summary, set_piece, territory, possession, defence, kick_battle, scoring, narration_count_at_generation"
+        )
+        .maybeSingle();
+
+      if (insertError) {
+        console.error("summarize_media_asset match_intelligence insert error", insertError);
+        return errorResponse("DB_QUERY_FAILED", "Failed to save match intelligence", 500);
+      }
+
+      savedRow = (inserted ?? payload) as MatchIntelligenceRow;
+    }
+
+    return jsonResponse({
+      ...mapMatchIntelligenceRow(savedRow),
+      narration_count_at_generation: savedRow?.narration_count_at_generation ?? context.narration_count,
+      narration_count_current: context.narration_count,
+      is_stale: false,
     });
   } catch (err) {
     console.error("summarize_media_asset unexpected error", err);

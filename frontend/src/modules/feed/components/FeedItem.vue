@@ -278,6 +278,7 @@ const submittingText = ref(false);
 const submitTextError = ref<string | null>(null);
 const segmentInsight = ref<SegmentInsight | null>(null);
 const segmentInsightLoading = ref(false);
+const segmentInsightRefreshing = ref(false);
 const segmentInsightError = ref<string | null>(null);
 let segmentInsightRequestId = 0;
 const segmentInsightNarrationsNeeded = 1;
@@ -307,6 +308,12 @@ function resetSegmentInsight() {
   segmentInsight.value = null;
   segmentInsightError.value = null;
   segmentInsightLoading.value = false;
+  segmentInsightRefreshing.value = false;
+}
+
+function hasInsightPayload(next: SegmentInsight | null): boolean {
+  if (!next || next.state !== 'normal') return false;
+  return Boolean(next.insight_headline || next.insight_sentence || next.coach_script);
 }
 
 async function refreshNarrations() {
@@ -324,6 +331,7 @@ watch(
   () => {
     resetSegmentInsight();
     void refreshNarrations();
+    void loadStoredSegmentInsight();
   },
   { immediate: true }
 );
@@ -466,6 +474,59 @@ async function generateSegmentInsight(params?: { forceRefresh?: boolean }) {
   } catch (err) {
     if (summaryRequestId !== segmentInsightRequestId) return;
     segmentInsightError.value = err instanceof Error ? err.message : 'Unable to generate insight.';
+  } finally {
+    if (summaryRequestId === segmentInsightRequestId) {
+      segmentInsightLoading.value = false;
+    }
+  }
+}
+
+async function refreshStaleSegmentInsight() {
+  if (!props.feedItem.mediaAssetSegmentId) return;
+  if (!canGenerateSegmentInsight.value) return;
+  const summaryRequestId = ++segmentInsightRequestId;
+  segmentInsightRefreshing.value = true;
+  try {
+    const next = await analysisService.getSegmentSummary(props.feedItem.mediaAssetSegmentId, {
+      forceRefresh: true,
+      skipCache: true,
+    });
+    if (summaryRequestId !== segmentInsightRequestId) return;
+    if (hasInsightPayload(next)) {
+      segmentInsight.value = next;
+    }
+  } catch (err) {
+    if (summaryRequestId !== segmentInsightRequestId) return;
+    segmentInsightError.value = err instanceof Error ? err.message : 'Unable to refresh insight.';
+  } finally {
+    if (summaryRequestId === segmentInsightRequestId) {
+      segmentInsightRefreshing.value = false;
+    }
+  }
+}
+
+async function loadStoredSegmentInsight() {
+  if (!props.feedItem.mediaAssetSegmentId) return;
+  if (!canGenerateSegmentInsight.value) return;
+  
+  const summaryRequestId = ++segmentInsightRequestId;
+  segmentInsightError.value = null;
+  segmentInsightLoading.value = true;
+  try {
+    const next = await analysisService.getSegmentSummary(props.feedItem.mediaAssetSegmentId, {
+      forceRefresh: false,
+      skipCache: true,
+    });
+    if (summaryRequestId !== segmentInsightRequestId) return;
+    if (hasInsightPayload(next)) {
+      segmentInsight.value = next;
+      if (next.is_stale) {
+        void refreshStaleSegmentInsight();
+      }
+    }
+  } catch (err) {
+    if (summaryRequestId !== segmentInsightRequestId) return;
+    segmentInsightError.value = err instanceof Error ? err.message : 'Unable to load insight.';
   } finally {
     if (summaryRequestId === segmentInsightRequestId) {
       segmentInsightLoading.value = false;
@@ -729,6 +790,7 @@ onBeforeUnmount(() => {
           :insight-coach-script="insightCoachScript"
           :insight-placeholder="insightPlaceholder"
           :insight-loading="segmentInsightLoading"
+          :insight-refreshing="segmentInsightRefreshing"
           :insight-error="segmentInsightError"
           :insight-can-generate="canGenerateSegmentInsight"
           :insight-has-generated="hasSegmentInsightContent"

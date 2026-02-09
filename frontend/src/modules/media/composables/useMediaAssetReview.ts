@@ -26,16 +26,32 @@ export function useMediaAssetReview(options: MediaAssetReviewOptions) {
   const narrations = ref<Array<Narration | NarrationListItem>>([]);
   const matchSummary = ref<MatchSummary | null>(null);
   const matchSummaryLoading = ref(false);
+  const matchSummaryRefreshing = ref(false);
   const matchSummaryError = ref<string | null>(null);
   let requestId = 0;
   let matchSummaryRequestId = 0;
 
-  const MIN_NARRATIONS_FOR_SUMMARY = 5;
+  const MIN_NARRATIONS_FOR_SUMMARY = 25;
 
   function getMatchSummaryStateFromCount(count: number): MatchSummary['state'] {
     if (count <= 0) return 'empty';
     if (count < MIN_NARRATIONS_FOR_SUMMARY) return 'light';
     return 'normal';
+  }
+
+  function hasStoredMatchSummary(summary: MatchSummary | null): boolean {
+    if (!summary || summary.state !== 'normal') return false;
+    const structured = summary as any;
+    const headline = String(structured?.match_headline ?? '').trim();
+    const summaryLines = Array.isArray(structured?.match_summary)
+      ? structured.match_summary.map((line: any) => String(line ?? '').trim()).filter(Boolean)
+      : [];
+    const sections = structured?.sections ?? {};
+    const hasSections = sections && typeof sections === 'object'
+      ? Object.values(sections).some((val) => val && typeof val === 'string' && val.trim().length > 0)
+      : false;
+    const bullets = Array.isArray(structured?.bullets) ? structured.bullets.filter(Boolean) : [];
+    return Boolean(headline || summaryLines.length > 0 || hasSections || bullets.length > 0);
   }
 
   const segmentIds = computed(() => segments.value.map((seg) => String(seg.id)).filter(Boolean));
@@ -66,6 +82,55 @@ export function useMediaAssetReview(options: MediaAssetReviewOptions) {
 
   function removeSegmentTag(payload: { segmentId: string; tagId: string }) {
     return segmentTags.removeTag(payload);
+  }
+
+  async function refreshStaleMatchSummary(assetId: string, activeRequestId: number) {
+    if (options.canGenerateMatchSummary && !options.canGenerateMatchSummary()) return;
+    const summaryRequestId = ++matchSummaryRequestId;
+    matchSummaryRefreshing.value = true;
+    try {
+      const next = await analysisService.getMatchSummary(assetId, { forceRefresh: true, skipCache: true });
+      if (activeRequestId !== requestId) return;
+      if (summaryRequestId !== matchSummaryRequestId) return;
+      if (hasStoredMatchSummary(next)) {
+        matchSummary.value = next;
+      }
+    } catch (err) {
+      if (activeRequestId !== requestId) return;
+      if (summaryRequestId !== matchSummaryRequestId) return;
+      matchSummaryError.value = err instanceof Error ? err.message : 'Unable to refresh summary.';
+    } finally {
+      if (summaryRequestId === matchSummaryRequestId) {
+        matchSummaryRefreshing.value = false;
+      }
+    }
+  }
+
+  async function loadStoredMatchSummary(assetId: string, activeRequestId: number, narrationCount: number) {
+    if (options.canGenerateMatchSummary && !options.canGenerateMatchSummary()) return;
+    if (narrationCount < MIN_NARRATIONS_FOR_SUMMARY) return;
+    const summaryRequestId = ++matchSummaryRequestId;
+    matchSummaryError.value = null;
+    matchSummaryLoading.value = true;
+    try {
+      const next = await analysisService.getMatchSummary(assetId, { forceRefresh: false, skipCache: true });
+      if (activeRequestId !== requestId) return;
+      if (summaryRequestId !== matchSummaryRequestId) return;
+      if (hasStoredMatchSummary(next)) {
+        matchSummary.value = next;
+        if (next.is_stale) {
+          void refreshStaleMatchSummary(assetId, activeRequestId);
+        }
+      }
+    } catch (err) {
+      if (activeRequestId !== requestId) return;
+      if (summaryRequestId !== matchSummaryRequestId) return;
+      matchSummaryError.value = err instanceof Error ? err.message : 'Unable to load summary.';
+    } finally {
+      if (summaryRequestId === matchSummaryRequestId) {
+        matchSummaryLoading.value = false;
+      }
+    }
   }
 
   // Moved from OrgMediaAssetReviewView.generateMatchSummary.
@@ -120,6 +185,7 @@ export function useMediaAssetReview(options: MediaAssetReviewOptions) {
     matchSummary.value = null;
     matchSummaryError.value = null;
     matchSummaryLoading.value = false;
+    matchSummaryRefreshing.value = false;
 
     try {
       const found = await mediaService.getById(orgId, mediaAssetId);
@@ -208,8 +274,11 @@ export function useMediaAssetReview(options: MediaAssetReviewOptions) {
         (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
       );
 
-      const localState = getMatchSummaryStateFromCount(narrations.value.length);
+      const narrationCount = narrations.value.length;
+      const localState = getMatchSummaryStateFromCount(narrationCount);
       matchSummary.value = { state: localState, bullets: [] };
+
+      void loadStoredMatchSummary(found.id, activeRequestId, narrationCount);
 
       // Match summary generation is user-triggered to avoid automatic compute on load.
     } catch (err) {
@@ -239,6 +308,7 @@ export function useMediaAssetReview(options: MediaAssetReviewOptions) {
     narrations,
     matchSummary,
     matchSummaryLoading,
+    matchSummaryRefreshing,
     matchSummaryError,
     addSegmentTag,
     removeSegmentTag,

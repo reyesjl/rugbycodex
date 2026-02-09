@@ -196,10 +196,10 @@ const {
   narrations,
   matchSummary,
   matchSummaryLoading,
+  matchSummaryRefreshing,
   matchSummaryError,
   addSegmentTag,
   removeSegmentTag,
-  generateMatchSummary,
 } = mediaReview;
 
 // Processing status composable
@@ -1538,14 +1538,13 @@ async function handleDeleteSegment(segmentId: string) {
                   :sections="matchSummarySections"
                   :loading="matchSummaryLoading"
                   :error="matchSummaryError"
-                  :can-generate="canGenerateMatchSummary"
+                  :refreshing="matchSummaryRefreshing"
                   :has-generated="hasMatchSummaryContent"
                   :narration-count="narrationCount"
                   :narrations-needed="summaryNarrationsNeeded"
                   :collapsible="true"
                   :collapsed="matchSummaryCollapsed"
                   @toggle="matchSummaryCollapsed = !matchSummaryCollapsed"
-                  @generate="generateMatchSummary({ forceRefresh: true })"
                 />
               </div>
 
@@ -1606,14 +1605,13 @@ async function handleDeleteSegment(segmentId: string) {
                 :sections="matchSummarySections"
                 :loading="matchSummaryLoading"
                 :error="matchSummaryError"
-                :can-generate="canGenerateMatchSummary"
+                :refreshing="matchSummaryRefreshing"
                 :has-generated="hasMatchSummaryContent"
                 :narration-count="narrationCount"
                 :narrations-needed="summaryNarrationsNeeded"
                 :collapsible="true"
                 :collapsed="matchSummaryCollapsed"
                 @toggle="matchSummaryCollapsed = !matchSummaryCollapsed"
-                @generate="generateMatchSummary({ forceRefresh: true })"
               />
             </div>
 

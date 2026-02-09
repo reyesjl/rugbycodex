@@ -40,6 +40,7 @@ const props = withDefaults(
     analyzeLabel?: string;
     emptyMessage?: string;
     loadingMessage?: string;
+    refreshing?: boolean;
     infoModalTitle?: string;
     infoModalMessage?: string;
   }>(),
@@ -59,7 +60,8 @@ const props = withDefaults(
     summaryLabel: 'Match summary',
     analyzeLabel: 'Analyze Match',
     emptyMessage: 'Add 25+ narrations to generate summary',
-    loadingMessage: 'Rugbycodex is summarizing all your match moments',
+    loadingMessage: 'Rugbycodex is generating insight',
+    refreshing: false,
     infoModalTitle: 'Match summaries',
     infoModalMessage:
       'Each narration captures a perspective on what happened. Together, they form a shared picture of the match. As more narrations are added, the summary becomes richer, clearer, and more representative of what actually unfolded.',
@@ -195,6 +197,10 @@ const summaryAriaLabel = computed(() => {
           >Click
             <Icon icon="carbon:information" width="14" height="14" /> to learn more.
           </button>
+        </div>
+        <div v-if="refreshing" class="mt-2 ml-6 flex items-center gap-2 text-xs text-slate-400">
+          <LoadingDot />
+          <span>Refreshing insight…</span>
         </div>
       </div>
       <Icon icon="carbon:ai-generate" width="16" height="16" class="text-slate-400" />

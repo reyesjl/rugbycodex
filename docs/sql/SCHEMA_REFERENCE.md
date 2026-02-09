@@ -107,6 +107,28 @@ CREATE TABLE public.jobs (
   CONSTRAINT jobs_media_asset_segment_id_fkey FOREIGN KEY (media_asset_segment_id) REFERENCES public.media_asset_segments(id),
   CONSTRAINT jobs_media_asset_id_fkey FOREIGN KEY (media_asset_id) REFERENCES public.media_assets(id)
 );
+CREATE TABLE public.match_intelligence (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  media_asset_id uuid NOT NULL,
+  state text NOT NULL DEFAULT 'normal'::text,
+  match_headline text NOT NULL,
+  match_summary ARRAY NOT NULL,
+  set_piece text,
+  territory text,
+  possession text,
+  defence text,
+  kick_battle text,
+  scoring text,
+  model text,
+  prompt_version text,
+  temperature numeric,
+  narration_count_at_generation integer,
+  is_active boolean DEFAULT true,
+  created_at timestamp with time zone DEFAULT now(),
+  generated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT match_intelligence_pkey PRIMARY KEY (id),
+  CONSTRAINT match_intelligence_media_asset_id_fkey FOREIGN KEY (media_asset_id) REFERENCES public.media_assets(id)
+);
 CREATE TABLE public.media_asset_segments (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   media_asset_id uuid NOT NULL,
@@ -262,6 +284,23 @@ CREATE TABLE public.profiles (
   CONSTRAINT profiles_pkey PRIMARY KEY (id),
   CONSTRAINT profiles_uuid_fkey FOREIGN KEY (id) REFERENCES auth.users(id),
   CONSTRAINT profiles_primary_org_fkey FOREIGN KEY (primary_org) REFERENCES public.organizations(id)
+);
+CREATE TABLE public.segment_insights (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  media_segment_id uuid NOT NULL,
+  state text NOT NULL DEFAULT 'normal'::text,
+  insight_headline text NOT NULL,
+  insight_sentence text NOT NULL,
+  coach_script text,
+  confidence text CHECK (confidence = ANY (ARRAY['low'::text, 'medium'::text, 'high'::text])),
+  model text,
+  prompt_version text,
+  narration_count_at_generation integer,
+  is_active boolean DEFAULT true,
+  created_at timestamp with time zone DEFAULT now(),
+  generated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT segment_insights_pkey PRIMARY KEY (id),
+  CONSTRAINT segment_insights_media_segment_id_fkey FOREIGN KEY (media_segment_id) REFERENCES public.media_asset_segments(id)
 );
 CREATE TABLE public.segment_tags (
   id uuid NOT NULL DEFAULT gen_random_uuid(),

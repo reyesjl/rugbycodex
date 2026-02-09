@@ -35,6 +35,18 @@ function asInsightText(value: unknown): string | null {
   return text ? text : null;
 }
 
+function asNumber(value: unknown): number | null {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+
+function asBoolean(value: unknown): boolean | null {
+  if (typeof value === 'boolean') return value;
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  return null;
+}
+
 function cacheKey(mediaAssetId: string, mode: MatchSummaryMode): string {
   return `${String(mediaAssetId ?? '').trim()}:${mode}`;
 }
@@ -87,38 +99,44 @@ export const analysisService = {
    */
   async getMatchSummary(
     mediaAssetId: string,
-    options?: { forceRefresh?: boolean; mode?: MatchSummaryMode }
+    options?: { forceRefresh?: boolean; mode?: MatchSummaryMode; skipCache?: boolean }
   ): Promise<MatchSummary> {
     const id = String(mediaAssetId ?? "").trim();
     if (!id) throw new Error("Missing mediaAssetId.");
 
     const mode: MatchSummaryMode = options?.mode ?? 'summary';
 
-    if (!options?.forceRefresh) {
+    if (!options?.forceRefresh && !options?.skipCache) {
       const cached = getCachedSummary(id, mode);
       if (cached) return cached;
     }
 
-    const summary = await this.summarizeMediaAsset(id, { mode });
+    const summary = await this.summarizeMediaAsset(id, {
+      mode,
+      forceRefresh: Boolean(options?.forceRefresh),
+    });
     setCachedSummary(id, mode, summary);
     return summary;
   },
 
   async getSegmentSummary(
     mediaSegmentId: string,
-    options?: { forceRefresh?: boolean; mode?: MatchSummaryMode }
+    options?: { forceRefresh?: boolean; mode?: MatchSummaryMode; skipCache?: boolean }
   ): Promise<SegmentInsight> {
     const id = String(mediaSegmentId ?? "").trim();
     if (!id) throw new Error("Missing mediaSegmentId.");
     
     const mode: MatchSummaryMode = options?.mode ?? 'summary';
     
-    if (!options?.forceRefresh) {
+    if (!options?.forceRefresh && !options?.skipCache) {
       const cached = getCachedSegmentSummary(id, mode);
       if (cached) return cached;
     }
     
-    const insight = await this.summarizeMediaSegment(id, { mode });
+    const insight = await this.summarizeMediaSegment(id, {
+      mode,
+      forceRefresh: Boolean(options?.forceRefresh),
+    });
     setCachedSegmentSummary(id, mode, insight);
     return insight;
   },
@@ -128,7 +146,10 @@ export const analysisService = {
    *
    * Authorization is enforced server-side via org role checks (owner/manager/staff).
    */
-  async summarizeMediaAsset(mediaAssetId: string, options?: { mode?: MatchSummaryMode }): Promise<MatchSummary> {
+  async summarizeMediaAsset(
+    mediaAssetId: string,
+    options?: { mode?: MatchSummaryMode; forceRefresh?: boolean }
+  ): Promise<MatchSummary> {
     const id = String(mediaAssetId ?? "").trim();
     if (!id) throw new Error("Missing mediaAssetId.");
 
@@ -138,6 +159,7 @@ export const analysisService = {
       body: {
         media_asset_id: id,
         mode,
+        force_refresh: Boolean(options?.forceRefresh),
       },
       orgScoped: true,
     });
@@ -156,6 +178,10 @@ export const analysisService = {
     const match_summary = asStringArray(data?.match_summary);
     const sections = data?.sections && typeof data.sections === 'object' ? data.sections : undefined;
 
+    const narration_count_at_generation = asNumber(data?.narration_count_at_generation);
+    const narration_count_current = asNumber(data?.narration_count_current);
+    const is_stale = asBoolean(data?.is_stale);
+
     const summary: MatchSummary = {
       state,
       // Legacy format
@@ -167,12 +193,18 @@ export const analysisService = {
         sections: state === 'normal' ? sections : undefined,
       } : {})
     };
+    summary.narration_count_at_generation = narration_count_at_generation;
+    summary.narration_count_current = narration_count_current;
+    summary.is_stale = is_stale;
 
     setCachedSummary(id, mode, summary);
     return summary;
   },
 
-  async summarizeMediaSegment(mediaSegmentId: string, options?: { mode?: MatchSummaryMode }): Promise<SegmentInsight> {
+  async summarizeMediaSegment(
+    mediaSegmentId: string,
+    options?: { mode?: MatchSummaryMode; forceRefresh?: boolean }
+  ): Promise<SegmentInsight> {
     const id = String(mediaSegmentId ?? "").trim();
     if (!id) throw new Error("Missing mediaSegmentId.");
     
@@ -182,6 +214,7 @@ export const analysisService = {
       body: {
         media_segment_id: id,
         mode,
+        force_refresh: Boolean(options?.forceRefresh),
       },
       orgScoped: true,
     });
@@ -194,12 +227,19 @@ export const analysisService = {
     
     const state = asMatchSummaryState(data?.state);
     
+    const narration_count_at_generation = asNumber(data?.narration_count_at_generation);
+    const narration_count_current = asNumber(data?.narration_count_current);
+    const is_stale = asBoolean(data?.is_stale);
+
     const insight: SegmentInsight = {
       state,
       insight_headline: state === 'normal' ? asInsightText(data?.insight_headline) : null,
       insight_sentence: state === 'normal' ? asInsightText(data?.insight_sentence) : null,
       coach_script: state === 'normal' ? asInsightText(data?.coach_script) : null,
     };
+    insight.narration_count_at_generation = narration_count_at_generation;
+    insight.narration_count_current = narration_count_current;
+    insight.is_stale = is_stale;
     
     setCachedSegmentSummary(id, mode, insight);
     return insight;
