@@ -151,7 +151,7 @@ function classForTag(tag: SegmentTag): string {
         <DisclosureButton
           class="flex w-full items-center justify-between rounded-md border border-white/10 bg-white/5 px-3 py-2 text-left text-sm font-semibold text-white transition hover:bg-white/10"
         >
-          <span>What Coaches &amp; Players Said</span>
+          <span>What was said</span>
           <Icon
             :icon="open ? 'carbon:chevron-up' : 'carbon:chevron-down'"
             width="16"
