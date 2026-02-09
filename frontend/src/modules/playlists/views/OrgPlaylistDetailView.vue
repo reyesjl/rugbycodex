@@ -6,7 +6,7 @@ import { storeToRefs } from 'pinia';
 import { useSortable } from '@vueuse/integrations/useSortable';
 import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrganizationStore';
 import { playlistService } from '@/modules/playlists/services/playlistService';
-import type { Playlist, PlaylistSegment, PlaylistTag, PlaylistFeedEntry } from '@/modules/playlists/types';
+import type { Playlist, PlaylistTag, PlaylistFeedEntry } from '@/modules/playlists/types';
 import { toast } from '@/lib/toast';
 import LoadingDot from '@/components/LoadingDot.vue';
 import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
@@ -81,8 +81,8 @@ function goBack() {
   router.push({ name: 'OrgPlaylists', params: { slug: orgSlug.value } });
 }
 
-function getThumbnailUrl(entry: PlaylistFeedEntry): string | null {
-  if (!entry.media_asset_thumbnail_path) return null;
+function getThumbnailUrl(entry: PlaylistFeedEntry): string | undefined {
+  if (!entry.media_asset_thumbnail_path) return undefined;
   return `${CDN_BASE}/${entry.media_asset_thumbnail_path}`;
 }
 
@@ -276,15 +276,15 @@ onMounted(() => {
 watch([sortableContainer, feedEntries], ([container, entries]) => {
   if (container && entries.length > 0) {
     useSortable(sortableContainer, feedEntries, {
-      animation: 150,
       handle: '.drag-handle',
       ghostClass: 'sortable-ghost',
       dragClass: 'sortable-drag',
-      onEnd: (evt) => {
+      onEnd: (evt: { oldIndex?: number; newIndex?: number }) => {
         // Manually reorder the array to match the new DOM order
         const { oldIndex, newIndex } = evt;
         if (oldIndex !== undefined && newIndex !== undefined && oldIndex !== newIndex) {
           const movedItem = feedEntries.value[oldIndex];
+          if (!movedItem) return;
           const newArray = [...feedEntries.value];
           newArray.splice(oldIndex, 1);
           newArray.splice(newIndex, 0, movedItem);

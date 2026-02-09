@@ -1,17 +1,14 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { computed, onMounted, ref } from 'vue';
+import { useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
 import { storeToRefs } from 'pinia';
 import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrganizationStore';
 import { playlistService } from '@/modules/playlists/services/playlistService';
 import type { PlaylistListItem } from '@/modules/playlists/types';
 import { toast } from '@/lib/toast';
-import LoadingDot from '@/components/LoadingDot.vue';
-import ShimmerText from '@/components/ShimmerText.vue';
 import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
 
-const route = useRoute();
 const router = useRouter();
 const activeOrgStore = useActiveOrganizationStore();
 const { orgContextReadonly } = storeToRefs(activeOrgStore);
