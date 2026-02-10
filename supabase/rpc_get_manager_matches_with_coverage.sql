@@ -6,9 +6,12 @@
 -- Performance: Replaces 2 queries per match + base queries with single query per org
 -- Security: SECURITY DEFINER to allow managers to see match data
 
+DROP FUNCTION IF EXISTS rpc_get_manager_matches_with_coverage(uuid, int);
+
 CREATE OR REPLACE FUNCTION rpc_get_manager_matches_with_coverage(
   p_org_id uuid,
-  p_limit int DEFAULT 5
+  p_limit int DEFAULT 5,
+  p_exclude_kinds text[] DEFAULT NULL
 )
 RETURNS TABLE (
   media_asset_id uuid,
@@ -37,6 +40,7 @@ AS $$
       ma.thumbnail_path
     FROM media_assets ma
     WHERE ma.org_id = p_org_id
+      AND (p_exclude_kinds IS NULL OR ma.kind <> ALL(p_exclude_kinds::media_asset_kind[]))
       AND ma.streaming_ready = true
       AND ma.processing_stage = 'complete'
     ORDER BY ma.created_at DESC
@@ -113,9 +117,10 @@ AS $$
 $$;
 
 -- Grant execute permission to authenticated users
-GRANT EXECUTE ON FUNCTION rpc_get_manager_matches_with_coverage(uuid, int) TO authenticated;
+GRANT EXECUTE ON FUNCTION rpc_get_manager_matches_with_coverage(uuid, int, text[]) TO authenticated;
 
-COMMENT ON FUNCTION rpc_get_manager_matches_with_coverage IS 
+COMMENT ON FUNCTION rpc_get_manager_matches_with_coverage(uuid, int, text[]) IS 
   'Efficiently fetches matches for org managers with narration coverage analysis. 
   Calculates narration counts and maximum gap between consecutive narrated segments.
+  Supports excluding kinds via p_exclude_kinds.
   Returns one row per match ordered by created_at descending.';

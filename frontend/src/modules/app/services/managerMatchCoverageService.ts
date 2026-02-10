@@ -52,6 +52,7 @@ export const managerMatchCoverageService = {
       const { data, error } = await supabase.rpc('rpc_get_manager_matches_with_coverage', {
         p_org_id: orgItem.organization.id,
         p_limit: limit,
+        p_exclude_kinds: ['opposition'],
       });
 
       if (error) {
