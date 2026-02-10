@@ -551,6 +551,15 @@ watch(activeOrgId, (orgId, prevOrgId) => {
             <div class="h-4 w-px bg-white/20"></div>
             <button
               type="button"
+              @click="selectedKind = 'opposition'"
+              class="transition"
+              :class="selectedKind === 'opposition' ? 'text-white font-semibold' : 'text-white/40 hover:text-white/60'"
+            >
+              Opposition
+            </button>
+            <div class="h-4 w-px bg-white/20"></div>
+            <button
+              type="button"
               @click="selectedKind = 'training'"
               class="transition"
               :class="selectedKind === 'training' ? 'text-white font-semibold' : 'text-white/40 hover:text-white/60'"

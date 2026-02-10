@@ -27,6 +27,7 @@ type KindOption = {
 
 const kindOptions: KindOption[] = [
   { value: 'match', name: 'Match' },
+  { value: 'opposition', name: 'Opposition' },
   { value: 'training', name: 'Training' },
   { value: 'clinic', name: 'Clinic' },
 ];

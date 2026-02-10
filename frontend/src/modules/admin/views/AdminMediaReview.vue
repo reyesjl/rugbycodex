@@ -159,6 +159,7 @@ function getStatusBadgeColor(status: string): string {
 function getKindBadgeColor(kind: string): string {
   switch (kind) {
     case 'match': return 'bg-purple-500/20 text-purple-400';
+    case 'opposition': return 'bg-indigo-500/20 text-indigo-400';
     case 'training': return 'bg-emerald-500/20 text-emerald-400';
     case 'clinic': return 'bg-cyan-500/20 text-cyan-400';
     default: return 'bg-white/10 text-white/60';
@@ -271,6 +272,17 @@ onMounted(() => {
           ]"
         >
           Match
+        </button>
+        <button
+          @click="kindFilter = 'opposition'"
+          :class="[
+            'rounded px-3 py-1.5 text-sm transition',
+            kindFilter === 'opposition'
+              ? 'bg-blue-500/20 text-blue-400'
+              : 'text-white/60 hover:bg-white/10 hover:text-white'
+          ]"
+        >
+          Opposition
         </button>
         <button
           @click="kindFilter = 'training'"

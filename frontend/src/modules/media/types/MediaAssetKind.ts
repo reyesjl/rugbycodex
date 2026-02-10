@@ -1,1 +1,1 @@
-export type MediaAssetKind = 'match' | 'training' | (string & {});
+export type MediaAssetKind = 'match' | 'training' | 'clinic' | 'opposition' | (string & {});
