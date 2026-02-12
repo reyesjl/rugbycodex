@@ -21,7 +21,7 @@ const acknowledgements = [
   'Grant Keenan',
   'Gabrielle Domina',
   'Benn Mellinger',
-  'Shupp',
+  'Eric Shupp',
   'Owen Lentz',
   'Alex Webb',
   'Tim Brown',

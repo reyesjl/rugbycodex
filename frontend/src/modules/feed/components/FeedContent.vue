@@ -97,11 +97,12 @@ function formatTagLabel(tag: SegmentTag): string {
   
   if (tag.tag_type === 'identity') {
     // Show "you" if it's the current user
-    if (props.currentUserId && String(tag.created_by) === String(props.currentUserId)) return 'you';
+    const profileId = tag.tagged_profile_id ?? tag.created_by;
+    if (props.currentUserId && String(profileId) === String(props.currentUserId)) return 'you';
     
     // Show profile name if available
-    const profileId = tag.created_by ? String(tag.created_by) : '';
-    const profileName = profileId ? props.profileNameById?.[profileId] : '';
+    const profileKey = profileId ? String(profileId) : '';
+    const profileName = profileKey ? props.profileNameById?.[profileKey] : '';
     if (profileName) return profileName;
     
     // Fallback

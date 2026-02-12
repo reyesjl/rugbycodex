@@ -77,7 +77,7 @@ export const myMomentsService = {
         )
       `)
       .eq('tag_type', 'identity')
-      .eq('created_by', userId)
+      .eq('tagged_profile_id', userId)
       .order('created_at', { ascending: false }) as {
         data: any[] | null;
         error: PostgrestError | null;
@@ -99,7 +99,7 @@ export const myMomentsService = {
     // Fetch ALL tags for these segments
     const { data: allTags, error: tagsError } = await supabase
       .from('segment_tags')
-      .select('id, segment_id, tag_type, tag_key')
+      .select('id, segment_id, tag_type, tag_key, tagged_profile_id')
       .in('segment_id', segmentIds) as {
         data: any[] | null;
         error: PostgrestError | null;

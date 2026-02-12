@@ -1,4 +1,5 @@
 export type SegmentTagType = 'action' | 'context' | 'identity';
+export type SegmentTagStatus = 'pending' | 'accepted' | 'rejected';
 
 export type SegmentTag = {
   id: string;
@@ -7,4 +8,7 @@ export type SegmentTag = {
   tag_type: SegmentTagType;
   created_by: string;
   created_at: string;
+  tagged_profile_id?: string | null;
+  status?: SegmentTagStatus | null;
+  source?: string | null;
 };

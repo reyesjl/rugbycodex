@@ -10,6 +10,9 @@ type SegmentTagRow = {
   tag_type: SegmentTagType;
   created_by: string | null;
   created_at: string | Date | null;
+  tagged_profile_id: string | null;
+  status: string | null;
+  source: string | null;
 };
 
 function asIsoString(value: string | Date | null, context: string): string {
@@ -37,6 +40,9 @@ function toSegmentTag(row: SegmentTagRow): SegmentTag {
     tag_type: row.tag_type,
     created_by: row.created_by ?? '',
     created_at: asIsoString(row.created_at, 'tag creation'),
+    tagged_profile_id: row.tagged_profile_id ?? null,
+    status: row.status ?? null,
+    source: row.source ?? null,
   };
 }
 
@@ -46,7 +52,7 @@ async function listTagsForSegmentsInternal(segmentIds: string[]): Promise<Record
 
   const { data, error } = (await supabase
     .from('segment_tags')
-    .select('id, segment_id, tag_key, tag_type, created_by, created_at')
+    .select('id, segment_id, tag_key, tag_type, created_by, created_at, tagged_profile_id, status, source')
     .in('segment_id', ids)
     .order('created_at', { ascending: true })) as {
     data: SegmentTagRow[] | null;
@@ -95,8 +101,9 @@ export const segmentTagService = {
         tag_key: params.tagKey,
         tag_type: params.tagType,
         created_by: userId,
+        tagged_profile_id: params.tagType === 'identity' ? userId : null,
       })
-      .select('id, segment_id, tag_key, tag_type, created_by, created_at')
+      .select('id, segment_id, tag_key, tag_type, created_by, created_at, tagged_profile_id, status, source')
       .single()) as { data: SegmentTagRow | null; error: PostgrestError | null };
 
     if (error) throw error;

@@ -491,3 +491,12 @@ verify_jwt = false
 
 [functions.trigger-event-detection]
 verify_jwt = false
+
+[functions.auto-tag-segment]
+verify_jwt = false
+
+[functions.review-segment-tag-suggestions]
+verify_jwt = false
+
+[functions.create-identity-tag]
+verify_jwt = false

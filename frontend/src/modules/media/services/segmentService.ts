@@ -629,7 +629,10 @@ export const segmentService = {
           tag_type,
           tag_key,
           created_by,
-          created_at
+          created_at,
+          tagged_profile_id,
+          status,
+          source
         )
       `)
       .eq('media_asset_id', mediaAssetId)
@@ -700,6 +703,9 @@ export const segmentService = {
             tag_type: t.tag_type,
             created_by: t.created_by,
             created_at: t.created_at,
+            tagged_profile_id: t.tagged_profile_id ?? null,
+            status: t.status ?? null,
+            source: t.source ?? null,
           })),
         },
       };

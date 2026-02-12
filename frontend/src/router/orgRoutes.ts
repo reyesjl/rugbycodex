@@ -90,6 +90,13 @@ export const orgRoutes: RouteRecordRaw = {
           meta: { minOrgRole: 'member' },
         },
         {
+          path: 'media/:mediaAssetId/overview',
+          name: 'OrgMatchOverview',
+          component: () => import('@/modules/matchOverview/views/MatchOverviewView.vue'),
+          props: true,
+          meta: { minOrgRole: 'member' },
+        },
+        {
           path: 'segments/:segmentId',
           name: 'MediaAssetSegment',
           component: () => import('@/modules/media/views/MediaAssetSegmentView.vue'),

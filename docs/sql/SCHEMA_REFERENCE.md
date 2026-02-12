@@ -312,10 +312,34 @@ CREATE TABLE public.segment_tags (
   tag_key text NOT NULL,
   tag_type text NOT NULL CHECK (tag_type = ANY (ARRAY['action'::text, 'context'::text, 'identity'::text])),
   created_by uuid NOT NULL,
+  tagged_profile_id uuid,
+  status text NOT NULL DEFAULT 'accepted'::text,
+  source text NOT NULL DEFAULT 'manual'::text,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT segment_tags_pkey PRIMARY KEY (id),
   CONSTRAINT segment_tags_segment_id_fkey FOREIGN KEY (segment_id) REFERENCES public.media_asset_segments(id),
-  CONSTRAINT segment_tags_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.profiles(id)
+  CONSTRAINT segment_tags_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.profiles(id),
+  CONSTRAINT segment_tags_tagged_profile_id_fkey FOREIGN KEY (tagged_profile_id) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.segment_tag_suggestions (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  segment_id uuid NOT NULL,
+  tag_key text NOT NULL,
+  tag_type text NOT NULL CHECK (tag_type = ANY (ARRAY['action'::text, 'context'::text, 'identity'::text])),
+  status text NOT NULL DEFAULT 'pending'::text CHECK (status = ANY (ARRAY['pending'::text, 'accepted'::text, 'rejected'::text])),
+  source text NOT NULL DEFAULT 'ai'::text,
+  narration_id uuid,
+  tagged_profile_id uuid,
+  suggested_by uuid NOT NULL,
+  decided_by uuid,
+  suggested_at timestamp with time zone NOT NULL DEFAULT now(),
+  decided_at timestamp with time zone,
+  CONSTRAINT segment_tag_suggestions_pkey PRIMARY KEY (id),
+  CONSTRAINT segment_tag_suggestions_segment_id_fkey FOREIGN KEY (segment_id) REFERENCES public.media_asset_segments(id),
+  CONSTRAINT segment_tag_suggestions_narration_id_fkey FOREIGN KEY (narration_id) REFERENCES public.narrations(id),
+  CONSTRAINT segment_tag_suggestions_tagged_profile_id_fkey FOREIGN KEY (tagged_profile_id) REFERENCES public.profiles(id),
+  CONSTRAINT segment_tag_suggestions_suggested_by_fkey FOREIGN KEY (suggested_by) REFERENCES public.profiles(id),
+  CONSTRAINT segment_tag_suggestions_decided_by_fkey FOREIGN KEY (decided_by) REFERENCES public.profiles(id)
 );
 CREATE TABLE public.segment_viewing_sessions (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
