@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/supabaseClient';
 import type { PostgrestError } from '@supabase/supabase-js';
 import { requireUserId } from '@/modules/auth/identity';
-import type { SegmentTag, SegmentTagType } from '@/modules/media/types/SegmentTag';
+import type { SegmentTag, SegmentTagType, SegmentTagStatus } from '@/modules/media/types/SegmentTag';
 
 type SegmentTagRow = {
   id: string;
@@ -33,6 +33,13 @@ function asIsoString(value: string | Date | null, context: string): string {
 }
 
 function toSegmentTag(row: SegmentTagRow): SegmentTag {
+  const parseStatus = (value: unknown): SegmentTagStatus | null => {
+    const raw = String(value ?? '').toLowerCase();
+    if (raw === 'pending' || raw === 'accepted' || raw === 'rejected') {
+      return raw as SegmentTagStatus;
+    }
+    return null;
+  };
   return {
     id: row.id,
     segment_id: row.segment_id,
@@ -41,7 +48,7 @@ function toSegmentTag(row: SegmentTagRow): SegmentTag {
     created_by: row.created_by ?? '',
     created_at: asIsoString(row.created_at, 'tag creation'),
     tagged_profile_id: row.tagged_profile_id ?? null,
-    status: row.status ?? null,
+    status: parseStatus(row.status),
     source: row.source ?? null,
   };
 }

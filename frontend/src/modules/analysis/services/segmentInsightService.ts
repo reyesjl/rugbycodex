@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabaseClient';
 import type { PostgrestError } from '@supabase/supabase-js';
 import type { SegmentInsight } from '@/modules/analysis/types/SegmentInsight';
+import type { MatchSummaryState } from '@/modules/analysis/types/MatchSummary';
 
 type SegmentInsightRow = {
   id: string;
@@ -44,8 +45,15 @@ function asIsoString(value: string | Date | null, context: string): string | nul
 }
 
 function toSegmentInsight(row: SegmentInsightRow): SegmentInsightRecord {
+  const parseState = (value: unknown): MatchSummaryState => {
+    const raw = String(value ?? '').toLowerCase();
+    if (raw === 'empty' || raw === 'light' || raw === 'normal') {
+      return raw as MatchSummaryState;
+    }
+    return 'normal';
+  };
   return {
-    state: String(row.state ?? 'normal'),
+    state: parseState(row.state),
     insight_headline: row.insight_headline ?? null,
     insight_sentence: row.insight_sentence ?? null,
     coach_script: row.coach_script ?? null,

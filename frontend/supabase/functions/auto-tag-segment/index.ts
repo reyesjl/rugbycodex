@@ -254,10 +254,9 @@ Deno.serve(withObservability("auto-tag-segment", async (req: Request) => {
     const { error: clearError } = await supabaseAdmin
       .from("segment_tag_suggestions")
       .delete()
-      .eq("segment_id", segmentId)
-      .eq("status", "pending");
+      .eq("segment_id", segmentId);
     if (clearError) {
-      return errorResponse("DB_QUERY_FAILED", "Failed to clear pending tag suggestions.", 500);
+      return errorResponse("DB_QUERY_FAILED", "Failed to clear tag suggestions.", 500);
     }
   }
 
@@ -270,14 +269,7 @@ Deno.serve(withObservability("auto-tag-segment", async (req: Request) => {
     return errorResponse("DB_QUERY_FAILED", "Failed to load existing tags.", 500);
   }
 
-  const { data: existingSuggestions, error: suggestionsError } = await supabaseAdmin
-    .from("segment_tag_suggestions")
-    .select("id, segment_id, tag_key, tag_type, status, source, suggested_by, decided_by, suggested_at, decided_at, narration_id, tagged_profile_id")
-    .eq("segment_id", segmentId);
-
-  if (suggestionsError) {
-    return errorResponse("DB_QUERY_FAILED", "Failed to load existing tag suggestions.", 500);
-  }
+  void force;
 
   const { data: narrations, error: narrationsError } = await supabaseAdmin
     .from("narrations")
@@ -380,22 +372,8 @@ Deno.serve(withObservability("auto-tag-segment", async (req: Request) => {
       return keys;
     })
   );
-  const existingSuggestionSet = new Set(
-    (existingSuggestions ?? [])
-      .filter((tag) => String(tag.tag_type ?? "").toLowerCase() !== "identity")
-      .map((tag) => `${String(tag.tag_type ?? "").toLowerCase()}|${String(tag.tag_key ?? "").toLowerCase()}`)
-  );
-  const existingIdentitySuggestionKeys = new Set(
-    (existingSuggestions ?? []).flatMap((tag) => {
-      if (String(tag.tag_type ?? "").toLowerCase() !== "identity") return [];
-      const keys = [];
-      const profileId = String(tag.tagged_profile_id ?? "").trim();
-      if (profileId) keys.push(profileId);
-      const tagKey = String(tag.tag_key ?? "").toLowerCase();
-      if (tagKey) keys.push(tagKey);
-      return keys;
-    })
-  );
+  const existingSuggestionSet = new Set();
+  const existingIdentitySuggestionKeys = new Set();
 
   const actionLookup = buildLookup(ACTION_TAGS);
   const contextLookup = buildLookup(ALL_CONTEXT_TAGS);

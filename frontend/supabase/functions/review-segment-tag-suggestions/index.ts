@@ -143,23 +143,18 @@ Deno.serve(withObservability("review-segment-tag-suggestions", async (req: Reque
   const suggestionIdsToUpdate = pendingSuggestions.map((s) => s.id);
 
   if (action === "reject") {
-    const { data: updated, error: updateError } = await supabaseAdmin
+    const { error: deleteError } = await supabaseAdmin
       .from("segment_tag_suggestions")
-      .update({
-        status: "rejected",
-        decided_by: auth.userId,
-        decided_at: new Date().toISOString(),
-      })
-      .in("id", suggestionIdsToUpdate)
-      .select("id, segment_id, tag_key, tag_type, status, source, suggested_by, decided_by, suggested_at, decided_at, narration_id, tagged_profile_id");
+      .delete()
+      .in("id", suggestionIdsToUpdate);
 
-    if (updateError) {
-      return errorResponse("DB_QUERY_FAILED", "Failed to update tag suggestions.", 500);
+    if (deleteError) {
+      return errorResponse("DB_QUERY_FAILED", "Failed to delete tag suggestions.", 500);
     }
 
     return jsonResponse({
       applied_tags: [],
-      updated_suggestions: (updated ?? []) as SegmentTagSuggestionRow[],
+      updated_suggestions: [],
     });
   }
 
@@ -258,22 +253,17 @@ Deno.serve(withObservability("review-segment-tag-suggestions", async (req: Reque
     appliedTags = (inserted ?? []) as SegmentTagRow[];
   }
 
-  const { data: updated, error: updateError } = await supabaseAdmin
+  const { error: deleteError } = await supabaseAdmin
     .from("segment_tag_suggestions")
-    .update({
-      status: "accepted",
-      decided_by: auth.userId,
-      decided_at: new Date().toISOString(),
-    })
-    .in("id", suggestionIdsToUpdate)
-    .select("id, segment_id, tag_key, tag_type, status, source, suggested_by, decided_by, suggested_at, decided_at, narration_id, tagged_profile_id");
+    .delete()
+    .in("id", suggestionIdsToUpdate);
 
-  if (updateError) {
-    return errorResponse("DB_QUERY_FAILED", "Failed to update tag suggestions.", 500);
+  if (deleteError) {
+    return errorResponse("DB_QUERY_FAILED", "Failed to delete tag suggestions.", 500);
   }
 
   return jsonResponse({
     applied_tags: appliedTags,
-    updated_suggestions: (updated ?? []) as SegmentTagSuggestionRow[],
+    updated_suggestions: [],
   });
 }));

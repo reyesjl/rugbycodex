@@ -123,10 +123,6 @@ function toggleSegmentExpanded(segmentId: string) {
   
   expandedSegmentIds.value = new Set(set);
 }
-
-function collapseAllSegments() {
-  expandedSegmentIds.value = new Set();
-}
 const canOpenTagModal = computed(() => Boolean(
   props.canTagSegments || props.canTagPlayers || props.canAutoTagSegments
 ));
@@ -659,12 +655,6 @@ function narrationPreviewForSegment(segId: string): string | null {
   return `${text.slice(0, limit).trimEnd()}...`;
 }
 
-function headerStatementForSegment(segId: string): string | null {
-  const sentence = insightSentenceForSegment(segId);
-  if (sentence) return sentence;
-  return fallbackNarrationText(segId);
-}
-
 const hasSearchQuery = computed(() => Boolean(searchQuery.value.trim()));
 
 const displaySegments = computed(() => (hasSearchQuery.value ? searchResults.value : props.segments ?? []));
@@ -757,14 +747,6 @@ function requestDeleteEmptySegments() {
 
 function formatSegmentStartTime(seg: MediaAssetSegment): string {
   return formatMinutesSeconds(seg.start_seconds ?? 0);
-}
-
-function formatSegmentSourceMeta(seg: MediaAssetSegment): string | null {
-  const raw = String(seg.source_type ?? '').toLowerCase();
-  if (!raw) return null;
-  if (raw === 'auto') return 'Auto-clipped';
-  if (raw === 'ai') return 'AI-clipped';
-  return `Clipped by ${raw}`;
 }
 
 </script>
