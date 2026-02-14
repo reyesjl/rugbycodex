@@ -1,4 +1,9 @@
 import { ref, computed, onBeforeUnmount } from 'vue';
+import { toast } from '@/lib/toast';
+
+const LONG_RECORDING_THRESHOLD_MS = 90_000;
+const LONG_RECORDING_TOAST_MESSAGE = 'Long narrations will be processed in chunks';
+const LONG_RECORDING_TOAST_DURATION_MS = 4000;
 
 export interface AudioRecordingState {
   isRecording: boolean;
@@ -41,6 +46,7 @@ export function useAudioRecording() {
   let pendingStopResolve: ((blob: Blob) => void) | null = null;
   let pendingStopReject: ((err: unknown) => void) | null = null;
   let pendingStopTimer: number | null = null;
+  let longRecordingToastShown = false;
 
   // Check Web Speech API support on initialization
   const SpeechRecognition = 
@@ -63,7 +69,16 @@ export function useAudioRecording() {
 
   function updateDuration() {
     if (isRecording.value && !isPaused.value) {
-      duration.value = Date.now() - startTime - pausedTime;
+      const nextDuration = Date.now() - startTime - pausedTime;
+      duration.value = nextDuration;
+      if (!longRecordingToastShown && nextDuration >= LONG_RECORDING_THRESHOLD_MS) {
+        longRecordingToastShown = true;
+        toast({
+          message: LONG_RECORDING_TOAST_MESSAGE,
+          variant: 'info',
+          durationMs: LONG_RECORDING_TOAST_DURATION_MS,
+        });
+      }
     }
   }
 
@@ -142,6 +157,7 @@ export function useAudioRecording() {
     try {
       error.value = null;
       liveTranscript.value = '';
+      longRecordingToastShown = false;
 
       // Starting a new recording invalidates any previous stop waiters.
       pendingStopPromise = null;
@@ -422,6 +438,7 @@ export function useAudioRecording() {
     error.value = null;
     liveTranscript.value = '';
     speechRecognition = null;
+    longRecordingToastShown = false;
   }
 
   function getAudioBlob(): Blob | null {

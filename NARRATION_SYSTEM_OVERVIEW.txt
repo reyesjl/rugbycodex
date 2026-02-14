@@ -1,0 +1,78 @@
+RUGBYCODEX NARRATION SYSTEM OVERVIEW
+===================================
+
+ENTRY POINTS
+- Match review (dynamic attachment): frontend/src/modules/orgs/views/OrgMediaAssetReviewView.vue
+- Feed/swipe view (fixed segment): frontend/src/modules/feed/components/FeedItem.vue
+- Segment detail page (fixed segment): frontend/src/modules/media/views/MediaAssetSegmentView.vue +
+  frontend/src/modules/media/views/NarrationView.vue
+
+RECORDING PIPELINE (SHARED CORE)
+- Recording is handled by useAudioRecording (MediaRecorder + Web Speech API for live transcript).
+- The recorder chooses a supported mime type (mp4/aac or webm/opus) and returns a Blob.
+- Video audio is muted during recording to avoid bleed into the microphone capture.
+
+MINIMUM RECORDING LENGTH
+- Match review enforces MIN_RECORDING_DURATION_SECONDS = 0.5 (half a second).
+- If recording duration is below the minimum, the upload is cancelled and a toast is shown.
+- Feed/segment flows do not enforce a minimum in the UI (they use useNarrationRecorder directly).
+
+DYNAMIC SEGMENT ATTACHMENT (MATCH REVIEW)
+1) Explicit target segment (user clicked "Add" on a segment card):
+   - Narration always attaches to that segment.
+   - Segment end is extended only if the recording exceeds the segment end, by up to 6s (clamped to media length).
+
+2) No explicit target (floating mic recording):
+   - The recording window is [recordStartVideoTime, recordStartVideoTime + recordingDuration].
+   - segmentService.findBestOverlappingSegment queries overlapping segments and picks the best:
+     - Highest overlap seconds, then highest narration count, then highest source priority
+       (coach > staff/owner/manager > member > auto > ai).
+   - Minimum overlap rule (per OrgMediaAssetReviewView.vue):
+     minOverlap = max(
+       2 seconds,
+       min(0.5 * recordingDuration, 0.5 * segmentDuration)
+     )
+   - If overlapSeconds < minOverlap, a new segment is created.
+   - If overlapSeconds >= minOverlap, the narration attaches and the segment end may be extended
+     by up to 6s if the recording end exceeds the segment end.
+
+3) Fragmentation warning:
+   - If a newly created segment overlaps >= 80% with an existing segment of the same source type,
+     a toast suggests using the existing segment instead.
+
+SEGMENT CREATION BOUNDS (MATCH REVIEW)
+Segment bounds are computed via computeSegmentBounds in
+frontend/src/modules/media/utils/segmentBounds.ts:
+- preBufferSeconds = 3
+- postBufferSeconds = 5
+- targetLength = clamp(max(10s, recordingDuration * 1.8), 10s, 60s)
+- startSeconds = max(0, recordStart - preBufferSeconds)
+- endSeconds = startSeconds + recordingDuration + postBufferSeconds, then extended to meet
+  targetLength (if longer), then clamped to media duration.
+
+NARRATION CREATION + POST PROCESSING
+- An optimistic narration is inserted into the UI immediately.
+- Audio is sent to the transcribe-webm-file edge function (OpenAI Whisper) for transcription.
+- narrationService.createNarration inserts into the narrations table under RLS and snapshots
+  source_type from org_members.role (owner->coach, manager/staff->staff, member->member).
+- narrationService triggers generate-narration-embedding (fire-and-forget) for search.
+- In match review, successful narration creation can trigger auto-tagging and insight refreshes.
+- If narration creation fails and a new segment was created, the segment is deleted to avoid orphans.
+
+LONG NARRATION NUDGE
+- When a recording exceeds 90s, the UI shows a toast:
+  "Long narrations will be processed in chunks"
+
+FIXED-SEGMENT FLOWS (FEED + SEGMENT PAGE)
+- FeedItem.vue uses useNarrationRecorder: narrations always attach to the current
+  feedItem.mediaAssetSegmentId (no dynamic segment selection).
+- NarrationView.vue allows typed or recorded text and always uses the provided segmentId.
+- Both flows still use narrationService.createNarration and trigger embeddings.
+
+REFERENCES (SOURCE OF TRUTH)
+- OrgMediaAssetReviewView.vue (dynamic attachment + limits)
+- segmentService.ts (overlap selection + priority)
+- segmentBounds.ts (segment sizing)
+- useAudioRecording.ts / useNarrationRecorder.ts (recording + optimistic flow)
+- narrationService.ts (DB insert + embedding trigger)
+- supabase/functions/transcribe-webm-file/index.ts (transcription)

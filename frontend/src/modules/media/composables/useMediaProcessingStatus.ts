@@ -1,4 +1,4 @@
-import { ref, computed } from 'vue';
+import { computed } from 'vue';
 import type { Ref } from 'vue';
 
 export interface MediaAsset {
@@ -9,19 +9,15 @@ export interface MediaAsset {
 }
 
 export interface ProcessingStatus {
-  stage: 'uploaded' | 'transcoding' | 'transcoded' | 'detecting_events' | 'complete' | 'failed';
+  stage: 'uploaded' | 'transcoding' | 'transcoded' | 'complete' | 'failed';
   isProcessing: boolean;
   isWatchable: boolean;
   isBlockingProcessing: boolean;
-  isBackgroundProcessing: boolean;
   statusMessage: string;
   statusIcon: string;
-  detectionCount: number | null;
 }
 
 export function useMediaProcessingStatus(mediaAsset: Ref<MediaAsset | null>) {
-  const detectionCount = ref<number | null>(null);
-
   const processingStatus = computed<ProcessingStatus>(() => {
     if (!mediaAsset.value) {
       return {
@@ -29,10 +25,8 @@ export function useMediaProcessingStatus(mediaAsset: Ref<MediaAsset | null>) {
         isProcessing: false,
         isWatchable: false,
         isBlockingProcessing: false,
-        isBackgroundProcessing: false,
         statusMessage: 'Unknown',
         statusIcon: 'mdi:help-circle',
-        detectionCount: null,
       };
     }
 
@@ -49,10 +43,8 @@ export function useMediaProcessingStatus(mediaAsset: Ref<MediaAsset | null>) {
           isProcessing: true,
           isWatchable: false,
           isBlockingProcessing: true,
-          isBackgroundProcessing: false,
           statusMessage: 'Preparing video...',
           statusIcon: 'mdi:clock-outline',
-          detectionCount: null,
         };
 
       case 'transcoding':
@@ -61,10 +53,8 @@ export function useMediaProcessingStatus(mediaAsset: Ref<MediaAsset | null>) {
           isProcessing: true,
           isWatchable: false,
           isBlockingProcessing: true,
-          isBackgroundProcessing: false,
           statusMessage: 'Transcoding video for streaming...',
           statusIcon: 'mdi:cog-sync',
-          detectionCount: null,
         };
 
       case 'transcoded':
@@ -73,39 +63,18 @@ export function useMediaProcessingStatus(mediaAsset: Ref<MediaAsset | null>) {
           isProcessing: false,
           isWatchable,
           isBlockingProcessing: false,
-          isBackgroundProcessing: false,
           statusMessage: 'Video ready for viewing',
           statusIcon: 'mdi:check-circle',
-          detectionCount: null,
-        };
-
-      case 'detecting_events':
-        const duration = mediaAsset.value.duration_seconds || 0;
-        const estimatedMinutes = Math.ceil((duration / 60) * 0.25); // ~25% of video duration
-        return {
-          stage,
-          isProcessing: true,
-          isWatchable,
-          isBlockingProcessing: false,
-          isBackgroundProcessing: true,
-          statusMessage: `Analyzing rugby events (~${estimatedMinutes} min)`,
-          statusIcon: 'mdi:radar',
-          detectionCount: null,
         };
 
       case 'complete':
-        const count = detectionCount.value;
         return {
           stage,
           isProcessing: false,
           isWatchable: true,
           isBlockingProcessing: false,
-          isBackgroundProcessing: false,
-          statusMessage: count !== null && count > 0 
-            ? `Ready - ${count} events detected`
-            : 'Ready',
+          statusMessage: 'Ready',
           statusIcon: 'mdi:check-circle',
-          detectionCount: count,
         };
 
       case 'failed':
@@ -114,10 +83,8 @@ export function useMediaProcessingStatus(mediaAsset: Ref<MediaAsset | null>) {
           isProcessing: false,
           isWatchable,
           isBlockingProcessing: false,
-          isBackgroundProcessing: false,
           statusMessage: 'Processing failed',
           statusIcon: 'mdi:alert-circle',
-          detectionCount: null,
         };
 
       default:
@@ -128,10 +95,8 @@ export function useMediaProcessingStatus(mediaAsset: Ref<MediaAsset | null>) {
             isProcessing: false,
             isWatchable: true,
             isBlockingProcessing: false,
-            isBackgroundProcessing: false,
             statusMessage: 'Ready',
             statusIcon: 'mdi:check-circle',
-            detectionCount: null,
           };
         }
         return {
@@ -139,16 +104,13 @@ export function useMediaProcessingStatus(mediaAsset: Ref<MediaAsset | null>) {
           isProcessing: true,
           isWatchable: false,
           isBlockingProcessing: true,
-          isBackgroundProcessing: false,
           statusMessage: 'Processing...',
           statusIcon: 'mdi:clock-outline',
-          detectionCount: null,
         };
     }
   });
 
   return {
     processingStatus,
-    detectionCount,
   };
 }

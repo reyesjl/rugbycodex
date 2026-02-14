@@ -393,9 +393,6 @@ verify_jwt = false
 [functions.assign-organization-owner]
 verify_jwt = false
 
-[functions.change-member-role]
-verify_jwt = false
-
 [functions.create-organization]
 verify_jwt = false
 
@@ -441,16 +438,10 @@ verify_jwt = false
 [functions.get-wasabi-upload-session]
 verify_jwt = false
 
-[functions.join-organization-with-code]
-verify_jwt = false
-
 [functions.leave-organization]
 verify_jwt = false
 
 [functions.list-organization-requests]
-verify_jwt = false
-
-[functions.list-organizations-admin]
 verify_jwt = false
 
 [functions.refresh-org-join-code]
@@ -468,9 +459,6 @@ verify_jwt = false
 [functions.summarize-media-segment]
 verify_jwt = false
 
-[functions.transcribe-wav-file]
-verify_jwt = false
-
 [functions.transcribe-webm-file]
 verify_jwt = false
 
@@ -486,12 +474,6 @@ verify_jwt = false
 [functions.complete-upload]
 verify_jwt = false
 
-[functions.get-event-detections]
-verify_jwt = false
-
-[functions.trigger-event-detection]
-verify_jwt = false
-
 [functions.auto-tag-segment]
 verify_jwt = false
 
@@ -500,3 +482,9 @@ verify_jwt = false
 
 [functions.create-identity-tag]
 verify_jwt = false
+
+[functions.cleanup-coach-audio]
+verify_jwt = true
+
+[functions.cleanup-media-assets]
+verify_jwt = true

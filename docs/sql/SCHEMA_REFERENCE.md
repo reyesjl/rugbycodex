@@ -306,6 +306,18 @@ CREATE TABLE public.segment_insights (
   CONSTRAINT segment_insights_pkey PRIMARY KEY (id),
   CONSTRAINT segment_insights_media_segment_id_fkey FOREIGN KEY (media_segment_id) REFERENCES public.media_asset_segments(id)
 );
+CREATE TABLE public.segment_insight_audio_deletions (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  coach_audio_url text NOT NULL,
+  storage_bucket text,
+  storage_key text,
+  status text NOT NULL DEFAULT 'pending'::text CHECK (status = ANY (ARRAY['pending'::text, 'processing'::text, 'completed'::text, 'failed'::text])),
+  attempt_count integer NOT NULL DEFAULT 0,
+  last_error text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  processed_at timestamp with time zone,
+  CONSTRAINT segment_insight_audio_deletions_pkey PRIMARY KEY (id)
+);
 CREATE TABLE public.segment_tags (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   segment_id uuid NOT NULL,

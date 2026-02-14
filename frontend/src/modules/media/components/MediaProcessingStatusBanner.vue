@@ -25,7 +25,6 @@ const stageColors: Record<string, string> = {
   uploaded: '#3B82F6',      // blue-500
   transcoding: '#F59E0B',   // amber-500 (blocking)
   transcoded: '#8B5CF6',    // purple-500
-  detecting_events: '#8B5CF6', // purple-500
   complete: '#10B981',      // green-500
   failed: '#EF4444',        // red-500
 };
@@ -35,7 +34,6 @@ const stageLabels: Record<string, string> = {
   uploaded: 'Preparing',
   transcoding: 'Transcoding',
   transcoded: 'Ready',
-  detecting_events: 'Analyzing Events',
   complete: 'Complete',
   failed: 'Failed',
 };
@@ -69,25 +67,8 @@ const bannerMessage = computed(() => {
     return 'Video is being transcoded for streaming. Please wait...';
   }
   
-  // Background processing (event detection)
-  if ((stage === 'transcoded' || stage === 'detecting_events') && props.showWatchMessage) {
-    return 'Analyzing rugby events in the background. You can still watch this video.';
-  }
-  
   return props.status.statusMessage;
 });
-
-const bannerIcon = computed(() => {
-  const stage = props.status.stage;
-  if (stage === 'detecting_events' || stage === 'transcoded') {
-    return 'carbon:analytics';
-  }
-  if (stage === 'failed') {
-    return 'carbon:warning-alt';
-  }
-  return null;
-});
-
 
 </script>
 
@@ -112,11 +93,10 @@ const bannerIcon = computed(() => {
 
   <!-- Banner mode (for detail view) -->
   <div
-    v-else-if="mode === 'banner' && (status.isBlockingProcessing || status.isBackgroundProcessing)"
+    v-else-if="mode === 'banner' && status.isBlockingProcessing"
     class="flex items-center gap-2.5 rounded-lg border px-3 py-2.5"
     :class="{
       'border-amber-500/30 bg-amber-500/10': status.isBlockingProcessing,
-      'border-purple-500/20 bg-purple-500/5': status.isBackgroundProcessing,
       'border-red-500/30 bg-red-500/10': status.stage === 'failed'
     }"
   >
@@ -140,12 +120,6 @@ const bannerIcon = computed(() => {
       </p>
     </div>
     
-    <!-- Background processing icon -->
-    <Icon
-      v-if="status.isBackgroundProcessing && bannerIcon"
-      :icon="bannerIcon"
-      class="h-4 w-4 text-purple-400/70"
-    />
   </div>
 </template>
 

@@ -44,9 +44,9 @@ import AssignSegmentModal from '@/modules/assignments/components/AssignSegmentMo
 import AddToPlaylistModal from '@/modules/playlists/components/AddToPlaylistModal.vue';
 import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
 
-const PRE_BUFFER_SECONDS = 5;
-const POST_BUFFER_SECONDS = 10;
-const MERGE_BUFFER_SECONDS = 5;
+const PRE_BUFFER_SECONDS = 3;
+const POST_BUFFER_SECONDS = 5;
+const MAX_EXTENSION_SECONDS = 6;
 const MIN_OVERLAP_PERCENTAGE = 0.5; // 50% of recording duration
 const MIN_OVERLAP_ABSOLUTE_SECONDS = 2; // Absolute minimum to prevent noise
 const MIN_RECORDING_DURATION_SECONDS = 0.5;
@@ -975,7 +975,6 @@ async function endRecordingNonBlocking() {
     PRE_BUFFER_SECONDS,
     POST_BUFFER_SECONDS
   );
-  const extendSeconds = Math.max(0, recordingDurationSeconds) + MERGE_BUFFER_SECONDS;
   debugLog('segment bounds computed', {
     recordStartVideoTime: startVideoTime,
     recordingDurationSeconds,
@@ -998,8 +997,14 @@ async function endRecordingNonBlocking() {
       return;
     }
     let resolved = existing;
-    const desiredEndSeconds = clampEndSeconds((resolved.end_seconds ?? 0) + extendSeconds, mediaDuration);
-    if (desiredEndSeconds > (resolved.end_seconds ?? 0)) {
+    const overflowSeconds = recordingEndSeconds - (resolved.end_seconds ?? 0);
+    const extendBySeconds =
+      overflowSeconds > 0 ? Math.min(overflowSeconds, MAX_EXTENSION_SECONDS) : 0;
+    const desiredEndSeconds = clampEndSeconds(
+      (resolved.end_seconds ?? 0) + extendBySeconds,
+      mediaDuration
+    );
+    if (extendBySeconds > 0 && desiredEndSeconds > (resolved.end_seconds ?? 0)) {
       try {
         resolved = await segmentService.updateSegmentBounds({
           segmentId: String(resolved.id),
@@ -1071,8 +1076,14 @@ async function endRecordingNonBlocking() {
 
       if (resolvedOverlap) {
         let resolved = resolvedOverlap;
-        const desiredEndSeconds = clampEndSeconds((resolved.end_seconds ?? 0) + extendSeconds, mediaDuration);
-        if (desiredEndSeconds > (resolved.end_seconds ?? 0)) {
+        const overflowSeconds = recordingEndSeconds - (resolved.end_seconds ?? 0);
+        const extendBySeconds =
+          overflowSeconds > 0 ? Math.min(overflowSeconds, MAX_EXTENSION_SECONDS) : 0;
+        const desiredEndSeconds = clampEndSeconds(
+          (resolved.end_seconds ?? 0) + extendBySeconds,
+          mediaDuration
+        );
+        if (extendBySeconds > 0 && desiredEndSeconds > (resolved.end_seconds ?? 0)) {
           try {
             resolved = await segmentService.updateSegmentBounds({
               segmentId: String(resolved.id),
@@ -1434,7 +1445,7 @@ async function handleDeleteSegment(segmentId: string) {
         <div class="md:col-span-3 space-y-4">
           <!-- Processing Status Banner (shows for blocking or background processing) -->
           <MediaProcessingStatusBanner 
-            v-if="processingStatus.isBlockingProcessing || processingStatus.isBackgroundProcessing" 
+            v-if="processingStatus.isBlockingProcessing" 
             :status="processingStatus" 
             :show-watch-message="true"
             mode="banner"

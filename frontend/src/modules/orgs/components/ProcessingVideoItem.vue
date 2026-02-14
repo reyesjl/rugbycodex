@@ -76,8 +76,6 @@ const statusText = computed(() => {
         return 'Preparing preview';
       }
       return 'Complete';
-    case 'detecting_events':
-      return 'Detecting events';
     case 'failed':
       return 'Processing failed';
     default:
