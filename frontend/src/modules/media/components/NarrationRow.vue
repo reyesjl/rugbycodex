@@ -81,10 +81,10 @@ function handleSaveEdit() {
 
 <template>
   <div
-    class="group relative border-l-2 transition-colors"
+    class="group relative transition-colors"
     :class="isActive 
-      ? 'border-blue-400 bg-blue-500/10' 
-      : 'border-transparent hover:bg-slate-800/30'"
+      ? '' 
+      : 'hover:bg-slate-800/30'"
   >
     <div class="px-4 py-3 cursor-pointer" @click="emit('click')">
       <!-- Header Row: Source badge + timestamp + actions -->
@@ -96,19 +96,12 @@ function handleSaveEdit() {
           >
             {{ sourceLabel }}
           </span>
-          <span v-if="isActive" class="rounded bg-blue-500/20 px-2 py-0.5 text-xs text-blue-300">
-            Now
-          </span>
           <span class="text-xs text-slate-400 truncate">
             {{ formattedTime }}
           </span>
         </div>
 
-        <div 
-          v-if="(canEdit || canDelete) && !isEditing"
-          class="opacity-0 group-hover:opacity-100 transition-opacity"
-          @click.stop
-        >
+        <div v-if="(canEdit || canDelete) && !isEditing" @click.stop>
           <NarrationActionsMenu
             :can-edit="canEdit"
             :can-delete="canDelete"
@@ -150,7 +143,7 @@ function handleSaveEdit() {
         <LoadingDot />
         <ShimmerText text="rugbycodex is transcribing your voice..." />
       </div>
-      <div v-else class="text-base text-slate-50 leading-relaxed" v-html="transcriptWithBoldTerms" />
+      <div v-else class="text-sm text-slate-50 leading-relaxed" v-html="transcriptWithBoldTerms" />
     </div>
   </div>
 </template>

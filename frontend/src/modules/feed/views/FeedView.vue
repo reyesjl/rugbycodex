@@ -88,7 +88,11 @@ function feedItemHasIdentityTag(segmentId: string): boolean {
   if (!user) return false;
   const item = items.value.find((entry) => String(entry.mediaAssetSegmentId) === segmentId);
   const tags = item?.segment?.tags ?? [];
-  return tags.some((tag) => tag.tag_type === 'identity' && String(tag.created_by) === String(user));
+  return tags.some((tag) => {
+    if (tag.tag_type !== 'identity') return false;
+    const profileId = tag.tagged_profile_id ?? tag.created_by;
+    return String(profileId) === String(user);
+  });
 }
 
 function getUserIdentityTagId(segmentId: string): string | null {
@@ -96,7 +100,11 @@ function getUserIdentityTagId(segmentId: string): string | null {
   if (!user) return null;
   const item = items.value.find((entry) => String(entry.mediaAssetSegmentId) === segmentId);
   const tags = item?.segment?.tags ?? [];
-  const identityTag = tags.find((tag) => tag.tag_type === 'identity' && String(tag.created_by) === String(user));
+  const identityTag = tags.find((tag) => {
+    if (tag.tag_type !== 'identity') return false;
+    const profileId = tag.tagged_profile_id ?? tag.created_by;
+    return String(profileId) === String(user);
+  });
   return identityTag?.id ?? null;
 }
 

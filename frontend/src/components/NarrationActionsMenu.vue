@@ -31,18 +31,18 @@ const emit = defineEmits<{
       leave-to-class="transform scale-95 opacity-0"
     >
       <MenuItems
-        class="absolute right-0 z-50 mt-1 w-40 origin-top-right rounded-md border border-white/20 bg-black/95 backdrop-blur shadow-lg focus:outline-none"
+        class="absolute right-0 z-50 mt-1 w-32 origin-top-right rounded-md border border-white/20 bg-black/95 backdrop-blur shadow-lg focus:outline-none"
         @click.stop
       >
         <div class="py-1">
           <MenuItem v-if="canEdit" v-slot="{ active }">
             <button
               type="button"
-              class="flex w-full items-center gap-2 px-3 py-2 text-sm text-white"
+              class="flex w-full items-center gap-2 px-2.5 py-1.5 text-xs text-white"
               :class="active ? 'bg-white/10' : ''"
               @click.stop="emit('edit')"
             >
-              <Icon icon="carbon:edit" class="h-4 w-4" />
+              <Icon icon="carbon:edit" class="h-3.5 w-3.5" />
               Edit
             </button>
           </MenuItem>
@@ -50,11 +50,11 @@ const emit = defineEmits<{
           <MenuItem v-if="canDelete" v-slot="{ active }">
             <button
               type="button"
-              class="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-300"
+              class="flex w-full items-center gap-2 px-2.5 py-1.5 text-xs text-red-300"
               :class="active ? 'bg-red-500/10' : ''"
               @click.stop="emit('delete')"
             >
-              <Icon icon="carbon:trash-can" class="h-4 w-4" />
+              <Icon icon="carbon:trash-can" class="h-3.5 w-3.5" />
               Delete
             </button>
           </MenuItem>

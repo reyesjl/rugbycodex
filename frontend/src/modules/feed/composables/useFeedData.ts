@@ -105,8 +105,9 @@ export function useFeedData(options: FeedDataOptions) {
       const tags = item.segment?.tags ?? [];
       for (const tag of tags) {
         if (tag.tag_type !== 'identity') continue;
-        if (!tag.created_by) continue;
-        ids.add(String(tag.created_by));
+        const profileId = tag.tagged_profile_id ?? tag.created_by;
+        if (!profileId) continue;
+        ids.add(String(profileId));
       }
     }
 

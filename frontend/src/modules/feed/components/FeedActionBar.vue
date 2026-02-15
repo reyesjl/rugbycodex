@@ -32,9 +32,10 @@ const contextTags = computed(() => tagList.value.filter((tag) => tag.tag_type ==
 function formatTagLabel(tag: SegmentTag): string {
   const raw = String(tag.tag_key ?? '').replace(/_/g, ' ').trim();
   if (tag.tag_type === 'identity') {
-    if (props.currentUserId && String(tag.created_by) === String(props.currentUserId)) return 'you';
-    const profileId = tag.created_by ? String(tag.created_by) : '';
-    const profileName = profileId ? props.profileNameById?.[profileId] : '';
+    const profileId = tag.tagged_profile_id ?? tag.created_by;
+    if (props.currentUserId && String(profileId) === String(props.currentUserId)) return 'you';
+    const profileKey = profileId ? String(profileId) : '';
+    const profileName = profileKey ? props.profileNameById?.[profileKey] : '';
     if (profileName) return profileName;
     if (raw && raw !== 'self') return raw;
     return 'player';

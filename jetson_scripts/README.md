@@ -115,6 +115,8 @@ Both workers share:
 **Service**: `rugbycodex-cleanup.service`  
 **Purpose**: Delete media files when users delete videos
 
+> Note: This worker is now deprecated in favor of the Supabase `cleanup-media-assets` Edge Function + cron job.
+
 **Key Features**:
 - Polls `media_cleanup_jobs` table every 6 hours
 - Deletes entire media folders from Wasabi (raw + streaming + thumbnails)

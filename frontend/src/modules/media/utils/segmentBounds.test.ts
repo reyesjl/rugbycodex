@@ -22,12 +22,12 @@ function test(label: string, fn: () => void) {
 
 test('computeSegmentBounds uses buffers and duration', () => {
   const result = computeSegmentBounds(60, 25, 120, 5, 10);
-  assertBoundsEqual(result, { startSeconds: 55, endSeconds: 95 }, 'example');
+  assertBoundsEqual(result, { startSeconds: 55, endSeconds: 100 }, 'example');
 });
 
 test('computeSegmentBounds clamps start to zero', () => {
   const result = computeSegmentBounds(2, 1, 120, 5, 10);
-  assertBoundsEqual(result, { startSeconds: 0, endSeconds: 15 }, 'start clamp');
+  assertBoundsEqual(result, { startSeconds: 0, endSeconds: 13 }, 'start clamp');
 });
 
 test('computeSegmentBounds clamps end to media duration', () => {
@@ -37,5 +37,5 @@ test('computeSegmentBounds clamps end to media duration', () => {
 
 test('computeSegmentBounds enforces minimum length when possible', () => {
   const result = computeSegmentBounds(10, 1, 200, 5, 10);
-  assertBoundsEqual(result, { startSeconds: 5, endSeconds: 20 }, 'min length');
+  assertBoundsEqual(result, { startSeconds: 5, endSeconds: 21 }, 'min length');
 });

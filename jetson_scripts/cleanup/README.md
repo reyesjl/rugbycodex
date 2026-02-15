@@ -1,5 +1,7 @@
 # Media Cleanup Worker
 
+> Note: This worker is now deprecated in favor of the Supabase `cleanup-media-assets` Edge Function + cron job. Only use this worker if you still run the Jetson cleanup service.
+
 Automated worker that deletes media files from Wasabi storage when users delete videos.
 
 ## How It Works
@@ -76,6 +78,22 @@ VALUES (
   'rugbycodex-media',
   'orgs/xyz/uploads/abc-123/raw/match.mp4'
 );
+```
+
+## Orphan Cleanup (One-off)
+
+If you have orphaned Wasabi folders (no matching `media_assets` row), run the audit script:
+
+```bash
+cd /home/scribe/rugbycodex/jetson_scripts/cleanup
+python3 audit_orphan_media_assets.py --dry-run
+python3 audit_orphan_media_assets.py
+```
+
+To start fresh before auditing:
+
+```sql
+delete from public.media_cleanup_jobs;
 ```
 
 ## Path Deletion Logic

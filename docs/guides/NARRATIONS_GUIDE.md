@@ -40,7 +40,7 @@ Narrations are voice recordings that coaches, staff, and team members can add to
 
 **What happens:**
 - Narration is ALWAYS attached to that specific segment
-- Segment extends automatically if your recording goes beyond its end time
+- Segment extends by up to 6 seconds if your recording goes beyond its end time
 
 ## The Smart Attachment System
 
@@ -166,9 +166,10 @@ When creating a new segment, the system adds buffer time for context:
 
 ### Formula:
 ```
-Segment Start = Recording Start - 5 seconds (pre-buffer)
-Segment End   = Recording End + 10 seconds (post-buffer)
-Minimum Size  = 3x recording duration, capped at 60 seconds
+Segment Start = Recording Start - 3 seconds (pre-buffer)
+Segment End   = Recording End + 5 seconds (post-buffer)
+Target Length = clamp(max(10s, recording duration * 1.8), 10s, 60s)
+Final Length  = max(pre+recording+post, target length), clamped to media duration
 ```
 
 ### Examples:
@@ -176,25 +177,25 @@ Minimum Size  = 3x recording duration, capped at 60 seconds
 **Short Recording (2s):**
 ```
 Recording:    2:00 - 2:02 (2s)
-Buffers:      1:55 - 2:12 (17s)
-Minimum:      30s enforced
-Final Segment: 1:55 - 2:25 (30s)
+Buffers:      1:57 - 2:07 (10s)
+Target:       10s
+Final Segment: 1:57 - 2:07 (10s)
 ```
 
 **Medium Recording (15s):**
 ```
 Recording:    2:00 - 2:15 (15s)
-Buffers:      1:55 - 2:25 (30s)
-Minimum:      45s (3x15s)
-Final Segment: 1:55 - 2:40 (45s)
+Buffers:      1:57 - 2:20 (23s)
+Target:       27s (1.8x)
+Final Segment: 1:57 - 2:24 (27s)
 ```
 
 **Long Recording (30s):**
 ```
 Recording:    2:00 - 2:30 (30s)
-Buffers:      1:55 - 2:40 (45s)
-Minimum:      90s (3x30s) → CAPPED at 60s
-Final Segment: 1:55 - 2:55 (60s)
+Buffers:      1:57 - 2:35 (38s)
+Target:       54s (1.8x)
+Final Segment: 1:57 - 2:51 (54s)
 ```
 
 ## Recording Requirements
@@ -206,8 +207,8 @@ Final Segment: 1:55 - 2:55 (60s)
 
 ### No Maximum Duration
 - Record as long as needed
-- Segments cap at 60 seconds max
-- Longer recordings are allowed, but segment won't exceed 60s
+- Segments target up to 60s, but still expand as needed to include the recording (clamped to media duration)
+- If a recording exceeds 90s, you will see a toast: "Long narrations will be processed in chunks"
 
 ## Common Scenarios
 
@@ -232,7 +233,7 @@ Result:    Your narration attaches to existing segment
 Situation: Segment exists at 2:00-2:30
 Action:    Record from 2:25-2:40 (goes beyond segment)
 Result:    Narration attaches to existing segment
-           Segment automatically extends to ~2:45
+           Segment extends by up to 6 seconds (to ~2:36)
 ```
 
 ### Scenario 4: Fragmentation Warning
@@ -359,7 +360,7 @@ A: Insufficient overlap - the system requires at least 50% of either your record
 A: Yes! Recording captures time based on when you start, not when video plays.
 
 **Q: Is there a maximum recording length?**  
-A: No hard limit, but segments cap at 60 seconds. Very long recordings (>60s) still work.
+A: No hard limit. Segments target up to 60s but will still expand to include the recording (clamped to media duration), and recordings over 90s show a toast noting they will be processed in chunks.
 
 **Q: Can multiple people record simultaneously?**  
 A: Yes, each creates their own narration. System handles concurrent uploads.
@@ -371,6 +372,6 @@ A: They appear in "empty segments" view and can be deleted by staff to clean up.
 
 ## Summary
 
-**Narrations** let you add voice commentary to specific moments in match footage. The system intelligently attaches your recording to existing segments when there's sufficient overlap (≥50% of either the recording or segment, minimum 2s), or creates new segments with appropriate context buffers. This creates a collaborative annotation layer over your match videos, making review and feedback more efficient and engaging.
+**Narrations** let you add voice commentary to specific moments in match footage. The system intelligently attaches your recording to existing segments when there's sufficient overlap (≥50% of either the recording or segment, minimum 2s), or creates new segments with context buffers and a target length that scales with narration duration. This creates a collaborative annotation layer over your match videos, making review and feedback more efficient and engaging.
 
 For technical implementation details, see `/docs` folder.

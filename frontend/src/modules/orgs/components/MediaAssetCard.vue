@@ -2,7 +2,6 @@
 import { computed, ref, onMounted, onUnmounted } from 'vue';
 import { Icon } from '@iconify/vue';
 import { Menu, MenuButton, MenuItems, MenuItem } from '@headlessui/vue';
-import LoadingDot from '@/components/LoadingDot.vue';
 import MediaProcessingStatusBanner from '@/modules/media/components/MediaProcessingStatusBanner.vue';
 import { useMediaProcessingStatus } from '@/modules/media/composables/useMediaProcessingStatus';
 import { formatMediaAssetNameForDisplay } from '@/modules/media/utils/assetUtilities';
@@ -81,14 +80,9 @@ const isAbandoned = computed(() => {
   return props.asset.status === 'interrupted' || props.uploadMetrics?.state === 'abandoned';
 });
 
-// Show small badge for background processing (event detection)
-const showBackgroundBadge = computed(() => {
-  return processingStatus.value.isBackgroundProcessing;
-});
-
 const overlayIconName = computed(() => {
   // Don't show icon if we're showing processing overlay/badges
-  if (showProcessingOverlay.value || showBackgroundBadge.value) return null;
+  if (showProcessingOverlay.value) return null;
   
   if (isAbandoned.value) return 'carbon:warning-alt';
   if (isInteractive.value) return 'carbon:play-filled-alt';
@@ -170,18 +164,9 @@ function handleCardClick() {
             mode="overlay"
           />
 
-          <!-- Background Processing Badge (event detection) -->
-          <div
-            v-else-if="showBackgroundBadge"
-            class="absolute top-2 right-2 z-10 flex items-center gap-1.5 rounded-full bg-purple-600/30 px-2.5 py-1 text-xs font-medium text-white backdrop-blur-md ring-1 ring-white/20"
-          >
-            <LoadingDot size="sm" color="#FFFFFF" />
-            <span>Analyzing</span>
-          </div>
-
           <!-- Play icon or abandoned warning (when not processing) -->
           <div
-            v-if="!showProcessingOverlay && !showBackgroundBadge && overlayIconName"
+            v-if="!showProcessingOverlay && overlayIconName"
             class="absolute inset-0 flex items-center justify-center"
           >
             <Icon

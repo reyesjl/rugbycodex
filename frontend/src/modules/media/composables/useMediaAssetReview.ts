@@ -84,6 +84,10 @@ export function useMediaAssetReview(options: MediaAssetReviewOptions) {
     return segmentTags.removeTag(payload);
   }
 
+  function reloadSegmentTags() {
+    return segmentTags.reload();
+  }
+
   async function refreshStaleMatchSummary(assetId: string, activeRequestId: number) {
     if (options.canGenerateMatchSummary && !options.canGenerateMatchSummary()) return;
     const summaryRequestId = ++matchSummaryRequestId;
@@ -312,6 +316,7 @@ export function useMediaAssetReview(options: MediaAssetReviewOptions) {
     matchSummaryError,
     addSegmentTag,
     removeSegmentTag,
+    reloadSegmentTags,
     generateMatchSummary,
     reload,
   };

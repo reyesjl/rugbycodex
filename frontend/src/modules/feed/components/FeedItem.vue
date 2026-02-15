@@ -55,7 +55,11 @@ const segmentTags = computed<SegmentTag[]>(() => (props.feedItem.segment?.tags ?
 const hasIdentityTag = computed(() => {
   const userId = currentUserId.value;
   if (!userId) return false;
-  return segmentTags.value.some((tag) => tag.tag_type === 'identity' && String(tag.created_by) === String(userId));
+  return segmentTags.value.some((tag) => {
+    if (tag.tag_type !== 'identity') return false;
+    const profileId = tag.tagged_profile_id ?? tag.created_by;
+    return String(profileId) === String(userId);
+  });
 });
 
 function requestIdentityTag() {

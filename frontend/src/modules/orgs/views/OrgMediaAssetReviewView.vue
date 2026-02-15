@@ -16,17 +16,18 @@ import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrgan
 import { useAuthStore } from '@/modules/auth/stores/useAuthStore';
 import { hasOrgAccess } from '@/modules/orgs/composables/useOrgCapabilities';
 import { segmentService } from '@/modules/media/services/segmentService';
+import { segmentAutoTagService } from '@/modules/media/services/segmentAutoTagService';
+import { segmentIdentityTagService } from '@/modules/media/services/segmentIdentityTagService';
+import { segmentTagSuggestionService } from '@/modules/media/services/segmentTagSuggestionService';
 import { narrationService } from '@/modules/narrations/services/narrationService';
 import { toast } from '@/lib/toast';
 import { computeSegmentBounds } from '@/modules/media/utils/segmentBounds';
 import { useMediaAssetReview } from '@/modules/media/composables/useMediaAssetReview';
+import { useSegmentTagSuggestions } from '@/modules/media/composables/useSegmentTagSuggestions';
+import { useSegmentInsights } from '@/modules/analysis/composables/useSegmentInsights';
 import { useVideoOverlayControls } from '@/modules/media/composables/useVideoOverlayControls';
 import { useSegmentPlayback } from '@/modules/media/composables/useSegmentPlayback';
-import { useTypewriter } from '@/composables/useTypewriter';
 import { useMediaProcessingStatus } from '@/modules/media/composables/useMediaProcessingStatus';
-
-import type { MatchSummaryState } from '@/modules/analysis/types/MatchSummary';
-import MatchSummaryBlock from '@/modules/analysis/components/MatchSummaryBlock.vue';
 
 import { useAudioRecording } from '@/composables/useAudioRecording';
 import { transcriptionService } from '@/modules/narrations/services/transcriptionService';
@@ -34,6 +35,7 @@ import type { OptimisticNarration } from '@/modules/narrations/composables/useNa
 import type { MediaAssetSegment, MediaAssetSegmentSourceType } from '@/modules/narrations/types/MediaAssetSegment';
 import type { NarrationSourceType } from '@/modules/narrations/types/Narration';
 import type { SegmentTagType } from '@/modules/media/types/SegmentTag';
+import { analysisService } from '@/modules/analysis/services/analysisService';
 
 import { formatMinutesSeconds } from '@/lib/duration';
 import MediaAssetReviewTimeline from '@/modules/media/components/MediaAssetReviewTimeline.vue';
@@ -42,9 +44,9 @@ import AssignSegmentModal from '@/modules/assignments/components/AssignSegmentMo
 import AddToPlaylistModal from '@/modules/playlists/components/AddToPlaylistModal.vue';
 import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
 
-const PRE_BUFFER_SECONDS = 5;
-const POST_BUFFER_SECONDS = 10;
-const MERGE_BUFFER_SECONDS = 5;
+const PRE_BUFFER_SECONDS = 3;
+const POST_BUFFER_SECONDS = 5;
+const MAX_EXTENSION_SECONDS = 6;
 const MIN_OVERLAP_PERCENTAGE = 0.5; // 50% of recording duration
 const MIN_OVERLAP_ABSOLUTE_SECONDS = 2; // Absolute minimum to prevent noise
 const MIN_RECORDING_DURATION_SECONDS = 0.5;
@@ -118,14 +120,12 @@ const currentUserId = computed(() => authStore.user?.id ?? null);
 const canAssignSegments = computed(() => isStaffOrAbove.value);
 const canTagSegments = computed(() => isStaffOrAbove.value);
 const canModerateNarrations = computed(() => isStaffOrAbove.value);
+const canTagPlayers = computed(() => authStore.isAdmin || isStaffOrAbove.value);
+const canAutoTagSegments = computed(() => authStore.isAdmin || isStaffOrAbove.value);
+const canGenerateSegmentInsights = computed(() => authStore.isAdmin || isStaffOrAbove.value);
 // Allow all org members to edit/delete narrations (role-based filtering in component)
 const canEditNarrations = computed(() => !!currentUserId.value && !!membershipRole.value);
 const canDeleteNarrations = computed(() => !!currentUserId.value && !!membershipRole.value);
-const canGenerateMatchSummary = computed(() => {
-  const raw = String(membershipRole.value ?? '').toLowerCase();
-  return raw === 'owner' || raw === 'manager' || raw === 'staff';
-});
-
 const userSegmentSourceType = computed<MediaAssetSegmentSourceType>(() => {
   const raw = String(membershipRole.value ?? '').toLowerCase();
 
@@ -184,7 +184,7 @@ const mediaAssetId = computed(() => String(route.params.mediaAssetId ?? ''));
 const mediaReview = useMediaAssetReview({
   orgId: () => activeOrgId.value,
   mediaAssetId: () => mediaAssetId.value,
-  canGenerateMatchSummary: () => canGenerateMatchSummary.value,
+  canGenerateMatchSummary: () => false,
 });
 
 const {
@@ -194,13 +194,16 @@ const {
   playlistUrl,
   segments,
   narrations,
-  matchSummary,
-  matchSummaryLoading,
-  matchSummaryRefreshing,
-  matchSummaryError,
   addSegmentTag,
   removeSegmentTag,
+  reloadSegmentTags,
 } = mediaReview;
+
+const segmentIds = computed(() => segments.value.map((seg) => String(seg.id)).filter(Boolean));
+const segmentTagSuggestions = useSegmentTagSuggestions({ segmentIds: () => segmentIds.value });
+const { suggestionsBySegmentId, reload: reloadSegmentTagSuggestions } = segmentTagSuggestions;
+const segmentInsights = useSegmentInsights({ segmentIds: () => segmentIds.value });
+const { insightsBySegmentId, reload: reloadSegmentInsights } = segmentInsights;
 
 // Processing status composable
 const mediaAssetRef = computed(() => asset.value);
@@ -239,6 +242,16 @@ const pendingEmptySegmentIds = ref<string[]>([]);
 const showDeleteEmptySegmentsModal = ref(false);
 const deleteEmptySegmentsError = ref<string | null>(null);
 const deleteEmptySegmentsProcessing = ref(false);
+const autoTaggingSegmentIds = ref<Set<string>>(new Set());
+const autoTaggingSegmentIdList = computed(() => Array.from(autoTaggingSegmentIds.value));
+const insightGeneratingSegmentIds = ref<Set<string>>(new Set());
+const insightGeneratingSegmentIdList = computed(() => Array.from(insightGeneratingSegmentIds.value));
+
+function shouldRefreshInsight(narrationCount: number, generatedCount: number | null | undefined): boolean {
+  const base = Number.isFinite(Number(generatedCount)) ? Math.max(0, Number(generatedCount)) : 0;
+  const threshold = Math.max(1, Math.ceil(base * 0.4));
+  return Math.abs(narrationCount - base) >= threshold;
+}
 
 watch(
   [activeOrgId, mediaAssetId],
@@ -270,13 +283,24 @@ function upsertSegment(next: MediaAssetSegment): void {
   segments.value = updated.sort((a, b) => (a.start_seconds ?? 0) - (b.start_seconds ?? 0));
 }
 
-async function handleAddSegmentTag(payload: { segmentId: string; tagKey: string; tagType: SegmentTagType }) {
-  if (!canTagSegments.value) {
+async function handleAddSegmentTag(payload: { segmentId: string; tagKey: string; tagType: SegmentTagType; taggedProfileId?: string }) {
+  const allowIdentity = payload.tagType === 'identity' && canTagPlayers.value;
+  if (!canTagSegments.value && !allowIdentity) {
     toast({ message: 'You do not have permission to modify tags.', variant: 'info', durationMs: 2500 });
     return;
   }
   if (!payload.segmentId) return;
   try {
+    if (payload.tagType === 'identity' && payload.taggedProfileId) {
+      await segmentIdentityTagService.addIdentityTag({
+        segmentId: String(payload.segmentId),
+        tagKey: payload.tagKey,
+        taggedProfileId: payload.taggedProfileId,
+      });
+      await reloadSegmentTags();
+      return;
+    }
+
     const tag = await addSegmentTag({
       segmentId: String(payload.segmentId),
       tagKey: payload.tagKey,
@@ -304,6 +328,125 @@ async function handleRemoveSegmentTag(payload: { segmentId: string; tagId: strin
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unable to remove tag.';
     toast({ message, variant: 'error', durationMs: 2600 });
+  }
+}
+
+async function runAutoTagging(options: {
+  narrationId?: string;
+  segmentId?: string;
+  showSuccess?: boolean;
+  force?: boolean;
+}) {
+  if (!canAutoTagSegments.value) return;
+  const segmentId = String(options.segmentId ?? '').trim();
+  if (!segmentId) return;
+  if (autoTaggingSegmentIds.value.has(segmentId)) return;
+
+  autoTaggingSegmentIds.value = new Set([...autoTaggingSegmentIds.value, segmentId]);
+  try {
+    const result = await segmentAutoTagService.autoTagSegment({
+      narrationId: options.narrationId,
+      segmentId,
+      force: options.force,
+    });
+    await reloadSegmentTagSuggestions();
+    const suggestedCount = result.suggested_tags?.length ?? 0;
+    if (options.showSuccess) {
+      toast({
+        message: suggestedCount
+          ? `Suggested ${suggestedCount} tag${suggestedCount === 1 ? '' : 's'}.`
+          : 'No new tag suggestions.',
+        variant: suggestedCount ? 'success' : 'info',
+        durationMs: 2200,
+      });
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unable to auto-tag segment.';
+    toast({ message, variant: 'error', durationMs: 2600 });
+  } finally {
+    const next = new Set(autoTaggingSegmentIds.value);
+    next.delete(segmentId);
+    autoTaggingSegmentIds.value = next;
+  }
+}
+
+function handleAutoTagSegment(seg: MediaAssetSegment) {
+  if (!canAutoTagSegments.value) {
+    toast({ message: 'You do not have permission to auto-tag.', variant: 'info', durationMs: 2400 });
+    return;
+  }
+  void runAutoTagging({ segmentId: String(seg.id), showSuccess: true, force: true });
+}
+
+async function handleApplySuggestedTags(payload: {
+  segmentId: string;
+  suggestionIds?: string[];
+  applyAll?: boolean;
+}) {
+  if (!canAutoTagSegments.value) {
+    toast({ message: 'You do not have permission to apply tags.', variant: 'info', durationMs: 2400 });
+    return;
+  }
+  const segmentId = String(payload.segmentId ?? '').trim();
+  if (!segmentId) return;
+  try {
+    const result = await segmentTagSuggestionService.applySuggestions({
+      segmentId,
+      suggestionIds: payload.suggestionIds,
+      applyAll: payload.applyAll,
+    });
+    await Promise.all([reloadSegmentTags(), reloadSegmentTagSuggestions()]);
+    const appliedCount = result.applied_tags?.length ?? 0;
+    toast({
+      message: appliedCount
+        ? `Applied ${appliedCount} tag${appliedCount === 1 ? '' : 's'}.`
+        : 'No new tags applied.',
+      variant: appliedCount ? 'success' : 'info',
+      durationMs: 2200,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unable to apply tag suggestions.';
+    toast({ message, variant: 'error', durationMs: 2600 });
+  }
+}
+
+async function handleRejectSuggestedTag(payload: { segmentId: string; suggestionId: string }) {
+  if (!canAutoTagSegments.value) {
+    toast({ message: 'You do not have permission to review tags.', variant: 'info', durationMs: 2400 });
+    return;
+  }
+  const segmentId = String(payload.segmentId ?? '').trim();
+  const suggestionId = String(payload.suggestionId ?? '').trim();
+  if (!segmentId || !suggestionId) return;
+  try {
+    await segmentTagSuggestionService.rejectSuggestion({ segmentId, suggestionId });
+    await reloadSegmentTagSuggestions();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unable to reject tag suggestion.';
+    toast({ message, variant: 'error', durationMs: 2600 });
+  }
+}
+
+async function handleGenerateSegmentInsight(payload: { segmentId: string }) {
+  if (!canGenerateSegmentInsights.value) {
+    toast({ message: 'You do not have permission to summarize segments.', variant: 'info', durationMs: 2400 });
+    return;
+  }
+  const segmentId = String(payload.segmentId ?? '').trim();
+  if (!segmentId) return;
+  if (insightGeneratingSegmentIds.value.has(segmentId)) return;
+
+  insightGeneratingSegmentIds.value = new Set([...insightGeneratingSegmentIds.value, segmentId]);
+  try {
+    await analysisService.getSegmentSummary(segmentId, { forceRefresh: true, skipCache: true });
+    await reloadSegmentInsights();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unable to generate segment insight.';
+    toast({ message, variant: 'error', durationMs: 2600 });
+  } finally {
+    const next = new Set(insightGeneratingSegmentIds.value);
+    next.delete(segmentId);
+    insightGeneratingSegmentIds.value = next;
   }
 }
 
@@ -390,84 +533,6 @@ async function confirmDeleteEmptySegments() {
 
 const playerRef = ref<InstanceType<typeof ShakaSurfacePlayer> | null>(null);
 const surfaceEl = ref<HTMLElement | null>(null);
-
-// Mobile: narrations live under the timeline.
-const narrationCount = computed(() => (narrations.value as any[])?.length ?? 0);
-const summaryNarrationsNeeded = 25;
-
-const matchSummaryState = computed<MatchSummaryState>(() => {
-  return matchSummary.value?.state ?? 'empty';
-});
-
-// Support both legacy bullets and new structured format
-const matchSummaryBullets = computed(() => {
-  if (matchSummaryState.value !== 'normal') return [];
-  if (matchSummary.value?.state !== 'normal') return [];
-  const structured = matchSummary.value as any;
-  return (structured?.bullets ?? []).filter(Boolean);
-});
-
-const matchSummaryHeadline = computed(() => {
-  if (matchSummaryState.value !== 'normal') return null;
-  if (matchSummary.value?.state !== 'normal') return null;
-  const structured = matchSummary.value as any;
-  const headline = String(structured?.match_headline ?? '').trim();
-  return headline ? headline : null;
-});
-
-const matchSummaryOverview = computed(() => {
-  if (matchSummaryState.value !== 'normal') return [];
-  if (matchSummary.value?.state !== 'normal') return [];
-  const structured = matchSummary.value as any;
-  const summary = Array.isArray(structured?.match_summary)
-    ? structured.match_summary.map((line: any) => String(line ?? '').trim()).filter(Boolean)
-    : [];
-  return summary;
-});
-
-const matchSummarySections = computed(() => {
-  if (matchSummaryState.value !== 'normal') return {};
-  if (matchSummary.value?.state !== 'normal') return {};
-  const structured = matchSummary.value as any;
-  return structured?.sections ?? {};
-});
-
-const hasMatchSummaryContent = computed(() => {
-  if (matchSummaryState.value !== 'normal') return false;
-  
-  if (matchSummaryHeadline.value || matchSummaryOverview.value.length > 0) return true;
-  
-  // Check for legacy bullets
-  if (matchSummaryBullets.value.length > 0) return true;
-  
-  // Check for new structured format
-  // Check if any section has content
-  const sections = matchSummarySections.value;
-  if (sections && typeof sections === 'object') {
-    return Object.values(sections).some(val => val && typeof val === 'string' && val.trim().length > 0);
-  }
-  
-  return false;
-});
-
-const matchSummaryCollapsed = ref(false);
-
-const { value: matchSummaryTypedText, typeText: typeMatchSummary } = useTypewriter();
-
-// For display, support typewriter effect for legacy bullets
-// (use `typedMatchSummaryBullets` and `matchSummaryBullets` directly in templates)
-
-watch(
-  matchSummaryBullets,
-  (next) => {
-    if (!next || next.length === 0) {
-      matchSummaryTypedText.value = '';
-      return;
-    }
-    void typeMatchSummary(next.join('\n'), 18);
-  },
-  { immediate: true }
-);
 
 const videoEl = computed(() => (playerRef.value?.getVideoElement?.() ?? null) as HTMLVideoElement | null);
 
@@ -910,7 +975,6 @@ async function endRecordingNonBlocking() {
     PRE_BUFFER_SECONDS,
     POST_BUFFER_SECONDS
   );
-  const extendSeconds = Math.max(0, recordingDurationSeconds) + MERGE_BUFFER_SECONDS;
   debugLog('segment bounds computed', {
     recordStartVideoTime: startVideoTime,
     recordingDurationSeconds,
@@ -933,8 +997,14 @@ async function endRecordingNonBlocking() {
       return;
     }
     let resolved = existing;
-    const desiredEndSeconds = clampEndSeconds((resolved.end_seconds ?? 0) + extendSeconds, mediaDuration);
-    if (desiredEndSeconds > (resolved.end_seconds ?? 0)) {
+    const overflowSeconds = recordingEndSeconds - (resolved.end_seconds ?? 0);
+    const extendBySeconds =
+      overflowSeconds > 0 ? Math.min(overflowSeconds, MAX_EXTENSION_SECONDS) : 0;
+    const desiredEndSeconds = clampEndSeconds(
+      (resolved.end_seconds ?? 0) + extendBySeconds,
+      mediaDuration
+    );
+    if (extendBySeconds > 0 && desiredEndSeconds > (resolved.end_seconds ?? 0)) {
       try {
         resolved = await segmentService.updateSegmentBounds({
           segmentId: String(resolved.id),
@@ -1006,8 +1076,14 @@ async function endRecordingNonBlocking() {
 
       if (resolvedOverlap) {
         let resolved = resolvedOverlap;
-        const desiredEndSeconds = clampEndSeconds((resolved.end_seconds ?? 0) + extendSeconds, mediaDuration);
-        if (desiredEndSeconds > (resolved.end_seconds ?? 0)) {
+        const overflowSeconds = recordingEndSeconds - (resolved.end_seconds ?? 0);
+        const extendBySeconds =
+          overflowSeconds > 0 ? Math.min(overflowSeconds, MAX_EXTENSION_SECONDS) : 0;
+        const desiredEndSeconds = clampEndSeconds(
+          (resolved.end_seconds ?? 0) + extendBySeconds,
+          mediaDuration
+        );
+        if (extendBySeconds > 0 && desiredEndSeconds > (resolved.end_seconds ?? 0)) {
           try {
             resolved = await segmentService.updateSegmentBounds({
               segmentId: String(resolved.id),
@@ -1139,6 +1215,26 @@ async function endRecordingNonBlocking() {
       }, 5000);
       
       toast({ message: 'Narration added.', variant: 'success', durationMs: 2000 });
+
+      const savedSegmentId = String((saved as any)?.media_asset_segment_id ?? targetSegment.id);
+      if (canAutoTagSegments.value && savedSegmentId) {
+        void runAutoTagging({ narrationId: String(saved.id), segmentId: savedSegmentId });
+      }
+
+      if (savedSegmentId) {
+        const narrationCount = narrations.value.filter(
+          (n) => String((n as any)?.media_asset_segment_id ?? '') === savedSegmentId
+        ).length;
+        const insight = insightsBySegmentId.value[savedSegmentId];
+        const generatedCount = insight?.narration_count_at_generation ?? null;
+        const shouldRefresh = !insight || shouldRefreshInsight(narrationCount, generatedCount);
+        if (shouldRefresh) {
+          void analysisService
+            .getSegmentSummary(savedSegmentId, { forceRefresh: true, skipCache: true })
+            .then(() => reloadSegmentInsights())
+            .catch(() => {});
+        }
+      }
     })
     .catch((err) => {
       const message = err instanceof Error ? err.message : 'Failed to process narration.';
@@ -1259,6 +1355,8 @@ async function handleDeleteNarration(narrationId: string) {
   }
   
   try {
+    const targetNarration = (narrations.value as any[]).find((n) => String(n.id) === narrationId);
+    const targetSegmentId = String(targetNarration?.media_asset_segment_id ?? '');
     console.log(JSON.stringify({
       severity: 'info',
       event_type: 'narration_delete',
@@ -1269,6 +1367,20 @@ async function handleDeleteNarration(narrationId: string) {
     await narrationService.deleteNarration(narrationId);
     narrations.value = (narrations.value as any[]).filter((n) => String(n.id) !== narrationId);
     toast({ message: 'Narration deleted.', variant: 'success', durationMs: 1500 });
+
+    if (targetSegmentId && canGenerateSegmentInsights.value) {
+      const narrationCount = narrations.value.filter(
+        (n) => String((n as any)?.media_asset_segment_id ?? '') === targetSegmentId
+      ).length;
+      const insight = insightsBySegmentId.value[targetSegmentId];
+      const generatedCount = insight?.narration_count_at_generation ?? null;
+      if (insight && shouldRefreshInsight(narrationCount, generatedCount) && narrationCount > 0) {
+        void analysisService
+          .getSegmentSummary(targetSegmentId, { forceRefresh: true, skipCache: true })
+          .then(() => reloadSegmentInsights())
+          .catch(() => {});
+      }
+    }
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to delete narration.';
     toast({ message, variant: 'error' });
@@ -1298,11 +1410,11 @@ async function handleDeleteSegment(segmentId: string) {
 
 <template>
   <div
-    class="w-full bg-black
+    class="w-full bg-gradient-to-t from-black to-blue-900/40
            h-[calc(100dvh-var(--main-nav-height))] overflow-y-auto
            md:h-auto md:overflow-visible md:min-h-[calc(100dvh-var(--main-nav-height))]"
   >
-    <div class="container-lg pb-16 md:pb-20 text-white space-y-4 h-full">
+    <div class="container-lg pt-6 pb-16 md:pt-8 md:pb-20 text-white space-y-4 h-full">
       <!-- <div class="flex items-start justify-between gap-3">
         <div>
           <div class="text-2xl font-semibold">Review</div>
@@ -1333,7 +1445,7 @@ async function handleDeleteSegment(segmentId: string) {
         <div class="md:col-span-3 space-y-4">
           <!-- Processing Status Banner (shows for blocking or background processing) -->
           <MediaProcessingStatusBanner 
-            v-if="processingStatus.isBlockingProcessing || processingStatus.isBackgroundProcessing" 
+            v-if="processingStatus.isBlockingProcessing" 
             :status="processingStatus" 
             :show-watch-message="true"
             mode="banner"
@@ -1529,25 +1641,6 @@ async function handleDeleteSegment(segmentId: string) {
             </div>
 
             <div class="md:hidden space-y-6 pb-6 pt-4">
-              <div v-if="canGenerateMatchSummary">
-                <MatchSummaryBlock
-                  :state="matchSummaryState"
-                  :bullets="matchSummaryBullets"
-                  :match-headline="matchSummaryHeadline"
-                  :match-summary-lines="matchSummaryOverview"
-                  :sections="matchSummarySections"
-                  :loading="matchSummaryLoading"
-                  :error="matchSummaryError"
-                  :refreshing="matchSummaryRefreshing"
-                  :has-generated="hasMatchSummaryContent"
-                  :narration-count="narrationCount"
-                  :narrations-needed="summaryNarrationsNeeded"
-                  :collapsible="true"
-                  :collapsed="matchSummaryCollapsed"
-                  @toggle="matchSummaryCollapsed = !matchSummaryCollapsed"
-                />
-              </div>
-
               <MediaAssetReviewNarrationList
                 :segments="segments"
                 :narrations="(narrations as any)"
@@ -1558,6 +1651,13 @@ async function handleDeleteSegment(segmentId: string) {
                 :can-moderate-narrations="canModerateNarrations"
                 :can-assign-segments="canAssignSegments"
                 :can-tag-segments="canTagSegments"
+                :can-tag-players="canTagPlayers"
+                :can-auto-tag-segments="canAutoTagSegments"
+                :auto-tagging-segment-ids="autoTaggingSegmentIdList"
+                :tag-suggestions="suggestionsBySegmentId"
+                :segment-insights="insightsBySegmentId"
+                :can-generate-segment-insights="canGenerateSegmentInsights"
+                :insight-generating-segment-ids="insightGeneratingSegmentIdList"
                 :can-edit-narrations="canEditNarrations"
                 :can-delete-narrations="canDeleteNarrations"
                 :current-user-id="currentUserId"
@@ -1571,6 +1671,10 @@ async function handleDeleteSegment(segmentId: string) {
                 @deleteSegment="handleDeleteSegment"
                 @addTag="handleAddSegmentTag"
                 @removeTag="handleRemoveSegmentTag"
+                @autoTagSegment="handleAutoTagSegment"
+                @applySuggestedTags="handleApplySuggestedTags"
+                @rejectSuggestedTag="handleRejectSuggestedTag"
+                @generateSegmentInsight="handleGenerateSegmentInsight"
                 @update:sourceFilter="handleNarrationSourceFilterChange"
                 @visibleSegmentsChange="handleVisibleSegmentsChange"
                 @requestDeleteEmptySegments="requestDeleteEmptySegments"
@@ -1594,27 +1698,6 @@ async function handleDeleteSegment(segmentId: string) {
           <div
             class="space-y-6"
           >
-            <div
-              v-if="canGenerateMatchSummary"
-            >
-              <MatchSummaryBlock
-                :state="matchSummaryState"
-                :bullets="matchSummaryBullets"
-                :match-headline="matchSummaryHeadline"
-                :match-summary-lines="matchSummaryOverview"
-                :sections="matchSummarySections"
-                :loading="matchSummaryLoading"
-                :error="matchSummaryError"
-                :refreshing="matchSummaryRefreshing"
-                :has-generated="hasMatchSummaryContent"
-                :narration-count="narrationCount"
-                :narrations-needed="summaryNarrationsNeeded"
-                :collapsible="true"
-                :collapsed="matchSummaryCollapsed"
-                @toggle="matchSummaryCollapsed = !matchSummaryCollapsed"
-              />
-            </div>
-
             <MediaAssetReviewNarrationList
               :segments="segments"
               :narrations="(narrations as any)"
@@ -1625,6 +1708,13 @@ async function handleDeleteSegment(segmentId: string) {
               :can-moderate-narrations="canModerateNarrations"
               :can-assign-segments="canAssignSegments"
               :can-tag-segments="canTagSegments"
+              :can-tag-players="canTagPlayers"
+              :can-auto-tag-segments="canAutoTagSegments"
+              :auto-tagging-segment-ids="autoTaggingSegmentIdList"
+              :tag-suggestions="suggestionsBySegmentId"
+              :segment-insights="insightsBySegmentId"
+              :can-generate-segment-insights="canGenerateSegmentInsights"
+              :insight-generating-segment-ids="insightGeneratingSegmentIdList"
               :can-edit-narrations="canEditNarrations"
               :can-delete-narrations="canDeleteNarrations"
               :current-user-id="currentUserId"
@@ -1638,6 +1728,10 @@ async function handleDeleteSegment(segmentId: string) {
               @deleteSegment="handleDeleteSegment"
               @addTag="handleAddSegmentTag"
               @removeTag="handleRemoveSegmentTag"
+              @autoTagSegment="handleAutoTagSegment"
+              @applySuggestedTags="handleApplySuggestedTags"
+              @rejectSuggestedTag="handleRejectSuggestedTag"
+              @generateSegmentInsight="handleGenerateSegmentInsight"
               @update:sourceFilter="handleNarrationSourceFilterChange"
               @visibleSegmentsChange="handleVisibleSegmentsChange"
               @requestDeleteEmptySegments="requestDeleteEmptySegments"

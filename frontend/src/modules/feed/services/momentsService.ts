@@ -73,12 +73,13 @@ export const momentsService = {
           tag_type,
           tag_key,
           created_by,
-          created_at
+          created_at,
+          tagged_profile_id
         )
       `)
       .eq('media_asset_id', mediaAssetId)
       .eq('segment_tags.tag_type', 'identity')
-      .eq('segment_tags.created_by', userId)
+      .eq('segment_tags.tagged_profile_id', userId)
       .order('start_seconds', { ascending: true }) as {
         data: any[] | null;
         error: PostgrestError | null;
@@ -98,7 +99,7 @@ export const momentsService = {
     // Fetch ALL tags for these segments (not just identity)
     const { data: allTags, error: tagsError } = await supabase
       .from('segment_tags')
-      .select('id, segment_id, tag_type, tag_key, created_by, created_at')
+      .select('id, segment_id, tag_type, tag_key, created_by, created_at, tagged_profile_id, status, source')
       .in('segment_id', segmentIds) as {
         data: any[] | null;
         error: PostgrestError | null;
@@ -122,6 +123,9 @@ export const momentsService = {
         tag_type: tag.tag_type as any,
         created_by: tag.created_by,
         created_at: tag.created_at,
+        tagged_profile_id: tag.tagged_profile_id ?? null,
+        status: tag.status ?? null,
+        source: tag.source ?? null,
       });
     }
 

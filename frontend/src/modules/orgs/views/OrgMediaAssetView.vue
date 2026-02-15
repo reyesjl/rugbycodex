@@ -127,7 +127,7 @@ watch([mediaId, activeOrgId], () => {
     <div v-else-if="asset" class="space-y-4">
       <!-- Processing Status Banner -->
       <MediaProcessingStatusBanner 
-        v-if="processingStatus.isBlockingProcessing || processingStatus.isBackgroundProcessing" 
+        v-if="processingStatus.isBlockingProcessing" 
         :status="processingStatus" 
         :show-watch-message="true"
         mode="banner"
