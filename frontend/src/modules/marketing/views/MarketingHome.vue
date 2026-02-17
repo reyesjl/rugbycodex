@@ -106,7 +106,7 @@ onMounted(async () => {
         </div>
         <div data-hero-motion class="button-set flex gap-5 mt-6 items-center">
           <Button size="lg" variant="base" color="primary" to="/auth/signup">Analyze Your Match</Button>
-          <a href="#codex-in-action" class="hover:underline underline-offset-4">See it in action</a>
+          <a href="#codex-in-action" class="hover:underline underline-offset-4">See it in Action</a>
         </div>
       </div>
     </div>
@@ -116,14 +116,14 @@ onMounted(async () => {
     <div class="container-lg">
       
       <div class="header mb-10">
-        <div class="text-3xl">How Codex Works</div>
+        <div class="text-3xl md:text-4xl">How Codex Works</div>
       </div>
 
-      <div class="steps-grid grid grid-cols-1 md:grid-cols-4 gap-20 md:gap-5">
+      <div class="steps-grid grid grid-cols-1 md:grid-cols-2 gap-15 md:gap-20">
       
         <!-- step 1 -->
-        <div class="step space-y-5">
-          <div class="rounded-full bg-black aspect-square h-10 w-10 flex items-center justify-center font-semibold text-white">1</div>
+        <div class="step space-y-5 md:w-3/4">
+          <div class="rounded-full bg-black aspect-square h-10 w-10 flex items-center justify-center font-semibold text-white text-lg">1</div>
           <div class="text-lg">
             Start with any existing rugby footage. Upload your matches, opposition film, or even trainings.
           </div>
@@ -135,8 +135,8 @@ onMounted(async () => {
         </div>
 
         <!-- step 2 -->
-        <div class="step space-y-5">
-          <div class="rounded-full bg-black aspect-square h-10 w-10 flex items-center justify-center font-semibold text-white">2</div>
+        <div class="step space-y-5 md:w-3/4">
+          <div class="rounded-full bg-black aspect-square h-10 w-10 flex items-center justify-center font-semibold text-white text-lg">2</div>
 
           <div class="text-lg">
             Narrate what you see. Codex turns your expertise into structured, searchable game data.
@@ -149,8 +149,8 @@ onMounted(async () => {
         </div>
 
         <!-- step 3 -->
-        <div class="step space-y-5">
-          <div class="rounded-full bg-black aspect-square h-10 w-10 flex items-center justify-center font-semibold text-white">3</div>
+        <div class="step space-y-5 md:w-3/4">
+          <div class="rounded-full bg-black aspect-square h-10 w-10 flex items-center justify-center font-semibold text-white text-lg">3</div>
           <div class="text-lg">
             Ask it anything. Get precise answers backed by your own match context. In seconds, not hours.
           </div>
@@ -167,8 +167,8 @@ onMounted(async () => {
         </div>
 
         <!-- step 4 -->
-        <div class="step space-y-5">
-          <div class="rounded-full bg-black aspect-square h-10 w-10 flex items-center justify-center font-semibold text-white">4</div>
+        <div class="step space-y-5 md:w-3/4">
+          <div class="rounded-full bg-black aspect-square h-10 w-10 flex items-center justify-center font-semibold text-white text-lg">4</div>
           <div class="text-lg">
             Turn insights into coaching adjustments, player feedback, session planning, and match prep.
           </div>
@@ -189,21 +189,25 @@ onMounted(async () => {
         </div>
       
       </div>
+    </div>
+  </section>
 
-      <div id="codex-in-action" class="mt-16 md:mt-20 space-y-4 text-center">
-        <h2 class="text-3xl">See Codex in Action</h2>
-        <p class="text-lg text-black/80">From voice to searchable rugby intelligence in under a minute.</p>
-        <div
-          class="max-w-8xl mx-auto aspect-video rounded-lg border border-black/20 bg-black/5 grid place-items-center text-black/60"
-        >
-            <video
-              controls
-              class="w-full h-full object-cover rounded-lg"
-              :src="`${CDN_BASE}/static/assets/videos/demo.mp4`"
-            ></video>
-        </div>
+  <section id="codex-in-action" class="bg-black text-white py-20">
+    <div class="container-lg text-center">
+      <div class="text-4xl">See Codex in Action</div>
+      <div class="text-lg">From voice to searchable intelligence in under a minute.</div>
+
+      <div class="max-w-6xl mx-auto mt-20">
+        <!-- https://cdn.rugbycodex.com/static/assets/videos/demo.mp4 -->
+        <video
+          muted
+          controls
+          loop
+          playsinline
+          class="w-full h-auto object-cover rounded-lg"
+          src="https://cdn.rugbycodex.com/static/assets/videos/demo.mp4"
+        ></video>
       </div>
-
     </div>
     
   </section>
