@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia';
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch, type ComponentPublicInstance } from 'vue';
 import { Icon } from '@iconify/vue';
 import { Menu, MenuButton, MenuItems, MenuItem } from '@headlessui/vue';
 import { useRoute, useRouter } from 'vue-router';
@@ -17,6 +17,7 @@ import EditMediaAssetModal from '@/modules/orgs/components/EditMediaAssetModal.v
 import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
 import LoadingDot from '@/components/LoadingDot.vue';
 import ShimmerText from '@/components/ShimmerText.vue';
+import { CDN_BASE } from '@/lib/cdn';
 import { toast } from '@/lib/toast';
 import type { OrgMediaAsset } from '@/modules/media/types/OrgMediaAsset';
 import type { MediaAssetKind } from '@/modules/media/types/MediaAssetKind';
@@ -48,7 +49,6 @@ const {
   selectedLimit,
   loadAssets,
   getCoverageDisplay,
-  formatDuration,
   formatRelativeDate,
   getNarrationProgress,
 } = useOrgMediaWithCoverage(activeOrgId.value);
@@ -73,6 +73,29 @@ const uploadStore = useUploadStore();
 
 const hasInFlightUploads = computed(() => uploadStore.activeUploads.length > 0);
 
+type PreviewFrame = {
+  imageUrl: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  spriteWidth: number;
+  spriteHeight: number;
+};
+
+type PreviewState = {
+  frames: PreviewFrame[];
+  index: number;
+  loading: boolean;
+  scale: number;
+  timer?: number;
+};
+
+const PREVIEW_INTERVAL_MS = 700;
+const previewStates = reactive<Record<string, PreviewState>>({});
+const previewTargets = new Map<string, HTMLElement>();
+const hoveredAssetId = ref<string | null>(null);
+
 // Create upload metrics map for ProcessingVideosList
 const uploadMetricsByAssetId = computed(() => {
   const map = new Map<string, { state: UploadState; progress: number; uploadSpeedBps?: number }>();
@@ -91,6 +114,160 @@ const searchQuery = ref('');
 function normalizeSearchText(value: string | null | undefined) {
   if (!value) return '';
   return formatMediaAssetNameForDisplay(value).toLowerCase();
+}
+
+function buildCdnUrl(path: string | null | undefined) {
+  return path ? `${CDN_BASE}/${path}` : null;
+}
+
+function thumbnailUrl(asset: { thumbnailPath?: string | null }) {
+  return buildCdnUrl(asset.thumbnailPath);
+}
+
+function formatDurationHms(seconds: number) {
+  const totalSeconds = Math.max(0, Math.floor(seconds));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const remainingSeconds = totalSeconds % 60;
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
+}
+
+function getPreviewState(assetId: string): PreviewState {
+  if (!previewStates[assetId]) {
+    previewStates[assetId] = { frames: [], index: 0, loading: false, scale: 1 };
+  }
+  return previewStates[assetId]!;
+}
+
+function setPreviewTarget(assetId: string, element: Element | ComponentPublicInstance | null) {
+  const target = element instanceof HTMLElement
+    ? element
+    : element && '$el' in element && element.$el instanceof HTMLElement
+      ? element.$el
+      : null;
+  if (target) {
+    previewTargets.set(assetId, target);
+    updatePreviewScale(assetId);
+  } else {
+    previewTargets.delete(assetId);
+  }
+}
+
+function parsePreviewFrames(content: string, vttPath: string): PreviewFrame[] {
+  const baseDir = vttPath.split('/').slice(0, -1).join('/');
+  const frames: Array<{ imagePath: string; x: number; y: number; width: number; height: number }> = [];
+  const spriteBounds = new Map<string, { maxX: number; maxY: number }>();
+
+  content.split(/\r?\n/).forEach(line => {
+    const match = line.match(/(.+?)#xywh=(\d+),(\d+),(\d+),(\d+)/);
+    const imageFile = match?.[1]?.trim();
+    if (!imageFile || !match?.[2] || !match?.[3] || !match?.[4] || !match?.[5]) return;
+    const x = Number(match[2]);
+    const y = Number(match[3]);
+    const width = Number(match[4]);
+    const height = Number(match[5]);
+    const imagePath = baseDir ? `${baseDir}/${imageFile}` : imageFile;
+    frames.push({ imagePath, x, y, width, height });
+    const bounds = spriteBounds.get(imagePath) ?? { maxX: 0, maxY: 0 };
+    bounds.maxX = Math.max(bounds.maxX, x + width);
+    bounds.maxY = Math.max(bounds.maxY, y + height);
+    spriteBounds.set(imagePath, bounds);
+  });
+
+  return frames.map(frame => {
+    const bounds = spriteBounds.get(frame.imagePath) ?? { maxX: frame.width, maxY: frame.height };
+    return {
+      imageUrl: `${CDN_BASE}/${frame.imagePath}`,
+      x: frame.x,
+      y: frame.y,
+      width: frame.width,
+      height: frame.height,
+      spriteWidth: bounds.maxX,
+      spriteHeight: bounds.maxY,
+    };
+  });
+}
+
+async function ensurePreviewFrames(asset: { id: string; thumbnailVttPath: string | null }) {
+  if (!asset.thumbnailVttPath) return;
+  const state = getPreviewState(asset.id);
+  if (state.loading || state.frames.length > 0) return;
+  const vttUrl = buildCdnUrl(asset.thumbnailVttPath);
+  if (!vttUrl) return;
+  state.loading = true;
+  try {
+    const response = await fetch(vttUrl);
+    if (!response.ok) {
+      throw new Error('Failed to load preview');
+    }
+    const content = await response.text();
+    state.frames = parsePreviewFrames(content, asset.thumbnailVttPath);
+    state.index = 0;
+    updatePreviewScale(asset.id);
+  } catch (err) {
+    state.frames = [];
+  } finally {
+    state.loading = false;
+  }
+}
+
+function updatePreviewScale(assetId: string) {
+  const state = previewStates[assetId];
+  const target = previewTargets.get(assetId);
+  const frame = state?.frames[0];
+  if (!state || !target || !frame) return;
+  const width = target.clientWidth;
+  if (!width) return;
+  state.scale = width / frame.width;
+}
+
+function getPreviewFrame(asset: { id: string }) {
+  const state = previewStates[asset.id];
+  if (!state || state.frames.length === 0) return null;
+  const index = hoveredAssetId.value === asset.id ? state.index : 0;
+  return state.frames[index] ?? state.frames[0] ?? null;
+}
+
+function getPreviewStyle(asset: { id: string }) {
+  const frame = getPreviewFrame(asset);
+  if (!frame) return null;
+  const state = previewStates[asset.id];
+  const scale = state?.scale ?? 1;
+  return {
+    backgroundImage: `url(${frame.imageUrl})`,
+    backgroundPosition: `-${frame.x * scale}px -${frame.y * scale}px`,
+    backgroundSize: `${frame.spriteWidth * scale}px ${frame.spriteHeight * scale}px`,
+    backgroundRepeat: 'no-repeat',
+  };
+}
+
+async function startPreview(asset: { id: string; thumbnailVttPath: string | null }) {
+  hoveredAssetId.value = asset.id;
+  await ensurePreviewFrames(asset);
+  updatePreviewScale(asset.id);
+  const state = previewStates[asset.id];
+  if (!state || state.frames.length < 2) return;
+  if (state.timer) {
+    window.clearInterval(state.timer);
+  }
+  state.index = 0;
+  state.timer = window.setInterval(() => {
+    state.index = (state.index + 1) % state.frames.length;
+  }, PREVIEW_INTERVAL_MS);
+}
+
+function stopPreview(assetId: string) {
+  if (hoveredAssetId.value === assetId) {
+    hoveredAssetId.value = null;
+  }
+  const state = previewStates[assetId];
+  if (state?.timer) {
+    window.clearInterval(state.timer);
+    state.timer = undefined;
+  }
+  if (state) {
+    state.index = 0;
+  }
 }
 
 // Processing assets from store (not ready yet, shown in processing list)
@@ -112,6 +289,18 @@ const searchFilteredAssets = computed(() => {
     normalizeSearchText(asset.kind).includes(query)
   );
 });
+
+watch(
+  searchFilteredAssets,
+  assets => {
+    assets.forEach(asset => {
+      if (asset.thumbnailVttPath) {
+        void ensurePreviewFrames(asset);
+      }
+    });
+  },
+  { immediate: true }
+);
 
 function openAddMedia() {
   if (!activeOrgId.value) return;
@@ -464,12 +653,20 @@ watch(activeOrgId, (orgId, prevOrgId) => {
     void loadAssets();
   }
 });
+
+onBeforeUnmount(() => {
+  Object.values(previewStates).forEach(state => {
+    if (state.timer) {
+      window.clearInterval(state.timer);
+    }
+  });
+});
 </script>
 
 <template>
   <div class="min-h-screen text-white pb-20">
     <!-- Header - contained -->
-    <div class="container-lg py-6">
+    <div class="container-lg px-0 py-6">
       <div class="flex items-center justify-between gap-6 mb-6">
         <h1 class="text-4xl font-light tracking-tight text-white">Footage</h1>
         <button
@@ -602,7 +799,7 @@ watch(activeOrgId, (orgId, prevOrgId) => {
     </div>
 
     <!-- Loading/Error states - contained -->
-    <div class="container-lg">
+    <div class="container-lg px-0">
       <div v-if="orgResolving" class="rounded-lg border border-white/10 bg-white/5 p-6 text-white/70">
         Loading organization…
       </div>
@@ -645,33 +842,61 @@ watch(activeOrgId, (orgId, prevOrgId) => {
         <p v-else>No {{ selectedKind }} footage found.</p>
       </div>
 
-      <!-- Footage list -->
-      <div v-else class="space-y-3">
+      <!-- Footage grid -->
+      <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
         <div
           v-for="asset in searchFilteredAssets"
           :key="asset.id"
-          class="w-full flex flex-col sm:flex-row gap-0 sm:gap-4 bg-white/5 hover:bg-white/10 rounded-lg transition-colors group relative"
+          class="transition cursor-pointer"
+          @click="openAsset(asset.id)"
+          @mouseenter="startPreview(asset)"
+          @mouseleave="stopPreview(asset.id)"
         >
-          <!-- Mobile: Thumbnail with menu overlay -->
-          <div class="relative sm:hidden w-full aspect-video bg-black cursor-pointer overflow-hidden rounded-t-lg" @click="openAsset(asset.id)">
-            <img
-              v-if="asset.thumbnailPath"
-              :src="`https://cdn.rugbycodex.com/${asset.thumbnailPath}`"
-              :alt="formatMediaAssetNameForDisplay(asset.fileName)"
-              class="w-full h-full object-cover"
-            />
+          <div class="p-3 hover:bg-blue-400/20 rounded-xl transition">
             <div
-              v-else
-              class="w-full h-full flex items-center justify-center text-white/20"
+              :ref="el => setPreviewTarget(asset.id, el)"
+              class="relative aspect-video rounded-lg overflow-hidden bg-black/70 cursor-pointer"
+              @click.stop="openAsset(asset.id)"
             >
-              <Icon icon="carbon:video" width="40" />
+              <div
+                v-if="getPreviewFrame(asset)"
+                class="h-full w-full"
+                :style="getPreviewStyle(asset)"
+              ></div>
+              <img
+                v-else-if="thumbnailUrl(asset)"
+                :src="thumbnailUrl(asset)!"
+                :alt="formatMediaAssetNameForDisplay(asset.fileName)"
+                class="h-full w-full object-cover"
+              />
+              <div
+                v-else
+                class="flex h-full w-full items-center justify-center text-white/20"
+              >
+                <Icon icon="carbon:video" width="40" />
+              </div>
+              <div
+                class="absolute bottom-2 right-2 rounded-sm bg-black/70 px-1 py-0.5 text-xs font-semibold text-white/80"
+              >
+                {{ formatDurationHms(asset.durationSeconds) }}
+              </div>
             </div>
-            
-            <!-- Menu button overlay (mobile) -->
-            <div class="absolute top-2 right-2 z-20">
+
+            <div class="py-2">
+              <div class="flex items-start justify-between gap-2">
+                <button
+                  type="button"
+                  class="min-w-0 flex-1 text-left"
+                  @click.stop="openAsset(asset.id)"
+                >
+                  <div class="text-sm font-semibold text-white/90 truncate capitalize">
+                    {{ formatMediaAssetNameForDisplay(asset.fileName) }}
+                  </div>
+                </button>
+
               <Menu as="div" class="relative">
                 <MenuButton
-                  class="rounded p-2 bg-black/60 backdrop-blur-sm text-white/90 hover:bg-black/80 transition touch-manipulation"
+                  class="rounded-full p-1.5 text-white/50 hover:bg-white/10 hover:text-white/80 transition cursor-pointer"
                   aria-label="More actions"
                   @click.stop
                 >
@@ -693,7 +918,7 @@ watch(activeOrgId, (orgId, prevOrgId) => {
                     <MenuItem v-slot="{ active }">
                       <button
                         type="button"
-                        class="w-full px-3 py-2.5 text-left text-sm transition touch-manipulation"
+                        class="w-full px-3 py-2.5 text-left text-sm transition"
                         :class="active ? 'bg-white/10' : ''"
                         @click="viewInReview(asset.id)"
                       >
@@ -703,7 +928,7 @@ watch(activeOrgId, (orgId, prevOrgId) => {
                     <MenuItem v-slot="{ active }">
                       <button
                         type="button"
-                        class="w-full px-3 py-2.5 text-left text-sm transition touch-manipulation"
+                        class="w-full px-3 py-2.5 text-left text-sm transition"
                         :class="active ? 'bg-white/10' : ''"
                         @click="viewInFeed(asset.id)"
                       >
@@ -713,7 +938,7 @@ watch(activeOrgId, (orgId, prevOrgId) => {
                     <MenuItem v-if="canManage" v-slot="{ active }">
                       <button
                         type="button"
-                        class="w-full px-3 py-2.5 text-left text-sm transition border-t border-white/10 touch-manipulation"
+                        class="w-full px-3 py-2.5 text-left text-sm transition border-t border-white/10"
                         :class="active ? 'bg-white/10' : ''"
                         @click="openEditMedia(asset.id)"
                       >
@@ -723,7 +948,7 @@ watch(activeOrgId, (orgId, prevOrgId) => {
                     <MenuItem v-if="canManage" v-slot="{ active }">
                       <button
                         type="button"
-                        class="w-full px-3 py-2.5 text-left text-sm text-red-300 transition border-t border-white/10 touch-manipulation"
+                        class="w-full px-3 py-2.5 text-left text-sm text-red-300 transition border-t border-white/10"
                         :class="active ? 'bg-white/10' : ''"
                         @click="openConfirmDelete(asset.id)"
                       >
@@ -734,142 +959,36 @@ watch(activeOrgId, (orgId, prevOrgId) => {
                 </transition>
               </Menu>
             </div>
-          </div>
 
-          <!-- Desktop: Thumbnail (left side) -->
-          <div 
-            class="hidden sm:block w-32 h-20 flex-shrink-0 rounded overflow-hidden bg-black cursor-pointer m-4"
-            @click="openAsset(asset.id)"
-          >
-            <img
-              v-if="asset.thumbnailPath"
-              :src="`https://cdn.rugbycodex.com/${asset.thumbnailPath}`"
-              :alt="formatMediaAssetNameForDisplay(asset.fileName)"
-              class="w-full h-full object-cover"
-            />
+            <div class="text-xs text-white/60 capitalize">
+              {{ asset.kind }}
+            </div>
+
+            <div class="flex items-center gap-2 text-xs text-white/50">
+              <span>{{ getNarrationProgress(asset.narrationCount).main }}</span>
+              <span class="text-white/30">•</span>
+              <span>{{ formatRelativeDate(asset.createdAt) }}</span>
+            </div>
+
             <div
-              v-else
-              class="w-full h-full flex items-center justify-center text-white/20 text-xs"
+              v-if="getNarrationProgress(asset.narrationCount).helper"
+              class="text-[10px] text-white/40"
             >
-              <Icon icon="carbon:video" width="24" />
-            </div>
-          </div>
-
-          <!-- Asset info -->
-          <div 
-            class="flex-1 min-w-0 flex flex-col justify-between cursor-pointer p-3 sm:py-4 sm:pr-0 sm:pl-0"
-            @click="openAsset(asset.id)"
-          >
-            <!-- Title -->
-            <div>
-              <h3 class="text-sm sm:text-base font-semibold text-white group-hover:text-white/90 truncate capitalize mb-1">
-                {{ formatMediaAssetNameForDisplay(asset.fileName) }}
-              </h3>
-              
-              <!-- Metadata -->
-              <div class="flex items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs text-white/50 flex-wrap">
-                <span>{{ formatRelativeDate(asset.createdAt) }}</span>
-                <span class="text-white/30">•</span>
-                <span>{{ formatDuration(asset.durationSeconds) }}</span>
-                <span class="text-white/30">•</span>
-                <span class="capitalize">{{ asset.kind }}</span>
-              </div>
+              {{ getNarrationProgress(asset.narrationCount).helper }}
             </div>
 
-            <!-- Coverage badge & narration count -->
-            <div class="flex items-start sm:items-center gap-2 sm:gap-3 mt-2 flex-wrap">
+            <div class="pt-1">
               <div
                 :class="[
-                  'inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-[11px] font-medium border',
+                  'w-full inline-flex items-center justify-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-medium',
                   getCoverageDisplay(asset.coverageTier).colorClass
                 ]"
               >
-                <Icon :icon="getCoverageDisplay(asset.coverageTier).icon" width="12" class="sm:w-3.5" />
+                <Icon :icon="getCoverageDisplay(asset.coverageTier).icon" width="12" />
                 <span>{{ getCoverageDisplay(asset.coverageTier).label }}</span>
-              </div>
-              
-              <div class="text-[11px] sm:text-xs text-white/60">
-                <div>{{ getNarrationProgress(asset.narrationCount).main }}</div>
-                <div v-if="getNarrationProgress(asset.narrationCount).helper" class="text-white/40 text-[10px] sm:text-[11px]">
-                  {{ getNarrationProgress(asset.narrationCount).helper }}
-                </div>
-              </div>
-
-              <!-- Large gap warning -->
-              <div v-if="asset.hasLargeGap" class="flex items-center gap-1 text-[11px] sm:text-xs text-orange-400" title="Contains gaps larger than 8 minutes">
-                <Icon icon="carbon:warning" width="12" class="sm:w-3.5" />
-                <span class="hidden sm:inline">Large gaps</span>
-                <span class="sm:hidden">Gaps</span>
               </div>
             </div>
           </div>
-
-          <!-- Desktop: Actions menu (right side) -->
-          <div class="hidden sm:flex flex-shrink-0 items-start pt-4 pr-4 z-20">
-            <Menu as="div" class="relative">
-              <MenuButton
-                class="rounded p-2 text-white/50 hover:bg-white/10 hover:text-white/80 transition"
-                aria-label="More actions"
-                @click.stop
-              >
-                <Icon icon="carbon:overflow-menu-vertical" class="h-5 w-5" />
-              </MenuButton>
-
-              <transition
-                enter-active-class="transition duration-100 ease-out"
-                enter-from-class="transform scale-95 opacity-0"
-                enter-to-class="transform scale-100 opacity-100"
-                leave-active-class="transition duration-75 ease-in"
-                leave-from-class="transform scale-100 opacity-100"
-                leave-to-class="transform scale-95 opacity-0"
-              >
-                <MenuItems
-                  class="absolute right-0 top-full mt-2 min-w-40 origin-top-right rounded-md border border-white/10 bg-black/90 backdrop-blur-md text-white focus:outline-none shadow-xl z-50"
-                  @click.stop
-                >
-                  <MenuItem v-slot="{ active }">
-                    <button
-                      type="button"
-                      class="w-full px-3 py-2.5 text-left text-sm transition"
-                      :class="active ? 'bg-white/10' : ''"
-                      @click="viewInReview(asset.id)"
-                    >
-                      View in Review
-                    </button>
-                  </MenuItem>
-                  <MenuItem v-slot="{ active }">
-                    <button
-                      type="button"
-                      class="w-full px-3 py-2.5 text-left text-sm transition"
-                      :class="active ? 'bg-white/10' : ''"
-                      @click="viewInFeed(asset.id)"
-                    >
-                      View in Feed
-                    </button>
-                  </MenuItem>
-                  <MenuItem v-if="canManage" v-slot="{ active }">
-                    <button
-                      type="button"
-                      class="w-full px-3 py-2.5 text-left text-sm transition border-t border-white/10"
-                      :class="active ? 'bg-white/10' : ''"
-                      @click="openEditMedia(asset.id)"
-                    >
-                      Edit
-                    </button>
-                  </MenuItem>
-                  <MenuItem v-if="canManage" v-slot="{ active }">
-                    <button
-                      type="button"
-                      class="w-full px-3 py-2.5 text-left text-sm text-red-300 transition border-t border-white/10"
-                      :class="active ? 'bg-white/10' : ''"
-                      @click="openConfirmDelete(asset.id)"
-                    >
-                      Delete
-                    </button>
-                  </MenuItem>
-                </MenuItems>
-              </transition>
-            </Menu>
           </div>
         </div>
       </div>

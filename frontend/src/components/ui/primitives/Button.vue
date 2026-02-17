@@ -117,7 +117,7 @@ const componentAttrs = computed(() => {
     v-bind="componentAttrs"
     class="
       select-none
-      rounded-xs
+      rounded
       transition-all duration-150
       disabled:opacity-50 disabled:cursor-not-allowed
     "

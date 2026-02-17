@@ -5,6 +5,7 @@ import { errorResponse } from "../_shared/errors.ts";
 import { getAuthContext, getClientBoundToRequest, getServiceRoleClient } from "../_shared/auth.ts";
 import { getUserRoleFromRequest, requireAuthenticated, requireOrgRoleSource, requireRole } from "../_shared/roles.ts";
 import { withObservability } from "../_shared/observability.ts";
+import { buildSegmentInsightEmbeddingText, generateEmbedding } from "../_shared/embeddings.ts";
 
 type SegmentRow = {
   id: string;
@@ -448,12 +449,20 @@ Deno.serve(withObservability("summarize-media-segment", async (req: Request) => 
       return errorResponse("INVALID_AI_RESPONSE", "Segment insight missing required fields.", 500);
     }
 
+    const embeddingText = buildSegmentInsightEmbeddingText({
+      headline: response.insight_headline,
+      sentence: response.insight_sentence,
+      coachScript: response.coach_script ?? null,
+    });
+    const embedding = await generateEmbedding(embeddingText);
+
     const payload = {
       media_segment_id: mediaSegmentId,
       state,
       insight_headline: response.insight_headline,
       insight_sentence: response.insight_sentence,
       coach_script: response.coach_script,
+      embedding,
       coach_audio_url: null,
       coach_audio_generated_at: null,
       confidence: null,
@@ -512,6 +521,9 @@ Deno.serve(withObservability("summarize-media-segment", async (req: Request) => 
       is_stale: false,
     });
   } catch (err) {
+    if ((err as any)?.kind === "handled" && (err as any)?.response instanceof Response) {
+      return (err as any).response;
+    }
     console.error("summarize_media_segment unexpected error", err);
     const message = err instanceof Error ? err.message : "Internal Server Error";
     return errorResponse("UNEXPECTED_SERVER_ERROR", message, 500);

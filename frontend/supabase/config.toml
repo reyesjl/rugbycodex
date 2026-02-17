@@ -384,6 +384,9 @@ s3_secret_key = "env(S3_SECRET_KEY)"
 [functions.ai-orchestrator]
 verify_jwt = false
 
+[functions.ask-match-rag]
+verify_jwt = false
+
 [functions.approve-and-create-organization]
 verify_jwt = false
 

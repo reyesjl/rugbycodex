@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { useRoute } from 'vue-router';
+import { Menu, MenuButton, MenuItem, MenuItems } from '@headlessui/vue';
+import { Icon } from '@iconify/vue';
+import { useRoute, useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrganizationStore';
 import { hasOrgAccess } from '@/modules/orgs/composables/useOrgCapabilities';
@@ -11,6 +13,7 @@ import type { MembershipRole } from '@/modules/profiles/types';
 import LoadingDot from '@/components/LoadingDot.vue';
 import ShimmerText from '@/components/ShimmerText.vue';
 import MatchStoryBlock from '@/modules/matchOverview/components/MatchStoryBlock.vue';
+import MatchRagChat from '@/modules/matchOverview/components/MatchRagChat.vue';
 import TacticalPatternsBlock from '@/modules/matchOverview/components/TacticalPatternsBlock.vue';
 import PlayerImpactBlock from '@/modules/matchOverview/components/PlayerImpactBlock.vue';
 import TrendsBlock from '@/modules/matchOverview/components/TrendsBlock.vue';
@@ -20,12 +23,14 @@ import { useMatchOverview } from '@/modules/matchOverview/composables/useMatchOv
 const MIN_NARRATIONS_FOR_SUMMARY = 25;
 
 const route = useRoute();
+const router = useRouter();
 const activeOrgStore = useActiveOrganizationStore();
 const { orgContext } = storeToRefs(activeOrgStore);
 
 const activeOrgId = computed(() => orgContext.value?.organization?.id ?? null);
 const membershipRole = computed<MembershipRole | null>(() => orgContext.value?.membership?.role ?? null);
 const canGenerateSummary = computed(() => hasOrgAccess(membershipRole.value, 'staff'));
+const orgSlug = computed(() => String(route.params.slug ?? '').trim());
 
 const mediaAssetId = computed(() => String(route.params.mediaAssetId ?? ''));
 
@@ -83,10 +88,33 @@ async function handleGenerateSummary() {
 async function handleRefreshOverview() {
   await reload({ forceRefresh: true });
 }
+
+function handleReviewMatch() {
+  if (!orgSlug.value || !mediaAssetId.value) return;
+  router.push({
+    name: 'OrgMediaAssetReview',
+    params: {
+      slug: orgSlug.value,
+      mediaAssetId: mediaAssetId.value,
+    },
+  });
+}
+
+function handleWatchFeed() {
+  if (!orgSlug.value || !mediaAssetId.value) return;
+  router.push({
+    name: 'OrgFeedMomentsView',
+    params: {
+      slug: orgSlug.value,
+      mediaAssetId: mediaAssetId.value,
+    },
+  });
+}
+
 </script>
 
 <template>
-  <div class="container-lg py-6 pb-20 text-white space-y-6">
+  <div class="container py-6 pb-20 text-white space-y-6">
     <div v-if="loading" class="rounded-lg border border-white/10 bg-white/5 p-6 text-white/70">
       <div class="flex items-center gap-3">
         <LoadingDot />
@@ -103,25 +131,68 @@ async function handleRefreshOverview() {
     </div>
 
     <div v-else class="space-y-6">
-      <header class="flex flex-col gap-3 rounded-lg border border-white/10 bg-white/5 p-6">
-        <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-          <div>
-            <div class="text-2xl font-semibold text-white">{{ matchTitle }}</div>
-            <div class="text-sm text-white/50">
-              {{ matchDateLabel }}
-              <span v-if="matchDateLabel">·</span>
-              {{ narrationCount }} narrations · {{ segmentCount }} segments
-            </div>
-          </div>
-          <button
-            type="button"
-            class="inline-flex items-center gap-2 rounded-md border border-blue-400/40 bg-blue-400/10 px-3 py-2 text-sm font-medium text-blue-300 transition hover:bg-blue-400/20"
-            @click="handleRefreshOverview"
-          >
-            Refresh overview
-          </button>
+      <header class="flex flex-col gap-2">
+        <div class="text-3xl text-white">{{ matchTitle }}</div>
+        <div class="text-sm text-white/50">
+          {{ matchDateLabel }}
+          <span v-if="matchDateLabel">·</span>
+          {{ narrationCount }} narrations · {{ segmentCount }} segments
         </div>
+        <Menu as="div" class="relative inline-block text-left">
+          <MenuButton
+            class="inline-flex items-center justify-center rounded-full p-1 text-white/60 hover:bg-white/10 hover:text-white transition"
+          >
+            <Icon icon="carbon:overflow-menu-vertical" class="h-5 w-5" />
+          </MenuButton>
+          <transition
+            enter-active-class="transition duration-100 ease-out"
+            enter-from-class="transform scale-95 opacity-0"
+            enter-to-class="transform scale-100 opacity-100"
+            leave-active-class="transition duration-75 ease-in"
+            leave-from-class="transform scale-100 opacity-100"
+            leave-to-class="transform scale-95 opacity-0"
+          >
+            <MenuItems
+              class="absolute left-0 z-50 mt-1 w-44 origin-top-left rounded-md border border-white/20 bg-black/95 backdrop-blur shadow-lg focus:outline-none"
+            >
+              <div class="py-1">
+                <MenuItem v-slot="{ active }">
+                  <button
+                    type="button"
+                    class="block w-full px-3 py-2 text-left text-sm text-white/80"
+                    :class="active ? 'bg-white/10 text-white' : ''"
+                    @click="handleReviewMatch"
+                  >
+                    Review match
+                  </button>
+                </MenuItem>
+                <MenuItem v-slot="{ active }">
+                  <button
+                    type="button"
+                    class="block w-full px-3 py-2 text-left text-sm text-white/80"
+                    :class="active ? 'bg-white/10 text-white' : ''"
+                    @click="handleWatchFeed"
+                  >
+                    Watch feed
+                  </button>
+                </MenuItem>
+                <MenuItem v-slot="{ active }">
+                  <button
+                    type="button"
+                    class="block w-full px-3 py-2 text-left text-sm text-white/80"
+                    :class="active ? 'bg-white/10 text-white' : ''"
+                    @click="handleRefreshOverview"
+                  >
+                    Refresh overview
+                  </button>
+                </MenuItem>
+              </div>
+            </MenuItems>
+          </transition>
+        </Menu>
       </header>
+
+      <MatchRagChat :media-asset-id="mediaAssetId" />
 
       <MatchStoryBlock
         :summary="overview.story.summary"
@@ -135,6 +206,7 @@ async function handleRefreshOverview() {
         :themes="overview.story.themes"
         @generate="handleGenerateSummary"
       />
+
 
       <TacticalPatternsBlock :patterns="overview.tactical_patterns" />
 

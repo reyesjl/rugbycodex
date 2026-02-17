@@ -6,7 +6,7 @@
 -- Performance: Replaces 2 queries per match + base queries with single query per org
 -- Security: SECURITY DEFINER to allow managers to see match data
 
-DROP FUNCTION IF EXISTS rpc_get_manager_matches_with_coverage(uuid, int);
+DROP FUNCTION IF EXISTS rpc_get_manager_matches_with_coverage(uuid, int, text[]);
 
 CREATE OR REPLACE FUNCTION rpc_get_manager_matches_with_coverage(
   p_org_id uuid,
@@ -21,6 +21,8 @@ RETURNS TABLE (
   duration_seconds numeric,
   created_at timestamptz,
   thumbnail_path text,
+  thumbnail_sprite_path text,
+  thumbnail_vtt_path text,
   narration_count int,
   max_gap_minutes numeric
 )
@@ -37,7 +39,9 @@ AS $$
       ma.kind,
       ma.duration_seconds,
       ma.created_at,
-      ma.thumbnail_path
+      ma.thumbnail_path,
+      ma.thumbnail_sprite_path,
+      ma.thumbnail_vtt_path
     FROM media_assets ma
     WHERE ma.org_id = p_org_id
       AND (p_exclude_kinds IS NULL OR ma.kind <> ALL(p_exclude_kinds::media_asset_kind[]))
@@ -108,6 +112,8 @@ AS $$
     mal.duration_seconds,
     mal.created_at,
     mal.thumbnail_path,
+    mal.thumbnail_sprite_path,
+    mal.thumbnail_vtt_path,
     COALESCE(nc.narration_count, 0) as narration_count,
     mg.max_gap_minutes
   FROM media_assets_limited mal

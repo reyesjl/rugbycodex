@@ -12,6 +12,8 @@ export type MediaAssetWithCoverage = {
   durationSeconds: number;
   createdAt: Date;
   thumbnailPath: string | null;
+  thumbnailSpritePath: string | null;
+  thumbnailVttPath: string | null;
   narrationCount: number;
   coverageTier: CoverageTier;
   maxGapMinutes: number | null;
@@ -138,6 +140,8 @@ export const useOrgMediaWithCoverage = (orgId: string | null) => {
           durationSeconds: Number(row.duration_seconds ?? 0),
           createdAt: new Date(row.created_at),
           thumbnailPath: row.thumbnail_path,
+          thumbnailSpritePath: row.thumbnail_sprite_path ?? null,
+          thumbnailVttPath: row.thumbnail_vtt_path ?? null,
           narrationCount,
           coverageTier,
           maxGapMinutes,
