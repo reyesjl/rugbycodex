@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
+import { animateMini } from 'motion';
+import type { DOMKeyframesDefinition } from 'motion';
 
 interface Props {
   srcMp4: string;
@@ -14,13 +16,18 @@ type VideoElement = globalThis.HTMLVideoElement;
 
 const props = defineProps<Props>();
 const videoRef = ref<VideoElement | null>(null);
-const isVisible = ref(false);
+const containerRef = ref<HTMLElement | null>(null);
 
 onMounted(() => {
-  // trigger slide/fade animation after mount
-  requestAnimationFrame(() => {
-    isVisible.value = true;
-  });
+  const keyframes: DOMKeyframesDefinition = { opacity: [0, 1] };
+  if (containerRef.value) {
+    const controls = animateMini(containerRef.value, keyframes, { duration: 1, ease: 'easeOut' });
+    controls.then(() => {
+      if (containerRef.value) {
+        containerRef.value.style.opacity = '1';
+      }
+    });
+  }
 
   const video = videoRef.value;
   if (!video) return;
@@ -95,10 +102,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div
-    class="relative overflow-hidden transition-opacity duration-1000 ease-out"
-    :class="isVisible ? 'opacity-100' : 'opacity-0'"
-  >
+  <div ref="containerRef" class="relative overflow-hidden opacity-0">
     <video
       ref="videoRef"
       class="w-full h-auto"

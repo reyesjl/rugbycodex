@@ -1,7 +1,10 @@
 <script setup lang="ts">
 // const heroAnimatedLight = `${CDN_BASE}/static/assets/logos/animated/logo-animation-light.mp4`;
 // const heroAnimatedDark = `${CDN_BASE}/static/assets/logos/animated/logo-animation-dark.mp4`;
+import { nextTick, onMounted } from 'vue';
 import { Icon } from '@iconify/vue';
+import { animateMini } from 'motion';
+import type { DOMKeyframesDefinition } from 'motion';
 import Button from '@/components/ui/primitives/Button.vue';
 import { RouterLink } from 'vue-router';
 import ImageCell from '@/modules/marketing/components/ImageCell.vue';
@@ -34,6 +37,19 @@ const acknowledgements = [
   'Dom Tom',
   'Jacob Powers',
 ];
+
+onMounted(async () => {
+  await nextTick();
+  const elements = Array.from(document.querySelectorAll<HTMLElement>('[data-hero-motion]'));
+  if (!elements.length) return;
+  const keyframes: DOMKeyframesDefinition = {
+    opacity: [0, 1],
+    transform: ['translateY(16px)', 'translateY(0px)'],
+  };
+  elements.forEach((element, index) => {
+    animateMini(element, keyframes, { duration: 0.6, delay: index * 0.12, ease: 'easeOut' });
+  });
+});
 </script>
 <template>
   <!-- <section class="min-h-screen grid place-items-center px-4">
@@ -77,24 +93,119 @@ const acknowledgements = [
     />
 
     <!-- Overlay (optional) -->
-    <div class="absolute inset-0 bg-black/50"></div>
+    <div class="absolute inset-0 bg-black/70"></div>
 
     <!-- Content -->
     <div class="relative z-10 flex h-full items-end pb-10 md:pb-20">
       <div class="container-lg pb-20 text-white">
-        <h1 class="max-w-3xl text-4xl md:text-6xl">
-          Turn Rugby Footage into Searchable Moments Using Your Voice.
+        <h1 data-hero-motion class="max-w-4xl text-8xl">
+          Upload. Talk. <br /> Ask Anything.
         </h1>
-        <div class="mt-5 text-lg max-w-3xl">Better coaching. Player improvement. More wins.</div>
-        <div class="button-set flex gap-5 mt-6 items-center">
-          <Button size="md" variant="base" color="primary" to="/auth/signup">GET STARTED</Button>
-          <RouterLink
-            to="/mission"
-            class="hover:underline underline-offset-4"
-          >Learn more</RouterLink>
+        <div data-hero-motion class="mt-5 text-lg max-w-3xl">
+          Your voice turns match footage into structured, searchable knowledge.
+        </div>
+        <div data-hero-motion class="button-set flex gap-5 mt-6 items-center">
+          <Button size="lg" variant="base" color="primary" to="/auth/signup">Analyze Your Match</Button>
+          <a href="#codex-in-action" class="hover:underline underline-offset-4">See it in action</a>
         </div>
       </div>
     </div>
+  </section>
+
+  <section class="bg-white text-black py-20 space-y-2">
+    <div class="container-lg">
+      
+      <div class="header mb-10">
+        <div class="text-3xl">How Codex Works</div>
+      </div>
+
+      <div class="steps-grid grid grid-cols-1 md:grid-cols-4 gap-20 md:gap-5">
+      
+        <!-- step 1 -->
+        <div class="step space-y-5">
+          <div class="rounded-full bg-black aspect-square h-10 w-10 flex items-center justify-center font-semibold text-white">1</div>
+          <div class="text-lg">
+            Start with any existing rugby footage. Upload your matches, opposition film, or even trainings.
+          </div>
+
+          <div class="flex flex-col text-xs pl-4 pr-1 py-1 border-l-4 bg-black/5 border-red-500 gap-1">
+            <div class="font-semibold">Team Identity</div>
+            <div>Gameday is only 10%. The other 90% is learning, developing, and preparing. Codex captures it all, so your team identity isn’t lost between sessions.</div>
+          </div>
+        </div>
+
+        <!-- step 2 -->
+        <div class="step space-y-5">
+          <div class="rounded-full bg-black aspect-square h-10 w-10 flex items-center justify-center font-semibold text-white">2</div>
+
+          <div class="text-lg">
+            Narrate what you see. Codex turns your expertise into structured, searchable game data.
+          </div>
+
+          <div class="flex flex-col text-xs pl-4 pr-1 py-1 border-l-4 bg-black/5 border-amber-500 gap-1">
+            <div class="font-semibold">Why Your Voice Matters</div>
+            <div>Traditional tools try to guess what happened. Codex listens to what you know happened.</div>
+          </div>
+        </div>
+
+        <!-- step 3 -->
+        <div class="step space-y-5">
+          <div class="rounded-full bg-black aspect-square h-10 w-10 flex items-center justify-center font-semibold text-white">3</div>
+          <div class="text-lg">
+            Ask it anything. Get precise answers backed by your own match context. In seconds, not hours.
+          </div>
+
+          <div class="flex flex-col text-xs pl-4 pr-1 py-1 border-l-4 bg-black/5 border-green-500 gap-1">
+            <div class="font-semibold">What Coaches Ask</div>
+            <ul class="divide-y divide-black/20">
+              <li class="py-2">How many breakdowns did we lose inside our 22?</li>
+              <li class="py-2">Show every key tackle we missed that led to a try.</li>
+              <li class="py-2">Where are we conceding line breaks?</li>
+              <li class="py-2">What is New England's biggest weakness?</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- step 4 -->
+        <div class="step space-y-5">
+          <div class="rounded-full bg-black aspect-square h-10 w-10 flex items-center justify-center font-semibold text-white">4</div>
+          <div class="text-lg">
+            Turn insights into coaching adjustments, player feedback, session planning, and match prep.
+          </div>
+
+          <div class="flex flex-col text-xs pl-4 pr-1 py-1 border-l-4 bg-black/5 border-blue-500 gap-1">
+            <div class="font-semibold">Insight into Action; Talk is Cheap.</div>
+            
+            <div>Pattern and trend analysis</div>
+            
+            <ul class="divide-y divide-black/20">
+              <li class="py-2 flex items-center">Breakdown trends <Icon icon="carbon:caret-right" /> adjust cleanout roles</li>
+              <li class="py-2 flex items-center">Key tackle analysis <Icon icon="carbon:caret-right" /> improve defensive positioning</li>
+              <li class="py-2 flex items-center">Line break patterns <Icon icon="carbon:caret-right" /> refine defensive strategies</li>
+              <li class="py-2 flex items-center">Opponent weaknesses <Icon icon="carbon:caret-right" /> tailor game plans</li>
+            </ul>
+
+          </div>
+        </div>
+      
+      </div>
+
+      <div id="codex-in-action" class="mt-16 md:mt-20 space-y-4">
+        <h2 class="text-3xl">See Codex in Action</h2>
+        <p class="text-lg text-black/80">From voice to searchable rugby intelligence in under a minute.</p>
+        <div
+          class="w-full aspect-video rounded-lg border border-black/20 bg-black/5 grid place-items-center text-black/60"
+        >
+            <video
+              controls
+              class="w-full h-full object-cover rounded-lg"
+              :src="`${CDN_BASE}/static/assets/videos/demo.mp4`"
+            ></video>
+        </div>
+      </div>
+
+    </div>
+    
   </section>
 
   <!-- Three Columns grid -->
@@ -133,25 +244,6 @@ const acknowledgements = [
         </div>
 
         <div>The foundation for next-generation rugby analysis, coaching, and pathways.</div>
-      </div>
-    </div>
-  </section>
-  <section class="py-20 bg-white">
-    <div class="container">
-      <h1 class="text-3xl md:text-4xl text-center text-black font-semibold">Acknowledgements</h1>
-      <div class="mt-6 space-y-4 text-black">
-        <p>
-          Rugbycodex exists only because of the people who believed in the idea before it was fully formed, who challenged it, improved it, and helped turn it into something real.
-        </p>
-        <p>
-          Thank you to everyone who contributed their time, knowledge, and perspective along the way. Your feedback, conversations, and encouragement helped shape not just the product, but the thinking behind it.
-        </p>
-        <p>
-          This project was built on shared passion for the game, curiosity about what better analysis can unlock, and the willingness of others to invest energy into something new. That support made the difficult parts possible and the wins meaningful.
-        </p>
-      </div>
-      <div class="mt-6 flex flex-wrap gap-3 text-lg text-black font-semibold">
-        <span v-for="name in acknowledgements" :key="name">{{ name }}</span>
       </div>
     </div>
   </section>

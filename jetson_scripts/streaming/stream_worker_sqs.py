@@ -16,7 +16,7 @@ from supabase import create_client, Client
 import time
 import json
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any, Optional, Tuple, List
 import re
 
 # Add utils to path
@@ -55,6 +55,12 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 # Work directory
 WORK_DIR = Path("/tmp/transcode")
 WORK_DIR.mkdir(parents=True, exist_ok=True)
+
+# HLS / thumbnail configuration
+HLS_SEGMENT_SECONDS = 6
+THUMBNAIL_WIDTH = 320
+STORYBOARD_COLUMNS = 5
+STORYBOARD_ROWS = 5
 
 
 def update_media_asset_processing_stage(
@@ -146,12 +152,34 @@ def update_job_fields(job_id: str, fields: dict):
         )
 
 
-def update_media_asset_derivatives(media_id: str, streaming_ready: bool, thumbnail_path: str = None):
-    """Update streaming_ready and thumbnail_path"""
+def update_media_asset_derivatives(
+    media_id: str,
+    streaming_ready: bool,
+    thumbnail_path: str = None,
+    thumbnail_sprite_path: str = None,
+    thumbnail_vtt_path: str = None,
+    thumbnail_frame_count: int = None,
+    thumbnail_interval_seconds: float = None,
+    thumbnail_width: int = None,
+    thumbnail_height: int = None,
+):
+    """Update streaming_ready and thumbnail derivatives."""
     try:
         update_data = {"streaming_ready": streaming_ready}
-        if thumbnail_path:
+        if thumbnail_path is not None:
             update_data["thumbnail_path"] = thumbnail_path
+        if thumbnail_sprite_path is not None:
+            update_data["thumbnail_sprite_path"] = thumbnail_sprite_path
+        if thumbnail_vtt_path is not None:
+            update_data["thumbnail_vtt_path"] = thumbnail_vtt_path
+        if thumbnail_frame_count is not None:
+            update_data["thumbnail_frame_count"] = thumbnail_frame_count
+        if thumbnail_interval_seconds is not None:
+            update_data["thumbnail_interval_seconds"] = thumbnail_interval_seconds
+        if thumbnail_width is not None:
+            update_data["thumbnail_width"] = thumbnail_width
+        if thumbnail_height is not None:
+            update_data["thumbnail_height"] = thumbnail_height
         
         supabase.table("media_assets").update(update_data).eq("id", media_id).execute()
         
@@ -260,6 +288,180 @@ def get_video_duration(input_path: Path) -> Optional[float]:
         return None
 
 
+def get_video_dimensions(input_path: Path) -> Optional[Tuple[int, int]]:
+    """Get source video width/height using ffprobe."""
+    try:
+        cmd = [
+            "ffprobe",
+            "-v", "error",
+            "-select_streams", "v:0",
+            "-show_entries", "stream=width,height",
+            "-of", "json",
+            str(input_path)
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        payload = json.loads(result.stdout or "{}")
+        streams = payload.get("streams") or []
+        if not streams:
+            return None
+        width = int(streams[0].get("width") or 0)
+        height = int(streams[0].get("height") or 0)
+        if width <= 0 or height <= 0:
+            return None
+        return width, height
+    except Exception:
+        return None
+
+
+def parse_hls_segment_durations(manifest_path: Path) -> List[float]:
+    """Parse EXTINF durations from an HLS manifest."""
+    if not manifest_path.exists():
+        return []
+    durations: List[float] = []
+    try:
+        for line in manifest_path.read_text().splitlines():
+            line = line.strip()
+            if not line.startswith("#EXTINF:"):
+                continue
+            duration_part = line.split(":", 1)[1].split(",", 1)[0]
+            try:
+                durations.append(float(duration_part))
+            except ValueError:
+                continue
+    except Exception:
+        return []
+    return durations
+
+
+def format_vtt_timestamp(seconds: float) -> str:
+    total = max(0.0, float(seconds))
+    hours = int(total // 3600)
+    minutes = int((total % 3600) // 60)
+    secs = total % 60
+    return f"{hours:02d}:{minutes:02d}:{secs:06.3f}"
+
+
+def generate_storyboard_thumbnails(
+    input_path: Path,
+    output_dir: Path,
+    manifest_path: Path,
+    job_id: str
+) -> Optional[dict]:
+    """Generate storyboard sprite(s) + VTT aligned to HLS segments."""
+    durations = parse_hls_segment_durations(manifest_path)
+    if not durations:
+        log_event(
+            severity="warn",
+            event_type="storyboard_skipped",
+            job_id=job_id,
+            error_message="No HLS segment durations found.",
+        )
+        return None
+
+    dimensions = get_video_dimensions(input_path)
+    if not dimensions:
+        log_event(
+            severity="warn",
+            event_type="storyboard_skipped",
+            job_id=job_id,
+            error_message="Unable to determine video dimensions.",
+        )
+        return None
+
+    width, height = dimensions
+    thumbnail_height = max(1, round(height * THUMBNAIL_WIDTH / width))
+    thumbnails_dir = output_dir / "thumbnails"
+    thumbnails_dir.mkdir(exist_ok=True)
+    sprite_pattern = thumbnails_dir / "storyboard_%03d.jpg"
+
+    try:
+        cmd = [
+            "ffmpeg",
+            "-y",
+            "-i", str(input_path),
+            "-start_number", "0",
+            "-vf", (
+                f"fps=1/{HLS_SEGMENT_SECONDS},"
+                f"scale={THUMBNAIL_WIDTH}:{thumbnail_height},"
+                f"tile={STORYBOARD_COLUMNS}x{STORYBOARD_ROWS}"
+            ),
+            "-vsync", "vfr",
+            str(sprite_pattern),
+        ]
+        subprocess.run(cmd, check=True, stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL)
+    except Exception as e:
+        log_event(
+            severity="warn",
+            event_type="storyboard_failed",
+            job_id=job_id,
+            error_message=str(e),
+        )
+        return None
+
+    sprite_files = sorted(thumbnails_dir.glob("storyboard_*.jpg"))
+    if not sprite_files:
+        log_event(
+            severity="warn",
+            event_type="storyboard_failed",
+            job_id=job_id,
+            error_message="No storyboard sprites generated.",
+        )
+        return None
+
+    frames_per_sprite = STORYBOARD_COLUMNS * STORYBOARD_ROWS
+    frame_count = min(len(durations), len(sprite_files) * frames_per_sprite)
+
+    vtt_path = thumbnails_dir / "storyboard.vtt"
+    lines = ["WEBVTT", ""]
+    current_time = 0.0
+
+    for idx in range(frame_count):
+        duration = durations[idx] if idx < len(durations) else HLS_SEGMENT_SECONDS
+        start_time = current_time
+        end_time = current_time + duration
+
+        sprite_index = idx // frames_per_sprite
+        index_in_sprite = idx % frames_per_sprite
+        col = index_in_sprite % STORYBOARD_COLUMNS
+        row = index_in_sprite // STORYBOARD_COLUMNS
+        x = col * THUMBNAIL_WIDTH
+        y = row * thumbnail_height
+
+        lines.append(f"{format_vtt_timestamp(start_time)} --> {format_vtt_timestamp(end_time)}")
+        lines.append(
+            f"storyboard_{sprite_index:03d}.jpg#xywh={x},{y},{THUMBNAIL_WIDTH},{thumbnail_height}"
+        )
+        lines.append("")
+        current_time = end_time
+
+    try:
+        vtt_path.write_text("\n".join(lines))
+    except Exception as e:
+        log_event(
+            severity="warn",
+            event_type="storyboard_failed",
+            job_id=job_id,
+            error_message=str(e),
+        )
+        return None
+
+    log_event(
+        severity="info",
+        event_type="storyboard_generated",
+        job_id=job_id,
+        frame_count=frame_count,
+        sprite_count=len(sprite_files),
+    )
+
+    return {
+        "sprite_files": sprite_files,
+        "vtt_path": vtt_path,
+        "frame_count": frame_count,
+        "interval_seconds": HLS_SEGMENT_SECONDS,
+        "width": THUMBNAIL_WIDTH,
+        "height": thumbnail_height,
+    }
+
 def parse_ffmpeg_time(time_str: str) -> Optional[float]:
     """Parse ffmpeg time string (HH:MM:SS.ms) to seconds"""
     try:
@@ -326,7 +528,7 @@ def transcode_video(input_path: Path, output_dir: Path, job_id: str, media_id: s
             
             # HLS settings with 6-second segments
             "-f", "hls",
-            "-hls_time", "6",
+            "-hls_time", str(HLS_SEGMENT_SECONDS),
             "-hls_list_size", "0",
             "-hls_segment_filename", f"{output_dir}/segment%03d.ts",
             str(output_manifest)
@@ -500,15 +702,18 @@ def upload_to_wasabi(local_dir: Path, bucket: str, base_key: str, job_id: str, m
             media_id=media_id,
         )
         
-        files = sorted(local_dir.iterdir(), key=lambda x: x.name)
+        files = sorted(
+            [path for path in local_dir.rglob("*") if path.is_file()],
+            key=lambda path: path.relative_to(local_dir).as_posix()
+        )
         for file_path in files:
-            if file_path.is_file():
-                dest_key = f"{base_key}{file_path.name}"
-                s3.upload_file(
-                    Filename=str(file_path),
-                    Bucket=bucket,
-                    Key=dest_key
-                )
+            relative_path = file_path.relative_to(local_dir)
+            dest_key = f"{base_key}{relative_path.as_posix()}"
+            s3.upload_file(
+                Filename=str(file_path),
+                Bucket=bucket,
+                Key=dest_key
+            )
         
         stage_duration = round((time.perf_counter() - stage_start) * 1000)
         log_event(
@@ -616,7 +821,7 @@ def process_job(
     input_file = WORK_DIR / f"{media_id}-input.mp4"
     output_dir = WORK_DIR / f"{media_id}-output"
     output_dir.mkdir(exist_ok=True)
-    thumbnail_file = output_dir / "thumbnail.jpg"
+    storyboard_data = None
     
     # Initialize heartbeat (will start after we estimate processing time)
     heartbeat: Optional[VisibilityHeartbeat] = None
@@ -671,11 +876,12 @@ def process_job(
         )
         update_media_asset_processing_stage(media_id, org_id, "transcoded")
         
-        # Generate thumbnail
-        generate_thumbnail(input_file, thumbnail_file, job_id)
+        # Generate storyboard thumbnails
+        base_key = f"orgs/{org_id}/uploads/{media_id}/streaming/"
+        output_manifest = output_dir / "index.m3u8"
+        storyboard_data = generate_storyboard_thumbnails(input_file, output_dir, output_manifest, job_id)
         
         # Upload HLS files to Wasabi (happens during "transcoded" stage)
-        base_key = f"orgs/{org_id}/uploads/{media_id}/streaming/"
         if not upload_to_wasabi(output_dir, bucket, base_key, job_id, media_id):
             raise Exception("Upload failed")
         
@@ -686,8 +892,36 @@ def process_job(
             job_id=job_id,
             media_id=media_id,
         )
-        thumbnail_path = f"{base_key}thumbnail.jpg" if thumbnail_file.exists() else None
-        update_media_asset_derivatives(media_id, streaming_ready=True, thumbnail_path=thumbnail_path)
+        storyboard_vtt_path = None
+        storyboard_sprite_path = None
+        storyboard_frame_count = None
+        storyboard_interval_seconds = None
+        storyboard_width = None
+        storyboard_height = None
+
+        if storyboard_data:
+            sprite_files = storyboard_data.get("sprite_files") or []
+            vtt_file = storyboard_data.get("vtt_path")
+            if vtt_file and vtt_file.exists():
+                storyboard_vtt_path = f"{base_key}thumbnails/{vtt_file.name}"
+            if sprite_files:
+                storyboard_sprite_path = f"{base_key}thumbnails/{sprite_files[0].name}"
+            storyboard_frame_count = storyboard_data.get("frame_count")
+            storyboard_interval_seconds = storyboard_data.get("interval_seconds")
+            storyboard_width = storyboard_data.get("width")
+            storyboard_height = storyboard_data.get("height")
+
+        update_media_asset_derivatives(
+            media_id,
+            streaming_ready=True,
+            thumbnail_path=storyboard_sprite_path,
+            thumbnail_sprite_path=storyboard_sprite_path,
+            thumbnail_vtt_path=storyboard_vtt_path,
+            thumbnail_frame_count=storyboard_frame_count,
+            thumbnail_interval_seconds=storyboard_interval_seconds,
+            thumbnail_width=storyboard_width,
+            thumbnail_height=storyboard_height,
+        )
         
         # Mark job as succeeded
         log_event(

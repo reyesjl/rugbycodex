@@ -11,7 +11,7 @@ const WASABI_S3_ENDPOINT = "https://s3.us-east-1.wasabisys.com";
 const WASABI_REGION = "us-east-1";
 const DEFAULT_BUCKET = "rugbycodex";
 const CDN_BASE_URL = "https://cdn.rugbycodex.com";
-const DEFAULT_VOICE_ID = "rNzVNTrvSffyxdrTbLKv";
+const DEFAULT_VOICE_ID = "hmMWXCj9K7N5mCPcRkfC";
 const DEFAULT_MODEL_ID = "eleven_multilingual_v2";
 
 type SegmentInsightRow = {

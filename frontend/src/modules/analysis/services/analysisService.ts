@@ -1,7 +1,9 @@
 import { invokeEdge } from "@/lib/api";
 import { handleEdgeFunctionError } from "@/lib/handleEdgeFunctionError";
 import type { MatchSummary, MatchSummaryState } from "@/modules/analysis/types/MatchSummary";
+import type { MatchRagResponse } from "@/modules/analysis/types/MatchRag";
 import type { SegmentInsight } from "@/modules/analysis/types/SegmentInsight";
+
 
 export type MatchSummaryMode = 'state' | 'summary';
 
@@ -274,6 +276,73 @@ export const analysisService = {
     
     setCachedSegmentSummary(id, mode, insight);
     return insight;
+  },
+
+  async askMatchRag(
+    mediaAssetId: string,
+    query: string,
+    options?: { kNarrations?: number; kSegmentInsights?: number }
+  ): Promise<MatchRagResponse> {
+    const id = String(mediaAssetId ?? "").trim();
+    if (!id) throw new Error("Missing mediaAssetId.");
+
+    const q = String(query ?? "").trim();
+    if (!q) throw new Error("Missing query.");
+
+    const response = await invokeEdge("ask-match-rag", {
+      body: {
+        media_asset_id: id,
+        query: q,
+        k_narrations: options?.kNarrations,
+        k_segment_insights: options?.kSegmentInsights,
+      },
+      orgScoped: true,
+    });
+
+    if (response.error) {
+      throw await handleEdgeFunctionError(response.error, "Unable to answer match question.");
+    }
+
+    const data = response.data as any;
+    const answer = String(data?.answer ?? "").trim();
+    const key_points = Array.isArray(data?.key_points) ? data.key_points : [];
+    const recommended_clips = Array.isArray(data?.recommended_clips) ? data.recommended_clips : [];
+    const confidenceRaw = String(data?.confidence ?? "").toLowerCase();
+    const confidence =
+      confidenceRaw === "high" || confidenceRaw === "medium" || confidenceRaw === "low"
+        ? (confidenceRaw as "low" | "medium" | "high")
+        : undefined;
+
+    return {
+      answer,
+      key_points: key_points
+        .map((item: any) => ({
+          point: String(item?.point ?? "").trim(),
+          evidence: Array.isArray(item?.evidence)
+            ? item.evidence.map((ev: any) => String(ev ?? "").trim()).filter(Boolean)
+            : [],
+        }))
+        .filter((item: any) => item.point),
+      recommended_clips: recommended_clips
+        .map((clip: any) => ({
+          media_segment_id: String(clip?.media_segment_id ?? "").trim(),
+          reason: String(clip?.reason ?? "").trim(),
+          evidence: Array.isArray(clip?.evidence)
+            ? clip.evidence.map((ev: any) => String(ev ?? "").trim()).filter(Boolean)
+            : [],
+          segment_title: clip?.segment_title ? String(clip.segment_title).trim() : null,
+          segment_sentence: clip?.segment_sentence ? String(clip.segment_sentence).trim() : null,
+          media_asset_thumbnail_path: clip?.media_asset_thumbnail_path
+            ? String(clip.media_asset_thumbnail_path).trim()
+            : null,
+          segment_index: typeof clip?.segment_index === "number" ? clip.segment_index : null,
+          start_seconds: typeof clip?.start_seconds === "number" ? clip.start_seconds : null,
+          end_seconds: typeof clip?.end_seconds === "number" ? clip.end_seconds : null,
+        }))
+        .filter((clip: any) => clip.media_segment_id && clip.reason),
+      confidence,
+      insufficient_evidence: Boolean(data?.insufficient_evidence),
+    };
   },
 
   /** Clears in-memory caches (useful on logout/org switch). */

@@ -5,6 +5,7 @@ import { errorResponse } from "../_shared/errors.ts";
 import { getAuthContext, getClientBoundToRequest, getServiceRoleClient } from "../_shared/auth.ts";
 import { getUserRoleFromRequest, requireAuthenticated, requireOrgRoleSource, requireRole } from "../_shared/roles.ts";
 import { withObservability } from "../_shared/observability.ts";
+import { buildMatchIntelligenceEmbeddingText, generateEmbedding } from "../_shared/embeddings.ts";
 
 type SegmentRow = {
   id: string;
@@ -690,6 +691,13 @@ Deno.serve(withObservability("summarize-media-asset", async (req: Request) => {
       return errorResponse("INVALID_AI_RESPONSE", "Match summary missing required fields.", 500);
     }
 
+    const embeddingText = buildMatchIntelligenceEmbeddingText({
+      headline: response.match_headline,
+      summary: response.match_summary,
+      sections: response.sections ?? null,
+    });
+    const embedding = await generateEmbedding(embeddingText);
+
     const payload = {
       media_asset_id: mediaAssetId,
       state,
@@ -701,6 +709,7 @@ Deno.serve(withObservability("summarize-media-asset", async (req: Request) => {
       defence: response.sections?.defence ?? null,
       kick_battle: response.sections?.kick_battle ?? null,
       scoring: response.sections?.scoring ?? null,
+      embedding,
       model,
       prompt_version: PROMPT_VERSION,
       temperature: SUMMARY_TEMPERATURE,
@@ -761,6 +770,9 @@ Deno.serve(withObservability("summarize-media-asset", async (req: Request) => {
       is_stale: false,
     });
   } catch (err) {
+    if ((err as any)?.kind === "handled" && (err as any)?.response instanceof Response) {
+      return (err as any).response;
+    }
     console.error("summarize_media_asset unexpected error", err);
     const message = err instanceof Error ? err.message : "Internal Server Error";
     return errorResponse("UNEXPECTED_SERVER_ERROR", message, 500);
