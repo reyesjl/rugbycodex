@@ -19,24 +19,24 @@ const coreyImg = `${CDN_BASE}/static/assets/modules/marketing/corey.png`;
 const usawImg = `${CDN_BASE}/static/assets/modules/marketing/usaw.jpg`;
 const bgImg = `${CDN_BASE}/static/assets/modules/marketing/mission1.jpg`;
 
-const acknowledgements = [
-  'Tony Flay',
-  'Grant Keenan',
-  'Gabrielle Domina',
-  'Benn Mellinger',
-  'Eric Shupp',
-  'Owen Lentz',
-  'Alex Webb',
-  'Tim Brown',
-  'Simon Cross',
-  'Steff Hughes',
-  'Joseph Ritter',
-  'Aidan Gallagher',
-  'Kevin Dougherty',
-  'Corey Kroboth',
-  'Dom Tom',
-  'Jacob Powers',
-];
+// const acknowledgements = [
+//   'Tony Flay',
+//   'Grant Keenan',
+//   'Gabrielle Domina',
+//   'Benn Mellinger',
+//   'Eric Shupp',
+//   'Owen Lentz',
+//   'Alex Webb',
+//   'Tim Brown',
+//   'Simon Cross',
+//   'Steff Hughes',
+//   'Joseph Ritter',
+//   'Aidan Gallagher',
+//   'Kevin Dougherty',
+//   'Corey Kroboth',
+//   'Dom Tom',
+//   'Jacob Powers',
+// ];
 
 onMounted(async () => {
   await nextTick();
@@ -98,7 +98,7 @@ onMounted(async () => {
     <!-- Content -->
     <div class="relative z-10 flex h-full items-end pb-10 md:pb-20">
       <div class="container-lg pb-20 text-white">
-        <h1 data-hero-motion class="max-w-4xl text-8xl">
+        <h1 data-hero-motion class="max-w-4xl text-5xl md:text-8xl">
           Upload. Talk. <br /> Ask Anything.
         </h1>
         <div data-hero-motion class="mt-5 text-lg max-w-3xl">
@@ -190,11 +190,11 @@ onMounted(async () => {
       
       </div>
 
-      <div id="codex-in-action" class="mt-16 md:mt-20 space-y-4">
+      <div id="codex-in-action" class="mt-16 md:mt-20 space-y-4 text-center">
         <h2 class="text-3xl">See Codex in Action</h2>
         <p class="text-lg text-black/80">From voice to searchable rugby intelligence in under a minute.</p>
         <div
-          class="w-full aspect-video rounded-lg border border-black/20 bg-black/5 grid place-items-center text-black/60"
+          class="max-w-8xl mx-auto aspect-video rounded-lg border border-black/20 bg-black/5 grid place-items-center text-black/60"
         >
             <video
               controls
