@@ -3,7 +3,7 @@
 // const heroAnimatedDark = `${CDN_BASE}/static/assets/logos/animated/logo-animation-dark.mp4`;
 import { nextTick, onMounted } from 'vue';
 import { Icon } from '@iconify/vue';
-import { animateMini } from 'motion';
+import { animateMini, inView } from 'motion';
 import type { DOMKeyframesDefinition } from 'motion';
 import Button from '@/components/ui/primitives/Button.vue';
 import { RouterLink } from 'vue-router';
@@ -40,51 +40,37 @@ const bgImg = `${CDN_BASE}/static/assets/modules/marketing/mission1.jpg`;
 
 onMounted(async () => {
   await nextTick();
-  const elements = Array.from(document.querySelectorAll<HTMLElement>('[data-hero-motion]'));
-  if (!elements.length) return;
   const keyframes: DOMKeyframesDefinition = {
     opacity: [0, 1],
     transform: ['translateY(16px)', 'translateY(0px)'],
   };
-  elements.forEach((element, index) => {
+  const heroElements = Array.from(document.querySelectorAll<HTMLElement>('[data-hero-motion]'));
+  heroElements.forEach((element, index) => {
     animateMini(element, keyframes, { duration: 0.6, delay: index * 0.12, ease: 'easeOut' });
   });
+
+  const scrollElements = Array.from(
+    document.querySelectorAll<HTMLElement>('[data-step-motion], [data-demo-motion]'),
+  );
+  scrollElements.forEach((element) => {
+    element.style.opacity = '0';
+    element.style.transform = 'translateY(16px)';
+  });
+
+  inView(
+    scrollElements,
+    (element) => {
+      const target = element as HTMLElement;
+      if (target.dataset.motionDone === 'true') return;
+      animateMini(target, keyframes, { duration: 0.6, ease: 'easeOut' });
+      target.dataset.motionDone = 'true';
+    },
+    { amount: 0.2 },
+  );
 });
 </script>
 <template>
-  <!-- <section class="min-h-screen grid place-items-center px-4">
-    <div class="block dark:hidden">
-      <video
-        :src="heroAnimatedLight"
-        class="block w-full max-w-[720px] h-auto"
-        playsinline
-        autoplay
-        muted
-        loop
-      />
-    </div>
-    <div class="hidden dark:block">
-      <video
-        :src="heroAnimatedDark"
-        class="block w-full max-w-[720px] h-auto"
-        playsinline
-        autoplay
-        muted
-        loop
-      />
-    </div>
-  </section> -->
   <section class="relative h-dvh overflow-hidden">
-    <!-- Background video
-    <video
-      autoplay
-      muted
-      loop
-      playsinline
-      class="absolute inset-0 h-full w-full object-cover"
-      :src="heroVideo"
-    ></video> -->
-
     <!-- Background image -->
     <img
       :src="heroImage"
@@ -122,7 +108,7 @@ onMounted(async () => {
       <div class="steps-grid grid grid-cols-1 md:grid-cols-2 gap-15 md:gap-20">
       
         <!-- step 1 -->
-        <div class="step space-y-5 md:w-3/4">
+        <div data-step-motion class="step space-y-5 md:w-3/4">
           <div class="rounded-full bg-black aspect-square h-10 w-10 flex items-center justify-center font-semibold text-white text-lg">1</div>
           <div class="text-lg">
             Start with any existing rugby footage. Upload your matches, opposition film, or even trainings.
@@ -135,7 +121,7 @@ onMounted(async () => {
         </div>
 
         <!-- step 2 -->
-        <div class="step space-y-5 md:w-3/4">
+        <div data-step-motion class="step space-y-5 md:w-3/4">
           <div class="rounded-full bg-black aspect-square h-10 w-10 flex items-center justify-center font-semibold text-white text-lg">2</div>
 
           <div class="text-lg">
@@ -149,7 +135,7 @@ onMounted(async () => {
         </div>
 
         <!-- step 3 -->
-        <div class="step space-y-5 md:w-3/4">
+        <div data-step-motion class="step space-y-5 md:w-3/4">
           <div class="rounded-full bg-black aspect-square h-10 w-10 flex items-center justify-center font-semibold text-white text-lg">3</div>
           <div class="text-lg">
             Ask it anything. Get precise answers backed by your own match context. In seconds, not hours.
@@ -167,7 +153,7 @@ onMounted(async () => {
         </div>
 
         <!-- step 4 -->
-        <div class="step space-y-5 md:w-3/4">
+        <div data-step-motion class="step space-y-5 md:w-3/4">
           <div class="rounded-full bg-black aspect-square h-10 w-10 flex items-center justify-center font-semibold text-white text-lg">4</div>
           <div class="text-lg">
             Turn insights into coaching adjustments, player feedback, session planning, and match prep.
@@ -194,12 +180,16 @@ onMounted(async () => {
 
   <section id="codex-in-action" class="bg-black text-white py-20">
     <div class="container-lg text-center">
-      <div class="text-4xl">See Codex in Action</div>
-      <div class="text-lg">From voice to searchable intelligence in under a minute.</div>
+      <div class="space-y-1">
+        <div class="text-4xl">See Codex in Action</div>
+        <div class="text-lg">From voice to searchable intelligence in under a minute.</div>
+        <div class="text-xs text-white/40 italic">Turn Volume On</div>
+      </div>
 
-      <div class="max-w-6xl mx-auto mt-20">
+      <div data-demo-motion class="max-w-6xl mx-auto mt-20">
         <!-- https://cdn.rugbycodex.com/static/assets/videos/demo.mp4 -->
         <video
+          autoplay
           muted
           controls
           loop
