@@ -18,6 +18,12 @@ export const authRoutes: RouteRecordRaw = {
       meta: { guestOnly: true },
     },
     {
+      path: 'waitlist',
+      name: 'Waitlist',
+      component: () => import('@/modules/auth/views/Waitlist.vue'),
+      meta: { guestOnly: true },
+    },
+    {
       path: 'forgot-password',
       name: 'ForgotPassword',
       component: () => import('@/modules/auth/views/ForgotPassword.vue'),

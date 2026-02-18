@@ -4,7 +4,7 @@ import { RouterLink, useRoute } from 'vue-router';
 const route = useRoute();
 
 const isLogin = computed (() => route.path === '/auth/login');
-const isSignup = computed (() => route.path === '/auth/signup');
+const isWaitlist = computed (() => route.path === '/auth/waitlist');
 
 </script>
 <template>
@@ -19,9 +19,9 @@ const isSignup = computed (() => route.path === '/auth/signup');
     :class="[isLogin ? 'bg-white !text-black' : 'text-white hover:bg-white/30']">
         LOGIN
     </RouterLink>
-    <RouterLink to="/auth/signup" class="text-xs text-white p-1 px-2"
-    :class="[isSignup ? 'bg-white !text-black' : 'text-white hover:bg-white/30']">
-        SIGNUP
+    <RouterLink to="/auth/waitlist" class="text-xs text-white p-1 px-2"
+    :class="[isWaitlist ? 'bg-white !text-black' : 'text-white hover:bg-white/30']">
+        WAITLIST
     </RouterLink>
     </div>
 </div>

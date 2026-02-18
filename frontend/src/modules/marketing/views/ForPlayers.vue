@@ -23,7 +23,7 @@ const herovideo = `${CDN_BASE}/static/assets/modules/marketing/highlights.mp4`;
     headline="See your game. Understand your impact."
     subtext="Your footage, your actions, your development. Structured and searchable."
     primary-label="Get Player Access"
-    primary-to="/auth/signup"
+    primary-to="/auth/waitlist"
     learn-more-to="/mission"
     bg-color="bg-red-800"
   />

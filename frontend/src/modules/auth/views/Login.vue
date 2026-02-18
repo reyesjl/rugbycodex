@@ -209,7 +209,7 @@ watch(
 
     <footer class="pt-4 text-xs text-neutral-500">
       Want access?
-      <RouterLink to="/auth/signup" class="ml-1 font-semibold uppercase tracking-[0.2em] text-white">
+      <RouterLink to="/auth/waitlist" class="ml-1 font-semibold uppercase tracking-[0.2em] text-white">
         Create account
       </RouterLink>
     </footer>

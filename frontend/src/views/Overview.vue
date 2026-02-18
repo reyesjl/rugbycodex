@@ -163,7 +163,7 @@ const narrationDemo = `${CDN_BASE}/static/assets/videos/narrationDemo.webm`;
 
     <div class="flex justify-center items-center">
       <RouterLink
-        to="/auth/signup"
+        to="/auth/waitlist"
         class="md:text-2xl block px-10 py-5 rounded-full !bg-neutral-100 text-neutral-800 dark:!bg-neutral-800 dark:text-neutral-100 mt-20"
       >
         Make your own team Vault
@@ -206,7 +206,7 @@ const narrationDemo = `${CDN_BASE}/static/assets/videos/narrationDemo.webm`;
       </div>
 
       <RouterLink
-        to="/auth/signup"
+        to="/auth/waitlist"
         class="md:text-2xl block px-10 py-5 rounded-full !bg-neutral-100 text-neutral-800 dark:!bg-neutral-800 dark:text-neutral-100 mt-20"
       >
         Be part of the Pattern

@@ -30,7 +30,7 @@ const herovideo = `${CDN_BASE}/static/assets/modules/marketing/highlights.mp4`;
     headline="Build a smarter rugby brain for your team."
     subtext="Turn match footage into shared understanding. Teach faster. Align everyone."
     primary-label="Get Coach Access"
-    primary-to="/auth/signup"
+    primary-to="/auth/waitlist"
     learn-more-to="/mission"
     bg-color="bg-zinc-500"
   />

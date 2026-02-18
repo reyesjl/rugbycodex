@@ -91,7 +91,7 @@ onMounted(async () => {
           Your voice turns match footage into structured, searchable knowledge.
         </div>
         <div data-hero-motion class="button-set flex gap-5 mt-6 items-center">
-          <Button size="lg" variant="base" color="primary" to="/auth/signup">Analyze Your Match</Button>
+          <Button size="lg" variant="base" color="primary" to="/auth/waitlist">Analyze Your Match</Button>
           <a href="#codex-in-action" class="hover:underline underline-offset-4">See it in Action</a>
         </div>
       </div>

@@ -161,7 +161,7 @@ watch(isMenuOpen, (isOpen) => {
                 <RouterLink class="text-white hover:text-neutral-400 whitespace-nowrap" to="/auth/login">
                     Login
                 </RouterLink>
-                <Button variant="base" color="primary" to="/auth/signup">Get Started</Button>
+                <Button variant="base" color="primary" to="/auth/waitlist">Get Started</Button>
             </div>
 
             <button
@@ -252,7 +252,7 @@ watch(isMenuOpen, (isOpen) => {
                     </RouterLink>
                     <RouterLink
                         class="hover:text-neutral-500 text-white w-fit"
-                        to="/auth/signup"
+                        to="/auth/waitlist"
                         @click="closeMenu"
                     >
                         get started

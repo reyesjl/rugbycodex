@@ -486,6 +486,9 @@ verify_jwt = false
 [functions.create-identity-tag]
 verify_jwt = false
 
+[functions.waitlist-confirmation]
+verify_jwt = false
+
 [functions.cleanup-coach-audio]
 verify_jwt = true
 
