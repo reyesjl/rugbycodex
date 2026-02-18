@@ -57,6 +57,11 @@ const handleLogout = async () => {
   }
 };
 
+const navigateFromMenu = async (to: string, close: () => void) => {
+  close();
+  await router.push(to);
+};
+
 const setNavHeightVar = () => {
   if (navRef.value) {
     document.documentElement.style.setProperty('--main-nav-height', `${navRef.value.offsetHeight}px`);
@@ -163,32 +168,34 @@ onBeforeUnmount(() => {
                 <MenuItems
                   class="absolute right-0 mt-2 w-56 rounded-md border border-white/10 bg-black/90 p-2 text-sm focus:outline-none"
                 >
-                  <MenuItem v-slot="{ active }">
-                    <RouterLink
-                      to="/profile"
-                      class="flex items-center rounded px-3 py-2 text-white transition"
+                  <MenuItem v-slot="{ active, close }">
+                    <button
+                      type="button"
+                      class="flex w-full items-center rounded px-3 py-2 text-left text-white transition"
                       :class="active ? 'bg-white/15' : ''"
+                      @click="navigateFromMenu('/profile', close)"
                     >
                       <Icon icon="carbon:user-profile" width="18" height="18" class="mr-2" />
                       Profile
-                    </RouterLink>
+                    </button>
                   </MenuItem>
-                  <MenuItem v-slot="{ active }">
-                    <RouterLink
-                      to="/settings"
-                      class="flex items-center rounded px-3 py-2 text-white transition"
+                  <MenuItem v-slot="{ active, close }">
+                    <button
+                      type="button"
+                      class="flex w-full items-center rounded px-3 py-2 text-left text-white transition"
                       :class="active ? 'bg-white/15' : ''"
+                      @click="navigateFromMenu('/settings', close)"
                     >
                       <Icon icon="carbon:settings" width="18" height="18" class="mr-2" />
                       Settings
-                    </RouterLink>
+                    </button>
                   </MenuItem>
-                  <MenuItem v-slot="{ active }">
+                  <MenuItem v-slot="{ active, close }">
                     <button
                       type="button"
                       class="mt-1 flex w-full items-center rounded px-3 py-2 text-left text-rose-300 transition"
                       :class="active ? 'bg-rose-500/10' : ''"
-                      @click="handleLogout"
+                      @click="close(); handleLogout()"
                       :disabled="loggingOut"
                     >
                       <Icon icon="carbon:logout" width="18" height="18" class="mr-2" />

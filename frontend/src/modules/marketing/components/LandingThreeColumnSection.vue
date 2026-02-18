@@ -105,15 +105,17 @@ onBeforeUnmount(() => {
       </p>
 
       <div ref="cta" class="motion-item flex items-center gap-4">
-        <Button
-          v-if="primaryCtaLabel && primaryCtaTo"
-          size="lg"
-          variant="base"
-          color="primary"
-          :to="primaryCtaTo"
-        >
-          {{ primaryCtaLabel }}
-        </Button>
+        <span v-if="primaryCtaLabel && primaryCtaTo" class="cta-shell shadow-[0_0_40px_rgba(59,130,246,0.35)]">
+          <Button
+            size="lg"
+            variant="base"
+            color="primary"
+            :to="primaryCtaTo"
+            class="font-semibold !bg-white !text-black hover:!bg-black hover:!text-white"
+          >
+            {{ primaryCtaLabel }}
+          </Button>
+        </span>
       </div>
 
       <div class="grid md:grid-cols-12 gap-6 text-xs mt-2 uppercase">
@@ -135,5 +137,36 @@ onBeforeUnmount(() => {
 }
 .console-font {
   font-family: 'Consolas', monospace;
+}
+
+.cta-shell {
+  position: relative;
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 9999px;
+  overflow: hidden;
+  background: linear-gradient(120deg, rgba(30, 64, 175, 0.95), rgba(96, 165, 250, 0.9), rgba(30, 64, 175, 0.95));
+}
+
+.cta-shell::before {
+  content: '';
+  position: absolute;
+  inset: -40%;
+  background: linear-gradient(115deg, transparent 42%, rgba(255, 255, 255, 0.9) 50%, transparent 58%);
+  transform: translateX(-120%) rotate(10deg);
+  animation: cta-shine-sweep 2.4s linear infinite;
+}
+
+.cta-shell :deep(a),
+.cta-shell :deep(button) {
+  position: relative;
+  z-index: 1;
+  border-radius: 9999px;
+}
+
+@keyframes cta-shine-sweep {
+  to {
+    transform: translateX(120%) rotate(10deg);
+  }
 }
 </style>

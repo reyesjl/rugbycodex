@@ -43,6 +43,12 @@ const displayUsername = computed(() => {
     return 'My Rugby';
 });
 
+const ensureUserContextLoaded = () => {
+    if (!authStore.isAuthenticated) return;
+    if (userContextStore.isReady || userContextStore.isLoading) return;
+    void userContextStore.load();
+};
+
 const toggleMenu = () => {
     isMenuOpen.value = !isMenuOpen.value;
 };
@@ -128,6 +134,7 @@ onMounted(() => {
     setNavHeightVar();
     initNavResizeObserver();
     runNavEntranceAnimation();
+    ensureUserContextLoaded();
 });
 
 onBeforeUnmount(() => {
@@ -148,6 +155,16 @@ watch(isMenuOpen, (isOpen) => {
         isNavHidden.value = false;
     }
 });
+
+watch(
+    () => authStore.isAuthenticated,
+    (isAuthenticated) => {
+        if (isAuthenticated) {
+            ensureUserContextLoaded();
+        }
+    },
+    { immediate: true },
+);
 </script>
 
 <template>

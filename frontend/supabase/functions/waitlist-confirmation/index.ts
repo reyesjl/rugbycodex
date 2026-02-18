@@ -10,6 +10,7 @@ const PAYMENT_VALUES = new Set(["yes", "maybe", "not_now"]);
 type WaitlistPayload = {
   email: string;
   first_name?: string | null;
+  organization_name?: string | null;
   role: string;
   primary_problem: string;
   urgency: string;
@@ -39,6 +40,7 @@ function normalizePayload(body: unknown): WaitlistPayload | null {
 
   const email = typeof payload.email === "string" ? payload.email.trim().toLowerCase() : "";
   const first_name = typeof payload.first_name === "string" ? payload.first_name.trim() : "";
+  const organization_name = typeof payload.organization_name === "string" ? payload.organization_name.trim() : "";
   const role = typeof payload.role === "string" ? payload.role : "";
   const primary_problem = typeof payload.primary_problem === "string" ? payload.primary_problem.trim() : "";
   const urgency = typeof payload.urgency === "string" ? payload.urgency : "";
@@ -51,6 +53,7 @@ function normalizePayload(body: unknown): WaitlistPayload | null {
   return {
     email,
     first_name: first_name || null,
+    organization_name: organization_name || null,
     role,
     primary_problem,
     urgency,
@@ -117,18 +120,35 @@ Deno.serve(withObservability("waitlist-confirmation", async (req) => {
   }
 
   const friendlyName = payload.first_name?.trim() ? payload.first_name.trim() : "there";
+  const organizationPart = payload.organization_name ? `${payload.organization_name.trim()}` : "";
 
   const confirmationText = [
     `Hi ${friendlyName},`,
     "",
-    "You're officially on the RugbyCodex pilot waitlist.",
+    "////////////////////////////////////////////////////////////",
+    "RUGBYCODEX WAITLISTED",
+    "////////////////////////////////////////////////////////////",
     "",
-    "We're onboarding a limited number of teams as part of our launch. This allows us to work closely with early partners and refine the platform using real match workflows.",
-    "We'll prioritize access based on fit, urgency, and early access readiness, and we'll reach out as new pilot slots open.",
+    "Status: Registered",
+    "Tier: Early Partner",
+    `Node ID: ${organizationPart}`,
     "",
-    "Thanks for being early.",
+    "You are now in the RugbyCodex pilot queue.",
     "",
-    "— The RugbyCodex Team",
+    "We are activating a limited number of teams during this phase.",
+    "Each onboarding cycle allows us to integrate directly with real",
+    "match analysis workflows and refine the system in live conditions.",
+    "",
+    "Access priority is determined by:",
+    "• Team readiness",
+    "• Analytical intensity",
+    "• Deployment urgency",
+    "",
+    "When a pilot slot unlocks, this node will be notified.",
+    "",
+    "Thank you for entering the system early.",
+    "",
+    "— RugbyCodex // Performance Intelligence Layer",
   ].join("\n");
 
   const internalText = [
@@ -136,6 +156,7 @@ Deno.serve(withObservability("waitlist-confirmation", async (req) => {
     "",
     `email: ${payload.email}`,
     `first_name: ${payload.first_name ?? ""}`,
+    `organization_name: ${payload.organization_name ?? ""}`,
     `role: ${payload.role}`,
     `primary_problem: ${payload.primary_problem}`,
     `urgency: ${payload.urgency}`,

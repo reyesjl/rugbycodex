@@ -29,6 +29,7 @@ const isSubmitDisabled = computed(
 const form = reactive({
   email: '',
   firstName: '',
+  organizationName: '',
   role: '',
   primaryProblem: '',
   urgency: '',
@@ -92,7 +93,7 @@ const handleSubmit = async () => {
     return;
   }
 
-  if (!form.firstName.trim() || !form.role || !form.primaryProblem.trim() || !form.urgency || !form.earlyAccessPayment) {
+  if (!form.firstName.trim() || !form.organizationName.trim() || !form.role || !form.primaryProblem.trim() || !form.urgency || !form.earlyAccessPayment) {
     supabaseError.value = 'Please complete all required fields.';
     return;
   }
@@ -104,6 +105,7 @@ const handleSubmit = async () => {
   const payload = {
     email: form.email.trim().toLowerCase(),
     first_name: form.firstName.trim(),
+    organization_name: form.organizationName.trim(),
     role: form.role,
     primary_problem: form.primaryProblem.trim(),
     urgency: form.urgency,
@@ -147,11 +149,17 @@ const textareaClass = `${inputClass} min-h-[96px]`;
 <template>
   <div class="space-y-8">
     <header class="space-y-2 text-center">
-      <h1 class="text-xl font-semibold uppercase tracking-[0.3em] text-white">Join the Waitlist</h1>
-      <p class="text-sm text-neutral-400">
-        We're onboarding a small number of pilot teams as part of our launch. Join the waitlist to be considered
-        for early access.
-      </p>
+      <template v-if="submissionLogged">
+        <h1 class="text-3xl md:text-4xl font-semibold uppercase tracking-[0.2em] text-white">You're in.</h1>
+        <p class="text-sm text-neutral-400">We'll reach out soon. Check your email.</p>
+      </template>
+      <template v-else>
+        <h1 class="text-xl font-semibold uppercase tracking-[0.3em] text-white">Join the Waitlist</h1>
+        <p class="text-sm text-neutral-400">
+          We're onboarding a small number of pilot teams as part of our launch. Join the waitlist to be considered
+          for early access.
+        </p>
+      </template>
     </header>
 
     <form v-if="!submissionLogged" @submit.prevent="handleSubmit" class="space-y-8">
@@ -179,6 +187,13 @@ const textareaClass = `${inputClass} min-h-[96px]`;
               First name
             </label>
             <input id="first-name" v-model="form.firstName" type="text" autocomplete="given-name" required :class="inputClass" />
+          </div>
+
+          <div class="space-y-1">
+            <label for="organization-name" class="text-[10px] font-semibold uppercase tracking-[0.3em] text-neutral-400">
+              Team / Organization
+            </label>
+            <input id="organization-name" v-model="form.organizationName" type="text" autocomplete="organization" required :class="inputClass" />
           </div>
 
           <div class="space-y-1">
@@ -378,7 +393,6 @@ const textareaClass = `${inputClass} min-h-[96px]`;
     </form>
 
     <div v-else class="space-y-4">
-      <p class="text-base font-semibold text-white">You're on the list. We'll reach out soon.</p>
       <p v-if="supabaseMessage" class="text-sm text-neutral-400">
         {{ supabaseMessage }}
       </p>
