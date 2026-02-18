@@ -79,11 +79,11 @@ const resolvedLearnMoreLabel = computed(() => props.learnMoreLabel ?? 'Learn mor
     <div class="container-lg">
       <div class="grid md:grid-cols-4 items-center grid-cols-1 gap-30 md:gap-0">
         <div class="md:col-span-2 flex flex-col space-y-4">
-          <h2 class="text-6xl">{{ headline }}</h2>
-          <p>{{ subtext }}</p>
+          <h2 class="text-6xl" data-role-motion>{{ headline }}</h2>
+          <p data-role-motion>{{ subtext }}</p>
         </div>
 
-        <div class="md:col-start-4 flex flex-col space-y-4 md:items-start items-end">
+        <div class="md:col-start-4 flex flex-col space-y-4 md:items-start items-end" data-role-motion>
           <a
             v-if="primaryIsExternal"
             :href="primaryHref"

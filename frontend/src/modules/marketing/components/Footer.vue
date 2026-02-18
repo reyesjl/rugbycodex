@@ -8,9 +8,21 @@
           <h2 class="tracking-wide text-neutral-100">Explore</h2>
           <nav class="flex flex-col gap-2 text-neutral-300">
             <RouterLink class="transition-colors hover:text-white" to="/">Home</RouterLink>
+            <span class="text-white/50 cursor-not-allowed select-none">Features</span>
             <RouterLink class="transition-colors hover:text-white" to="/roles">Roles</RouterLink>
-            <RouterLink class="transition-colors hover:text-white" to="/mission">Mission</RouterLink>
+            <span class="text-white/50 cursor-not-allowed select-none">Pricing</span>
+            <span class="text-white/50 cursor-not-allowed select-none">Customers</span>
+            <RouterLink class="transition-colors hover:text-white" to="/mission">About</RouterLink>
             <RouterLink class="transition-colors hover:text-white" to="/acknowledgements">Acknowledgements</RouterLink>
+          </nav>
+        </div>
+
+        <div class="space-y-4">
+          <h2 class="tracking-wide text-neutral-100">Get Started</h2>
+          <nav class="flex flex-col gap-2 text-neutral-300">
+            <RouterLink class="transition-colors hover:text-white" to="/auth/login">Sign in</RouterLink>
+            <RouterLink class="transition-colors hover:text-white" to="/auth/waitlist">Analyze Your Match</RouterLink>
+            <RouterLink class="transition-colors hover:text-white" to="/#codex-in-action">See it in Action</RouterLink>
           </nav>
         </div>
 
