@@ -1,12 +1,16 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { animateMini } from 'motion';
+import type { DOMKeyframesDefinition } from 'motion';
 import { RouterLink } from 'vue-router';
 import Button from '@/components/ui/primitives/Button.vue';
 import NavLink from '@/components/ui/primitives/NavLink.vue';
 import { useAuthStore } from '@/modules/auth/stores/useAuthStore';
+import { useUserContextStore } from '@/modules/user/stores/useUserContextStore';
 
 const authStore = useAuthStore();
+const userContextStore = useUserContextStore();
 
 const NAV_VISIBLE_TOP = '0px';
 const NAV_HIDDEN_TOP = '-120px';
@@ -23,6 +27,21 @@ let resizeObserver: globalThis.ResizeObserver | null = null;
 const navPositionStyle = computed(() => ({
     top: isNavHidden.value ? NAV_HIDDEN_TOP : NAV_VISIBLE_TOP,
 }));
+
+const displayUsername = computed(() => {
+    const profileUsername = userContextStore.profileReadonly?.username?.trim();
+    if (profileUsername) return profileUsername;
+
+    const metadataUsername = authStore.userReadonly?.user_metadata?.username;
+    if (typeof metadataUsername === 'string' && metadataUsername.trim()) {
+        return metadataUsername.trim();
+    }
+
+    const email = authStore.userReadonly?.email;
+    if (email) return email.split('@')[0] ?? 'My Rugby';
+
+    return 'My Rugby';
+});
 
 const toggleMenu = () => {
     isMenuOpen.value = !isMenuOpen.value;
@@ -87,6 +106,17 @@ const initNavResizeObserver = () => {
     resizeObserver.observe(navRef.value);
 };
 
+const runNavEntranceAnimation = () => {
+    if (!navRef.value) return;
+
+    const keyframes: DOMKeyframesDefinition = {
+        opacity: [0, 1],
+        transform: ['translateY(-16px)', 'translateY(0px)'],
+    };
+
+    animateMini(navRef.value, keyframes, { duration: 0.45, ease: 'easeOut' });
+};
+
 onMounted(() => {
     if (typeof window === 'undefined') {
         return;
@@ -97,6 +127,7 @@ onMounted(() => {
     window.addEventListener('scroll', updateNavVisibility, { passive: true });
     setNavHeightVar();
     initNavResizeObserver();
+    runNavEntranceAnimation();
 });
 
 onBeforeUnmount(() => {
@@ -135,9 +166,9 @@ watch(isMenuOpen, (isOpen) => {
                 <NavLink to="/" class="inline-flex items-center">
                     <Icon icon="fluent-mdl2:rugby" width="18" height="18" />
                 </NavLink>
-                <span class="text-white/50 cursor-not-allowed select-none">
+                <NavLink to="/features">
                     Features
-                </span>
+                </NavLink>
                 <NavLink to="/roles">
                     Roles
                 </NavLink>
@@ -155,13 +186,19 @@ watch(isMenuOpen, (isOpen) => {
             <!-- Display profile button if user is logged in -->
             <!-- authStore.isAuthenticated -->
             <RouterLink v-if="authStore.isAuthenticated" class="hidden justify-end md:flex items-center space-x-2 sm:text-sm" :to="`/my-rugby`">
-                <Icon icon="carbon:user-avatar" width="25" height="25" class="h-full w-full p-2 text-white rounded-full cursor-pointer" />
-            </RouterLink> 
+                <span class="nav-cta-shell shadow-[0_0_40px_rgba(59,130,246,0.35)]">
+                    <span class="inline-flex rounded-full bg-white px-3 py-1 text-sm font-semibold text-black transition-colors hover:bg-black hover:text-white">
+                        {{ displayUsername }}
+                    </span>
+                </span>
+            </RouterLink>
             <div v-else class="hidden justify-end space-x-4 md:flex items-center sm:text-sm">
                 <RouterLink class="text-white hover:text-neutral-400 whitespace-nowrap" to="/auth/login">
                     Login
                 </RouterLink>
-                <Button variant="base" color="primary" to="/auth/waitlist">Get Started</Button>
+                <span class="nav-cta-shell shadow-[0_0_40px_rgba(59,130,246,0.35)]">
+                    <Button variant="base" color="primary" to="/auth/waitlist" class="font-semibold !bg-white !text-black hover:!bg-black hover:!text-white">Join Waitlist</Button>
+                </span>
             </div>
 
             <button
@@ -207,11 +244,13 @@ watch(isMenuOpen, (isOpen) => {
                 >
                     <Icon icon="fluent-mdl2:rugby" width="24" height="24" />
                 </RouterLink>
-                <span
-                    class="text-white/50 cursor-not-allowed w-fit"
+                <RouterLink
+                    class="hover:text-neutral-500 text-white w-fit"
+                    to="/features"
+                    @click="closeMenu"
                 >
                     Features
-                </span>
+                </RouterLink>
                 <RouterLink
                     class="hover:text-neutral-500 text-white w-fit"
                     to="/roles"
@@ -277,5 +316,37 @@ watch(isMenuOpen, (isOpen) => {
 .marketing-nav {
     transition: top 0.35s ease-in-out;
     will-change: top;
+}
+
+.nav-cta-shell {
+    position: relative;
+    display: inline-flex;
+    padding: 2px;
+    border-radius: 9999px;
+    overflow: hidden;
+    background: linear-gradient(120deg, rgba(30, 64, 175, 0.95), rgba(96, 165, 250, 0.9), rgba(30, 64, 175, 0.95));
+}
+
+.nav-cta-shell::before {
+    content: '';
+    position: absolute;
+    inset: -40%;
+    background: linear-gradient(115deg, transparent 42%, rgba(255, 255, 255, 0.9) 50%, transparent 58%);
+    transform: translateX(-120%) rotate(10deg);
+    animation: nav-cta-shine-sweep 2.4s linear infinite;
+}
+
+.nav-cta-shell :deep(a),
+.nav-cta-shell :deep(button),
+.nav-cta-shell > span {
+    position: relative;
+    z-index: 1;
+    border-radius: 9999px;
+}
+
+@keyframes nav-cta-shine-sweep {
+    to {
+        transform: translateX(120%) rotate(10deg);
+    }
 }
 </style>

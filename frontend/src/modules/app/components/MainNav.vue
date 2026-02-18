@@ -1,19 +1,35 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue';
-import { onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRouter, RouterLink } from 'vue-router';
 import { Menu, MenuButton, MenuItems, MenuItem } from '@headlessui/vue';
 import { useAuthStore } from '@/modules/auth/stores/useAuthStore';
+import { useUserContextStore } from '@/modules/user/stores/useUserContextStore';
 import OrgSwitcher from './OrgSwitcher.vue';
 
 // auth store
 const authStore = useAuthStore();
+const userContextStore = useUserContextStore();
 
 // ref for nav
 const navRef = ref<HTMLElement | null>(null);
 let resizeObserver: globalThis.ResizeObserver | null = null;
 
 const loggingOut = ref(false);
+const displayUsername = computed(() => {
+  const profileUsername = userContextStore.profileReadonly?.username?.trim();
+  if (profileUsername) return profileUsername;
+
+  const metadataUsername = authStore.userReadonly?.user_metadata?.username;
+  if (typeof metadataUsername === 'string' && metadataUsername.trim()) {
+    return metadataUsername.trim();
+  }
+
+  const email = authStore.userReadonly?.email;
+  if (email) return email.split('@')[0] ?? 'Account';
+
+  return 'Account';
+});
 
 const router = useRouter();
 
@@ -124,10 +140,10 @@ onBeforeUnmount(() => {
           <div v-if="authStore.isAuthenticated">
             <Menu as="div" class="relative" v-slot="{ open }">
               <MenuButton
-                class="flex items-center rounded-full p-1 hover:bg-white/10 focus:outline-none"
+                class="flex items-center rounded-full px-2 py-1 hover:bg-white/10 focus:outline-none"
                 aria-label="User menu"
               >
-                <Icon icon="carbon:user-avatar" width="23" height="23" class="text-white" />
+                <span class="max-w-[160px] truncate text-sm font-semibold text-white">{{ displayUsername }}</span>
                 <Icon
                   icon="carbon:chevron-down"
                   width="16"

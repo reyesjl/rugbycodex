@@ -11,7 +11,7 @@ type RoleKey = 'coaches' | 'players' | 'unions';
 
 const route = useRoute();
 const router = useRouter();
-const roleOrder: RoleKey[] = ['unions', 'players', 'coaches'];
+const roleOrder: RoleKey[] = ['coaches', 'players', 'unions'];
 
 const roleConfig: Record<RoleKey, {
   tabLabel: string;
@@ -282,5 +282,6 @@ watch(activeRole, () => {
     learn-more-to="/mission"
     :bg-color="activeConfig.cta.bgColor"
     :button-color="activeConfig.cta.buttonColor"
+    shimmer-primary
   />
 </template>

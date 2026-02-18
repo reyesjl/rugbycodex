@@ -11,6 +11,7 @@ type Props = {
   learnMoreLabel?: string;
   bgColor?: string;
   buttonColor?: string;
+  shimmerPrimary?: boolean;
 };
 
 const props = defineProps<Props>();
@@ -54,16 +55,19 @@ const buttonTextClass = computed(() => {
   return 'text-white';
 });
 
-const primaryButtonClass = computed(
-  () =>
-    [
-      'w-fit px-6 py-3 border-2 transition-colors rounded',
-      resolvedButtonColor.value,
-      themeBorderClass.value,
-      buttonTextClass.value,
-      themeHoverClass.value,
-    ].join(' '),
-);
+const primaryButtonClass = computed(() => {
+  if (props.shimmerPrimary) {
+    return 'w-fit px-6 py-3 rounded-full font-semibold transition-colors bg-black text-white hover:bg-white hover:text-black';
+  }
+
+  return [
+    'w-fit px-6 py-3 border-2 transition-colors rounded',
+    resolvedButtonColor.value,
+    themeBorderClass.value,
+    buttonTextClass.value,
+    themeHoverClass.value,
+  ].join(' ');
+});
 
 const learnMoreClass = computed(() => {
   return hasBgColorProp.value
@@ -84,20 +88,41 @@ const resolvedLearnMoreLabel = computed(() => props.learnMoreLabel ?? 'Learn mor
         </div>
 
         <div class="md:col-start-4 flex flex-col space-y-4 md:items-start items-end" data-role-motion>
-          <a
-            v-if="primaryIsExternal"
-            :href="primaryHref"
-            :class="primaryButtonClass"
+          <span
+            v-if="shimmerPrimary"
+            class="cta-shell shadow-[0_0_40px_rgba(59,130,246,0.35)]"
           >
-            {{ primaryLabel }}
-          </a>
-          <RouterLink
-            v-else
-            :to="primaryTo"
-            :class="primaryButtonClass"
-          >
-            {{ primaryLabel }}
-          </RouterLink>
+            <a
+              v-if="primaryIsExternal"
+              :href="primaryHref"
+              :class="primaryButtonClass"
+            >
+              {{ primaryLabel }}
+            </a>
+            <RouterLink
+              v-else
+              :to="primaryTo"
+              :class="primaryButtonClass"
+            >
+              {{ primaryLabel }}
+            </RouterLink>
+          </span>
+          <template v-else>
+            <a
+              v-if="primaryIsExternal"
+              :href="primaryHref"
+              :class="primaryButtonClass"
+            >
+              {{ primaryLabel }}
+            </a>
+            <RouterLink
+              v-else
+              :to="primaryTo"
+              :class="primaryButtonClass"
+            >
+              {{ primaryLabel }}
+            </RouterLink>
+          </template>
 
           <template v-if="learnMoreTo">
             <a
@@ -120,3 +145,35 @@ const resolvedLearnMoreLabel = computed(() => props.learnMoreLabel ?? 'Learn mor
     </div>
   </section>
 </template>
+
+<style scoped>
+.cta-shell {
+  position: relative;
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 9999px;
+  overflow: hidden;
+  background: linear-gradient(120deg, rgba(30, 64, 175, 0.95), rgba(96, 165, 250, 0.9), rgba(30, 64, 175, 0.95));
+}
+
+.cta-shell::before {
+  content: '';
+  position: absolute;
+  inset: -40%;
+  background: linear-gradient(115deg, transparent 42%, rgba(255, 255, 255, 0.9) 50%, transparent 58%);
+  transform: translateX(-120%) rotate(10deg);
+  animation: cta-shine-sweep 2.4s linear infinite;
+}
+
+.cta-shell :deep(a) {
+  position: relative;
+  z-index: 1;
+  border-radius: 9999px;
+}
+
+@keyframes cta-shine-sweep {
+  to {
+    transform: translateX(120%) rotate(10deg);
+  }
+}
+</style>

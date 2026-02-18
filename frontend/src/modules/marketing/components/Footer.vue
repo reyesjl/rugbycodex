@@ -8,7 +8,7 @@
           <h2 class="tracking-wide text-neutral-100">Explore</h2>
           <nav class="flex flex-col gap-2 text-neutral-300">
             <RouterLink class="transition-colors hover:text-white" to="/">Home</RouterLink>
-            <span class="text-white/50 cursor-not-allowed select-none">Features</span>
+            <RouterLink class="transition-colors hover:text-white" to="/features">Features</RouterLink>
             <RouterLink class="transition-colors hover:text-white" to="/roles">Roles</RouterLink>
             <span class="text-white/50 cursor-not-allowed select-none">Pricing</span>
             <span class="text-white/50 cursor-not-allowed select-none">Customers</span>

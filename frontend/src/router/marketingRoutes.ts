@@ -11,6 +11,11 @@ export const marketingRoutes: RouteRecordRaw = {
       component: () => import('@/modules/marketing/views/MarketingHome.vue'),
     },
     {
+      path: 'features',
+      name: 'Features',
+      component: () => import('@/modules/marketing/views/Features.vue'),
+    },
+    {
       path: 'roles',
       name: 'MarketingRoles',
       component: () => import('@/modules/marketing/views/MarketingRoles.vue'),

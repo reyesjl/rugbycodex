@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, ref, watch } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
 import { RouterLink } from 'vue-router';
 import { Listbox, ListboxButton, ListboxOptions, ListboxOption } from '@headlessui/vue';
 import { Icon } from '@iconify/vue';
@@ -22,6 +22,9 @@ const submissionLogged = ref(false);
 const turnstileToken = ref('');
 const turnstileRequired = ref(false);
 const turnstileRef = ref<InstanceType<typeof TurnstileVerification> | null>(null);
+const isSubmitDisabled = computed(
+  () => signingUp.value || (turnstileRequired.value && !turnstileToken.value),
+);
 
 const form = reactive({
   email: '',
@@ -362,13 +365,16 @@ const textareaClass = `${inputClass} min-h-[96px]`;
         {{ supabaseError }}
       </p>
 
-      <button
-        type="submit"
-        class="inline-flex w-full items-center justify-center bg-white px-4 py-3 text-xs font-semibold uppercase tracking-[0.35em] text-black transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-        :disabled="signingUp || (turnstileRequired && !turnstileToken)"
-      >
-        {{ signingUp ? 'Submitting...' : 'Join waitlist' }}
-      </button>
+      <span class="auth-submit-shell">
+        <button
+          type="submit"
+          class="inline-flex w-full items-center justify-center rounded-full bg-white px-4 py-3 text-xs font-semibold uppercase tracking-[0.35em] text-black transition hover:opacity-90 disabled:cursor-not-allowed disabled:bg-black disabled:text-white disabled:opacity-100"
+          :disabled="isSubmitDisabled"
+        >
+          <Icon v-if="isSubmitDisabled" icon="line-md:loading-loop" class="mr-2 h-4 w-4" />
+          {{ signingUp ? 'Submitting...' : 'Join waitlist' }}
+        </button>
+      </span>
     </form>
 
     <div v-else class="space-y-4">
@@ -392,3 +398,35 @@ const textareaClass = `${inputClass} min-h-[96px]`;
     </footer>
   </div>
 </template>
+
+<style scoped>
+.auth-submit-shell {
+  position: relative;
+  display: inline-flex;
+  width: 100%;
+  padding: 2px;
+  border-radius: 9999px;
+  overflow: hidden;
+  background: linear-gradient(120deg, rgba(30, 64, 175, 0.95), rgba(96, 165, 250, 0.9), rgba(30, 64, 175, 0.95));
+}
+
+.auth-submit-shell::before {
+  content: '';
+  position: absolute;
+  inset: -40%;
+  background: linear-gradient(115deg, transparent 42%, rgba(255, 255, 255, 0.9) 50%, transparent 58%);
+  transform: translateX(-120%) rotate(10deg);
+  animation: auth-submit-shine-sweep 2.4s linear infinite;
+}
+
+.auth-submit-shell > button {
+  position: relative;
+  z-index: 1;
+}
+
+@keyframes auth-submit-shine-sweep {
+  to {
+    transform: translateX(120%) rotate(10deg);
+  }
+}
+</style>

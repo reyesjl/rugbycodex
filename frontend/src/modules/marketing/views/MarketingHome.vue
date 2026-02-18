@@ -91,7 +91,9 @@ onMounted(async () => {
           Your voice turns match footage into structured, searchable knowledge.
         </div>
         <div data-hero-motion class="button-set flex gap-5 mt-6 items-center">
-          <Button size="lg" variant="base" color="primary" to="/auth/waitlist">Analyze Your Match</Button>
+          <span class="cta-shell shadow-[0_0_40px_rgba(59,130,246,0.35)]">
+            <Button size="lg" variant="base" color="primary" to="/auth/waitlist" class="font-semibold !bg-white !text-black hover:!bg-black hover:!text-white">Analyze Your Match</Button>
+          </span>
           <a href="#codex-in-action" class="hover:underline underline-offset-4">See it in Action</a>
         </div>
       </div>
@@ -186,7 +188,7 @@ onMounted(async () => {
         <div class="text-xs text-white/40 italic">Turn Volume On</div>
       </div>
 
-      <div data-demo-motion class="max-w-6xl mx-auto mt-20">
+      <div data-demo-motion class="max-w-6xl mx-auto mt-20 rounded-xl border border-blue-400/30 shadow-[0_0_50px_rgba(59,130,246,0.35)]">
         <!-- https://cdn.rugbycodex.com/static/assets/videos/demo.mp4 -->
         <video
           autoplay
@@ -194,7 +196,7 @@ onMounted(async () => {
           controls
           loop
           playsinline
-          class="w-full h-auto object-cover rounded-lg"
+          class="w-full h-auto object-cover rounded-xl"
           src="https://cdn.rugbycodex.com/static/assets/videos/demo.mp4"
         ></video>
       </div>
@@ -242,3 +244,36 @@ onMounted(async () => {
     </div>
   </section>
 </template>
+
+<style scoped>
+.cta-shell {
+  position: relative;
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 9999px;
+  overflow: hidden;
+  background: linear-gradient(120deg, rgba(30, 64, 175, 0.95), rgba(96, 165, 250, 0.9), rgba(30, 64, 175, 0.95));
+}
+
+.cta-shell::before {
+  content: '';
+  position: absolute;
+  inset: -40%;
+  background: linear-gradient(115deg, transparent 42%, rgba(255, 255, 255, 0.9) 50%, transparent 58%);
+  transform: translateX(-120%) rotate(10deg);
+  animation: cta-shine-sweep 2.4s linear infinite;
+}
+
+.cta-shell :deep(a),
+.cta-shell :deep(button) {
+  position: relative;
+  z-index: 1;
+  border-radius: 9999px;
+}
+
+@keyframes cta-shine-sweep {
+  to {
+    transform: translateX(120%) rotate(10deg);
+  }
+}
+</style>
