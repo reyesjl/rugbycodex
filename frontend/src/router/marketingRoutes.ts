@@ -11,19 +11,33 @@ export const marketingRoutes: RouteRecordRaw = {
       component: () => import('@/modules/marketing/views/MarketingHome.vue'),
     },
     {
+      path: 'roles',
+      name: 'MarketingRoles',
+      component: () => import('@/modules/marketing/views/MarketingRoles.vue'),
+    },
+    {
       path: 'players',
       name: 'ForPlayers',
-      component: () => import('@/modules/marketing/views/ForPlayers.vue'),
+      redirect: (to) => ({
+        name: 'MarketingRoles',
+        query: { ...to.query, role: 'players' },
+      }),
     },
     {
       path: 'coaches',
       name: 'ForCoaches',
-      component: () => import('@/modules/marketing/views/ForCoaches.vue'),
+      redirect: (to) => ({
+        name: 'MarketingRoles',
+        query: { ...to.query, role: 'coaches' },
+      }),
     },
     {
       path: 'unions',
       name: 'ForUnions',
-      component: () => import('@/modules/marketing/views/ForUnions.vue'),
+      redirect: (to) => ({
+        name: 'MarketingRoles',
+        query: { ...to.query, role: 'unions' },
+      }),
     },
     {
       path: 'mission',

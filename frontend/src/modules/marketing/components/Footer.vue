@@ -8,9 +8,7 @@
           <h2 class="tracking-wide text-neutral-100">Explore</h2>
           <nav class="flex flex-col gap-2 text-neutral-300">
             <RouterLink class="transition-colors hover:text-white" to="/">Home</RouterLink>
-            <RouterLink class="transition-colors hover:text-white" to="/coaches">Coaches</RouterLink>
-            <RouterLink class="transition-colors hover:text-white" to="/players">Players</RouterLink>
-            <RouterLink class="transition-colors hover:text-white" to="/unions">Unions</RouterLink>
+            <RouterLink class="transition-colors hover:text-white" to="/roles">Roles</RouterLink>
             <RouterLink class="transition-colors hover:text-white" to="/mission">Mission</RouterLink>
             <RouterLink class="transition-colors hover:text-white" to="/acknowledgements">Acknowledgements</RouterLink>
           </nav>
@@ -25,22 +23,6 @@
             <a class="underline transition-colors hover:text-white"
               href="mailto:contact@biasware.com">contact@biasware.com</a>
           </p>
-        </div>
-
-        <div class="space-y-4 md:col-span-2">
-          <h2 class="tracking-wide text-neautral-100">Credits</h2>
-          <p class="leading-relaxed">
-            Development <br />
-            Jose Reyes <a class="text-neutral-400" href="https://www.youtube.com/watch?v=mbOP11df6QY">@reyesjl</a>
-            <br />
-            Benn Mellinger <a class="text-neutral-400" href="https://github.com/bennm23" target="_blank"
-              rel="noreferrer">@bennm23</a>
-          </p>
-          <p class="leading-relaxed">
-            Built by<br />
-            Biasware Software
-          </p>
-          <!-- <a class="text-neutral-400" href="https://biasware.com">Biasware.com</a> -->
         </div>
       </div>
     </footer>

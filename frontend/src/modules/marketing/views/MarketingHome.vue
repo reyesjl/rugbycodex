@@ -205,9 +205,9 @@ onMounted(async () => {
   <!-- Three Columns grid -->
   <section class="bg-black p-5">
     <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
-      <ImageCell :src="simonImg" title="Coaches" description="Break down film in minutes, not hours." :to="'/coaches'" />
-      <ImageCell :src="coreyImg" title="Players" description="Find your strengths. Fix your weaknesses." :to="'/players'" />
-      <ImageCell :src="usawImg" title="Unions" description="Build a shared rugby knowledge system." :to="'/unions'" />
+      <ImageCell :src="simonImg" title="Coaches" description="Break down film in minutes, not hours." :to="'/roles?role=coaches'" />
+      <ImageCell :src="coreyImg" title="Players" description="Find your strengths. Fix your weaknesses." :to="'/roles?role=players'" />
+      <ImageCell :src="usawImg" title="Unions" description="Build a shared rugby knowledge system." :to="'/roles?role=unions'" />
     </div>
   </section>
 

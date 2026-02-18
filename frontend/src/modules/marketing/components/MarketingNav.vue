@@ -132,23 +132,23 @@ watch(isMenuOpen, (isOpen) => {
             </RouterLink>
 
             <div class="hidden justify-center md:flex md:gap-8 sm:text-sm">
-                <NavLink to="/">
-                    Home
+                <NavLink to="/" class="inline-flex items-center">
+                    <Icon icon="fluent-mdl2:rugby" width="18" height="18" />
                 </NavLink>
-                <NavLink to="/coaches">
-                    Coaches
+                <span class="text-white/50 cursor-not-allowed select-none">
+                    Features
+                </span>
+                <NavLink to="/roles">
+                    Roles
                 </NavLink>
-                <NavLink to="/players">
-                    Players
-                </NavLink>
-                <NavLink to="/unions">
-                    Unions
-                </NavLink>
-                <!-- <NavLink to="/marketing/inside">
-                    Inside the Codex
-                </NavLink> -->
+                <span class="text-white/50 cursor-not-allowed select-none">
+                    Pricing
+                </span>
+                <span class="text-white/50 cursor-not-allowed select-none">
+                    Customers
+                </span>
                 <NavLink to="/mission">
-                    Mission
+                    About
                 </NavLink>
             </div>
 
@@ -201,45 +201,35 @@ watch(isMenuOpen, (isOpen) => {
 
             <div class="flex flex-col pt-10 space-y-6 px-5 text-2xl capitalize">
                 <RouterLink
-                    class="hover:text-neutral-500 text-white w-fit"
+                    class="hover:text-neutral-500 text-white w-fit inline-flex items-center"
                     to="/"
                     @click="closeMenu"
                 >
-                    Home
+                    <Icon icon="fluent-mdl2:rugby" width="24" height="24" />
                 </RouterLink>
+                <span
+                    class="text-white/50 cursor-not-allowed w-fit"
+                >
+                    Features
+                </span>
                 <RouterLink
                     class="hover:text-neutral-500 text-white w-fit"
-                    to="/coaches"
+                    to="/roles"
                     @click="closeMenu"
                 >
-                    Coaches
+                    Roles
                 </RouterLink>
-                <RouterLink
-                    class="hover:text-neutral-500 text-white w-fit"
-                    to="/players"
-                    @click="closeMenu"
-                >
-                    Players
-                </RouterLink>
-                <RouterLink
-                    class="hover:text-neutral-500 text-white w-fit"
-                    to="/unions"
-                    @click="closeMenu"
-                >
-                    Unions
-                </RouterLink>
-                <!-- <RouterLink
-                    class="hover:text-neutral-500 text-white w-fit"
-                    to="/marketing"
-                    @click="closeMenu"
-                >
-                    inside the codex
-                </RouterLink> -->
+                <span class="text-white/50 cursor-not-allowed w-fit">
+                    Pricing
+                </span>
+                <span class="text-white/50 cursor-not-allowed w-fit">
+                    Customers
+                </span>
                 <RouterLink
                     class="hover:text-neutral-500 text-white w-fit"
                     to="/mission"
                     @click="closeMenu"
-                >mission</RouterLink>
+                >About</RouterLink>
 
                 <!-- Show profile if user logged in -->
                 <!-- authStore.isAuthenticated -->
