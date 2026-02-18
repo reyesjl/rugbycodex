@@ -6,7 +6,7 @@ defineProps<{
     toggleDarkMode: () => void;
 }>();
 
-const heroVideo = `${CDN_BASE}/static/assets/logos/animated/webm-logo-white-full.webm`;
+const heroVideo = `${CDN_BASE}/static/assets/logos/animated/mp4-logo-white-full-new.mp4`;
 </script>
 
 <template>
