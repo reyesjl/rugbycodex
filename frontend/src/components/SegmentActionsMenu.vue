@@ -6,6 +6,7 @@ defineProps<{
   canDelete: boolean;
   narrationCount?: number;
   canAddToPlaylist?: boolean;
+  canEditTiming?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -13,6 +14,7 @@ const emit = defineEmits<{
   (e: 'addNarration'): void;
   (e: 'assign'): void;
   (e: 'addToPlaylist'): void;
+  (e: 'editTiming'): void;
 }>();
 </script>
 
@@ -71,6 +73,18 @@ const emit = defineEmits<{
             >
               <Icon icon="carbon:playlist" class="h-4 w-4" />
               Add to playlist
+            </button>
+          </MenuItem>
+
+          <MenuItem v-if="canEditTiming" v-slot="{ active }">
+            <button
+              type="button"
+              class="flex w-full items-center gap-2 px-3 py-2 text-sm text-white"
+              :class="active ? 'bg-white/10' : ''"
+              @click.stop="emit('editTiming')"
+            >
+              <Icon icon="carbon:time" class="h-4 w-4" />
+              Edit timing
             </button>
           </MenuItem>
 

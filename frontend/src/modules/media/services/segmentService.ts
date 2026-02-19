@@ -74,6 +74,8 @@ export type OrgSegmentFeedItem = {
   asset: OrgMediaAsset;
 };
 
+export const MIN_SEGMENT_DURATION_SECONDS = 6;
+
 function asDate(value: string | Date | null, context: string): Date {
   if (!value) {
     throw new Error(`Missing ${context} timestamp.`);
@@ -120,6 +122,12 @@ function computeOverlapSeconds(
   candidateEnd: number
 ): number {
   return Math.max(0, Math.min(endSeconds, candidateEnd) - Math.max(startSeconds, candidateStart));
+}
+
+function assertValidSegmentDuration(startSeconds: number, endSeconds: number): void {
+  if (endSeconds - startSeconds < MIN_SEGMENT_DURATION_SECONDS) {
+    throw new Error(`Segments must be at least ${MIN_SEGMENT_DURATION_SECONDS} seconds long.`);
+  }
 }
 
 function toSegment(row: SegmentDetailRow): MediaAssetSegment {
@@ -242,6 +250,7 @@ export const segmentService = {
 
     const startSeconds = Math.max(0, input.startSeconds ?? 0);
     const endSeconds = Math.max(startSeconds, input.endSeconds ?? startSeconds);
+    assertValidSegmentDuration(startSeconds, endSeconds);
 
     // Compute next segment_index (best-effort; DB triggers may override).
     const { data: lastRow, error: lastErr } = (await supabase
@@ -287,6 +296,7 @@ export const segmentService = {
 
     const startSeconds = Math.max(0, input.startSeconds ?? 0);
     const endSeconds = Math.max(startSeconds, input.endSeconds ?? startSeconds);
+    assertValidSegmentDuration(startSeconds, endSeconds);
 
     const { data, error } = (await supabase
       .from('media_asset_segments')
@@ -298,10 +308,12 @@ export const segmentService = {
       .select(
         'id, media_asset_id, segment_index, start_seconds, end_seconds, created_at, source_type, created_by_profile_id'
       )
-      .single()) as { data: SegmentDetailRow | null; error: PostgrestError | null };
+      .maybeSingle()) as { data: SegmentDetailRow | null; error: PostgrestError | null };
 
-    if (error) throw error;
-    if (!data) throw new Error('Failed to update segment.');
+    if (error) throw new Error(`Failed to update segment: ${error.message}`);
+    if (!data) {
+      throw new Error('Segment not found or you do not have permission to edit it.');
+    }
 
     return toSegment(data);
   },

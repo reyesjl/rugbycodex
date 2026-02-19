@@ -15,7 +15,7 @@ import ShimmerText from '@/components/ShimmerText.vue';
 import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrganizationStore';
 import { useAuthStore } from '@/modules/auth/stores/useAuthStore';
 import { hasOrgAccess } from '@/modules/orgs/composables/useOrgCapabilities';
-import { segmentService } from '@/modules/media/services/segmentService';
+import { MIN_SEGMENT_DURATION_SECONDS, segmentService } from '@/modules/media/services/segmentService';
 import { segmentAutoTagService } from '@/modules/media/services/segmentAutoTagService';
 import { segmentIdentityTagService } from '@/modules/media/services/segmentIdentityTagService';
 import { segmentTagSuggestionService } from '@/modules/media/services/segmentTagSuggestionService';
@@ -73,6 +73,28 @@ function clampEndSeconds(endSeconds: number, mediaDuration: number): number {
   return Math.min(mediaDuration, endSeconds);
 }
 
+function normalizeToMinimumSegmentDuration(
+  startSeconds: number,
+  endSeconds: number,
+  mediaDuration: number
+): { startSeconds: number; endSeconds: number } {
+  let start = Math.max(0, startSeconds);
+  let end = Math.max(start, endSeconds);
+  if (end - start >= MIN_SEGMENT_DURATION_SECONDS) return { startSeconds: start, endSeconds: end };
+
+  const hasDuration = Number.isFinite(mediaDuration) && mediaDuration > 0;
+  if (hasDuration) {
+    end = Math.min(mediaDuration, Math.max(end, start + MIN_SEGMENT_DURATION_SECONDS));
+    if (end - start < MIN_SEGMENT_DURATION_SECONDS) {
+      start = Math.max(0, end - MIN_SEGMENT_DURATION_SECONDS);
+    }
+    end = Math.min(mediaDuration, Math.max(end, start + MIN_SEGMENT_DURATION_SECONDS));
+  } else {
+    end = start + MIN_SEGMENT_DURATION_SECONDS;
+  }
+  return { startSeconds: start, endSeconds: end };
+}
+
 /**
  * Computes the minimum overlap required for a recording to attach to an existing segment.
  * Rule: At least 50% of EITHER the recording OR the segment must overlap, with a minimum of 2 seconds.
@@ -120,6 +142,7 @@ const currentUserId = computed(() => authStore.user?.id ?? null);
 const canAssignSegments = computed(() => isStaffOrAbove.value);
 const canTagSegments = computed(() => isStaffOrAbove.value);
 const canModerateNarrations = computed(() => isStaffOrAbove.value);
+const canEditSegmentTiming = computed(() => authStore.isAdmin || isStaffOrAbove.value);
 const canTagPlayers = computed(() => authStore.isAdmin || isStaffOrAbove.value);
 const canAutoTagSegments = computed(() => authStore.isAdmin || isStaffOrAbove.value);
 const canGenerateSegmentInsights = computed(() => authStore.isAdmin || isStaffOrAbove.value);
@@ -473,6 +496,56 @@ function openAddToPlaylist(seg: MediaAssetSegment) {
 
 function closeAddToPlaylist() {
   playlistSegment.value = null;
+}
+
+function handleTimingSeekPreview(seconds: number) {
+  scrubToSeconds(Math.max(0, Number(seconds) || 0));
+  showOverlay();
+}
+
+async function handleUpdateSegmentTiming(payload: { segmentId: string; startSeconds: number; endSeconds: number }) {
+  if (!canEditSegmentTiming.value) {
+    toast({ message: 'You do not have permission to edit segment timing.', variant: 'error', durationMs: 2500 });
+    return;
+  }
+
+  const parsedStart = Number(payload.startSeconds);
+  const parsedEnd = Number(payload.endSeconds);
+  if (!Number.isFinite(parsedStart) || !Number.isFinite(parsedEnd)) {
+    toast({ message: 'Start and end must be valid numbers.', variant: 'error', durationMs: 2500 });
+    return;
+  }
+  if (parsedStart < 0 || parsedEnd < parsedStart) {
+    toast({ message: 'Invalid segment bounds.', variant: 'error', durationMs: 2500 });
+    return;
+  }
+  if (parsedEnd - parsedStart < MIN_SEGMENT_DURATION_SECONDS) {
+    toast({
+      message: `Segments must be at least ${MIN_SEGMENT_DURATION_SECONDS} seconds long.`,
+      variant: 'error',
+      durationMs: 2500,
+    });
+    return;
+  }
+
+  const maxDuration = Number(duration.value ?? 0);
+  const nextEnd = Number.isFinite(maxDuration) && maxDuration > 0
+    ? Math.min(parsedEnd, maxDuration)
+    : parsedEnd;
+
+  try {
+    const updated = await segmentService.updateSegmentBounds({
+      segmentId: String(payload.segmentId),
+      startSeconds: parsedStart,
+      endSeconds: nextEnd,
+    });
+    upsertSegment(updated);
+    focusedSegmentId.value = String(updated.id);
+    toast({ message: 'Segment timing updated.', variant: 'success', durationMs: 1800 });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Failed to update segment timing.';
+    toast({ message, variant: 'error', durationMs: 2600 });
+  }
 }
 
 function requestDeleteEmptySegments(segmentIds: string[]) {
@@ -968,12 +1041,17 @@ async function endRecordingNonBlocking() {
 
   const mediaDuration = duration.value ?? 0;
   const recordingEndSeconds = startVideoTime + recordingDurationSeconds;
-  const bounds = computeSegmentBounds(
+  const initialBounds = computeSegmentBounds(
     startVideoTime,
     recordingDurationSeconds,
     mediaDuration,
     PRE_BUFFER_SECONDS,
     POST_BUFFER_SECONDS
+  );
+  const bounds = normalizeToMinimumSegmentDuration(
+    initialBounds.startSeconds,
+    initialBounds.endSeconds,
+    mediaDuration
   );
   debugLog('segment bounds computed', {
     recordStartVideoTime: startVideoTime,
@@ -1660,12 +1738,16 @@ async function handleDeleteSegment(segmentId: string) {
                 :insight-generating-segment-ids="insightGeneratingSegmentIdList"
                 :can-edit-narrations="canEditNarrations"
                 :can-delete-narrations="canDeleteNarrations"
+                :can-edit-segment-timing="canEditSegmentTiming"
+                :media-duration-seconds="duration"
                 :current-user-id="currentUserId"
                 :current-user-role="membershipRole"
                 @jumpToSegment="jumpToSegment"
                 @addNarration="handleAddNarrationForSegment"
                 @assignSegment="openAssignSegment"
                 @addToPlaylist="openAddToPlaylist"
+                @updateSegmentTiming="handleUpdateSegmentTiming"
+                @seekToSeconds="handleTimingSeekPreview"
                 @editNarration="handleEditNarration"
                 @deleteNarration="handleDeleteNarration"
                 @deleteSegment="handleDeleteSegment"
@@ -1717,12 +1799,16 @@ async function handleDeleteSegment(segmentId: string) {
               :insight-generating-segment-ids="insightGeneratingSegmentIdList"
               :can-edit-narrations="canEditNarrations"
               :can-delete-narrations="canDeleteNarrations"
+              :can-edit-segment-timing="canEditSegmentTiming"
+              :media-duration-seconds="duration"
               :current-user-id="currentUserId"
               :current-user-role="membershipRole"
               @jumpToSegment="jumpToSegment"
               @addNarration="handleAddNarrationForSegment"
               @assignSegment="openAssignSegment"
               @addToPlaylist="openAddToPlaylist"
+              @updateSegmentTiming="handleUpdateSegmentTiming"
+              @seekToSeconds="handleTimingSeekPreview"
               @editNarration="handleEditNarration"
               @deleteNarration="handleDeleteNarration"
               @deleteSegment="handleDeleteSegment"

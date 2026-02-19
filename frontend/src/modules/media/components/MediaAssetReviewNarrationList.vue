@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, toRef, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, toRef, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { Icon } from '@iconify/vue';
 import {
@@ -24,6 +24,7 @@ import type { NarrationListItem } from '@/modules/narrations/composables/useNarr
 import { orgService } from '@/modules/orgs/services/orgServiceV2';
 import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrganizationStore';
 import { useNarrationSearch } from '@/modules/media/composables/useNarrationSearch';
+import { MIN_SEGMENT_DURATION_SECONDS } from '@/modules/media/services/segmentService';
 import type { OrgMember } from '@/modules/orgs/types';
 import NarrationRow from './NarrationRow.vue';
 import NarrationFilterPanel from './NarrationFilterPanel.vue';
@@ -52,6 +53,8 @@ const props = defineProps<{
   insightGeneratingSegmentIds?: string[];
   canEditNarrations?: boolean;
   canDeleteNarrations?: boolean;
+  canEditSegmentTiming?: boolean;
+  mediaDurationSeconds?: number;
   currentUserId?: string | null;
   currentUserRole?: OrgRole | null;
 }>();
@@ -64,6 +67,8 @@ const emit = defineEmits<{
   (e: 'editNarration', narrationId: string, transcriptRaw: string): void;
   (e: 'deleteNarration', narrationId: string): void;
   (e: 'deleteSegment', segmentId: string): void;
+  (e: 'updateSegmentTiming', payload: { segmentId: string; startSeconds: number; endSeconds: number }): void;
+  (e: 'seekToSeconds', seconds: number): void;
   (e: 'addTag', payload: { segmentId: string; tagKey: string; tagType: SegmentTagType; taggedProfileId?: string }): void;
   (e: 'removeTag', payload: { segmentId: string; tagId: string }): void;
   (e: 'autoTagSegment', segment: MediaAssetSegment): void;
@@ -87,6 +92,31 @@ const isDeleting = ref(false);
 const showSegmentDeleteConfirm = ref(false);
 const segmentToDelete = ref<MediaAssetSegment | null>(null);
 const isDeletingSegment = ref(false);
+const editingTimingSegmentId = ref<string | null>(null);
+const timingStartSeconds = ref(0);
+const timingEndSeconds = ref(0);
+const timingWindowStartSeconds = ref(0);
+const timingWindowEndSeconds = ref(0);
+const timingSeekDebounceTimer = ref<ReturnType<typeof setTimeout> | null>(null);
+const TIMING_WINDOW_STEP_SECONDS = 5;
+const TIMING_WINDOW_EDGE_EPSILON = 0.05;
+const TIMING_SEEK_DEBOUNCE_MS = 450;
+
+function emitDebouncedTimingSeek(seconds: number) {
+  if (timingSeekDebounceTimer.value) {
+    clearTimeout(timingSeekDebounceTimer.value);
+  }
+  const nextSeconds = Math.max(0, Number(seconds) || 0);
+  timingSeekDebounceTimer.value = setTimeout(() => {
+    emit('seekToSeconds', nextSeconds);
+  }, TIMING_SEEK_DEBOUNCE_MS);
+}
+
+onBeforeUnmount(() => {
+  if (timingSeekDebounceTimer.value) {
+    clearTimeout(timingSeekDebounceTimer.value);
+  }
+});
 
 // Tagging modal state
 const showTagModal = ref(false);
@@ -109,7 +139,7 @@ function isSegmentExpanded(segmentId: string): boolean {
   return expandedSegmentIds.value.has(segmentId);
 }
 
-function toggleSegmentExpanded(segmentId: string) {
+function toggleSegmentExpanded(segmentId: string): boolean {
   const set = expandedSegmentIds.value;
   
   if (set.has(segmentId)) {
@@ -122,6 +152,7 @@ function toggleSegmentExpanded(segmentId: string) {
   }
   
   expandedSegmentIds.value = new Set(set);
+  return set.has(segmentId);
 }
 const canOpenTagModal = computed(() => Boolean(
   props.canTagSegments || props.canTagPlayers || props.canAutoTagSegments
@@ -130,12 +161,148 @@ const canAddQuickTags = computed(() => Boolean(props.canTagSegments));
 
 function handleSegmentHeaderClick(segment: MediaAssetSegment) {
   const segmentId = String(segment.id);
-  toggleSegmentExpanded(segmentId);
+  const isNowExpanded = toggleSegmentExpanded(segmentId);
+  if (!isNowExpanded || editingTimingSegmentId.value !== segmentId) {
+    closeTimingEditor();
+  }
   emit('jumpToSegment', segment);
 }
 
 function handleNarrationClick(segment: MediaAssetSegment) {
   emit('jumpToSegment', segment);
+}
+
+function clampToDuration(seconds: number): number {
+  const duration = Number(props.mediaDurationSeconds ?? 0);
+  if (!Number.isFinite(duration) || duration <= 0) return Math.max(0, seconds);
+  return Math.max(0, Math.min(seconds, duration));
+}
+
+function openTimingEditor(seg: MediaAssetSegment) {
+  if (!props.canEditSegmentTiming) return;
+  editingTimingSegmentId.value = String(seg.id);
+  const start = clampToDuration(Number(seg.start_seconds ?? 0));
+  const end = clampToDuration(Math.max(Number(seg.end_seconds ?? 0), start));
+  const paddingSeconds = 5;
+  const duration = Number(props.mediaDurationSeconds ?? 0);
+  const hasDuration = Number.isFinite(duration) && duration > 0;
+  const nextWindowStart = Math.max(0, start - paddingSeconds);
+  const unclampedWindowEnd = end + paddingSeconds;
+  const nextWindowEnd = hasDuration
+    ? Math.min(duration, Math.max(unclampedWindowEnd, nextWindowStart + MIN_SEGMENT_DURATION_SECONDS))
+    : Math.max(unclampedWindowEnd, nextWindowStart + MIN_SEGMENT_DURATION_SECONDS);
+  timingWindowStartSeconds.value = nextWindowStart;
+  timingWindowEndSeconds.value = nextWindowEnd;
+  timingStartSeconds.value = Math.max(nextWindowStart, Math.min(start, nextWindowEnd));
+  timingEndSeconds.value = Math.max(timingStartSeconds.value, Math.min(end, nextWindowEnd));
+  if (timingEndSeconds.value - timingStartSeconds.value < MIN_SEGMENT_DURATION_SECONDS) {
+    timingEndSeconds.value = Math.min(nextWindowEnd, timingStartSeconds.value + MIN_SEGMENT_DURATION_SECONDS);
+    if (timingEndSeconds.value - timingStartSeconds.value < MIN_SEGMENT_DURATION_SECONDS) {
+      timingStartSeconds.value = Math.max(nextWindowStart, timingEndSeconds.value - MIN_SEGMENT_DURATION_SECONDS);
+    }
+  }
+}
+
+function closeTimingEditor() {
+  editingTimingSegmentId.value = null;
+}
+
+function isTimingEditorOpen(segId: string): boolean {
+  return editingTimingSegmentId.value === String(segId);
+}
+
+function clampToTimingWindow(seconds: number): number {
+  return Math.max(timingWindowStartSeconds.value, Math.min(seconds, timingWindowEndSeconds.value));
+}
+
+function canExpandTimingWindowRight(): boolean {
+  const duration = Number(props.mediaDurationSeconds ?? 0);
+  if (!Number.isFinite(duration) || duration <= 0) return true;
+  return timingWindowEndSeconds.value < duration;
+}
+
+function expandTimingWindowLeft() {
+  timingWindowStartSeconds.value = Math.max(0, timingWindowStartSeconds.value - TIMING_WINDOW_STEP_SECONDS);
+}
+
+function expandTimingWindowRight() {
+  const duration = Number(props.mediaDurationSeconds ?? 0);
+  if (!Number.isFinite(duration) || duration <= 0) {
+    timingWindowEndSeconds.value += TIMING_WINDOW_STEP_SECONDS;
+    return;
+  }
+  timingWindowEndSeconds.value = Math.min(duration, timingWindowEndSeconds.value + TIMING_WINDOW_STEP_SECONDS);
+}
+
+function timingWindowRange(): number {
+  return Math.max(0.001, timingWindowEndSeconds.value - timingWindowStartSeconds.value);
+}
+
+function timingSelectionLeftPercent(): number {
+  return ((timingStartSeconds.value - timingWindowStartSeconds.value) / timingWindowRange()) * 100;
+}
+
+function timingSelectionRightPercent(): number {
+  return ((timingWindowEndSeconds.value - timingEndSeconds.value) / timingWindowRange()) * 100;
+}
+
+function timingSelectionEndPercent(): number {
+  return 100 - timingSelectionRightPercent();
+}
+
+function onStartSliderInput(value: string) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return;
+  if (
+    parsed <= timingWindowStartSeconds.value + TIMING_WINDOW_EDGE_EPSILON &&
+    timingWindowStartSeconds.value > 0
+  ) {
+    expandTimingWindowLeft();
+  }
+  const clamped = clampToTimingWindow(parsed);
+  const maxAllowedStart = Math.max(timingWindowStartSeconds.value, timingEndSeconds.value - MIN_SEGMENT_DURATION_SECONDS);
+  timingStartSeconds.value = Math.min(clamped, maxAllowedStart);
+  const minAllowedEnd = timingStartSeconds.value + MIN_SEGMENT_DURATION_SECONDS;
+  if (timingEndSeconds.value < minAllowedEnd) {
+    timingEndSeconds.value = Math.min(timingWindowEndSeconds.value, minAllowedEnd);
+    if (timingEndSeconds.value - timingStartSeconds.value < MIN_SEGMENT_DURATION_SECONDS) {
+      timingStartSeconds.value = Math.max(
+        timingWindowStartSeconds.value,
+        timingEndSeconds.value - MIN_SEGMENT_DURATION_SECONDS
+      );
+    }
+  }
+  emitDebouncedTimingSeek(timingStartSeconds.value);
+}
+
+function onEndSliderInput(value: string) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return;
+  if (
+    parsed >= timingWindowEndSeconds.value - TIMING_WINDOW_EDGE_EPSILON &&
+    canExpandTimingWindowRight()
+  ) {
+    expandTimingWindowRight();
+  }
+  const clamped = clampToTimingWindow(parsed);
+  const minAllowedEnd = timingStartSeconds.value + MIN_SEGMENT_DURATION_SECONDS;
+  timingEndSeconds.value = Math.min(timingWindowEndSeconds.value, Math.max(clamped, minAllowedEnd));
+  if (timingEndSeconds.value - timingStartSeconds.value < MIN_SEGMENT_DURATION_SECONDS) {
+    timingStartSeconds.value = Math.max(
+      timingWindowStartSeconds.value,
+      timingEndSeconds.value - MIN_SEGMENT_DURATION_SECONDS
+    );
+  }
+  emitDebouncedTimingSeek(timingEndSeconds.value);
+}
+
+function applyTimingUpdate(seg: MediaAssetSegment) {
+  emit('updateSegmentTiming', {
+    segmentId: String(seg.id),
+    startSeconds: timingStartSeconds.value,
+    endSeconds: timingEndSeconds.value,
+  });
+  closeTimingEditor();
 }
 
 type SourceFilter = 'all' | NarrationSourceType;
@@ -837,11 +1004,14 @@ function formatSegmentStartTime(seg: MediaAssetSegment): string {
           class="rounded-lg overflow-visible transition-colors bg-slate-800/30"
         >
           <!-- Segment Header -->
-          <div class="px-4 py-2 flex items-center justify-between">
-            <button
-              type="button"
+          <div class="px-4 py-2 flex items-start justify-between">
+            <div
+              role="button"
+              tabindex="0"
               class="flex items-start min-w-0 flex-1 cursor-pointer group text-left"
               @click="handleSegmentHeaderClick(seg)"
+              @keydown.enter.prevent="handleSegmentHeaderClick(seg)"
+              @keydown.space.prevent="handleSegmentHeaderClick(seg)"
             >
               <div class="min-w-0">
                 <div v-if="isGeneratingInsight(String(seg.id))" class="flex items-center gap-2 text-sm text-slate-200">
@@ -855,7 +1025,27 @@ function formatSegmentStartTime(seg: MediaAssetSegment): string {
                   <span>
                     {{ insightHeadlineForSegment(seg.id) || narrationPreviewForSegment(seg.id) }}
                   </span>
-                  <span class="rounded-full bg-blue-500/20 px-2 py-0.5 text-xs font-semibold text-blue-300">
+                  <button
+                    v-if="props.canEditSegmentTiming"
+                    type="button"
+                    class="group/timer inline-flex items-center"
+                    @click.stop="isTimingEditorOpen(String(seg.id)) ? closeTimingEditor() : openTimingEditor(seg)"
+                  >
+                    <span
+                      class="inline-flex min-w-[3.5rem] justify-center rounded-full bg-blue-500/20 px-2 py-0.5 text-xs font-semibold text-blue-300 transition group-hover/timer:hidden group-focus-visible/timer:hidden"
+                    >
+                      {{ formatSegmentStartTime(seg) }}
+                    </span>
+                    <span
+                      class="hidden min-w-[3.5rem] items-center justify-center gap-1 rounded-full bg-amber-300 px-2 py-0.5 text-xs font-semibold text-black transition group-hover/timer:inline-flex group-focus-visible/timer:inline-flex"
+                    >
+                      <Icon icon="carbon:timer" width="16" height="16" />
+                    </span>
+                  </button>
+                  <span
+                    v-else
+                    class="rounded-full bg-blue-500/20 px-2 py-0.5 text-xs font-semibold text-blue-300"
+                  >
                     {{ formatSegmentStartTime(seg) }}
                   </span>
                   <button
@@ -866,6 +1056,65 @@ function formatSegmentStartTime(seg: MediaAssetSegment): string {
                   >
                     <Icon icon="carbon:ai-generate" width="12" height="12" />
                     Summarize
+                  </button>
+                </div>
+                <div
+                  v-if="props.canEditSegmentTiming && isTimingEditorOpen(String(seg.id))"
+                  class="mt-4 flex items-center gap-2"
+                  @click.stop
+                  @mousedown.stop
+                  @pointerdown.stop
+                >
+                  <div class="min-w-0 flex-1">
+                    <div class="relative pt-5 pb-3">
+                      <div class="h-px w-full rounded-full bg-white/25" />
+                      <div
+                        class="pointer-events-none absolute top-1/2 h-px -translate-y-1/2 rounded-full bg-white/85"
+                        :style="{
+                          left: `${timingSelectionLeftPercent()}%`,
+                          right: `${timingSelectionRightPercent()}%`,
+                        }"
+                      />
+                      <div
+                        class="pointer-events-none absolute top-1/2 z-10 -translate-x-1/2 -translate-y-[150%] select-none rounded-full bg-white/95 px-2 py-[1px] text-[10px] font-semibold text-black tabular-nums"
+                        :style="{ left: `${timingSelectionLeftPercent()}%` }"
+                      >
+                        {{ formatMinutesSeconds(timingStartSeconds) }}
+                      </div>
+                      <div
+                        class="pointer-events-none absolute top-1/2 z-10 -translate-x-1/2 -translate-y-[150%] select-none rounded-full bg-white/95 px-2 py-[1px] text-[10px] font-semibold text-black tabular-nums"
+                        :style="{ left: `${timingSelectionEndPercent()}%` }"
+                      >
+                        {{ formatMinutesSeconds(timingEndSeconds) }}
+                      </div>
+                      <div class="timing-dual-slider">
+                        <input
+                          class="timing-handle timing-handle--start"
+                          type="range"
+                          :min="timingWindowStartSeconds"
+                          :max="timingWindowEndSeconds"
+                          step="0.1"
+                          :value="timingStartSeconds"
+                          @input="onStartSliderInput(($event.target as HTMLInputElement).value)"
+                        />
+                        <input
+                          class="timing-handle timing-handle--end"
+                          type="range"
+                          :min="timingWindowStartSeconds"
+                          :max="timingWindowEndSeconds"
+                          step="0.1"
+                          :value="timingEndSeconds"
+                          @input="onEndSliderInput(($event.target as HTMLInputElement).value)"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    class="ml-auto inline-flex items-center justify-center rounded-full p-1 text-white/70 hover:text-white"
+                    @click.stop="applyTimingUpdate(seg)"
+                  >
+                    <Icon icon="carbon:checkmark" width="14" height="14" />
                   </button>
                 </div>
                 <div v-if="confirmedSegmentTags(seg).length" class="mt-2 space-y-1">
@@ -911,9 +1160,9 @@ function formatSegmentStartTime(seg: MediaAssetSegment): string {
                   </div>
                 </div>
               </div>
-            </button>
+            </div>
 
-          <div class="flex items-center gap-0 shrink-0">
+          <div class="flex items-start gap-0 shrink-0">
             <button
               v-if="canOpenTagModal"
               type="button"
@@ -1269,3 +1518,65 @@ function formatSegmentStartTime(seg: MediaAssetSegment): string {
     @close="closeSegmentDeleteConfirm"
   />
 </template>
+
+<style scoped>
+.timing-dual-slider {
+  position: absolute;
+  inset: 0;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.timing-handle {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  margin: 0;
+  background: transparent;
+  pointer-events: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.timing-handle::-webkit-slider-runnable-track {
+  height: 1rem;
+  background: transparent;
+}
+
+.timing-handle::-moz-range-track {
+  height: 1rem;
+  background: transparent;
+}
+
+.timing-handle::-webkit-slider-thumb {
+  pointer-events: auto;
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 1);
+  box-shadow: none;
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+}
+
+.timing-handle::-moz-range-thumb {
+  pointer-events: auto;
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 1);
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.timing-handle--start {
+  z-index: 2;
+}
+
+.timing-handle--end {
+  z-index: 3;
+}
+</style>
