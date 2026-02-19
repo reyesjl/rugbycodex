@@ -1616,6 +1616,7 @@ async function handleDeleteSegment(segmentId: string) {
                         :can-prev="false"
                         :can-next="false"
                         :show-prev-next="false"
+                        :show-center-play-pause="false"
                         :show-restart="false"
                         :can-fullscreen="canFullscreen"
                         :is-fullscreen="isFullscreen"

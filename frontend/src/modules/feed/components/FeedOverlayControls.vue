@@ -9,6 +9,7 @@ const props = withDefaults(defineProps<{
   canPrev: boolean;
   canNext: boolean;
   showPrevNext?: boolean;
+  showCenterPlayPause?: boolean;
   showRestart?: boolean;
   canFullscreen?: boolean;
   isFullscreen?: boolean;
@@ -27,6 +28,7 @@ const props = withDefaults(defineProps<{
   canFullscreen: false,
   isFullscreen: false,
   showPrevNext: true,
+  showCenterPlayPause: true,
 });
 
 const emit = defineEmits<{
@@ -167,6 +169,7 @@ function endScrub(e: PointerEvent) {
           </button>
 
           <button
+            v-if="showCenterPlayPause"
             type="button"
             class="p-0 text-white transition-opacity hover:opacity-80"
             @click.stop="emit('togglePlay')"
