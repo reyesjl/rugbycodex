@@ -1,13 +1,11 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue';
-import { Icon } from '@iconify/vue';
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
+import { animateMini } from 'motion';
 import { storeToRefs } from 'pinia';
 import { useRoute } from 'vue-router';
 
 import ShakaSurfacePlayer from '@/modules/media/components/ShakaSurfacePlayer.vue';
-import FeedGestureLayer from '@/modules/feed/components/FeedGestureLayer.vue';
-import FeedOverlayControls from '@/modules/feed/components/FeedOverlayControls.vue';
-import NarrationRecorder from '@/modules/narrations/components/NarrationRecorder.vue';
+import MediaPlaybackOverlayShell from '@/modules/media/components/MediaPlaybackOverlayShell.vue';
 import MediaProcessingStatusBanner from '@/modules/media/components/MediaProcessingStatusBanner.vue';
 import LoadingDot from '@/components/LoadingDot.vue';
 import ShimmerText from '@/components/ShimmerText.vue';
@@ -776,6 +774,52 @@ const segmentsWithNarrations = computed(() => {
   return set;
 });
 
+const narrationCountsBySegmentId = computed<Record<string, number>>(() => {
+  const counts: Record<string, number> = {};
+  for (const n of narrations.value as any[]) {
+    const sid = String(n.media_asset_segment_id ?? '');
+    if (!sid) continue;
+    counts[sid] = (counts[sid] ?? 0) + 1;
+  }
+  return counts;
+});
+
+const pendingNarrationSegmentIds = computed(() => {
+  const ids = new Set<string>();
+  for (const n of narrations.value as any[]) {
+    if (String((n as any)?.status ?? '') !== 'uploading') continue;
+    const sid = String((n as any)?.media_asset_segment_id ?? '');
+    if (sid) ids.add(sid);
+  }
+  return Array.from(ids);
+});
+
+const narrationListProps = computed(() => ({
+  segments: segments.value,
+  narrations: narrations.value as any,
+  activeSegmentId: activeSegmentId.value,
+  focusedSegmentId: focusedSegmentId.value,
+  defaultSource: defaultNarrationSource.value as NarrationSourceFilter,
+  sourceFilter: narrationSourceFilter.value,
+  canModerateNarrations: canModerateNarrations.value,
+  canAssignSegments: canAssignSegments.value,
+  canTagSegments: canTagSegments.value,
+  canTagPlayers: canTagPlayers.value,
+  canAutoTagSegments: canAutoTagSegments.value,
+  autoTaggingSegmentIds: autoTaggingSegmentIdList.value,
+  tagSuggestions: suggestionsBySegmentId.value,
+  segmentInsights: insightsBySegmentId.value,
+  canGenerateSegmentInsights: canGenerateSegmentInsights.value,
+  insightGeneratingSegmentIds: insightGeneratingSegmentIdList.value,
+  canEditNarrations: canEditNarrations.value,
+  canDeleteNarrations: canDeleteNarrations.value,
+  canEditSegmentTiming: canEditSegmentTiming.value,
+  mediaDurationSeconds: duration.value,
+  currentUserId: currentUserId.value,
+  currentUserRole: membershipRole.value,
+  scrollTop: narrationPanelScrollTop.value,
+}));
+
 const activeSegmentId = computed(() => {
   const t = currentTime.value ?? 0;
   const found = findSegmentContainingTime(segments.value, t);
@@ -807,6 +851,50 @@ function findFocusedSegmentId(seconds: number): string | null {
 }
 
 const focusedSegmentId = ref<string | null>(null);
+const narrationDrawerOpen = ref(false);
+const isTheatreMode = ref(false);
+const modeLayoutEl = ref<HTMLElement | null>(null);
+const narrationPanelScrollTop = ref(0);
+
+function toggleNarrationDrawer() {
+  narrationDrawerOpen.value = !narrationDrawerOpen.value;
+}
+
+function closeNarrationDrawer() {
+  narrationDrawerOpen.value = false;
+}
+
+async function toggleViewMode() {
+  if (modeLayoutEl.value) {
+    const exitX = isTheatreMode.value ? '-20px' : '20px';
+    await animateMini(
+      modeLayoutEl.value,
+      {
+        opacity: [1, 0.92],
+        transform: ['translateX(0px)', `translateX(${exitX})`],
+      },
+      { duration: 0.16, ease: 'easeIn' }
+    ).finished.catch(() => {});
+  }
+
+  isTheatreMode.value = !isTheatreMode.value;
+  await nextTick();
+
+  if (!modeLayoutEl.value) return;
+  const enterX = isTheatreMode.value ? '20px' : '-20px';
+  animateMini(
+    modeLayoutEl.value,
+    {
+      opacity: [0.92, 1],
+      transform: [`translateX(${enterX})`, 'translateX(0px)'],
+    },
+    { duration: 0.24, ease: 'easeOut' }
+  );
+}
+
+function handleNarrationPanelScrollTop(nextTop: number) {
+  narrationPanelScrollTop.value = Math.max(0, Number(nextTop) || 0);
+}
 
 // Helper to check if narration is still processing (embedding generation)
 function isNarrationProcessing(narrationId: string): boolean {
@@ -1488,11 +1576,11 @@ async function handleDeleteSegment(segmentId: string) {
 
 <template>
   <div
-    class="w-full bg-gradient-to-t from-black to-blue-900/40
-           h-[calc(100dvh-var(--main-nav-height))] overflow-y-auto
-           md:h-auto md:overflow-visible md:min-h-[calc(100dvh-var(--main-nav-height))]"
+    class="w-full bg-black
+           h-[calc(100dvh-var(--main-nav-height,4rem))] overflow-y-auto
+           md:overflow-y-auto md:overflow-x-hidden"
   >
-    <div class="container-lg pt-6 pb-16 md:pt-8 md:pb-20 text-white space-y-4 h-full">
+    <div class="w-full px-4 pt-0 pb-0 md:px-6 md:pt-0 md:pb-0 text-white space-y-4 h-full">
       <!-- <div class="flex items-start justify-between gap-3">
         <div>
           <div class="text-2xl font-semibold">Review</div>
@@ -1518,9 +1606,13 @@ async function handleDeleteSegment(segmentId: string) {
         {{ error }}
       </div>
 
-      <div v-else class="grid grid-cols-1 gap-6 md:grid-cols-5">
+      <div
+        v-else
+        ref="modeLayoutEl"
+        :class="isTheatreMode ? 'grid grid-cols-1 gap-6 pt-2 md:grid-cols-5' : 'grid grid-cols-1 gap-6 pt-2 md:grid-cols-10 md:h-[calc(100dvh-var(--main-nav-height,4rem)-1.5rem)] md:min-h-0'"
+      >
         <!-- Player column -->
-        <div class="md:col-span-3 space-y-4">
+        <div :class="isTheatreMode ? 'md:col-span-5 space-y-4' : 'md:col-span-7 md:grid md:min-h-0 md:grid-rows-[minmax(0,1fr)_9rem] md:gap-3'">
           <!-- Processing Status Banner (shows for blocking or background processing) -->
           <MediaProcessingStatusBanner 
             v-if="processingStatus.isBlockingProcessing" 
@@ -1529,182 +1621,154 @@ async function handleDeleteSegment(segmentId: string) {
             mode="banner"
           />
           
-          <div class="md:space-y-4">
-            <div class="sticky top-0 z-30 -mx-4 space-y-4 bg-black md:static md:mx-0 md:bg-transparent">
+          <div :class="isTheatreMode ? 'md:space-y-4' : 'md:min-h-0'">
+            <div :class="isTheatreMode ? 'sticky top-0 z-30 -mx-4 bg-black md:static md:-mx-6 md:pt-2' : 'relative z-30 h-full'">
+              <div :class="isTheatreMode ? 'w-full bg-black md:pb-4' : 'h-full w-full'">
+                <div :class="isTheatreMode ? 'mx-auto w-full max-w-[1200px] space-y-4 md:px-6' : 'h-full w-full'">
               <!-- Mobile: full-bleed video surface (like Feed); md+: rounded container -->
               <div class="md:mx-0">
                 <div class="overflow-hidden bg-black ring-1 ring-white/10 md:rounded-xl md:bg-white/5">
                   <div
                     ref="surfaceEl"
                     class="relative bg-black"
-                    :class="isFullscreen ? 'h-full w-full' : 'aspect-video'"
-                    @pointermove="onHoverMove"
-                    @pointerleave="onHoverLeave"
+                    :class="isFullscreen ? 'h-full w-full' : (isTheatreMode ? 'aspect-video' : 'h-full min-h-0')"
                   >
-                    <!-- Show player only when video is watchable -->
-                    <ShakaSurfacePlayer
-                      v-if="processingStatus.isWatchable"
-                      ref="playerRef"
-                      :manifest-url="playlistUrl"
-                      :autoplay="false"
-                      class="h-full w-full"
-                      @timeupdate="handleTimeupdate"
-                      @loadedmetadata="handleLoadedMetadata"
-                      @play="handlePlay"
-                      @pause="handlePause"
-                      @error="(m) => (error = m)"
-                      @buffering="handleBuffering"
-                    />
-                    
-                    <!-- Placeholder when video is not ready -->
-                    <div 
-                      v-else
-                      class="absolute inset-0 flex items-center justify-center bg-black"
-                    >
-                      <div class="flex flex-col items-center gap-4 text-center px-6">
-                        <LoadingDot size="lg" color="#3B82F6" />
-                        <div>
-                          <p class="text-lg font-semibold text-white">{{ processingStatus.statusMessage }}</p>
-                          <p class="text-sm text-white/60 mt-1">This may take a few minutes...</p>
+                    <div class="flex h-full w-full overflow-hidden">
+                      <div
+                        class="relative min-w-0 flex-1 bg-black"
+                        @pointermove="onHoverMove"
+                        @pointerleave="onHoverLeave"
+                      >
+                        <!-- Show player only when video is watchable -->
+                        <ShakaSurfacePlayer
+                          v-if="processingStatus.isWatchable"
+                          ref="playerRef"
+                          :manifest-url="playlistUrl"
+                          :autoplay="false"
+                          class="h-full w-full"
+                          @timeupdate="handleTimeupdate"
+                          @loadedmetadata="handleLoadedMetadata"
+                          @play="handlePlay"
+                          @pause="handlePause"
+                          @error="(m) => (error = m)"
+                          @buffering="handleBuffering"
+                        />
+                        
+                        <!-- Placeholder when video is not ready -->
+                        <div 
+                          v-else
+                          class="absolute inset-0 flex items-center justify-center bg-black"
+                        >
+                          <div class="flex flex-col items-center gap-4 text-center px-6">
+                            <LoadingDot size="lg" color="#3B82F6" />
+                            <div>
+                              <p class="text-lg font-semibold text-white">{{ processingStatus.statusMessage }}</p>
+                              <p class="text-sm text-white/60 mt-1">This may take a few minutes...</p>
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    </div>
 
-                    <FeedGestureLayer 
-                      v-if="processingStatus.isWatchable"
-                      @tap="onTap" 
-                      @swipeDown="() => {}" 
-                      @swipeUp="() => {}"
-                    >
+                        <MediaPlaybackOverlayShell
+                          v-if="processingStatus.isWatchable"
+                          :overlay-visible="overlayVisible"
+                          :is-buffering="isBuffering"
+                          :flash-icon="flashIcon"
+                          :is-playing="isPlaying"
+                          :progress01="progress01"
+                          :current-seconds="currentTime"
+                          :duration-seconds="duration"
+                          :volume01="volume01"
+                          :muted="muted"
+                          :can-fullscreen="canFullscreen"
+                          :is-fullscreen="isFullscreen"
+                          :show-comments-toggle="isTheatreMode"
+                          :show-view-mode-toggle="true"
+                          :is-theatre-mode="isTheatreMode"
+                          :comments-panel-open="narrationDrawerOpen"
+                          :show-center-play-pause="false"
+                          :show-restart="false"
+                          :show-skip-controls="true"
+                          :show-narration-recorder="true"
+                          :narration-is-recording="recorder.isRecording.value"
+                          :narration-audio-level01="recorder.audioLevel.value"
+                          :narration-duration-ms="recorder.duration.value"
+                          :live-transcript-text="recorder.isRecording.value ? recorder.liveTranscript.value : null"
+                          @tap="onTap"
+                          @swipe-down="() => {}"
+                          @swipe-up="() => {}"
+                          @toggle-play="togglePlay"
+                          @prev="() => {}"
+                          @next="() => {}"
+                          @restart="() => scrubToSeconds(0)"
+                          @scrub-to-seconds="scrubToSeconds"
+                          @scrub-start="() => showOverlay(null)"
+                          @scrub-end="() => showOverlay(1500)"
+                          @set-volume01="setVolume"
+                          @toggle-mute="toggleMute"
+                          @toggle-fullscreen="toggleFullscreen"
+                          @toggle-comments-panel="toggleNarrationDrawer"
+                          @toggle-view-mode="toggleViewMode"
+                          @aux-hover-enter="onNarrationButtonHoverEnter"
+                          @rewind-10="seekRelativeWithFeedback(-10)"
+                          @forward-10="seekRelativeWithFeedback(10)"
+                          @toggle-narration="toggleRecord"
+                        />
+                      </div>
+
                       <Transition
-                        enter-active-class="transition duration-150 ease-out"
-                        enter-from-class="opacity-0 scale-90"
-                        enter-to-class="opacity-100 scale-100"
+                        enter-active-class="transition duration-200 ease-out"
+                        enter-from-class="translate-x-full opacity-0"
+                        enter-to-class="translate-x-0 opacity-100"
                         leave-active-class="transition duration-150 ease-in"
-                        leave-from-class="opacity-100 scale-100"
-                        leave-to-class="opacity-0 scale-95"
+                        leave-from-class="translate-x-0 opacity-100"
+                        leave-to-class="translate-x-full opacity-0"
                       >
                         <div
-                          v-if="flashIcon && !isBuffering"
-                          class="pointer-events-none absolute inset-0 z-40 flex items-center justify-center"
-                          aria-hidden="true"
+                          v-if="isTheatreMode && narrationDrawerOpen"
+                          class="narration-drawer-panel relative z-20 hidden h-full w-[min(34rem,45vw)] border-l border-white/10 bg-black/90 backdrop-blur-sm md:block"
                         >
-                          <Icon
-                            :icon="flashIcon === 'play'
-                              ? 'carbon:play-filled-alt'
-                              : flashIcon === 'pause'
-                                ? 'carbon:pause-filled'
-                                : flashIcon === 'rew5'
-                                  ? 'carbon:rewind-5'
-                                  : flashIcon === 'rew10'
-                                    ? 'carbon:rewind-10'
-                                    : flashIcon === 'ff5'
-                                      ? 'carbon:forward-5'
-                                      : 'carbon:forward-10'"
-                            width="52"
-                            height="52"
-                            class="text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.65)]"
-                          />
+                          <div class="h-full min-h-0 overflow-hidden">
+                            <MediaAssetReviewNarrationList
+                              class="h-full min-h-0 md:!min-h-0 md:!max-h-none"
+                              :show-close-button="true"
+                              v-bind="narrationListProps"
+                              @jumpToSegment="jumpToSegment"
+                              @addNarration="handleAddNarrationForSegment"
+                              @assignSegment="openAssignSegment"
+                              @addToPlaylist="openAddToPlaylist"
+                              @updateSegmentTiming="handleUpdateSegmentTiming"
+                              @seekToSeconds="handleTimingSeekPreview"
+                              @editNarration="handleEditNarration"
+                              @deleteNarration="handleDeleteNarration"
+                              @deleteSegment="handleDeleteSegment"
+                              @addTag="handleAddSegmentTag"
+                              @removeTag="handleRemoveSegmentTag"
+                              @autoTagSegment="handleAutoTagSegment"
+                              @applySuggestedTags="handleApplySuggestedTags"
+                              @rejectSuggestedTag="handleRejectSuggestedTag"
+                              @generateSegmentInsight="handleGenerateSegmentInsight"
+                              @update:sourceFilter="handleNarrationSourceFilterChange"
+                              @visibleSegmentsChange="handleVisibleSegmentsChange"
+                              @requestDeleteEmptySegments="requestDeleteEmptySegments"
+                              @update:scrollTop="handleNarrationPanelScrollTop"
+                              @closePanel="closeNarrationDrawer"
+                            />
+                          </div>
                         </div>
                       </Transition>
-
-                      <!-- Reuse feed overlay controls as a minimal transport + scrubber -->
-                      <FeedOverlayControls
-                        :visible="overlayVisible && !isBuffering"
-                        :is-playing="isPlaying"
-                        :progress01="progress01"
-                        :can-prev="false"
-                        :can-next="false"
-                        :show-prev-next="false"
-                        :show-center-play-pause="false"
-                        :show-restart="false"
-                        :can-fullscreen="canFullscreen"
-                        :is-fullscreen="isFullscreen"
-                        :current-seconds="currentTime"
-                        :duration-seconds="duration"
-                        :volume01="volume01"
-                        :muted="muted"
-                        @togglePlay="togglePlay"
-                        @prev="() => {}"
-                        @next="() => {}"
-                        @restart="() => scrubToSeconds(0)"
-                        @cc="() => {}"
-                        @settings="() => {}"
-                        @scrubToSeconds="scrubToSeconds"
-                        @scrubStart="() => showOverlay(null)"
-                        @scrubEnd="() => showOverlay(1500)"
-                        @setVolume01="setVolume"
-                        @toggleMute="toggleMute"
-                        @toggleFullscreen="toggleFullscreen"
-                      />
-
-                      <div
-                        v-show="!isBuffering"
-                        data-gesture-ignore
-                        @pointerenter.stop="onNarrationButtonHoverEnter"
-                        @pointermove.stop
-                        @pointerleave.stop
-                      >
-                        <!-- Live transcript overlay (Web Speech API) - No background, just amber text -->
-                        <div 
-                          v-if="recorder.isRecording.value && recorder.liveTranscript.value"
-                          class="absolute bottom-20 left-4 right-4 z-40 pointer-events-none"
-                        >
-                          <p class="text-base font-medium text-amber-400 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
-                            {{ recorder.liveTranscript.value }}
-                          </p>
-                        </div>
-
-                        <NarrationRecorder
-                          :is-recording="recorder.isRecording.value"
-                          :audio-level01="recorder.audioLevel.value"
-                          :duration-ms="recorder.duration.value"
-                          @toggle="toggleRecord"
-                        >
-                          <template #auxControls>
-                            <div class="flex items-center gap-2 rounded-full bg-black/40 px-2 py-1 ring-1 ring-white/10 backdrop-blur">
-                              <button
-                                type="button"
-                                class="rounded-full p-1.5 text-white/80 hover:bg-black/45 hover:text-white"
-                                title="Rewind 10s"
-                                aria-label="Rewind 10 seconds"
-                                @click.stop="seekRelativeWithFeedback(-10)"
-                              >
-                                <Icon icon="carbon:rewind-10" width="18" height="18" />
-                              </button>
-                              <button
-                                type="button"
-                                class="rounded-full p-1.5 text-white/80 hover:bg-black/45 hover:text-white"
-                                title="Forward 10s"
-                                aria-label="Forward 10 seconds"
-                                @click.stop="seekRelativeWithFeedback(10)"
-                              >
-                                <Icon icon="carbon:forward-10" width="18" height="18" />
-                              </button>
-                            </div>
-                          </template>
-                        </NarrationRecorder>
-                      </div>
-                    </FeedGestureLayer>
-
-                    <!-- Buffering overlay: sits above ALL controls -->
-                    <div
-                      v-show="isBuffering"
-                      class="pointer-events-none absolute inset-0 z-50 grid place-items-center bg-black/40"
-                      aria-label="Buffering"
-                    >
-                      <div class="h-12 w-12 rounded-full border-2 border-white/25 border-t-white/95 animate-spin" />
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div class="mb-2 md:mb-0">
+              <div class="mb-2 md:mb-0 md:mt-0">
                 <MediaAssetReviewTimeline
                   :duration-seconds="duration"
                   :current-seconds="currentTime"
                   :segments="segments"
                   :segments-with-narrations="segmentsWithNarrations"
+                  :pending-segment-ids="pendingNarrationSegmentIds"
+                  :narration-counts-by-segment-id="narrationCountsBySegmentId"
                   :visible-segment-ids="narrationVisibleSegmentIds"
                   :active-segment-id="activeSegmentId"
                   :focused-segment-id="focusedSegmentId"
@@ -1717,32 +1781,13 @@ async function handleDeleteSegment(segmentId: string) {
               <div class="md:hidden text-xs text-white/50 tabular-nums pb-4 pl-4">
                 {{ timeLabel }}
               </div>
+                </div>
+              </div>
             </div>
 
             <div class="md:hidden space-y-6 pb-6 pt-4">
               <MediaAssetReviewNarrationList
-                :segments="segments"
-                :narrations="(narrations as any)"
-                :active-segment-id="activeSegmentId"
-                :focused-segment-id="focusedSegmentId"
-                :default-source="defaultNarrationSource"
-                :source-filter="narrationSourceFilter"
-                :can-moderate-narrations="canModerateNarrations"
-                :can-assign-segments="canAssignSegments"
-                :can-tag-segments="canTagSegments"
-                :can-tag-players="canTagPlayers"
-                :can-auto-tag-segments="canAutoTagSegments"
-                :auto-tagging-segment-ids="autoTaggingSegmentIdList"
-                :tag-suggestions="suggestionsBySegmentId"
-                :segment-insights="insightsBySegmentId"
-                :can-generate-segment-insights="canGenerateSegmentInsights"
-                :insight-generating-segment-ids="insightGeneratingSegmentIdList"
-                :can-edit-narrations="canEditNarrations"
-                :can-delete-narrations="canDeleteNarrations"
-                :can-edit-segment-timing="canEditSegmentTiming"
-                :media-duration-seconds="duration"
-                :current-user-id="currentUserId"
-                :current-user-role="membershipRole"
+                v-bind="narrationListProps"
                 @jumpToSegment="jumpToSegment"
                 @addNarration="handleAddNarrationForSegment"
                 @assignSegment="openAssignSegment"
@@ -1761,6 +1806,7 @@ async function handleDeleteSegment(segmentId: string) {
                 @update:sourceFilter="handleNarrationSourceFilterChange"
                 @visibleSegmentsChange="handleVisibleSegmentsChange"
                 @requestDeleteEmptySegments="requestDeleteEmptySegments"
+                @update:scrollTop="handleNarrationPanelScrollTop"
               />
             </div>
           </div>
@@ -1777,33 +1823,11 @@ async function handleDeleteSegment(segmentId: string) {
         </div>
 
         <!-- Right column: segments + narrations -->
-        <div class="hidden md:block md:col-span-2">
-          <div
-            class="space-y-6"
-          >
-            <MediaAssetReviewNarrationList
-              :segments="segments"
-              :narrations="(narrations as any)"
-              :active-segment-id="activeSegmentId"
-              :focused-segment-id="focusedSegmentId"
-              :default-source="defaultNarrationSource"
-              :source-filter="narrationSourceFilter"
-              :can-moderate-narrations="canModerateNarrations"
-              :can-assign-segments="canAssignSegments"
-              :can-tag-segments="canTagSegments"
-              :can-tag-players="canTagPlayers"
-              :can-auto-tag-segments="canAutoTagSegments"
-              :auto-tagging-segment-ids="autoTaggingSegmentIdList"
-              :tag-suggestions="suggestionsBySegmentId"
-              :segment-insights="insightsBySegmentId"
-              :can-generate-segment-insights="canGenerateSegmentInsights"
-              :insight-generating-segment-ids="insightGeneratingSegmentIdList"
-              :can-edit-narrations="canEditNarrations"
-              :can-delete-narrations="canDeleteNarrations"
-              :can-edit-segment-timing="canEditSegmentTiming"
-              :media-duration-seconds="duration"
-              :current-user-id="currentUserId"
-              :current-user-role="membershipRole"
+        <div v-if="!isTheatreMode" class="hidden md:col-span-3 md:block md:min-h-0">
+            <div class="h-full min-h-0 overflow-hidden bg-black ring-1 ring-white/10 md:rounded-xl md:bg-white/5">
+              <MediaAssetReviewNarrationList
+                class="h-full min-h-0 md:!min-h-0 md:!max-h-full"
+              v-bind="narrationListProps"
               @jumpToSegment="jumpToSegment"
               @addNarration="handleAddNarrationForSegment"
               @assignSegment="openAssignSegment"
@@ -1822,8 +1846,9 @@ async function handleDeleteSegment(segmentId: string) {
               @update:sourceFilter="handleNarrationSourceFilterChange"
               @visibleSegmentsChange="handleVisibleSegmentsChange"
               @requestDeleteEmptySegments="requestDeleteEmptySegments"
-            />
-          </div>
+              @update:scrollTop="handleNarrationPanelScrollTop"
+              />
+            </div>
         </div>
       </div>
 

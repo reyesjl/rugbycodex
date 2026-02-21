@@ -9,6 +9,10 @@ const props = defineProps<{
   segments: MediaAssetSegment[];
   /** List of segment IDs that have narrations (used to style markers). */
   segmentsWithNarrations?: Set<string>;
+  /** Segment IDs with in-flight narration creates (renders pulsing pending marker). */
+  pendingSegmentIds?: string[];
+  /** Narration counts keyed by segment id (used for density sizing/height). */
+  narrationCountsBySegmentId?: Record<string, number>;
   /** Segment IDs to show in markers + prev/next navigation (keeps in sync with filters). */
   visibleSegmentIds?: string[];
   /** Segment id the player is currently inside (for highlight). */
@@ -59,6 +63,28 @@ onBeforeUnmount(() => {
 
 const duration = computed(() => Math.max(0, props.durationSeconds ?? 0));
 const effectivePlayheadSeconds = computed(() => clamp(props.currentSeconds ?? 0, 0, duration.value || 0));
+const quarterProgressPcts = computed(() => {
+  const d = duration.value;
+  if (!d) return [0, 0, 0, 0];
+  const quarter = d / 4;
+  const t = effectivePlayheadSeconds.value;
+  return [0, 1, 2, 3].map((i) => {
+    const start = i * quarter;
+    return clamp(((t - start) / quarter) * 100, 0, 100);
+  });
+});
+const playheadPct = computed(() => pctForSeconds(effectivePlayheadSeconds.value));
+const currentTimestampLabel = computed(() => {
+  if (!duration.value) return '';
+  const total = Math.max(0, Math.floor(effectivePlayheadSeconds.value));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const seconds = total % 60;
+  if (hours > 0) {
+    return `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  }
+  return `${minutes}:${String(seconds).padStart(2, '0')}`;
+});
 
 function pctForSeconds(seconds: number): number {
   const d = duration.value;
@@ -74,6 +100,15 @@ const visibleSegmentIdSet = computed(() => {
   if (!props.visibleSegmentIds) return null;
   const set = new Set<string>();
   for (const id of props.visibleSegmentIds) {
+    if (!id) continue;
+    set.add(String(id));
+  }
+  return set;
+});
+
+const pendingSegmentIdSet = computed(() => {
+  const set = new Set<string>();
+  for (const id of props.pendingSegmentIds ?? []) {
     if (!id) continue;
     set.add(String(id));
   }
@@ -97,14 +132,81 @@ const visibleMarkerSegments = computed(() => {
   return list.filter((s) => isNarratedSegment(s));
 });
 
+function segmentStart(seg: MediaAssetSegment): number {
+  return clamp(Number(seg.start_seconds ?? 0), 0, duration.value || 0);
+}
+
+function segmentEnd(seg: MediaAssetSegment): number {
+  const start = segmentStart(seg);
+  const rawEnd = Number(seg.end_seconds ?? start);
+  return clamp(Math.max(rawEnd, start + 0.1), 0, duration.value || 0);
+}
+
+function narrationCountForSegment(seg: MediaAssetSegment): number {
+  const counts = props.narrationCountsBySegmentId;
+  const value = Number(counts?.[String(seg.id)] ?? 0);
+  return Math.max(1, Number.isFinite(value) ? value : 1);
+}
+
+const maxVisibleNarrationCount = computed(() => {
+  let max = 1;
+  for (const seg of visibleMarkerSegments.value) {
+    max = Math.max(max, narrationCountForSegment(seg));
+  }
+  return max;
+});
+
+const timelineDots = computed(() => {
+  const d = duration.value;
+  if (!d) return [] as Array<{ seg: MediaAssetSegment; leftPct: number; topPct: number; sizePx: number }>;
+  const maxCount = maxVisibleNarrationCount.value;
+  return visibleMarkerSegments.value.map((seg) => {
+    const start = segmentStart(seg);
+    const count = narrationCountForSegment(seg);
+    const density = maxCount > 1 ? (count - 1) / (maxCount - 1) : 0;
+    return {
+      seg,
+      leftPct: pctForSeconds(start),
+      topPct: 82 - (density * 60),
+      sizePx: 6 + (density * 12),
+    };
+  });
+});
+
 function isFocused(seg: MediaAssetSegment): boolean {
   const id = props.focusedSegmentId ? String(props.focusedSegmentId) : '';
   return Boolean(id && String(seg.id) === id);
 }
 
+function isPending(seg: MediaAssetSegment): boolean {
+  return pendingSegmentIdSet.value.has(String(seg.id));
+}
+
+const effectiveActiveDotId = computed(() => {
+  const visible = visibleMarkerSegments.value;
+  if (!visible.length) return '';
+
+  const activeId = props.activeSegmentId ? String(props.activeSegmentId) : '';
+  if (activeId && visible.some((seg) => String(seg.id) === activeId)) return activeId;
+
+  const focusedId = props.focusedSegmentId ? String(props.focusedSegmentId) : '';
+  if (focusedId && visible.some((seg) => String(seg.id) === focusedId)) return focusedId;
+
+  const t = effectivePlayheadSeconds.value;
+  let bestId = String(visible[0]?.id ?? '');
+  let bestDist = Number.POSITIVE_INFINITY;
+  for (const seg of visible) {
+    const dist = Math.abs(segmentStart(seg) - t);
+    if (dist < bestDist) {
+      bestDist = dist;
+      bestId = String(seg.id);
+    }
+  }
+  return bestId;
+});
+
 function isActive(seg: MediaAssetSegment): boolean {
-  const id = props.activeSegmentId ? String(props.activeSegmentId) : '';
-  return Boolean(id && String(seg.id) === id);
+  return String(seg.id) === effectiveActiveDotId.value;
 }
 
 function onTrackClick(e: MouseEvent) {
@@ -122,11 +224,13 @@ function onTrackClick(e: MouseEvent) {
 
 // Hover magnifier (desktop only)
 const hoverX = ref<number | null>(null);
+const hoverY = ref<number | null>(null);
 const hoverSeconds = ref<number | null>(null);
 const timelineWidthPx = ref<number>(0);
+const timelineHeightPx = ref<number>(0);
 
-const MAG_WIDTH_PX = 240;
-const MAG_HEIGHT_PX = 20;
+const MAG_WIDTH_PX = 180;
+const MAG_HEIGHT_PX = 12;
 const MAG_WINDOW_PCT = 0.08;
 const MAG_WINDOW_MIN_SECONDS = 6;
 const MAG_WINDOW_MAX_SECONDS = 180;
@@ -143,12 +247,15 @@ function onMouseMove(e: MouseEvent) {
   const x = clamp(e.clientX - rect.left, 0, rect.width);
 
   timelineWidthPx.value = rect.width;
+  timelineHeightPx.value = rect.height;
   hoverX.value = x;
+  hoverY.value = clamp(e.clientY - rect.top, 0, rect.height);
   hoverSeconds.value = clamp((x / rect.width) * d, 0, d);
 }
 
 function onMouseLeave() {
   hoverX.value = null;
+  hoverY.value = null;
   hoverSeconds.value = null;
 }
 
@@ -192,12 +299,12 @@ const magnifierLeftPx = computed(() => {
   return clamp(x - MAG_WIDTH_PX / 2, 0, Math.max(0, w - MAG_WIDTH_PX));
 });
 
+const magnifierTopPx = computed(() => {
+  return -(MAG_HEIGHT_PX + 2);
+});
+
 const magnifierCursorPct = computed(() => {
-  const h = hoverSeconds.value;
-  const start = magnifierStartSeconds.value;
-  const win = magnifierWindowSeconds.value;
-  if (h === null || !win) return 50;
-  return clamp(((h - start) / win) * 100, 0, 100);
+  return 50;
 });
 
 const magnifierSegments = computed(() => {
@@ -206,6 +313,19 @@ const magnifierSegments = computed(() => {
   return visibleMarkerSegments.value.filter((s) => {
     const t = Number(s.start_seconds ?? 0);
     return t >= start && t <= end;
+  });
+});
+
+const magnifierDots = computed(() => {
+  return magnifierSegments.value.map((seg) => {
+    const start = segmentStart(seg);
+    const end = segmentEnd(seg);
+    const durationSeconds = Math.max(0.1, end - start);
+    return {
+      seg,
+      leftPct: magLeftPctForSeconds(start),
+      sizePx: 4 + Math.min(2, Math.sqrt(durationSeconds) * 0.6),
+    };
   });
 });
 
@@ -276,17 +396,31 @@ function jumpNext() {
 
 <template>
   <div class="w-full">
-    <div class="mb-2 flex items-center justify-between text-xs text-slate-400">
-      <div>Timeline</div>
-      <div v-if="durationSeconds" class="tabular-nums flex items-center gap-2">
-        <span>{{ (Math.round(durationSeconds) / 60).toFixed() }} min</span>
+    <div class="flex items-center gap-0">
+      <div class="h-7 w-9 shrink-0" />
+      <div class="relative grid flex-1 grid-cols-4 gap-1">
+        <div
+          v-if="currentTimestampLabel"
+          class="pointer-events-none absolute left-0 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white px-2.5 py-0.5 text-[10px] font-semibold leading-none text-black"
+          :style="{ left: `${playheadPct}%` }"
+        >
+          {{ currentTimestampLabel }}
+        </div>
+        <div
+          v-for="(pct, idx) in quarterProgressPcts"
+          :key="`quarter-${idx}`"
+          class="relative h-0.5 rounded-full bg-slate-400/45"
+        >
+          <div class="h-0.5 rounded-full bg-white" :style="{ width: `${pct}%` }" />
+        </div>
       </div>
+      <div class="h-7 w-9 shrink-0" />
     </div>
 
-    <div class="flex items-center gap-2">
+    <div class="flex items-stretch gap-0">
       <button
         type="button"
-        class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-700/50 text-slate-400 hover:bg-slate-700 hover:text-slate-200 disabled:opacity-40 transition"
+        class="flex h-20 w-9 shrink-0 items-center justify-center rounded-l-lg border border-r-0 border-slate-700/50 bg-slate-700/35 text-slate-400 hover:bg-slate-700/60 hover:text-slate-200 disabled:opacity-40 transition"
         :disabled="!canJumpPrev"
         @click="jumpPrev"
         aria-label="Previous segment"
@@ -295,21 +429,19 @@ function jumpNext() {
         <Icon icon="carbon:previous-outline" class="h-5 w-5" />
       </button>
 
-      <div class="relative flex-1">
+      <div class="relative min-w-0 flex-1" @mousemove="onMouseMove" @mouseleave="onMouseLeave">
+        <div
+          v-if="durationSeconds"
+          class="pointer-events-none absolute -top-6 bottom-0 z-40 border-l border-dotted border-white/80"
+          :style="{ left: `${playheadPct}%` }"
+        />
         <div
           ref="timelineEl"
-          class="relative h-8 w-full overflow-hidden rounded-lg bg-slate-700/30 border border-slate-700/50 cursor-pointer"
+          class="relative h-20 w-full overflow-visible border border-slate-700/50 bg-slate-700/20 cursor-pointer"
           @click="onTrackClick"
-          @mousemove="onMouseMove"
-          @mouseleave="onMouseLeave"
         >
-          <!-- Active playhead -->
-          <div
-            v-if="durationSeconds"
-            class="absolute top-0 bottom-0 w-1 bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.6)] z-20"
-            :style="{ left: `${pctForSeconds(effectivePlayheadSeconds)}%` }"
-            title="Current time"
-          />
+          <!-- Midline anchor -->
+          <div class="pointer-events-none absolute left-0 right-0 top-1/2 z-0 h-px -translate-y-1/2 bg-white/20" />
 
           <!-- Hover cursor line (desktop only) -->
           <div
@@ -318,31 +450,43 @@ function jumpNext() {
             :style="{ left: `${hoverPct}%` }"
           />
 
-          <!-- Segment markers -->
+          <!-- Event dots -->
           <div
-            v-for="seg in visibleMarkerSegments"
-            :key="seg.id"
-            class="absolute top-0 bottom-0 w-1 rounded-full z-10"
-            :style="{ left: `${pctForSeconds(seg.start_seconds)}%` }"
+            v-for="dot in timelineDots"
+            :key="dot.seg.id"
+            class="absolute z-10 -translate-x-1/2 -translate-y-1/2 rounded-full"
+              :style="{
+              left: `${dot.leftPct}%`,
+              top: `${dot.topPct}%`,
+              width: isPending(dot.seg) ? '16px' : (isActive(dot.seg) ? '22px' : `${dot.sizePx}px`),
+              height: isPending(dot.seg) ? '16px' : (isActive(dot.seg) ? '22px' : `${dot.sizePx}px`),
+            }"
             :class="[
-              isNarratedSegment(seg) ? 'bg-slate-300' : 'bg-slate-500',
-              isFocused(seg) ? 'outline-1 outline-blue-400' : '',
-              isActive(seg) ? 'opacity-100' : 'opacity-70'
+              isPending(dot.seg) ? 'bg-yellow-400 animate-pulse' : (isActive(dot.seg) ? 'bg-red-500' : (isNarratedSegment(dot.seg) ? 'bg-slate-100' : 'bg-slate-400')),
+              isFocused(dot.seg) && !isActive(dot.seg) ? 'ring-2 ring-blue-300' : '',
+              isPending(dot.seg)
+                ? 'border border-yellow-100/90 opacity-95'
+                : (isActive(dot.seg)
+                ? 'border border-white/90 opacity-85'
+                : 'opacity-65')
             ]"
-            @click.stop="emit('jumpToSegment', seg)"
-            :title="`Segment ${seg.segment_index + 1} @ ${Math.round(seg.start_seconds)}s`"
-          />
+            @click.stop="emit('jumpToSegment', dot.seg)"
+            :title="`Segment ${dot.seg.segment_index + 1} @ ${Math.round(dot.seg.start_seconds)}s`"
+          >
+            <div
+              v-if="isActive(dot.seg) && !isPending(dot.seg)"
+              class="absolute left-1/2 top-1/2 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white"
+            />
+          </div>
         </div>
 
         <!-- Hover magnifier overlay (desktop only) -->
         <div
           v-if="showMagnifier"
-          class="absolute z-40 -top-12"
-          :style="{ left: `${magnifierLeftPx}px`, width: `${MAG_WIDTH_PX}px`, height: `${MAG_HEIGHT_PX}px` }"
-          @click.stop
+          class="pointer-events-none absolute z-40"
+          :style="{ left: `${magnifierLeftPx}px`, top: `${magnifierTopPx}px`, width: `${MAG_WIDTH_PX}px`, height: `${MAG_HEIGHT_PX}px` }"
         >
-          <div class="relative h-full w-full rounded-lg bg-slate-900/90 border border-slate-700/50 backdrop-blur-sm">
-            <div class="absolute inset-1 rounded-md bg-slate-800/50 border border-slate-700/50">
+          <div class="relative h-full w-full rounded-lg border border-white/35 bg-black">
               <!-- magnifier playhead -->
               <div
                 v-if="durationSeconds"
@@ -352,31 +496,29 @@ function jumpNext() {
 
               <!-- magnifier cursor line -->
               <div
-                class="absolute top-0 bottom-0 w-px bg-blue-400/80 z-30"
+                class="absolute top-0 bottom-0 w-px bg-white z-30"
                 :style="{ left: `${magnifierCursorPct}%` }"
               />
 
-              <!-- magnifier segment markers (thicker) -->
+              <!-- magnifier dots (precision mode) -->
               <div
-                v-for="seg in magnifierSegments"
-                :key="`mag-${seg.id}`"
-                class="absolute top-0 bottom-0 w-2 rounded-full z-10"
-                :style="{ left: `${magLeftPctForSeconds(seg.start_seconds)}%` }"
+                v-for="dot in magnifierDots"
+                :key="`mag-${dot.seg.id}`"
+                class="absolute top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 rounded-full"
+                :style="{ left: `${dot.leftPct}%`, width: `${dot.sizePx}px`, height: `${dot.sizePx}px` }"
                 :class="[
-                  isNarratedSegment(seg) ? 'bg-slate-300' : 'bg-slate-500',
-                  isFocused(seg) ? 'outline-1 outline-blue-400' : '',
-                  isActive(seg) ? 'opacity-100' : 'opacity-80'
+                  'bg-white',
+                  isFocused(dot.seg) ? 'ring-1 ring-blue-300' : '',
+                  isActive(dot.seg) ? 'bg-white opacity-100 shadow-[0_0_6px_rgba(255,255,255,0.55)]' : 'opacity-90'
                 ]"
-                @click.stop="emit('jumpToSegment', seg)"
               />
-            </div>
           </div>
         </div>
       </div>
 
       <button
         type="button"
-        class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-700/50 text-slate-400 hover:bg-slate-700 hover:text-slate-200 disabled:opacity-40 transition"
+        class="flex h-20 w-9 shrink-0 items-center justify-center rounded-r-lg border border-l-0 border-slate-700/50 bg-slate-700/35 text-slate-400 hover:bg-slate-700/60 hover:text-slate-200 disabled:opacity-40 transition"
         :disabled="!canJumpNext"
         @click="jumpNext"
         aria-label="Next segment"

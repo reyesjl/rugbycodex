@@ -33,7 +33,10 @@ const SOURCE_FILTERS: Array<{ value: SourceFilter; label: string }> = [
 ];
 
 const tagFiltersExpanded = ref(false);
+const playerFiltersExpanded = ref(false);
 const hasActiveTagFilters = computed(() => props.activeTagFilters.length > 0);
+const playerFilterOptions = computed(() => props.tagFilterOptions.filter((tag) => tag.type === 'identity'));
+const generalTagFilterOptions = computed(() => props.tagFilterOptions.filter((tag) => tag.type !== 'identity'));
 
 function formatTagLabel(tagKey: string): string {
   return String(tagKey ?? '').replace(/_/g, ' ');
@@ -73,12 +76,13 @@ function classForTagType(tagType: SegmentTagType | null | undefined): string {
     </div>
 
     <!-- Source Filters -->
-    <div class="flex items-center gap-2 flex-wrap">
+    <div class="-mx-1 overflow-x-auto px-1 pb-1">
+      <div class="inline-flex min-w-max items-center gap-1.5 whitespace-nowrap">
       <button
         v-for="option in SOURCE_FILTERS"
         :key="option.value"
         type="button"
-        class="text-xs font-medium transition rounded px-3 py-1.5"
+        class="text-xs font-medium transition rounded px-2 py-1"
         :class="selectedSource === option.value
           ? 'bg-slate-700 text-white'
           : 'text-slate-400 hover:text-slate-200'"
@@ -89,7 +93,7 @@ function classForTagType(tagType: SegmentTagType | null | undefined): string {
 
       <button
         type="button"
-        class="text-xs font-medium transition rounded px-3 py-1.5"
+        class="text-xs font-medium transition rounded px-2 py-1"
         :class="showEmptyOnly
           ? 'bg-slate-700 text-white'
           : 'text-slate-400 hover:text-slate-200'"
@@ -97,6 +101,7 @@ function classForTagType(tagType: SegmentTagType | null | undefined): string {
       >
         Empty
       </button>
+      </div>
     </div>
 
     <!-- Active Filters Strip -->
@@ -105,7 +110,7 @@ function classForTagType(tagType: SegmentTagType | null | undefined): string {
       <button
         v-if="selectedSource !== 'all'"
         type="button"
-        class="inline-flex items-center gap-1 rounded bg-slate-700/50 px-2 py-1 text-xs text-slate-300"
+        class="inline-flex items-center gap-1 rounded-full bg-slate-700/50 px-2.5 py-1 text-xs text-slate-300"
         @click="emit('update:selectedSource', 'all')"
       >
         <span>{{ SOURCE_FILTERS.find(f => f.value === selectedSource)?.label }}</span>
@@ -114,7 +119,7 @@ function classForTagType(tagType: SegmentTagType | null | undefined): string {
       <button
         v-if="showEmptyOnly"
         type="button"
-        class="inline-flex items-center gap-1 rounded bg-slate-700/50 px-2 py-1 text-xs text-slate-300"
+        class="inline-flex items-center gap-1 rounded-full bg-slate-700/50 px-2.5 py-1 text-xs text-slate-300"
         @click="emit('update:showEmptyOnly', false)"
       >
         <span>Empty only</span>
@@ -124,7 +129,7 @@ function classForTagType(tagType: SegmentTagType | null | undefined): string {
         v-for="tagKey in activeTagFilters"
         :key="tagKey"
         type="button"
-        class="inline-flex items-center gap-1 rounded bg-slate-700/50 px-2 py-1 text-xs text-slate-300"
+        class="inline-flex items-center gap-1 rounded-full bg-slate-700/50 px-2.5 py-1 text-xs text-slate-300"
         @click="emit('toggleTagFilter', tagKey)"
       >
         <span>{{ formatTagLabel(tagKey) }}</span>
@@ -140,7 +145,7 @@ function classForTagType(tagType: SegmentTagType | null | undefined): string {
     </div>
 
     <!-- Tag Filters -->
-    <div v-if="tagFilterOptions.length > 0" class="space-y-2">
+    <div v-if="generalTagFilterOptions.length > 0" class="space-y-2">
       <button
         type="button"
         class="flex items-center gap-2 text-xs font-medium text-slate-400 hover:text-slate-200 transition"
@@ -152,7 +157,7 @@ function classForTagType(tagType: SegmentTagType | null | undefined): string {
           height="14" 
         />
         <span>Tags</span>
-        <span class="text-slate-500">({{ tagFilterOptions.length }})</span>
+        <span class="text-slate-500">({{ generalTagFilterOptions.length }})</span>
       </button>
 
       <div 
@@ -160,10 +165,44 @@ function classForTagType(tagType: SegmentTagType | null | undefined): string {
         class="flex items-center gap-2 flex-wrap"
       >
         <button
-          v-for="tag in tagFilterOptions"
+          v-for="tag in generalTagFilterOptions"
           :key="tag.key"
           type="button"
-          class="text-xs font-medium uppercase tracking-wide rounded px-2 py-1 transition"
+          class="text-xs font-medium uppercase tracking-wide rounded-full px-2.5 py-1 transition"
+          :class="activeTagFilters.includes(tag.key)
+            ? 'bg-slate-700 text-white'
+            : `${classForTagType(tag.type)} hover:bg-slate-700/70`"
+          @click="emit('toggleTagFilter', tag.key)"
+        >
+          {{ formatTagLabel(tag.key) }}
+        </button>
+      </div>
+    </div>
+
+    <div v-if="playerFilterOptions.length > 0" class="space-y-2">
+      <button
+        type="button"
+        class="flex items-center gap-2 text-xs font-medium text-slate-400 hover:text-slate-200 transition"
+        @click="playerFiltersExpanded = !playerFiltersExpanded"
+      >
+        <Icon
+          :icon="playerFiltersExpanded ? 'carbon:chevron-down' : 'carbon:chevron-right'"
+          width="14"
+          height="14"
+        />
+        <span>Players</span>
+        <span class="text-slate-500">({{ playerFilterOptions.length }})</span>
+      </button>
+
+      <div
+        v-if="playerFiltersExpanded"
+        class="flex items-center gap-2 flex-wrap"
+      >
+        <button
+          v-for="tag in playerFilterOptions"
+          :key="tag.key"
+          type="button"
+          class="text-xs font-medium uppercase tracking-wide rounded-full px-2.5 py-1 transition"
           :class="activeTagFilters.includes(tag.key)
             ? 'bg-slate-700 text-white'
             : `${classForTagType(tag.type)} hover:bg-slate-700/70`"

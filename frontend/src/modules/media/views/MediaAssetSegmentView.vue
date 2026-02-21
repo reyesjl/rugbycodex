@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { computed, ref, watch, onBeforeUnmount } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { storeToRefs } from 'pinia';
-import { Icon } from '@iconify/vue';
-import HlsPlayer from '@/components/HlsPlayer.vue';
+import ShakaSurfacePlayer from '@/modules/media/components/ShakaSurfacePlayer.vue';
+import { useSegmentPlayback } from '@/modules/media/composables/useSegmentPlayback';
+import { useVideoOverlayControls } from '@/modules/media/composables/useVideoOverlayControls';
+import MediaPlaybackOverlayShell from '@/modules/media/components/MediaPlaybackOverlayShell.vue';
 import { useActiveOrganizationStore } from '@/modules/orgs/stores/useActiveOrganizationStore';
 import { mediaService } from '@/modules/media/services/mediaService';
 import type { OrgMediaAsset } from '@/modules/media/types/OrgMediaAsset';
@@ -33,39 +35,68 @@ const error = ref<string | null>(null);
 const segment = ref<MediaAssetSegment | null>(null);
 const asset = ref<OrgMediaAsset | null>(null);
 const playlistObjectUrl = ref<string | null>(null);
-const videoEl = ref<HTMLVideoElement | null>(null);
+const playerRef = ref<InstanceType<typeof ShakaSurfacePlayer> | null>(null);
+const surfaceEl = ref<HTMLElement | null>(null);
+const videoEl = computed(() => playerRef.value?.getVideoElement?.() ?? null);
 
 const isPlaying = ref(false);
-const narrationViewRef = ref<InstanceType<typeof NarrationView> | null>(null);
 
-type PlayerOverlay =
-  | { kind: 'seek'; direction: 'back' | 'forward'; seconds: number }
-  | { kind: 'seek-limit'; edge: 'start' | 'end' }
-  | { kind: 'play' }
-  | { kind: 'pause' }
-  | { kind: 'restart' };
+const segmentPlayback = useSegmentPlayback({
+  getPlayer: () => playerRef.value,
+  segmentStartSeconds: computed(() => segment.value?.start_seconds ?? 0),
+  segmentEndSeconds: computed(() => segment.value?.end_seconds ?? 0),
+  isActive: computed(() => Boolean(segment.value && playlistObjectUrl.value)),
+  isPlaying,
+  enableWatchedHalf: false,
+});
 
-const playerOverlay = ref<PlayerOverlay | null>(null);
-let playerOverlayTimeout: number | null = null;
+const {
+  duration,
+  progress01,
+  segmentCurrentSeconds,
+  segmentLength,
+  suppressBufferingUntilMs,
+  handleTimeupdate: handleSegmentTimeupdate,
+  handleLoadedMetadata: handleSegmentLoadedMetadata,
+  seekRelative: seekRelativeInternal,
+  scrubToSegmentSeconds: scrubToSecondsInternal,
+  resetOnSourceChange,
+} = segmentPlayback;
 
-function showPlayerOverlay(overlay: PlayerOverlay, durationMs = 650) {
-  playerOverlay.value = overlay;
-  if (playerOverlayTimeout !== null) {
-    clearTimeout(playerOverlayTimeout);
-  }
-  playerOverlayTimeout = window.setTimeout(() => {
-    playerOverlay.value = null;
-    playerOverlayTimeout = null;
-  }, durationMs);
-}
+const overlayControls = useVideoOverlayControls({
+  getVideoEl: () => videoEl.value,
+  getSurfaceEl: () => surfaceEl.value,
+  getPlayer: () => playerRef.value,
+  isPlaying,
+  onTogglePlay: () => playerRef.value?.togglePlayback(),
+  onSeekRelative: (deltaSeconds) => seekRelative(deltaSeconds),
+  suppressBufferingUntilMs,
+  requireElementForFullscreen: true,
+});
 
-function showSeekOverlay(direction: 'back' | 'forward', seconds: number) {
-  showPlayerOverlay({ kind: 'seek', direction, seconds });
-}
+const {
+  overlayVisible,
+  isBuffering,
+  flashIcon,
+  volume01,
+  muted,
+  isFullscreen,
+  canFullscreen,
+  showOverlay,
+  requestTogglePlay,
+  flashPlayPause,
+  onHoverMove,
+  onHoverLeave,
+  onTap,
+  handleBuffering,
+  applyVolumeToPlayer,
+  syncVolumeFromPlayer,
+  toggleMute,
+  setVolume,
+  toggleFullscreen,
+} = overlayControls;
 
-function showSeekLimitOverlay(edge: 'start' | 'end') {
-  showPlayerOverlay({ kind: 'seek-limit', edge }, 900);
-}
+const togglePlay = requestTogglePlay;
 
 const assetTitle = computed(() => {
   if (asset.value?.title?.trim()) return asset.value.title;
@@ -161,177 +192,67 @@ async function loadSegment() {
   }
 }
 
-// Seek to segment start and loop within bounds
-let teardownPlayback: (() => void) | null = null;
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
+function seekRelative(deltaSeconds: number) {
+  seekRelativeInternal(deltaSeconds);
+  suppressBufferingUntilMs.value = Date.now() + 500;
+  isBuffering.value = false;
 }
 
-function handleRestart() {
-  if (!videoEl.value || !segment.value) return;
-  videoEl.value.currentTime = segment.value.start_seconds;
-  showPlayerOverlay({ kind: 'restart' });
-}
-
-function handleBack() {
-  if (!videoEl.value || !segment.value) return;
-  const attemptedTime = videoEl.value.currentTime - 5;
-  const clampedTime = clamp(attemptedTime, segment.value.start_seconds, segment.value.end_seconds);
-  videoEl.value.currentTime = clampedTime;
-  if (clampedTime !== attemptedTime) {
-    showSeekLimitOverlay('start');
-  } else {
-    showSeekOverlay('back', 5);
-  }
-}
-
-function handlePlayPause() {
-  if (!videoEl.value) return;
-  if (videoEl.value.paused) {
-    showPlayerOverlay({ kind: 'play' });
-    videoEl.value.play().catch((err) => {
-      debugLog('play failed', err);
-    });
-  } else {
-    videoEl.value.pause();
-    showPlayerOverlay({ kind: 'pause' });
-  }
-}
-
-function handleForward() {
-  if (!videoEl.value || !segment.value) return;
-  const attemptedTime = videoEl.value.currentTime + 5;
-  const clampedTime = clamp(attemptedTime, segment.value.start_seconds, segment.value.end_seconds);
-  videoEl.value.currentTime = clampedTime;
-  if (clampedTime !== attemptedTime) {
-    showSeekLimitOverlay('end');
-  } else {
-    showSeekOverlay('forward', 5);
-  }
+function scrubToSeconds(seconds: number) {
+  scrubToSecondsInternal(seconds);
 }
 
 function handleNarrationRecordingStarted() {
-  // If video is paused, play it when recording starts
-  if (videoEl.value && videoEl.value.paused) {
-    videoEl.value.play().catch((err) => {
-      debugLog('play on record start failed', err);
-    });
-  }
+  playerRef.value?.play?.();
 }
 
 function handleNarrationRecordingStopped() {
   // No action needed when recording stops
 }
 
-function updatePlayingState() {
-  if (!videoEl.value) return;
-  isPlaying.value = !videoEl.value.paused;
+function handleTimeupdate(payload: { currentTime: number; duration: number }) {
+  const previousDuration = duration.value;
+  handleSegmentTimeupdate(payload);
+  if (!payload.duration && previousDuration) {
+    duration.value = previousDuration;
+  }
 }
 
-function setupSegmentPlayback() {
-  if (!videoEl.value || !segment.value) return;
-
-  // If we re-run setup (e.g. route changes, playlist reload), ensure we don't
-  // stack event listeners.
-  if (teardownPlayback) {
-    teardownPlayback();
-    teardownPlayback = null;
-  }
-
-  const video = videoEl.value;
-  const seg = segment.value;
-
-  // Seek to segment start
-  video.currentTime = seg.start_seconds;
-
-  const enforceBounds = (source: 'timeupdate' | 'seeking') => {
-    // If user scrubs backward before the segment, clamp back to start.
-    if (video.currentTime < seg.start_seconds) {
-      video.currentTime = seg.start_seconds;
-      if (source === 'seeking') showSeekLimitOverlay('start');
-      return;
-    }
-
-    // If user scrubs forward past end (or playback naturally reaches end),
-    // clamp to segment end and require manual restart.
-    if (video.currentTime >= seg.end_seconds) {
-      video.currentTime = seg.end_seconds;
-      if (!video.paused) {
-        video.pause();
-      }
-      if (source === 'seeking') showSeekLimitOverlay('end');
-    }
-  };
-
-  const enforceBoundsTimeupdate = () => enforceBounds('timeupdate');
-  const enforceBoundsSeeking = () => enforceBounds('seeking');
-
-  // timeupdate covers normal playback; seeking catches user scrubs immediately.
-  video.addEventListener('timeupdate', enforceBoundsTimeupdate);
-  video.addEventListener('seeking', enforceBoundsSeeking);
-
-  // Track play/pause state
-  video.addEventListener('play', updatePlayingState);
-  video.addEventListener('pause', updatePlayingState);
-
-  teardownPlayback = () => {
-    video.removeEventListener('timeupdate', enforceBoundsTimeupdate);
-    video.removeEventListener('seeking', enforceBoundsSeeking);
-    video.removeEventListener('play', updatePlayingState);
-    video.removeEventListener('pause', updatePlayingState);
-  };
-
-  // Cleanup
-  onBeforeUnmount(() => {
-    teardownPlayback?.();
-    teardownPlayback = null;
-    if (playerOverlayTimeout !== null) {
-      clearTimeout(playerOverlayTimeout);
-      playerOverlayTimeout = null;
-    }
-  });
-
-  // Auto-play
-  const playPromise = video.play();
-  if (playPromise) {
-    playPromise.catch((err) => {
-      debugLog('autoplay blocked', err);
-    });
-  }
-
-  // Initialize playing state
-  updatePlayingState();
+function handleLoadedMetadata(payload: { duration: number }) {
+  handleSegmentLoadedMetadata(payload);
+  syncVolumeFromPlayer();
+  applyVolumeToPlayer();
 }
 
-watch([segmentId, activeOrgId], () => {
-  if (!segmentId.value) return;
-  if (!activeOrgId.value) return;
-  void loadSegment();
-}, { immediate: true });
+function handlePlay() {
+  isPlaying.value = true;
+  flashPlayPause('play');
+}
 
-// Setup playback after video loads
-watch([playlistObjectUrl, segment], () => {
-  if (playlistObjectUrl.value && segment.value) {
-    // Wait for video element to be ready
-    setTimeout(() => {
-      const findVideo = () => {
-        const vid = document.querySelector('video');
-        if (vid) {
-          videoEl.value = vid;
-          // Wait for video metadata to load
-          if (vid.readyState >= 1) {
-            setupSegmentPlayback();
-          } else {
-            vid.addEventListener('loadedmetadata', setupSegmentPlayback, { once: true });
-          }
-        } else {
-          setTimeout(findVideo, 100);
-        }
-      };
-      findVideo();
-    }, 100);
-  }
+function handlePause() {
+  isPlaying.value = false;
+  isBuffering.value = false;
+  flashPlayPause('pause');
+}
+
+watch(
+  [segmentId, activeOrgId],
+  () => {
+    if (!segmentId.value) return;
+    if (!activeOrgId.value) return;
+    void loadSegment();
+  },
+  { immediate: true }
+);
+
+watch([playlistObjectUrl, segmentId], () => {
+  resetOnSourceChange();
+  isPlaying.value = false;
+  isBuffering.value = false;
+});
+
+onBeforeUnmount(() => {
+  isBuffering.value = false;
 });
 </script>
 
@@ -348,74 +269,57 @@ watch([playlistObjectUrl, segment], () => {
     <div v-else-if="asset && segment" class="space-y-4">
       <!-- Video Player -->
       <div class="overflow-hidden rounded-lg bg-white/5 ring-1 ring-white/10">
-        <div class="relative">
-          <HlsPlayer :src="playlistObjectUrl ?? ''" class="w-full h-auto" playsinline autoplay
-            @error="handlePlayerError" />
+        <div
+          ref="surfaceEl"
+          class="relative bg-black aspect-video"
+          :class="isFullscreen ? 'h-full w-full' : 'aspect-video'"
+          @pointermove="onHoverMove"
+          @pointerleave="onHoverLeave"
+        >
+          <ShakaSurfacePlayer
+            ref="playerRef"
+            :manifest-url="playlistObjectUrl ?? ''"
+            class="h-full w-full"
+            autoplay
+            @error="handlePlayerError"
+            @timeupdate="handleTimeupdate"
+            @loadedmetadata="handleLoadedMetadata"
+            @play="handlePlay"
+            @pause="handlePause"
+            @buffering="handleBuffering"
+          />
 
-          <Transition enter-active-class="transition duration-150 ease-out" enter-from-class="opacity-0 scale-95"
-            enter-to-class="opacity-100 scale-100" leave-active-class="transition duration-250 ease-in"
-            leave-from-class="opacity-100 scale-100" leave-to-class="opacity-0 scale-95">
-            <div v-if="playerOverlay" class="pointer-events-none absolute inset-0 flex items-center justify-center">
-              <div class="flex items-center gap-2 rounded-lg bg-black/50 px-3 py-2 text-white backdrop-blur-sm">
-                <Icon :icon="playerOverlay.kind === 'seek'
-                  ? (playerOverlay.direction === 'back' ? 'carbon:skip-back' : 'carbon:skip-forward')
-                  : playerOverlay.kind === 'seek-limit'
-                    ? 'carbon:information'
-                    : playerOverlay.kind === 'restart'
-                      ? 'carbon:restart'
-                      : playerOverlay.kind === 'pause'
-                        ? 'carbon:pause'
-                        : 'carbon:play'
-                  " width="18" height="18" />
-                <div class="text-sm font-medium">
-                  <template v-if="playerOverlay.kind === 'seek'">
-                    {{ playerOverlay.direction === 'back' ? '-' : '+' }}{{ playerOverlay.seconds }} seconds
-                  </template>
-                  <template v-else-if="playerOverlay.kind === 'seek-limit'">
-                    {{ playerOverlay.edge === 'start' ? 'Start of segment' : 'End of segment' }}
-                  </template>
-                  <template v-else-if="playerOverlay.kind === 'restart'">
-                    Restarted
-                  </template>
-                  <template v-else>
-                    {{ playerOverlay.kind === 'pause' ? 'Paused' : 'Playing' }}
-                  </template>
-                </div>
-              </div>
-            </div>
-          </Transition>
-        </div>
-      </div>
-
-      <!-- Custom Controls -->
-      <div class="flex items-center justify-center gap-5">
-        <div class="flex items-center">
-          <button type="button"
-            class="flex items-center rounded-lg px-2 py-1 text-white border border-emerald-500 bg-emerald-500/70 hover:bg-emerald-700/70 hover:cursor-pointer text-xs transition"
-            @click="handleRestart" title="Restart segment">
-            <Icon icon="carbon:restart" width="15" height="15" />
-          </button>
-        </div>
-
-        <div class="flex items-center gap-2">
-          <button type="button"
-            class="flex items-center rounded-lg px-2 py-1 text-white border border-indigo-500 bg-indigo-500/70 hover:bg-indigo-700/70 hover:cursor-pointer text-xs transition"
-            @click="handleBack" title="Back 5 seconds">
-            <Icon icon="carbon:skip-back" width="15" height="15" />
-          </button>
-          <button type="button" :class="[
-            'flex items-center rounded-lg px-2 py-1 text-white text-xs transition border hover:cursor-pointer',
-            isPlaying
-              ? 'border-amber-500 bg-amber-500/70 hover:bg-amber-700/70'
-              : 'border-sky-500 bg-sky-500/70 hover:bg-sky-700/70',
-          ]" @click="handlePlayPause" :title="isPlaying ? 'Pause' : 'Play'">
-            <Icon :icon="isPlaying ? 'carbon:pause' : 'carbon:play'" width="15" height="15" />
-          </button>
-          <button type="button"
-            class="flex items-center rounded-lg px-2 py-1 text-white border border-indigo-500 bg-indigo-500/70 hover:bg-indigo-700/70 hover:cursor-pointer text-xs transition"
-            @click="handleForward" title="Forward 5 seconds">
-            <Icon icon="carbon:skip-forward" width="15" height="15" />
-          </button>
+          <MediaPlaybackOverlayShell
+            :overlay-visible="overlayVisible"
+            :is-buffering="isBuffering"
+            :flash-icon="flashIcon"
+            :is-playing="isPlaying"
+            :progress01="progress01"
+            :current-seconds="segmentCurrentSeconds"
+            :duration-seconds="segmentLength"
+            :volume01="volume01"
+            :muted="muted"
+            :can-fullscreen="canFullscreen"
+            :is-fullscreen="isFullscreen"
+            :show-center-play-pause="false"
+            :show-restart="false"
+            :show-skip-controls="true"
+            @tap="onTap"
+            @swipe-down="() => {}"
+            @swipe-up="() => {}"
+            @toggle-play="togglePlay"
+            @prev="() => {}"
+            @next="() => {}"
+            @restart="() => scrubToSeconds(0)"
+            @scrub-to-seconds="scrubToSeconds"
+            @scrub-start="() => showOverlay(null)"
+            @scrub-end="() => showOverlay(1500)"
+            @set-volume01="setVolume"
+            @toggle-mute="toggleMute"
+            @toggle-fullscreen="toggleFullscreen"
+            @rewind-10="seekRelative(-10)"
+            @forward-10="seekRelative(10)"
+          />
         </div>
       </div>
 
@@ -428,9 +332,14 @@ watch([playlistObjectUrl, segment], () => {
       </div>
 
       <!-- Narration View Component -->
-      <NarrationView ref="narrationViewRef" v-if="activeOrgId && asset" :segment-id="segmentId"
-        :media-asset-id="asset.id" :org-id="activeOrgId" @recording-started="handleNarrationRecordingStarted"
-        @recording-stopped="handleNarrationRecordingStopped" />
+      <NarrationView
+        v-if="activeOrgId && asset"
+        :segment-id="segmentId"
+        :media-asset-id="asset.id"
+        :org-id="activeOrgId"
+        @recording-started="handleNarrationRecordingStarted"
+        @recording-stopped="handleNarrationRecordingStopped"
+      />
     </div>
   </div>
 </template>

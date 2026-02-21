@@ -13,6 +13,10 @@ const props = withDefaults(defineProps<{
   showRestart?: boolean;
   canFullscreen?: boolean;
   isFullscreen?: boolean;
+  showCommentsToggle?: boolean;
+  commentsPanelOpen?: boolean;
+  showViewModeToggle?: boolean;
+  isTheatreMode?: boolean;
   /** segment-relative current time (seconds) */
   currentSeconds?: number;
   /** segment-relative duration (seconds) */
@@ -27,6 +31,10 @@ const props = withDefaults(defineProps<{
   muted: false,
   canFullscreen: false,
   isFullscreen: false,
+  showCommentsToggle: false,
+  commentsPanelOpen: false,
+  showViewModeToggle: false,
+  isTheatreMode: true,
   showPrevNext: true,
   showCenterPlayPause: true,
 });
@@ -42,12 +50,15 @@ const emit = defineEmits<{
   (e: 'setVolume01', volume01: number): void;
   (e: 'toggleMute'): void;
   (e: 'toggleFullscreen'): void;
+  (e: 'toggleCommentsPanel'): void;
+  (e: 'toggleViewMode'): void;
 }>();
 
 const barEl = ref<HTMLDivElement | null>(null);
 const scrubbing = ref(false);
 const scrubSeconds = ref(0);
 const activePointerId = ref<number | null>(null);
+const hoverProgress01 = ref<number | null>(null);
 
 const effectiveCurrent = computed(() => {
   return scrubbing.value ? scrubSeconds.value : (props.currentSeconds ?? 0);
@@ -66,6 +77,23 @@ const thumbLeftPct = computed(() => {
   const d = props.durationSeconds ?? 0;
   if (!d) return 0;
   return Math.min(100, Math.max(0, (effectiveCurrent.value / d) * 100));
+});
+
+const hoverPreviewSeconds = computed(() => {
+  const d = props.durationSeconds ?? 0;
+  const p = hoverProgress01.value;
+  if (!d || p === null) return 0;
+  return clamp(p, 0, 1) * d;
+});
+
+const previewBubbleLeftPct = computed(() => {
+  if (scrubbing.value) return thumbLeftPct.value;
+  const p = hoverProgress01.value;
+  return p === null ? null : Math.min(100, Math.max(0, p * 100));
+});
+
+const previewBubbleSeconds = computed(() => {
+  return scrubbing.value ? effectiveCurrent.value : hoverPreviewSeconds.value;
 });
 
 function formatTime(seconds: number): string {
@@ -100,13 +128,17 @@ function pctToSeconds(pct01: number): number {
   return clamp(pct01, 0, 1) * d;
 }
 
-function updateFromEvent(e: PointerEvent): number {
+function getProgressFromEvent(e: PointerEvent): number {
   const el = barEl.value;
-  if (!el) return scrubSeconds.value;
+  if (!el) return 0;
   const rect = el.getBoundingClientRect();
-  if (!rect.width) return scrubSeconds.value;
+  if (!rect.width) return 0;
   const x = clamp(e.clientX - rect.left, 0, rect.width);
-  const pct01 = x / rect.width;
+  return clamp(x / rect.width, 0, 1);
+}
+
+function updateFromEvent(e: PointerEvent): number {
+  const pct01 = getProgressFromEvent(e);
   const seconds = pctToSeconds(pct01);
   scrubSeconds.value = seconds;
   return seconds;
@@ -122,6 +154,9 @@ function onPointerDown(e: PointerEvent) {
 }
 
 function onPointerMove(e: PointerEvent) {
+  if (e.pointerType === 'mouse') {
+    hoverProgress01.value = getProgressFromEvent(e);
+  }
   if (!scrubbing.value) return;
   if (activePointerId.value !== null && e.pointerId !== activePointerId.value) return;
   // If the mouse button is no longer pressed, don't keep scrubbing.
@@ -134,12 +169,17 @@ function onPointerMove(e: PointerEvent) {
 
 function endScrub(e: PointerEvent) {
   if (!scrubbing.value) return;
-  const seconds = updateFromEvent(e);
+  const shouldCommitFromPointer = e.type === 'pointerup';
+  const seconds = shouldCommitFromPointer ? updateFromEvent(e) : scrubSeconds.value;
   scrubbing.value = false;
   activePointerId.value = null;
   (e.currentTarget as HTMLElement | null)?.releasePointerCapture?.(e.pointerId);
   emit('scrubToSeconds', seconds);
   emit('scrubEnd');
+}
+
+function onPointerLeaveBar() {
+  hoverProgress01.value = null;
 }
 </script>
 
@@ -152,7 +192,7 @@ function endScrub(e: PointerEvent) {
     leave-from-class="opacity-100"
     leave-to-class="opacity-0"
   >
-    <div v-if="visible" class="absolute inset-0 bg-black/25"> 
+    <div v-if="visible" class="absolute inset-0"> 
       <!-- Center cluster (prev / play-pause / next) -->
       <div class="absolute inset-0 flex items-center justify-center">
         <div class="flex items-center gap-6 sm:gap-10">
@@ -210,7 +250,7 @@ function endScrub(e: PointerEvent) {
             <Icon :icon="isPlaying ? 'carbon:pause-filled' : (showRestart ? 'carbon:restart' : 'carbon:play-filled-alt')" width="22" height="22" />
           </button>
 
-          <div class="ml-2 flex items-center rounded-full bg-black/25 px-1.5 py-0.5 ring-1 ring-white/10">
+          <div class="group ml-2 flex items-center rounded-full bg-black/25 px-1.5 py-0.5 ring-1 ring-white/10">
             <button
               type="button"
               class="rounded-full p-1.5 text-white/90 hover:bg-black/35"
@@ -225,7 +265,7 @@ function endScrub(e: PointerEvent) {
               min="0"
               max="1"
               step="0.01"
-              class="hidden sm:block w-24 h-1 accent-white"
+              class="volume-slider hidden h-0.5 w-0 cursor-pointer border-0 bg-transparent opacity-0 outline-none transition-all duration-150 sm:block group-hover:ml-1 group-hover:w-16 group-hover:opacity-100 group-focus-within:ml-1 group-focus-within:w-16 group-focus-within:opacity-100"
               :value="(muted ? 0 : (volume01 ?? 1))"
               @input.stop="onVolumeInput"
             />
@@ -237,6 +277,26 @@ function endScrub(e: PointerEvent) {
         </div>
 
         <div class="flex items-center gap-2">
+          <button
+            v-if="showCommentsToggle"
+            type="button"
+            class="hidden rounded-full p-1.5 text-white ring-1 ring-white/10 hover:bg-black/45 md:inline-flex"
+            :class="commentsPanelOpen ? 'bg-white/20' : 'bg-black/35'"
+            @click.stop="emit('toggleCommentsPanel')"
+            :title="commentsPanelOpen ? 'Hide narrations' : 'Show narrations'"
+          >
+            <Icon icon="carbon:add-comment" width="22" height="22" />
+          </button>
+          <button
+            v-if="showViewModeToggle"
+            type="button"
+            class="hidden rounded-full p-1.5 text-white ring-1 ring-white/10 hover:bg-black/45 md:inline-flex"
+            :class="isTheatreMode ? 'bg-white/20' : 'bg-black/35'"
+            @click.stop="emit('toggleViewMode')"
+            :title="isTheatreMode ? 'Switch to normal mode' : 'Switch to theatre mode'"
+          >
+            <Icon :icon="isTheatreMode ? 'carbon:side-panel-close-filled' : 'carbon:side-panel-open-filled'" width="22" height="22" />
+          </button>
           <button
             v-if="canFullscreen"
             type="button"
@@ -253,19 +313,25 @@ function endScrub(e: PointerEvent) {
       <div class="absolute bottom-12 left-3 right-3">
         <div
           ref="barEl"
-          class="relative h-8 flex items-center"
-          :class="scrubbing ? 'cursor-grabbing' : 'cursor-grab'"
+          class="relative flex h-8 cursor-pointer select-none items-center"
           style="touch-action: none"
+          @dragstart.prevent
           @pointerdown.stop="onPointerDown"
           @pointermove.stop="onPointerMove"
+          @pointerleave.stop="onPointerLeaveBar"
           @pointerup.stop="endScrub"
           @pointercancel.stop="endScrub"
           @lostpointercapture.stop="endScrub"
         >
           <!-- Track -->
-          <div class="h-1 w-full rounded-full bg-white/25">
+          <div class="relative h-1 w-full rounded-full bg-white/25">
             <div
-              class="h-full rounded-full bg-white/80"
+              v-if="hoverProgress01 !== null"
+              class="absolute inset-y-0 left-0 rounded-full bg-white/45"
+              :style="{ width: `${Math.min(100, Math.max(0, hoverProgress01 * 100))}%` }"
+            />
+            <div
+              class="absolute inset-y-0 left-0 rounded-full bg-red-500"
               :style="{ width: `${Math.min(100, Math.max(0, effectiveProgress01 * 100))}%` }"
             />
           </div>
@@ -275,18 +341,58 @@ function endScrub(e: PointerEvent) {
             class="absolute top-1/2 -translate-y-1/2"
             :style="{ left: `${thumbLeftPct}%` }"
           >
-            <div class="h-3 w-3 -translate-x-1/2 rounded-full bg-white shadow ring-1 ring-black/20" />
+            <div class="h-3 w-3 -translate-x-1/2 rounded-full bg-red-500 shadow ring-1 ring-black/20" />
 
-            <!-- Time bubble while scrubbing -->
-            <div
-              v-if="scrubbing"
-              class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 inline-flex w-max items-center whitespace-nowrap rounded-md bg-black/70 px-2 py-1 text-[11px] leading-none text-white ring-1 ring-white/10"
-            >
-              {{ formatTime(effectiveCurrent) }} / {{ formatTime(durationSeconds ?? 0) }}
-            </div>
+          </div>
+
+          <!-- Time bubble while scrubbing or hover previewing -->
+          <div
+            v-if="scrubbing || previewBubbleLeftPct !== null"
+            class="absolute bottom-full mb-2 -translate-x-1/2 inline-flex w-max items-center whitespace-nowrap rounded-md bg-black/70 px-2 py-1 text-[11px] leading-none text-white ring-1 ring-white/10"
+            :style="{ left: `${previewBubbleLeftPct ?? 0}%` }"
+          >
+            {{ formatTime(previewBubbleSeconds) }}
           </div>
         </div>
       </div>
     </div>
   </Transition>
 </template>
+
+<style scoped>
+.volume-slider {
+  appearance: none;
+}
+
+.volume-slider::-webkit-slider-runnable-track {
+  height: 3px;
+  border: 0;
+  border-radius: 9999px;
+  background: rgb(255 255 255 / 0.72);
+}
+
+.volume-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 10px;
+  height: 10px;
+  margin-top: -3.5px;
+  border: 0;
+  border-radius: 9999px;
+  background: #fff;
+}
+
+.volume-slider::-moz-range-track {
+  height: 3px;
+  border: 0;
+  border-radius: 9999px;
+  background: rgb(255 255 255 / 0.72);
+}
+
+.volume-slider::-moz-range-thumb {
+  width: 10px;
+  height: 10px;
+  border: 0;
+  border-radius: 9999px;
+  background: #fff;
+}
+</style>

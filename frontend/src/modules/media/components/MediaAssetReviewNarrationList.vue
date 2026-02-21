@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, toRef, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, toRef, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { Icon } from '@iconify/vue';
 import {
@@ -33,6 +33,7 @@ import ShimmerText from '@/components/ShimmerText.vue';
 import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
 import SegmentActionsMenu from '@/components/SegmentActionsMenu.vue';
 import type { OrgRole } from '@/modules/orgs/types/OrgRole';
+import { animateMini } from 'motion';
 
 const props = defineProps<{
   segments: MediaAssetSegment[];
@@ -57,6 +58,8 @@ const props = defineProps<{
   mediaDurationSeconds?: number;
   currentUserId?: string | null;
   currentUserRole?: OrgRole | null;
+  showCloseButton?: boolean;
+  scrollTop?: number;
 }>();
 
 const emit = defineEmits<{
@@ -78,6 +81,8 @@ const emit = defineEmits<{
   (e: 'update:sourceFilter', value: SourceFilter): void;
   (e: 'visibleSegmentsChange', segmentIds: string[]): void;
   (e: 'requestDeleteEmptySegments', segmentIds: string[]): void;
+  (e: 'update:scrollTop', scrollTop: number): void;
+  (e: 'closePanel'): void;
 }>();
 
 const editingNarrationId = ref<string | null>(null);
@@ -720,6 +725,55 @@ watch(
 
 const segmentElById = ref(new Map<string, HTMLElement>());
 const listScrollEl = ref<HTMLElement | null>(null);
+const isApplyingExternalScroll = ref(false);
+
+function applyExternalScrollTop(nextTop: number | undefined) {
+  if (!listScrollEl.value || nextTop === undefined || !Number.isFinite(nextTop)) return;
+  const clamped = Math.max(0, nextTop);
+  if (Math.abs(listScrollEl.value.scrollTop - clamped) < 1) return;
+  isApplyingExternalScroll.value = true;
+  listScrollEl.value.scrollTop = clamped;
+  requestAnimationFrame(() => {
+    isApplyingExternalScroll.value = false;
+  });
+}
+
+function handleListScroll() {
+  if (!listScrollEl.value || isApplyingExternalScroll.value) return;
+  emit('update:scrollTop', listScrollEl.value.scrollTop);
+}
+
+function animateSegmentCards() {
+  if (!listScrollEl.value) return;
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const cards = Array.from(listScrollEl.value.querySelectorAll<HTMLElement>('[data-segment-card]'));
+  cards.forEach((card, index) => {
+    if (card.dataset.motionDone === 'true') return;
+    card.dataset.motionDone = 'true';
+    animateMini(
+      card,
+      {
+        opacity: [0, 1],
+        transform: ['translateY(8px)', 'translateY(0px)'],
+      },
+      { duration: 0.24, delay: Math.min(index * 0.03, 0.18), ease: 'easeOut' }
+    );
+  });
+}
+
+onMounted(() => {
+  void nextTick(() => {
+    applyExternalScrollTop(props.scrollTop);
+    animateSegmentCards();
+  });
+});
+
+watch(
+  () => props.scrollTop,
+  (nextTop) => {
+    applyExternalScrollTop(nextTop);
+  }
+);
 
 function setSegmentEl(id: string, el: unknown) {
   if (!id) return;
@@ -876,6 +930,13 @@ const orderedSegments = computed(() => {
   });
 });
 
+watch(
+  () => orderedSegments.value.map((seg) => String(seg.id)),
+  () => {
+    void nextTick(() => animateSegmentCards());
+  }
+);
+
 const orderedNarratedSegments = computed(() => {
   const base = [...sourceFilteredSegments.value].sort((a, b) => (a.start_seconds ?? 0) - (b.start_seconds ?? 0));
   return base.filter((s) => narrationsForSegment(String(s.id)).length > 0);
@@ -890,8 +951,6 @@ watch(
   },
   { immediate: true }
 );
-
-const visibleSegmentCount = computed(() => orderedSegments.value.length);
 
 const visibleNarrationCount = computed(() => {
   let count = 0;
@@ -921,40 +980,56 @@ function formatSegmentStartTime(seg: MediaAssetSegment): string {
 <template>
   <div
     ref="listScrollEl"
-    class="space-y-6 md:max-h-[calc(100dvh-var(--main-nav-height)-6rem)] md:overflow-y-auto md:overscroll-contain md:pr-2"
+    class="narration-hover-scrollbar space-y-6 min-h-0 max-h-full overflow-y-auto overscroll-contain"
+    @scroll.passive="handleListScroll"
   >
-    <!-- Header -->
-    <div class="flex items-center justify-between">
-      <div class="flex items-center">
-        <div class="text-lg font-semibold text-slate-50">Narrations</div>
-        <span class="ml-2 text-xs font-medium text-slate-400">
-          {{ visibleNarrationCount }}
-        </span>
+    <div
+      :class="[
+        'sticky top-0 z-20 space-y-6 border-b border-white/10 bg-black/10 pb-3 pt-4 backdrop-blur-sm supports-[backdrop-filter]:bg-black/10',
+        props.showCloseButton ? 'px-4' : 'pl-4 pr-0',
+      ]"
+    >
+      <!-- Header -->
+      <div class="space-y-1">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <div class="text-lg font-semibold text-slate-50">Narrations</div>
+            <div class="text-sm font-medium text-slate-300">{{ visibleNarrationCount }}</div>
+          </div>
+          <button
+            v-if="props.showCloseButton"
+            type="button"
+            class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white/90 ring-1 ring-white/10 hover:bg-black/70"
+            aria-label="Close narrations panel"
+            title="Close narrations panel"
+            @click="emit('closePanel')"
+          >
+            <Icon icon="carbon:close" width="16" height="16" />
+          </button>
+        </div>
       </div>
-      <div class="text-xs text-slate-400">
-        {{ visibleSegmentCount }} segment{{ visibleSegmentCount === 1 ? '' : 's' }} • {{ visibleNarrationCount }} narration{{ visibleNarrationCount === 1 ? '' : 's' }}
-      </div>
+
+      <!-- Filter Panel -->
+      <NarrationFilterPanel
+        :selected-source="selectedSource"
+        :active-tag-filters="activeTagFilters"
+        :tag-filter-options="tagFilterOptions"
+        :show-empty-only="showEmptyOnly"
+        :search-query="searchQuery"
+        :search-loading="searchLoading"
+        :search-error="searchError"
+        @update:selected-source="setSelectedSource"
+        @update:show-empty-only="(v) => showEmptyOnly = v"
+        @update:search-query="(v) => searchQuery = v"
+        @toggle-tag-filter="toggleTagFilter"
+        @clear-tag-filters="clearTagFilters"
+      />
     </div>
 
-    <!-- Filter Panel -->
-    <NarrationFilterPanel
-      :selected-source="selectedSource"
-      :active-tag-filters="activeTagFilters"
-      :tag-filter-options="tagFilterOptions"
-      :show-empty-only="showEmptyOnly"
-      :search-query="searchQuery"
-      :search-loading="searchLoading"
-      :search-error="searchError"
-      @update:selected-source="setSelectedSource"
-      @update:show-empty-only="(v) => showEmptyOnly = v"
-      @update:search-query="(v) => searchQuery = v"
-      @toggle-tag-filter="toggleTagFilter"
-      @clear-tag-filters="clearTagFilters"
-    />
-
-    <!-- Empty segment bulk actions -->
-    <div v-if="showEmptyOnly && props.canModerateNarrations && orderedSegments.length > 0" 
-         class="flex items-center justify-between rounded-lg border border-slate-700/50 bg-slate-800/30 px-4 py-2">
+    <div :class="props.showCloseButton ? 'px-4' : 'pl-4 pr-0'">
+      <!-- Empty segment bulk actions -->
+      <div v-if="showEmptyOnly && props.canModerateNarrations && orderedSegments.length > 0" 
+           class="flex items-center justify-between rounded-lg border border-slate-700/50 bg-slate-800/30 px-4 py-2">
       <div class="text-sm text-slate-400">
         {{ orderedSegments.length }} empty segment{{ orderedSegments.length === 1 ? '' : 's' }}
       </div>
@@ -1001,189 +1076,204 @@ function formatSegmentStartTime(seg: MediaAssetSegment): string {
           v-for="seg in orderedSegments"
           :key="seg.id"
           :ref="(el) => setSegmentEl(String(seg.id), el)"
-          class="rounded-lg overflow-visible transition-colors bg-slate-800/30"
+          data-segment-card
+          class="rounded-lg overflow-visible border transition-colors bg-slate-800/30"
+          :class="Boolean(activeSegmentId && String(seg.id) === activeSegmentId) ? 'border-blue-400/80' : 'border-transparent'"
         >
           <!-- Segment Header -->
-          <div class="px-4 py-2 flex items-start justify-between">
-            <div
-              role="button"
-              tabindex="0"
-              class="flex items-start min-w-0 flex-1 cursor-pointer group text-left"
-              @click="handleSegmentHeaderClick(seg)"
-              @keydown.enter.prevent="handleSegmentHeaderClick(seg)"
-              @keydown.space.prevent="handleSegmentHeaderClick(seg)"
-            >
-              <div class="min-w-0">
-                <div v-if="isGeneratingInsight(String(seg.id))" class="flex items-center gap-2 text-sm text-slate-200">
-                  <LoadingDot />
-                  <ShimmerText text="Summarizing..." />
-                </div>
-                <div
-                  v-else-if="insightHeadlineForSegment(seg.id) || narrationPreviewForSegment(seg.id)"
-                  class="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-200"
-                >
-                  <span>
-                    {{ insightHeadlineForSegment(seg.id) || narrationPreviewForSegment(seg.id) }}
-                  </span>
-                  <button
-                    v-if="props.canEditSegmentTiming"
-                    type="button"
-                    class="group/timer inline-flex items-center"
-                    @click.stop="isTimingEditorOpen(String(seg.id)) ? closeTimingEditor() : openTimingEditor(seg)"
+          <div class="px-4 py-2">
+            <div class="flex items-center justify-between gap-2">
+              <div
+                role="button"
+                tabindex="0"
+                class="flex items-center min-w-0 flex-1 cursor-pointer group text-left"
+                @click="handleSegmentHeaderClick(seg)"
+                @keydown.enter.prevent="handleSegmentHeaderClick(seg)"
+                @keydown.space.prevent="handleSegmentHeaderClick(seg)"
+              >
+                <div class="min-w-0">
+                  <div v-if="isGeneratingInsight(String(seg.id))" class="flex items-center gap-2 text-sm text-slate-200">
+                    <LoadingDot />
+                    <ShimmerText text="Summarizing..." />
+                  </div>
+                  <div
+                    v-else-if="insightHeadlineForSegment(seg.id) || narrationPreviewForSegment(seg.id)"
+                    class="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-200"
                   >
+                    <span>
+                      {{ insightHeadlineForSegment(seg.id) || narrationPreviewForSegment(seg.id) }}
+                    </span>
+                    <button
+                      v-if="props.canEditSegmentTiming"
+                      type="button"
+                      class="group/timer inline-flex items-center"
+                      @click.stop="isTimingEditorOpen(String(seg.id)) ? closeTimingEditor() : openTimingEditor(seg)"
+                    >
+                      <span
+                        class="inline-flex min-w-[3.5rem] justify-center rounded-full bg-blue-500/20 px-2 py-0.5 text-xs font-semibold text-blue-300 transition group-hover/timer:hidden group-focus-visible/timer:hidden"
+                      >
+                        {{ formatSegmentStartTime(seg) }}
+                      </span>
+                      <span
+                        class="hidden min-w-[3.5rem] items-center justify-center gap-1 rounded-full bg-amber-300 px-2 py-0.5 text-xs font-semibold text-black transition group-hover/timer:inline-flex group-focus-visible/timer:inline-flex"
+                      >
+                        <Icon icon="carbon:timer" width="16" height="16" />
+                      </span>
+                    </button>
                     <span
-                      class="inline-flex min-w-[3.5rem] justify-center rounded-full bg-blue-500/20 px-2 py-0.5 text-xs font-semibold text-blue-300 transition group-hover/timer:hidden group-focus-visible/timer:hidden"
+                      v-else
+                      class="rounded-full bg-blue-500/20 px-2 py-0.5 text-xs font-semibold text-blue-300"
                     >
                       {{ formatSegmentStartTime(seg) }}
                     </span>
-                    <span
-                      class="hidden min-w-[3.5rem] items-center justify-center gap-1 rounded-full bg-amber-300 px-2 py-0.5 text-xs font-semibold text-black transition group-hover/timer:inline-flex group-focus-visible/timer:inline-flex"
+                    <button
+                      v-if="props.canGenerateSegmentInsights && !insightSentenceForSegment(seg.id)"
+                      type="button"
+                      class="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/20 px-2 py-0.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/30 transition disabled:opacity-50"
+                      @click.stop="emit('generateSegmentInsight', { segmentId: String(seg.id) })"
                     >
-                      <Icon icon="carbon:timer" width="16" height="16" />
-                    </span>
-                  </button>
-                  <span
-                    v-else
-                    class="rounded-full bg-blue-500/20 px-2 py-0.5 text-xs font-semibold text-blue-300"
-                  >
-                    {{ formatSegmentStartTime(seg) }}
-                  </span>
-                  <button
-                    v-if="props.canGenerateSegmentInsights && !insightSentenceForSegment(seg.id)"
-                    type="button"
-                    class="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/20 px-2 py-0.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/30 transition disabled:opacity-50"
-                    @click.stop="emit('generateSegmentInsight', { segmentId: String(seg.id) })"
-                  >
-                    <Icon icon="carbon:ai-generate" width="12" height="12" />
-                    Summarize
-                  </button>
+                      <Icon icon="carbon:ai-generate" width="12" height="12" />
+                      Summarize
+                    </button>
+                  </div>
                 </div>
-                <div
-                  v-if="props.canEditSegmentTiming && isTimingEditorOpen(String(seg.id))"
-                  class="mt-4 flex items-center gap-2"
-                  @click.stop
-                  @mousedown.stop
-                  @pointerdown.stop
+              </div>
+
+              <div class="flex items-center gap-0 shrink-0">
+                <button
+                  v-if="canOpenTagModal"
+                  type="button"
+                  class="inline-flex items-center justify-center rounded-full p-1.5 text-white/60 hover:bg-white/10 hover:text-white transition"
+                  @click.stop="openTagModal(seg)"
                 >
-                  <div class="min-w-0 flex-1">
-                    <div class="relative pt-5 pb-3">
-                      <div class="h-px w-full rounded-full bg-white/25" />
-                      <div
-                        class="pointer-events-none absolute top-1/2 h-px -translate-y-1/2 rounded-full bg-white/85"
-                        :style="{
-                          left: `${timingSelectionLeftPercent()}%`,
-                          right: `${timingSelectionRightPercent()}%`,
-                        }"
-                      />
-                      <div
-                        class="pointer-events-none absolute top-1/2 z-10 -translate-x-1/2 -translate-y-[150%] select-none rounded-full bg-white/95 px-2 py-[1px] text-[10px] font-semibold text-black tabular-nums"
-                        :style="{ left: `${timingSelectionLeftPercent()}%` }"
-                      >
-                        {{ formatMinutesSeconds(timingStartSeconds) }}
-                      </div>
-                      <div
-                        class="pointer-events-none absolute top-1/2 z-10 -translate-x-1/2 -translate-y-[150%] select-none rounded-full bg-white/95 px-2 py-[1px] text-[10px] font-semibold text-black tabular-nums"
-                        :style="{ left: `${timingSelectionEndPercent()}%` }"
-                      >
-                        {{ formatMinutesSeconds(timingEndSeconds) }}
-                      </div>
-                      <div class="timing-dual-slider">
-                        <input
-                          class="timing-handle timing-handle--start"
-                          type="range"
-                          :min="timingWindowStartSeconds"
-                          :max="timingWindowEndSeconds"
-                          step="0.1"
-                          :value="timingStartSeconds"
-                          @input="onStartSliderInput(($event.target as HTMLInputElement).value)"
-                        />
-                        <input
-                          class="timing-handle timing-handle--end"
-                          type="range"
-                          :min="timingWindowStartSeconds"
-                          :max="timingWindowEndSeconds"
-                          step="0.1"
-                          :value="timingEndSeconds"
-                          @input="onEndSliderInput(($event.target as HTMLInputElement).value)"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    class="ml-auto inline-flex items-center justify-center rounded-full p-1 text-white/70 hover:text-white"
-                    @click.stop="applyTimingUpdate(seg)"
+                  <Icon icon="carbon:tag" class="h-5 w-5" />
+                </button>
+
+                <SegmentActionsMenu
+                  :can-delete="canDeleteSegment()"
+                  :can-add-to-playlist="props.canAssignSegments"
+                  :narration-count="getNarrationCount(String(seg.id))"
+                  @add-narration="emit('addNarration', seg)"
+                  @assign="props.canAssignSegments && emit('assignSegment', seg)"
+                  @add-to-playlist="props.canAssignSegments && emit('addToPlaylist', seg)"
+                  @delete="requestDeleteSegment(seg)"
+                />
+              </div>
+            </div>
+
+            <div
+              v-if="props.canEditSegmentTiming && isTimingEditorOpen(String(seg.id))"
+              class="mt-4 flex items-center gap-2"
+              @click.stop
+              @mousedown.stop
+              @pointerdown.stop
+            >
+              <div class="min-w-0 flex-1">
+                <div class="relative pt-5 pb-3">
+                  <div class="h-[3px] w-full rounded-full bg-white/25" />
+                  <div
+                    class="pointer-events-none absolute top-1/2 h-[3px] -translate-y-1/2 rounded-full bg-white/85"
+                    :style="{
+                      left: `${timingSelectionLeftPercent()}%`,
+                      right: `${timingSelectionRightPercent()}%`,
+                    }"
+                  />
+                  <div
+                    class="pointer-events-none absolute top-1/2 z-10 -translate-x-1/2 -translate-y-[150%] select-none rounded-full bg-white/95 px-2 py-[1px] text-[10px] font-semibold text-black tabular-nums"
+                    :style="{ left: `${timingSelectionLeftPercent()}%` }"
                   >
-                    <Icon icon="carbon:checkmark" width="14" height="14" />
-                  </button>
-                </div>
-                <div v-if="confirmedSegmentTags(seg).length" class="mt-2 space-y-1">
-                  <div class="text-[10px] uppercase tracking-wide text-slate-500">Confirmed tags</div>
-                  <div class="flex flex-wrap gap-2">
-                    <div
-                      v-for="tag in confirmedSegmentTags(seg)"
-                      :key="String(tag.id)"
-                      class="inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-xs font-medium uppercase tracking-wide"
-                      :class="classForTag(tag)"
-                    >
-                      <span>{{ formatTagLabel(tag.tag_key) }}</span>
-                      <button
-                        v-if="canRemoveTag(tag)"
-                        type="button"
-                        class="text-slate-400 hover:text-slate-200"
-                        @click.stop="removeTag(seg, tag)"
-                      >
-                        <Icon icon="carbon:close" width="10" height="10" />
-                      </button>
-                    </div>
+                    {{ formatMinutesSeconds(timingStartSeconds) }}
+                  </div>
+                  <div
+                    class="pointer-events-none absolute top-1/2 z-10 -translate-x-1/2 -translate-y-[150%] select-none rounded-full bg-white/95 px-2 py-[1px] text-[10px] font-semibold text-black tabular-nums"
+                    :style="{ left: `${timingSelectionEndPercent()}%` }"
+                  >
+                    {{ formatMinutesSeconds(timingEndSeconds) }}
+                  </div>
+                  <div
+                    class="timing-dual-slider"
+                    @click.stop
+                    @mousedown.stop
+                    @pointerdown.stop
+                  >
+                    <input
+                      class="timing-handle timing-handle--start"
+                      type="range"
+                      :min="timingWindowStartSeconds"
+                      :max="timingWindowEndSeconds"
+                      step="0.1"
+                      :value="timingStartSeconds"
+                      @input="onStartSliderInput(($event.target as HTMLInputElement).value)"
+                    />
+                    <input
+                      class="timing-handle timing-handle--end"
+                      type="range"
+                      :min="timingWindowStartSeconds"
+                      :max="timingWindowEndSeconds"
+                      step="0.1"
+                      :value="timingEndSeconds"
+                      @input="onEndSliderInput(($event.target as HTMLInputElement).value)"
+                    />
                   </div>
                 </div>
-                <div v-if="identitySegmentTags(seg).length" class="mt-2 space-y-1">
-                  <div class="text-[10px] uppercase tracking-wide text-slate-500">Players involved</div>
-                  <div class="flex flex-wrap gap-2">
-                    <div
-                      v-for="tag in identitySegmentTags(seg)"
-                      :key="String(tag.id)"
-                      class="inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-xs font-medium uppercase tracking-wide"
-                      :class="classForTag(tag)"
+              </div>
+              <button
+                type="button"
+                class="ml-auto inline-flex items-center justify-center rounded-full p-1 text-white/70 hover:text-white"
+                @click.stop="applyTimingUpdate(seg)"
+              >
+                <Icon icon="carbon:checkmark" width="14" height="14" />
+              </button>
+            </div>
+
+            <div
+              v-if="confirmedSegmentTags(seg).length || identitySegmentTags(seg).length"
+              class="mt-2 space-y-2"
+            >
+              <div v-if="confirmedSegmentTags(seg).length" class="space-y-1">
+                <div class="text-[10px] uppercase tracking-wide text-slate-500">Confirmed tags</div>
+                <div class="flex flex-wrap gap-2">
+                  <div
+                    v-for="tag in confirmedSegmentTags(seg)"
+                    :key="String(tag.id)"
+                    class="inline-flex items-center gap-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide"
+                    :class="classForTag(tag)"
+                  >
+                    <span>{{ formatTagLabel(tag.tag_key) }}</span>
+                    <button
+                      v-if="canRemoveTag(tag)"
+                      type="button"
+                      class="text-slate-400 hover:text-slate-200"
+                      @click.stop="removeTag(seg, tag)"
                     >
-                      <span>{{ formatTagLabel(tag.tag_key) }}</span>
-                      <button
-                        v-if="canRemoveTag(tag)"
-                        type="button"
-                        class="text-slate-400 hover:text-slate-200"
-                        @click.stop="removeTag(seg, tag)"
-                      >
-                        <Icon icon="carbon:close" width="10" height="10" />
-                      </button>
-                    </div>
+                      <Icon icon="carbon:close" width="10" height="10" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div v-if="identitySegmentTags(seg).length" class="space-y-1">
+                <div class="text-[10px] uppercase tracking-wide text-slate-500">Players involved</div>
+                <div class="flex flex-wrap gap-2">
+                  <div
+                    v-for="tag in identitySegmentTags(seg)"
+                    :key="String(tag.id)"
+                    class="inline-flex items-center gap-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide"
+                    :class="classForTag(tag)"
+                  >
+                    <span>{{ formatTagLabel(tag.tag_key) }}</span>
+                    <button
+                      v-if="canRemoveTag(tag)"
+                      type="button"
+                      class="text-slate-400 hover:text-slate-200"
+                      @click.stop="removeTag(seg, tag)"
+                    >
+                      <Icon icon="carbon:close" width="10" height="10" />
+                    </button>
                   </div>
                 </div>
               </div>
             </div>
-
-          <div class="flex items-start gap-0 shrink-0">
-            <button
-              v-if="canOpenTagModal"
-              type="button"
-              class="inline-flex items-center justify-center rounded-full p-1.5 text-white/60 hover:bg-white/10 hover:text-white transition"
-              @click.stop="openTagModal(seg)"
-            >
-              <Icon icon="carbon:tag" class="h-5 w-5" />
-            </button>
-
-            <SegmentActionsMenu
-              :can-delete="canDeleteSegment()"
-              :can-add-to-playlist="props.canAssignSegments"
-              :narration-count="getNarrationCount(String(seg.id))"
-              @add-narration="emit('addNarration', seg)"
-              @assign="props.canAssignSegments && emit('assignSegment', seg)"
-              @add-to-playlist="props.canAssignSegments && emit('addToPlaylist', seg)"
-              @delete="requestDeleteSegment(seg)"
-            />
-
           </div>
-        </div>
 
         <div
           v-if="isSegmentExpanded(String(seg.id)) && insightSentenceForSegment(seg.id)"
@@ -1216,6 +1306,7 @@ function formatSegmentStartTime(seg: MediaAssetSegment): string {
       </div>
     </div>
   </div>
+</div>
 
   <!-- Tagging Modal -->
   <TransitionRoot :show="showTagModal">
@@ -1523,8 +1614,7 @@ function formatSegmentStartTime(seg: MediaAssetSegment): string {
 .timing-dual-slider {
   position: absolute;
   inset: 0;
-  transform: translateY(-50%);
-  pointer-events: none;
+  pointer-events: auto;
 }
 
 .timing-handle {
@@ -1539,23 +1629,26 @@ function formatSegmentStartTime(seg: MediaAssetSegment): string {
 }
 
 .timing-handle::-webkit-slider-runnable-track {
-  height: 1rem;
+  height: 3px;
   background: transparent;
+  border: 0;
 }
 
 .timing-handle::-moz-range-track {
-  height: 1rem;
+  height: 3px;
   background: transparent;
+  border: 0;
 }
 
 .timing-handle::-webkit-slider-thumb {
   pointer-events: auto;
-  width: 0.65rem;
-  height: 0.65rem;
+  width: 0.6rem;
+  height: 0.6rem;
+  margin-top: calc((3px - 0.6rem) / 2);
   border-radius: 9999px;
-  border: 1px solid rgba(255, 255, 255, 0.9);
+  border: 0;
   background: rgba(255, 255, 255, 1);
-  box-shadow: none;
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.25);
   -webkit-appearance: none;
   appearance: none;
   cursor: pointer;
@@ -1563,12 +1656,12 @@ function formatSegmentStartTime(seg: MediaAssetSegment): string {
 
 .timing-handle::-moz-range-thumb {
   pointer-events: auto;
-  width: 0.65rem;
-  height: 0.65rem;
+  width: 0.6rem;
+  height: 0.6rem;
   border-radius: 9999px;
-  border: 1px solid rgba(255, 255, 255, 0.9);
+  border: 0;
   background: rgba(255, 255, 255, 1);
-  box-shadow: none;
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.25);
   cursor: pointer;
 }
 
@@ -1578,5 +1671,12 @@ function formatSegmentStartTime(seg: MediaAssetSegment): string {
 
 .timing-handle--end {
   z-index: 3;
+}
+
+.narration-hover-scrollbar::after {
+  content: '';
+  display: block;
+  height: 9rem;
+  pointer-events: none;
 }
 </style>

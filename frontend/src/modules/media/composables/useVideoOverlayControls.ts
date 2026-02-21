@@ -28,10 +28,6 @@ type Options = {
   requireElementForFullscreen?: boolean;
 };
 
-const DOUBLE_TAP_WINDOW_MS = 280;
-// Only ramp if the user keeps double-clicking quickly.
-const SEEK_RAMP_WINDOW_MS = 450;
-
 export function useVideoOverlayControls(options: Options) {
   const overlayVisible = ref(false);
   let overlayTimer: number | null = null;
@@ -49,26 +45,10 @@ export function useVideoOverlayControls(options: Options) {
 
   const isFullscreen = ref(false);
 
-  let lastTapAtMs = 0;
-  let lastTapSide: 'left' | 'right' | null = null;
-  let lastSeekDoubleAtMs = 0;
-  let lastSeekSide: 'left' | 'right' | null = null;
-  let seekRampLevel = 0; // 0=>5, 1=>10
-  let pendingMouseSingleTapTimer: number | null = null;
-
-  function showOverlay(durationMs: number | null = 2500) {
+  function showOverlay(durationMs: number | null = null) {
+    void durationMs;
     overlayVisible.value = true;
     if (overlayTimer !== null) window.clearTimeout(overlayTimer);
-    // Cancel any pending mouse single tap when overlay is explicitly shown
-    if (pendingMouseSingleTapTimer !== null) {
-      window.clearTimeout(pendingMouseSingleTapTimer);
-      pendingMouseSingleTapTimer = null;
-    }
-    if (durationMs === null) return;
-    overlayTimer = window.setTimeout(() => {
-      overlayVisible.value = false;
-      overlayTimer = null;
-    }, durationMs);
   }
 
   function hideOverlay() {
@@ -77,23 +57,9 @@ export function useVideoOverlayControls(options: Options) {
       window.clearTimeout(overlayTimer);
       overlayTimer = null;
     }
-    // Cancel any pending mouse single tap when overlay is explicitly hidden
-    if (pendingMouseSingleTapTimer !== null) {
-      window.clearTimeout(pendingMouseSingleTapTimer);
-      pendingMouseSingleTapTimer = null;
-    }
   }
 
   function requestTogglePlay() {
-    const video = options.getVideoEl();
-    const willPlay = video ? video.paused : !options.isPlaying.value;
-    if (willPlay) {
-      hideOverlay();
-      // After pressing play, ignore mouse-move reveal for a moment.
-      suppressOverlayRevealUntilMs.value = Date.now() + 600;
-    } else {
-      showOverlay(null);
-    }
     options.onTogglePlay();
   }
 
@@ -125,16 +91,13 @@ export function useVideoOverlayControls(options: Options) {
   function onHoverMove(e: PointerEvent) {
     if (!isMousePointer(e)) return;
     if (isBuffering.value) return;
-    if (Date.now() < suppressOverlayRevealUntilMs.value) return;
-    // Any movement over the surface should reveal controls.
-    showOverlay(2500);
+    showOverlay(null);
   }
 
   function onHoverLeave(e: PointerEvent) {
     if (!isMousePointer(e)) return;
     if (isBuffering.value) return;
-    // When no longer hovering, auto-hide quickly.
-    showOverlay(800);
+    hideOverlay();
   }
 
   function onNarrationButtonHoverEnter(e: PointerEvent) {
@@ -142,58 +105,10 @@ export function useVideoOverlayControls(options: Options) {
     hideOverlay();
   }
 
-  function nextSeekAmountSeconds(nowMs: number, side: 'left' | 'right'): number {
-    const isContinuous = (nowMs - lastSeekDoubleAtMs) <= SEEK_RAMP_WINDOW_MS && lastSeekSide === side;
-    if (!isContinuous) {
-      seekRampLevel = 0;
-    } else {
-      seekRampLevel = Math.min(1, seekRampLevel + 1);
-    }
-    lastSeekDoubleAtMs = nowMs;
-    lastSeekSide = side;
-    return seekRampLevel === 0 ? 5 : 10;
-  }
-
   function onTap(payload: TapPayload) {
+    void payload;
     if (isBuffering.value) return;
-    const now = Date.now();
-    const side: 'left' | 'right' = (payload.xPct ?? 0.5) < 0.5 ? 'left' : 'right';
-    const isDoubleTap = (now - lastTapAtMs) <= DOUBLE_TAP_WINDOW_MS && lastTapSide === side;
-    lastTapAtMs = now;
-    lastTapSide = side;
-
-    // Desktop: single click toggles play/pause. Double click seeks.
-    if (payload.pointerType === 'mouse') {
-      if (isDoubleTap) {
-        if (pendingMouseSingleTapTimer !== null) {
-          window.clearTimeout(pendingMouseSingleTapTimer);
-          pendingMouseSingleTapTimer = null;
-        }
-        const amount = nextSeekAmountSeconds(now, side);
-        options.onSeekRelative(side === 'left' ? -amount : amount);
-        flashSeek(side === 'left' ? 'rew' : 'ff', amount);
-        return;
-      }
-
-      // Delay single-click so a second click can be treated as a double-click seek.
-      if (pendingMouseSingleTapTimer !== null) window.clearTimeout(pendingMouseSingleTapTimer);
-      pendingMouseSingleTapTimer = window.setTimeout(() => {
-        pendingMouseSingleTapTimer = null;
-        requestTogglePlay();
-      }, DOUBLE_TAP_WINDOW_MS + 20);
-      return;
-    }
-
-    // Touch: single tap toggles overlay, double tap seeks.
-    if (isDoubleTap) {
-      const amount = nextSeekAmountSeconds(now, side);
-      options.onSeekRelative(side === 'left' ? -amount : amount);
-      flashSeek(side === 'left' ? 'rew' : 'ff', amount);
-      return;
-    }
-
-    if (overlayVisible.value) hideOverlay();
-    else showOverlay();
+    requestTogglePlay();
   }
 
   function handleBuffering(next: boolean) {
@@ -309,14 +224,6 @@ export function useVideoOverlayControls(options: Options) {
     video.addEventListener?.('webkitendfullscreen', syncFullscreenState);
   }
 
-  watch(overlayVisible, (v) => {
-    // If controls disappear, restart ramp back at 5s.
-    if (v) return;
-    seekRampLevel = 0;
-    lastSeekDoubleAtMs = 0;
-    lastSeekSide = null;
-  });
-
   watch([volume01, muted], () => {
     applyVolumeToPlayer();
   });
@@ -342,10 +249,6 @@ export function useVideoOverlayControls(options: Options) {
     if (flashTimer !== null) {
       window.clearTimeout(flashTimer);
       flashTimer = null;
-    }
-    if (pendingMouseSingleTapTimer !== null) {
-      window.clearTimeout(pendingMouseSingleTapTimer);
-      pendingMouseSingleTapTimer = null;
     }
     document.removeEventListener('fullscreenchange', syncFullscreenState);
     document.removeEventListener('webkitfullscreenchange' as any, syncFullscreenState);

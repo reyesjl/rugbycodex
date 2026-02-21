@@ -726,22 +726,24 @@ onBeforeUnmount(() => {
                 class="pointer-events-none absolute inset-0 z-40 flex items-center justify-center"
                 aria-hidden="true"
               >
-                <Icon
-                  :icon="flashIcon === 'play'
-                    ? 'carbon:play-filled-alt'
-                    : flashIcon === 'pause'
-                      ? 'carbon:pause-filled'
-                      : flashIcon === 'rew5'
-                        ? 'carbon:rewind-5'
-                        : flashIcon === 'rew10'
-                          ? 'carbon:rewind-10'
-                          : flashIcon === 'ff5'
-                            ? 'carbon:forward-5'
-                            : 'carbon:forward-10'"
-                  width="52"
-                  height="52"
-                  class="text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.65)]"
-                />
+                <div class="rounded-full bg-black/40 p-3">
+                  <Icon
+                    :icon="flashIcon === 'play'
+                      ? 'carbon:play-filled-alt'
+                      : flashIcon === 'pause'
+                        ? 'carbon:pause-filled'
+                        : flashIcon === 'rew5'
+                          ? 'carbon:rewind-5'
+                          : flashIcon === 'rew10'
+                            ? 'carbon:rewind-10'
+                            : flashIcon === 'ff5'
+                              ? 'carbon:forward-5'
+                              : 'carbon:forward-10'"
+                    width="52"
+                    height="52"
+                    class="text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.65)]"
+                  />
+                </div>
               </div>
             </Transition>
 
