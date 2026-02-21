@@ -1,0 +1,37 @@
+{
+  "version": "rugby-event-taxonomy-v1",
+  "event_categories": {
+    "ball_movement": [
+      "PASS",
+      "OFFLOAD",
+      "CARRY",
+      "PICK_AND_GO",
+      "KICK_FROM_HAND"
+    ],
+    "contact": [
+      "TACKLE",
+      "MISSED_TACKLE",
+      "TACKLE_BREAK",
+      "CLEANOUT"
+    ],
+    "breakdown": [
+      "RUCK_FORMED",
+      "TURNOVER_WON"
+    ],
+    "set_piece": [
+      "SCRUM_WIN",
+      "SCRUM_LOSS",
+      "LINEOUT_WIN",
+      "LINEOUT_LOSS"
+    ],
+    "attack_outcome": [
+      "LINE_BREAK",
+      "TRY"
+    ],
+    "discipline": [
+      "PENALTY_CONCEDED",
+      "YELLOW_CARD",
+      "RED_CARD"
+    ]
+  }
+}
