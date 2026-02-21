@@ -761,10 +761,6 @@ onBeforeUnmount(() => {
   restoreVideoMuteAfterRecording();
 });
 
-const timeLabel = computed(() => {
-  return `${formatMinutesSeconds(currentTime.value ?? 0)} / ${formatMinutesSeconds(duration.value ?? 0)}`;
-});
-
 const segmentsWithNarrations = computed(() => {
   const set = new Set<string>();
   for (const n of narrations.value as any[]) {
@@ -1626,7 +1622,7 @@ async function handleDeleteSegment(segmentId: string) {
               <div :class="isTheatreMode ? 'w-full bg-black md:pb-4' : 'h-full w-full'">
                 <div :class="isTheatreMode ? 'mx-auto w-full max-w-[1200px] space-y-4 md:px-6' : 'h-full w-full'">
               <!-- Mobile: full-bleed video surface (like Feed); md+: rounded container -->
-              <div class="md:mx-0">
+              <div class="-mx-4 md:mx-0">
                 <div class="overflow-hidden bg-black ring-1 ring-white/10 md:rounded-xl md:bg-white/5">
                   <div
                     ref="surfaceEl"
@@ -1761,7 +1757,7 @@ async function handleDeleteSegment(segmentId: string) {
                 </div>
               </div>
 
-              <div class="mb-2 md:mb-0 md:mt-0">
+              <div class="hidden md:block mb-2 md:mb-0 md:mt-0">
                 <MediaAssetReviewTimeline
                   :duration-seconds="duration"
                   :current-seconds="currentTime"
@@ -1778,9 +1774,6 @@ async function handleDeleteSegment(segmentId: string) {
                 />
               </div>
 
-              <div class="md:hidden text-xs text-white/50 tabular-nums pb-4 pl-4">
-                {{ timeLabel }}
-              </div>
                 </div>
               </div>
             </div>

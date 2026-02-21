@@ -980,7 +980,7 @@ function formatSegmentStartTime(seg: MediaAssetSegment): string {
 <template>
   <div
     ref="listScrollEl"
-    class="narration-hover-scrollbar space-y-6 min-h-0 max-h-full overflow-y-auto overscroll-contain"
+    class="narration-hover-scrollbar space-y-6 md:min-h-0 md:max-h-full md:overflow-y-auto md:overscroll-contain"
     @scroll.passive="handleListScroll"
   >
     <div
