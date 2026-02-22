@@ -985,7 +985,7 @@ function formatSegmentStartTime(seg: MediaAssetSegment): string {
   >
     <div
       :class="[
-        'sticky top-0 z-20 space-y-6 border-b border-white/10 bg-black/10 pb-3 pt-4 backdrop-blur-sm supports-[backdrop-filter]:bg-black/10',
+        'sticky top-0 z-20 space-y-6 border-b border-white/10 bg-black/10 pb-3 pt-4 backdrop-blur supports-backdrop-filter:bg-black/10',
         props.showCloseButton ? 'px-4' : 'pl-4 pr-0',
       ]"
     >

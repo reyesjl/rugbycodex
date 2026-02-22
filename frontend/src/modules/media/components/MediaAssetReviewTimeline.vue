@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { animateMini } from 'motion';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Icon } from '@iconify/vue';
 import type { MediaAssetSegment } from '@/modules/narrations/types/MediaAssetSegment';
 
@@ -32,7 +33,10 @@ function clamp(n: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, n));
 }
 
+const MAX_NARRATION_DENSITY_LEVEL = 5;
+
 const timelineEl = ref<HTMLElement | null>(null);
+const activeDotTrackerEl = ref<HTMLElement | null>(null);
 
 const isCoarsePointer = ref(false);
 let pointerMedia: MediaQueryList | null = null;
@@ -145,7 +149,8 @@ function segmentEnd(seg: MediaAssetSegment): number {
 function narrationCountForSegment(seg: MediaAssetSegment): number {
   const counts = props.narrationCountsBySegmentId;
   const value = Number(counts?.[String(seg.id)] ?? 0);
-  return Math.max(1, Number.isFinite(value) ? value : 1);
+  const normalized = Math.max(1, Number.isFinite(value) ? value : 1);
+  return Math.min(MAX_NARRATION_DENSITY_LEVEL, normalized);
 }
 
 const maxVisibleNarrationCount = computed(() => {
@@ -171,6 +176,49 @@ const timelineDots = computed(() => {
       sizePx: 6 + (density * 12),
     };
   });
+});
+
+const activeTrackerDot = computed(() => {
+  const activeId = effectiveActiveDotId.value;
+  if (!activeId) return null;
+  const dot = timelineDots.value.find((entry) => String(entry.seg.id) === activeId);
+  if (!dot) return null;
+  return { leftPct: dot.leftPct, topPct: dot.topPct };
+});
+
+const timelineDensityGradient = computed(() => {
+  const d = duration.value;
+  const segments = visibleMarkerSegments.value;
+  if (!d || !segments.length) return '';
+
+  const sampleCount = 72;
+  const sigma = 0.035;
+  const samples = Array.from({ length: sampleCount }, (_, idx) => {
+    const x = idx / (sampleCount - 1);
+    return { x, value: 0 };
+  });
+
+  for (const seg of segments) {
+    const center = clamp(segmentStart(seg) / d, 0, 1);
+    const weight = narrationCountForSegment(seg);
+    for (const sample of samples) {
+      const dist = sample.x - center;
+      sample.value += Math.exp(-(dist * dist) / (2 * sigma * sigma)) * weight;
+    }
+  }
+
+  const maxSample = Math.max(...samples.map((sample) => sample.value), 0);
+  if (!maxSample) return '';
+
+  const stops = samples.map((sample) => {
+    const edgeFade = Math.pow(Math.sin(Math.PI * sample.x), 0.9);
+    const intensity = (sample.value / maxSample) * edgeFade;
+    const boostedIntensity = Math.pow(intensity, 1.45);
+    const alpha = boostedIntensity * 0.9;
+    const pct = sample.x * 100;
+    return `rgba(134,239,172,${alpha.toFixed(3)}) ${pct.toFixed(2)}%`;
+  });
+  return `linear-gradient(90deg, rgba(134,239,172,0) 0%, ${stops.join(', ')}, rgba(134,239,172,0) 100%)`;
 });
 
 function isFocused(seg: MediaAssetSegment): boolean {
@@ -208,6 +256,26 @@ const effectiveActiveDotId = computed(() => {
 function isActive(seg: MediaAssetSegment): boolean {
   return String(seg.id) === effectiveActiveDotId.value;
 }
+
+watch(activeTrackerDot, (nextDot, prevDot) => {
+  if (!nextDot) return;
+  void nextTick(() => {
+    const el = activeDotTrackerEl.value;
+    if (!el) return;
+    if (!prevDot) {
+      animateMini(el, { scale: [0.92, 1.04, 1] }, { duration: 0.16, ease: 'easeOut' });
+      return;
+    }
+    animateMini(
+      el,
+      {
+        left: [`${prevDot.leftPct}%`, `${nextDot.leftPct}%`],
+        top: [`${prevDot.topPct}%`, `${nextDot.topPct}%`],
+      },
+      { duration: 0.14, ease: 'easeOut' }
+    );
+  });
+}, { deep: true });
 
 function onTrackClick(e: MouseEvent) {
   const el = timelineEl.value;
@@ -401,7 +469,7 @@ function jumpNext() {
       <div class="relative grid flex-1 grid-cols-4 gap-1">
         <div
           v-if="currentTimestampLabel"
-          class="pointer-events-none absolute left-0 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white px-2.5 py-0.5 text-[10px] font-semibold leading-none text-black"
+          class="pointer-events-none absolute left-0 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white px-2.5 py-0.5 text-[10px] font-semibold leading-none text-black transition-[left] duration-100 ease-linear will-change-[left] motion-reduce:transition-none"
           :style="{ left: `${playheadPct}%` }"
         >
           {{ currentTimestampLabel }}
@@ -432,12 +500,13 @@ function jumpNext() {
       <div class="relative min-w-0 flex-1" @mousemove="onMouseMove" @mouseleave="onMouseLeave">
         <div
           v-if="durationSeconds"
-          class="pointer-events-none absolute -top-6 bottom-0 z-40 border-l border-dotted border-white/80"
+          class="pointer-events-none absolute -top-6 bottom-0 z-40 border-l border-dotted border-white/80 transition-[left] duration-75 ease-linear will-change-[left] motion-reduce:transition-none"
           :style="{ left: `${playheadPct}%` }"
         />
         <div
           ref="timelineEl"
           class="relative h-20 w-full overflow-visible border border-slate-700/50 bg-slate-700/20 cursor-pointer"
+          :style="{ backgroundImage: timelineDensityGradient || undefined }"
           @click="onTrackClick"
         >
           <!-- Midline anchor -->
@@ -458,25 +527,27 @@ function jumpNext() {
               :style="{
               left: `${dot.leftPct}%`,
               top: `${dot.topPct}%`,
-              width: isPending(dot.seg) ? '16px' : (isActive(dot.seg) ? '22px' : `${dot.sizePx}px`),
-              height: isPending(dot.seg) ? '16px' : (isActive(dot.seg) ? '22px' : `${dot.sizePx}px`),
+              width: isPending(dot.seg) ? '16px' : `${dot.sizePx}px`,
+              height: isPending(dot.seg) ? '16px' : `${dot.sizePx}px`,
             }"
+            :data-dot-id="String(dot.seg.id)"
             :class="[
-              isPending(dot.seg) ? 'bg-yellow-400 animate-pulse' : (isActive(dot.seg) ? 'bg-red-500' : (isNarratedSegment(dot.seg) ? 'bg-slate-100' : 'bg-slate-400')),
+              isPending(dot.seg) ? 'bg-yellow-400 animate-pulse' : (isNarratedSegment(dot.seg) ? 'bg-slate-100' : 'bg-slate-400'),
               isFocused(dot.seg) && !isActive(dot.seg) ? 'ring-2 ring-blue-300' : '',
               isPending(dot.seg)
                 ? 'border border-yellow-100/90 opacity-95'
-                : (isActive(dot.seg)
-                ? 'border border-white/90 opacity-85'
-                : 'opacity-65')
+                : 'opacity-65'
             ]"
             @click.stop="emit('jumpToSegment', dot.seg)"
             :title="`Segment ${dot.seg.segment_index + 1} @ ${Math.round(dot.seg.start_seconds)}s`"
+          />
+          <div
+            v-if="activeTrackerDot"
+            ref="activeDotTrackerEl"
+            class="pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/90 bg-red-500 opacity-85"
+            :style="{ left: `${activeTrackerDot.leftPct}%`, top: `${activeTrackerDot.topPct}%`, width: '22px', height: '22px' }"
           >
-            <div
-              v-if="isActive(dot.seg) && !isPending(dot.seg)"
-              class="absolute left-1/2 top-1/2 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white"
-            />
+            <div class="absolute left-1/2 top-1/2 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white" />
           </div>
         </div>
 
